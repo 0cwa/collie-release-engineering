@@ -44,6 +44,11 @@ class UserContentPublicationTests(unittest.TestCase):
         path=self.repo/'stale-plan.json';path.write_text(json.dumps(plan))
         with self.assertRaisesRegex(ValueError,'user-facing content'):
             publish.publish(self.repo,path,hashlib.sha256(path.read_bytes()).hexdigest(),self.current,historical_messages=True)
+    def test_nested_repository_path_does_not_hide_root_owner_file_changes(self):
+        nested=self.repo/'nested/worktree';nested.mkdir(parents=True)
+        with self.assertRaisesRegex(ValueError,'README.md'):
+            publish.verify_user_files(nested,self.original,self.current)
+        publish.verify_user_files(nested,self.current,self.current)
     def test_existing_plan_base_and_current_main_are_always_bound(self):
         plan={'schema':1,'signal':self.f.signal,'old_main':self.original,'reconstructed_tree':publish.tree(self.repo,self.original),'final_tree':publish.tree(self.repo,self.original),'layers':[{'name':'Fixture source layer','kind':'feature','before_tree':self.f.empty,'after_tree':publish.tree(self.repo,self.original),'provenance':'fixture'}]}
         path=self.repo/'old-approved-plan.json';path.write_text(json.dumps(plan))

@@ -108,8 +108,8 @@ def validate_plan(plan):
 def verify_user_files(repo,published,application_base):
     """Preserve approved repository content, alongside full final-tree proof."""
     for name in ('README.md','LICENSE','NOTICE','assets'):
-        expected=git(repo,'ls-tree',oid(application_base),'--',name)
-        if git(repo,'ls-tree',oid(published),'--',name)!=expected:
+        expected=git(repo,'ls-tree','--full-tree',oid(application_base),'--',name)
+        if git(repo,'ls-tree','--full-tree',oid(published),'--',name)!=expected:
             raise ValueError('published user-facing content differs from approved application base: '+name)
 
 
