@@ -91,7 +91,7 @@ def apply_outputs(app, engineering, previous_application, *, application_base, p
         'reason':'Accepted trusted-local native artifacts have locked hashes but no verified public immutable origin. Release assembly remains blocked.',
         'lock':'native-lock.json','production_version_floor':177702},indent=2)+'\n')
     props=app/'gradle.properties'
-    props.write_text(props.read_text()+ '\n# Canonical Collie identity: no legacy product matrix.\nmollyFirebaseFree=false\nbaseAppTitle=Collie\nbaseAppFileName=Collie\nbasePackageId=im.collie.app\ncollieBuildTimestamp=1794023956\ncollieBuildRevision=da5c03ff20ae\n')
+    props.write_text(props.read_text()+ '\n# Canonical Collie identity: no legacy product matrix.\nmollyFirebaseFree=false\nbaseAppTitle=Collie\nbaseAppFileName=Collie\nbasePackageId=im.collie.app\ncollieBuildTimestamp=1794023956\ncollieBuildRevision=da5c03ff20ae\n\n# DRAFT proposal only; not reserved. Direct Android builds remain blocked.\nreleaseVersionCode=177703\nreleaseVersionName=8.35.1-2-rc1\n')
     gradle=app/'app/build.gradle.kts'
     text=gradle.read_text()
     text=text.replace('val baseAppTitle = getCiEnv("CI_APP_TITLE") ?: properties["baseAppTitle"] as String','val baseAppTitle = "Collie"')
@@ -171,6 +171,9 @@ After reviewed gate removal, releaseVersionCode and releaseVersionName are norma
 Release versions must be externally reserved above 177702 and all later published
 or reserved codes using engineering's serialized version policy. RC1 ingestion
 reuses its existing signed bytes/code. No build has been performed from this G.
+**DRAFT candidate proposal:** 8.35.1-2-rc1 / 177703. This value is not allocated
+or reserved. The direct-build gate remains closed until the owner refreshes the
+inventory and confirms this proposal through the serialized reservation policy.
 No parity with historical APK bytes is claimed after changing build metadata.
 Instrumentation remains opt-in. Physical-device/account/attachment/database
 upgrade acceptance and independently reproduced native outputs are NOT RUN.

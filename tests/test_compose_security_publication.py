@@ -52,14 +52,17 @@ class SecurityCompositionTests(unittest.TestCase):
         tree = 'a' * 40
         def show(_repo, _command, spec):
             if spec.endswith(':BUILD.md'):
-                return b'releaseVersionCode and releaseVersionName are normal source-defined Gradle properties'
+                return (b'releaseVersionCode and releaseVersionName are normal source-defined Gradle properties '
+                        b'DRAFT candidate proposal:** 8.35.1-2-rc1 / 177703. This value is not allocated')
+            if spec.endswith(':gradle.properties'):
+                return b'releaseVersionCode=177703\nreleaseVersionName=8.35.1-2-rc1\nDRAFT proposal only; not reserved'
             return (b'providers.gradleProperty("releaseVersionCode") '
                     b'providers.gradleProperty("releaseVersionName") '
                     b'throw GradleException("Direct Android builds BLOCKED:')
         with mock.patch.object(composer, 'git', side_effect=show):
             composer.verify_release_metadata('repo', tree)
         with mock.patch.object(composer, 'git', return_value=b'no direct build gate'):
-            with self.assertRaisesRegex(ValueError, 'omitted reviewed release metadata'):
+            with self.assertRaisesRegex(ValueError, 'omitted the explicit DRAFT version proposal'):
                 composer.verify_release_metadata('repo', tree)
 
     def test_ordinary_application_pr_policy_passes_without_a_release_tree_pin(self):

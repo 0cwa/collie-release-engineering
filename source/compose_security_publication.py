@@ -122,11 +122,15 @@ def verify_feature_paths(repo, tree, source_repo, source_tree, paths):
 def verify_release_metadata(repo, tree):
     build = git(repo, 'show', f'{tree}:BUILD.md')
     gradle = git(repo, 'show', f'{tree}:app/build.gradle.kts')
+    properties = git(repo, 'show', f'{tree}:gradle.properties')
     if (b'releaseVersionCode and releaseVersionName are normal source-defined Gradle properties' not in build
+            or b'DRAFT candidate proposal:** 8.35.1-2-rc1 / 177703. This value is not allocated' not in build
             or b'providers.gradleProperty("releaseVersionCode")' not in gradle
             or b'providers.gradleProperty("releaseVersionName")' not in gradle
+            or b'releaseVersionCode=177703\nreleaseVersionName=8.35.1-2-rc1' not in properties
+            or b'DRAFT proposal only; not reserved' not in properties
             or b'throw GradleException("Direct Android builds BLOCKED:' not in gradle):
-        raise ValueError('current publication producer omitted reviewed release metadata or direct-build gate')
+        raise ValueError('current publication producer omitted the explicit DRAFT version proposal or direct-build gate')
 
 
 def verify_ordinary_pr_policy(repo, tree, stage):
@@ -271,7 +275,7 @@ def compose(repo, checkpoint_repo, stage, engineering, plan_path,
                         'after_tree': after, 'provenance': provenance})
 
     record('publication',
-           f'Regenerate publication inputs from current application base {current_main[:12]}',
+           f'Regenerate publication from {current_main[:12]}',
            plan['reconstructed_tree'], tree,
            f'Ran source/layers/publication.py from exact committed engineering revision {engineering_revision} with recipe pin {publication.RECIPE_REVISION} and explicit application_base={current_main}. The producer copies README/LICENSE/NOTICE/assets from that exact commit, replaces legacy workflows with the reviewed source-only gate, and regenerates BUILD.md, VERIFY.md, build-input metadata, release version properties, and the unconditional direct-build gate. The ordinary pull-request workflow remains usable; release assembly remains blocked.')
     verify_release_metadata(repo, tree)
