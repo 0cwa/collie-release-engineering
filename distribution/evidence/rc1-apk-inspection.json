@@ -1,0 +1,220 @@
+{
+  "status": "PASS",
+  "scope": "Actual existing production RC1 APK inspection; no native compilation/reproduction claim",
+  "apk_sha256": "5fbd0fe817bc6711c56fbc39b8479cc0a68a7d7fe921a7d9c9fab59333fda9ee",
+  "apk_bytes": 97054341,
+  "android_build_tools": "36.0.0",
+  "package_badging_line": "package: name='im.collie.app' versionCode='177702' versionName='8.35.1-1-rc1' platformBuildVersionName='17' platformBuildVersionCode='37' compileSdkVersion='37' compileSdkVersionCodename='17'",
+  "effective_debuggable": false,
+  "debuggable_attribute": [],
+  "badging_application_debuggable": false,
+  "test_only_attribute": [],
+  "test_jni_entries": [],
+  "test_jni_check": "all ZIP lib entries checked for testing/test_jni/jni_test; specifically no libsignal_jni_testing.so",
+  "zip_duplicate_entries": false,
+  "native_abis": {
+    "arm64-v8a": [
+      {
+        "file": "libaesgcm.so",
+        "sha256": "7e4263b698f5b2693253ab355a68c3a019ee6c81a63a5d287f52186ffbe3227d",
+        "bytes": 34392
+      },
+      {
+        "file": "libandroidx.graphics.path.so",
+        "sha256": "41e9a793c43a0f4fddb19e33f346bace464f30f888ba7b9eaf96294ea115bfb6",
+        "bytes": 10096
+      },
+      {
+        "file": "libargon2.so",
+        "sha256": "a85a54a35d7821790909d2147040b54eab0526e31d43e1fd5b500d64e03a6bad",
+        "bytes": 38656
+      },
+      {
+        "file": "libconscrypt_jni.so",
+        "sha256": "acdc7db32988930259b7ced5448fc5a6832766ff000a9427fdeccc16c1108aa9",
+        "bytes": 2856520
+      },
+      {
+        "file": "libdatastore_shared_counter.so",
+        "sha256": "d3e48717c9aa147e0ab21063ba0e8e0211cabf8bf40b222640829519edbf58e1",
+        "bytes": 7112
+      },
+      {
+        "file": "libimage_processing_util_jni.so",
+        "sha256": "0292b063fafccf734472cbb59588e756c2dbca907c72021ba6fbf126385508a2",
+        "bytes": 32528
+      },
+      {
+        "file": "libnative-utils.so",
+        "sha256": "ed19dfe9621aaf584372b49e8fda71534207e7792002e134c10a9c7e99fcd11a",
+        "bytes": 5816
+      },
+      {
+        "file": "libringrtc.so",
+        "sha256": "3fd748948c1388c1c43e4f7f2f6f508af842590d22e34a7318d1b5b716a32fc1",
+        "bytes": 2979472
+      },
+      {
+        "file": "libringrtc_rffi.so",
+        "sha256": "2d1441e018da55f2085c3fb4ec205c2c9bb3b5872b979b20ccff5c8802eb7b51",
+        "bytes": 9284784
+      },
+      {
+        "file": "libsignal_jni.so",
+        "sha256": "edc60c5ef892fe319a0796327e2f8691a2d39a64cf0ec91b223069f9ba984d9b",
+        "bytes": 9440120
+      },
+      {
+        "file": "libsqlcipher.so",
+        "sha256": "bc018e5d323751c91aec7fca6189d9760060ac0b3f1044dca4c3cf4894310ed0",
+        "bytes": 2100040
+      },
+      {
+        "file": "libsurface_util_jni.so",
+        "sha256": "a5c9d1928ea92ec7a94dff8cf666e7739cd734198b9f0ae1d4e28ea3c86516ba",
+        "bytes": 4896
+      }
+    ],
+    "armeabi-v7a": [
+      {
+        "file": "libaesgcm.so",
+        "sha256": "90ea06f5e293de8e0132a77117beb229caa7de1b4868f6cd507db943151f3c96",
+        "bytes": 33864
+      },
+      {
+        "file": "libandroidx.graphics.path.so",
+        "sha256": "41399eba6fc2a60f6f14642375c1824f3cf25eb8fec7397d753730a3ceda3e2b",
+        "bytes": 7252
+      },
+      {
+        "file": "libargon2.so",
+        "sha256": "ed618d28d0679c73f0cfb84d3c3672e77819e0fece948945692582fa25fbb768",
+        "bytes": 38468
+      },
+      {
+        "file": "libconscrypt_jni.so",
+        "sha256": "2cbf3339e3180a3320a047b833dde23d061c1c69d15af48098a6d21ff73ed82d",
+        "bytes": 1844280
+      },
+      {
+        "file": "libdatastore_shared_counter.so",
+        "sha256": "716c5d8d2cac8ca0edf65da8f139c7886b726ac79d542a14edeb94994ba6d3dc",
+        "bytes": 4416
+      },
+      {
+        "file": "libimage_processing_util_jni.so",
+        "sha256": "05973c0cf8e8dd281c8ec505c41814b78b740461056925bb41120594d7c35dcd",
+        "bytes": 24448
+      },
+      {
+        "file": "libnative-utils.so",
+        "sha256": "7a66452c795234ad75684228709762484a907e5ef610406511090e93d41b10cf",
+        "bytes": 13844
+      },
+      {
+        "file": "libringrtc.so",
+        "sha256": "44bbb47787e7eac3467acae783ebd12b1244c31951f31fe9f38e18018a30da27",
+        "bytes": 2077980
+      },
+      {
+        "file": "libringrtc_rffi.so",
+        "sha256": "283cd8d28ef5aa77e8362bc3ef6a219fee44085caa4d049c791c69b3580f6b01",
+        "bytes": 4817540
+      },
+      {
+        "file": "libsignal_jni.so",
+        "sha256": "f53de02c362def3529f8fef3706830c2cba2425e5cf444843ae88b668f0b1199",
+        "bytes": 7016712
+      },
+      {
+        "file": "libsqlcipher.so",
+        "sha256": "4dd9ec2a839f36517c2d33252655508208ee96656e2567a44b9ff3be0ceb4c98",
+        "bytes": 1046404
+      },
+      {
+        "file": "libsurface_util_jni.so",
+        "sha256": "78eb0b10e91b819be97cb7daa8c97fb757fa6d07cb80ccb7e92c113b45bda9be",
+        "bytes": 3460
+      }
+    ],
+    "x86_64": [
+      {
+        "file": "libaesgcm.so",
+        "sha256": "01b0bd8bcedd210f8056977be2724a79f2d91f56fbc276fee2e716ce5ccebca6",
+        "bytes": 69144
+      },
+      {
+        "file": "libandroidx.graphics.path.so",
+        "sha256": "4e56c996f13670e70082658de7880c4020eabf4f25e43387f88ed78a713fc9f0",
+        "bytes": 10760
+      },
+      {
+        "file": "libargon2.so",
+        "sha256": "0fe69f04585855f4d89b355a7aaac9d363bf16b09d4ac1386266b6145e79c540",
+        "bytes": 47120
+      },
+      {
+        "file": "libconscrypt_jni.so",
+        "sha256": "8aaa16676fc068752d50fc177c1c8ebfddf767fdaa219cd8c78f2c0174dec592",
+        "bytes": 3079400
+      },
+      {
+        "file": "libdatastore_shared_counter.so",
+        "sha256": "fb6c9208988c49ae94943bc3236fa763ba584722e044fa4ea9a12d2941027105",
+        "bytes": 6224
+      },
+      {
+        "file": "libimage_processing_util_jni.so",
+        "sha256": "112703727717651e69e91f3ea2c3c2311737ee5809a909c9d342a811b6c7c069",
+        "bytes": 49416
+      },
+      {
+        "file": "libnative-utils.so",
+        "sha256": "c71a0ff2374ca99d30fecf35f2c1b38517ba98127f2430367f43c411373c8d7e",
+        "bytes": 10184
+      },
+      {
+        "file": "libringrtc.so",
+        "sha256": "127298922f8123cb8a6d343d60d851e867d684b0787961314219d098ffe3c1a2",
+        "bytes": 3374424
+      },
+      {
+        "file": "libringrtc_rffi.so",
+        "sha256": "29bd00fa616236877abc0e521f089932b29c6e66075ec614f20e9f24c03fd75e",
+        "bytes": 11237544
+      },
+      {
+        "file": "libsignal_jni.so",
+        "sha256": "7c58b0c55faee2739a6938dd52a120cd6e51916659594a47e71e9503f23be438",
+        "bytes": 10939520
+      },
+      {
+        "file": "libsqlcipher.so",
+        "sha256": "337ab86baae3d7b37d6f784773dc6cf036a6406f2b191a35c25b4493feddc9e2",
+        "bytes": 2231416
+      },
+      {
+        "file": "libsurface_util_jni.so",
+        "sha256": "e5311942b4fce0f7f2505d41150cf9921e558a6368929cb73127450f74dd4fe4",
+        "bytes": 4912
+      }
+    ]
+  },
+  "native_trust": "Packaged ELF bytes inventoried by ABI; trusted-local origin; independent native reproduction NOT RUN",
+  "certificate_sha256": "f8cc0c0c052e5635c26fcd293c2b0af3e87d61ff7f2df3602a9af6e91f73c826",
+  "signature_verification": [
+    "Verifies",
+    "Verified using v1 scheme (JAR signing): false",
+    "Verified using v2 scheme (APK Signature Scheme v2): true",
+    "Verified using v3 scheme (APK Signature Scheme v3): true",
+    "Verified using v3.1 scheme (APK Signature Scheme v3.1): false",
+    "Verified using v4 scheme (APK Signature Scheme v4): false",
+    "Verified for SourceStamp: false"
+  ],
+  "commands": [
+    "aapt dump badging <canonical RC1 APK>",
+    "aapt dump xmltree <canonical RC1 APK> AndroidManifest.xml",
+    "apksigner verify --verbose --print-certs <canonical RC1 APK>",
+    "Python zipfile: enumerate all lib/*/*.so, reject duplicate entries/testing JNI and record complete ELF SHA256/size inventory"
+  ]
+}

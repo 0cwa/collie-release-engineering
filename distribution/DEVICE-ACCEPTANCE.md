@@ -70,3 +70,17 @@ No production repository identity, DNS, TLS, cloud policy or APK signing key cha
 Cleanup: task emulator/dedicated adb server and loopback server stopped. Disposable
 AVD disks, client/RC3 downloads, staging APKs/indexes/private test key/config and
 local dependency environment removed. Preexisting APK caches and SDK image retained.
+
+## Independent APK metadata/native inventory
+
+PASS: actual cached canonical RC1 bytes rehashed and inspected with Android
+build-tools36.0.0 aapt/apksigner and Python ZIP/ELF inventory. Exact evidence:
+`evidence/rc1-apk-inspection.json`, SHA256
+`81773ddfef981406f887198d35c577e9ee546e48299fbd5c0f1fc91e2c03cf3a`.
+The application manifest contains no debuggable/testOnly attributes and badging
+contains no application-debuggable flag (effective Android default false).
+All ZIP entries are unique; all packaged native libraries have ELF headers.
+Exactly36 shared libraries are packaged:12 each for arm64-v8a, armeabi-v7a and
+x86_64; the evidence lists every filename, size and SHA256. No testing JNI entry,
+including libsignal_jni_testing.so, is present. This verifies packaged identities
+and release metadata, not compilation provenance or independent native reproduction.
