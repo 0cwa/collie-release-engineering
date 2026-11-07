@@ -112,6 +112,8 @@ for changed current main/plan/G/I. This preserves actual contributor authorship
 in the integration ancestry as well as explicit attribution in generated
 layers. No contributor edits the engineering patch forest. Fixture roundtrips
 against actual candidate G/I are test evidence, not production contributions.
+This single-commit path does not resolve multiple independently branched PRs
+that have already landed; use the explicit aggregate workflow below for that case.
 
 An import's pinned main snapshot must have exactly the reviewed contribution's
 complete tree, including repository files and modes. Ancestry alone does not
@@ -121,3 +123,36 @@ snapshots; do not merely rebind an older result to the newer main. Intermediate
 plans do not authorize publication: the final plan/base and complete output must
 match the independently read live main before fresh G/I approval. No automatic
 batch merge or rebase is performed by the importer.
+
+## Synchronizing an independently landed PR backlog
+
+If several ordinary PRs based on the same earlier application main have already
+landed, synchronize them as one explicitly reviewed aggregate delta. Let `S` be
+the approved plan's `old_main` and `T` the independently read current remote
+main tip. `S` must be an ancestor of `T`, and the complete tree at `S` must equal
+the plan's `final_tree`. Re-read the remote tip before the final publication
+replay; pass that exact value as `--current-main`.
+
+Review the complete binary/mode delta and its digest using the same deterministic
+Git options as the importer:
+
+```
+git -C APP_REPOSITORY diff --binary --full-index --no-ext-diff --no-textconv \
+  --no-renames S T -- > reviewed-backlog.patch
+sha256sum reviewed-backlog.patch
+python3 source/import_contribution.py --repo APP_REPOSITORY --plan APPROVED_PLAN \
+  --aggregate --current-main T --overlay reviewed-backlog.patch \
+  --expected-patch-sha256 REVIEWED_SHA256
+```
+
+The helper computes the same `S..T` delta, checks its separately reviewed
+digest, applies it in a private index, and requires the complete resulting Git
+tree to equal `T`, including every path, blob, mode, symlink, and gitlink. It
+writes no overlay and rebinds no plan on a stale/non-descendant tip, base-tree
+mismatch, digest mismatch, apply conflict, or extra/missing/different result.
+The new layer records `S`, `T`, and the digest as composite provenance. The
+final integration keeps `T` as its application-history parent, preserving the
+history recorded in that tip. The aggregate tree delta does not establish the
+original commit or author for each PR, so generated publication makes no such
+individual attribution claim. The importer does not resolve conflicts, merge,
+or rebase PRs.
