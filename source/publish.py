@@ -43,9 +43,11 @@ def oid(value):
 
 def plain(repo):
     directory = Path(git(repo, 'rev-parse', '--absolute-git-dir').decode().strip())
-    for path in ('info/grafts', 'objects/info/alternates', 'shallow'):
-        if (directory / path).exists():
-            raise ValueError('grafts, alternates and shallow history are forbidden')
+    common = Path(git(repo, 'rev-parse', '--path-format=absolute', '--git-common-dir').decode().strip())
+    for root in {directory, common}:
+        for path in ('info/grafts', 'objects/info/alternates', 'shallow'):
+            if (root / path).exists():
+                raise ValueError('grafts, alternates and shallow history are forbidden')
     if git(repo, 'for-each-ref', '--format=%(refname)', 'refs/replace').strip():
         raise ValueError('replace refs are forbidden')
 
