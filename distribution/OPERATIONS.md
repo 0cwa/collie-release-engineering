@@ -158,3 +158,32 @@ Run the reviewed wrapper and plan in an isolated deployment environment without
 candidate processes; credentials are never passed to candidate code. Bucket lease,
 existing-object preflight and remote post-upload read-back remain explicit operator
 steps. Do not run a reviewed plan with another revision of the wrapper.
+
+## Raw historical manifests and new receipt graphs
+
+The existing strict approval schema 1 is a **legacy** binary import. Its
+`release_manifest_sha256` always means SHA256 of raw final-manifest file bytes.
+A legacy repository receipt carries `release_receipt_sha256: null`; it can describe
+verified existing RC1 bytes but cannot pass complete new-source graph promotion.
+Historical source/build evidence is UNKNOWN, never manufactured.
+
+Approval schema 2 retains the raw manifest digest and adds required
+`release_receipt_sha256` (canonical shared schema-2 release receipt digest) plus
+`receipt_approvals`, an exact source/build/release canonical digest map approved
+outside the candidate. Pass `--receipt-bundle <directory>` containing source.json,
+build.json and release.json to ingestion and receipt generation. The shared
+`migration_receipts.verify_release_inputs` checks external digest approvals,
+source/build/release links, raw manifest digest and completed evidence before
+schema-2 ingestion; package/version/APK/signer must also match the approval. The
+repository receipt carries both distinct digest fields. Missing bundles, changed
+raw/canonical identities and UNKNOWN evidence fail; legacy cannot supply a fake
+bundle. `fixtures/v2-release-input.json` is synthetic test input, never release
+evidence or production signer approval.
+
+These schema-2 tests depend on the reviewed extraction/shared-contract revision.
+In the final merged engineering checkout `tools/patches` supplies the shared
+module. For stacked draft combination tests, explicitly set `PYTHONPATH` to that
+reviewed checkout's `tools/patches`; do not substitute unreviewed policy code in
+privileged workflows. `receipt.py --client-evidence <recorded-json>` records the
+operator's actual client evidence digest; it is a claim bound to a file, not an
+independent signature or proof of application rebuild reproducibility.

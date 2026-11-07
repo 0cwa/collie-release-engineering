@@ -35,13 +35,33 @@ def load(path):
 def approval(path):
     a=load(path)
     fields={'schema','release_id','tag','release_manifest_sha256','apk_sha256','apk_certificate_sha256','package','version_code','version_name','aliases'}
-    if set(a)!=fields or a['schema']!=1: raise ValueError('approval fields/schema')
+    if a.get('schema')==2:fields|={'release_receipt_sha256','receipt_approvals'}
+    if set(a)!=fields or type(a.get('schema')) is not int or a['schema'] not in (1,2): raise ValueError('approval fields/schema')
+    if a['schema']==2:
+        if not re.fullmatch('[0-9a-f]{64}',a['release_receipt_sha256']):raise ValueError('canonical release receipt digest')
+        if set(a['receipt_approvals'])!={'source','build','release'} or any(not re.fullmatch('[0-9a-f]{64}',v) for v in a['receipt_approvals'].values()):raise ValueError('receipt approvals')
+        if a['receipt_approvals']['release']!=a['release_receipt_sha256']:raise ValueError('release receipt approval differs')
     for k in ('release_manifest_sha256','apk_sha256','apk_certificate_sha256'):
         if not re.fullmatch('[0-9a-f]{64}',a[k]): raise ValueError(k)
     if a['package']!=APP or type(a['version_code']) is not int or a['version_code']<=0: raise ValueError('package/version')
     if type(a['release_id']) is not int or a['release_id']<=0 or not a['tag'] or not a['version_name']: raise ValueError('release identity')
     if set(a['aliases'])!=ALIASES or any(v!=a['apk_sha256'] for v in a['aliases'].values()): raise ValueError('alias inequality')
     return a
+
+def verify_release_approval(a,bundle):
+    if a['schema']==1:
+        if bundle is not None:raise ValueError('legacy approval cannot claim a complete receipt graph')
+        return None
+    if bundle is None:raise ValueError('schema2 requires externally approved receipt bundle')
+    import sys
+    sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'tools'/'patches'))
+    import migration_receipts as receipts
+    documents={kind:receipts.load(bundle/(kind+'.json'),kind) for kind in ('source','build','release')}
+    receipts.verify_release_inputs(**documents,approved=a['receipt_approvals'],raw_manifest_sha256=a['release_manifest_sha256'],promotion=True)
+    release=documents['release']['payload']
+    links={'package':'package','version_code':'version_code','version_name':'version_name','apk_sha256':'apk_sha256','apk_certificate_sha256':'apk_certificate_sha256'}
+    if any(a[left]!=release[right] for left,right in links.items()):raise ValueError('approved release receipt APK identity differs')
+    return documents['release']
 
 def inspect(apk,aapt,apksigner):
     sig=subprocess.check_output([apksigner,'verify','--verbose','--print-certs',str(apk)],text=True)
@@ -71,9 +91,10 @@ def immutable_copy(source,dest,expected=None):
     if sha(temp)!=expected: raise ValueError('copy digest mismatch')
     os.replace(temp,dest)
 
-def ingest(approved,manifest,apk,workspace,aapt,apksigner):
+def ingest(approved,manifest,apk,workspace,aapt,apksigner,receipt_bundle=None):
     a=approval(approved)
     if sha(manifest)!=a['release_manifest_sha256'] or sha(apk)!=a['apk_sha256']: raise ValueError('approved bytes mismatch')
+    verify_release_approval(a,receipt_bundle)
     info=inspect(apk,aapt,apksigner)
     if any(a[k]!=v for k,v in info.items()): raise ValueError('APK identity substitution')
     with locked(workspace):
@@ -119,15 +140,18 @@ def validate_index_parity(data,v1):
     legacy={(v['versionCode'],v['versionName'],v['hash'],v['apkName'],v['signer'].lower()) for v in versions if v['hashType']=='sha256'}
     if len(legacy)!=len(versions) or legacy!=release_tuples(data):raise ValueError('v1/v2 release mismatch')
 
+def public_path(rel):
+    root_files={'entry.jar','entry.json','index-v2.json','index-v1.jar','index-v1.json','index.jar','index.xml','index.html','index.css','index.png'}
+    return bool(rel in root_files or re.fullmatch(r'im\.collie\.app_[1-9][0-9]*\.apk',rel) or re.fullmatch(r'diff/[0-9]+\.json',rel) or re.fullmatch(r'(icons(?:-[0-9]+)?)/[A-Za-z0-9_.-]+\.(png|jpg|webp|svg)',rel) or rel in {'status/running.json','status/update.json'})
+
 def public_files(generation):
     if generation.is_symlink():raise ValueError('symlink generation')
     files=[]
-    root_files={'entry.jar','entry.json','index-v2.json','index-v1.jar','index-v1.json','index.jar','index.xml','index.html','index.css','index.png'}
     for p in generation.rglob('*'):
         if p.is_symlink():raise ValueError('symlink in public generation')
         if not p.is_file():continue
         rel=p.relative_to(generation).as_posix()
-        valid=rel in root_files or re.fullmatch(r'im\.collie\.app_[1-9][0-9]*\.apk',rel) or re.fullmatch(r'diff/[0-9]+\.json',rel) or re.fullmatch(r'(icons(?:-[0-9]+)?)/[A-Za-z0-9_.-]+\.(png|jpg|webp|svg)',rel) or rel in {'status/running.json','status/update.json'}
+        valid=public_path(rel)
         if not valid:raise ValueError('unexpected public file: '+rel)
         files.append(p)
     if not {'entry.jar','index-v2.json','index-v1.jar'}.issubset({p.name for p in files}):raise ValueError('missing signed indexes')
@@ -213,11 +237,11 @@ def main():
     p=argparse.ArgumentParser();s=p.add_subparsers(dest='cmd',required=True)
     i=s.add_parser('ingest')
     for name in ('approval','manifest','apk','workspace'): i.add_argument('--'+name,required=True,type=Path)
-    i.add_argument('--aapt',required=True);i.add_argument('--apksigner',required=True)
+    i.add_argument('--receipt-bundle',type=Path);i.add_argument('--aapt',required=True);i.add_argument('--apksigner',required=True)
     x=s.add_parser('publish-local');x.add_argument('generation',type=Path);x.add_argument('origin',type=Path);x.add_argument('--fingerprint',required=True);x.add_argument('--approved-generation',required=True);x.add_argument('--approval',action='append',required=True,type=Path)
     d=s.add_parser('generation-digest');d.add_argument('generation',type=Path)
     a=p.parse_args()
     if a.cmd=='generation-digest':print(generation_digest(a.generation));return
-    if a.cmd=='ingest': print(ingest(a.approval,a.manifest,a.apk,a.workspace,a.aapt,a.apksigner))
+    if a.cmd=='ingest': print(ingest(a.approval,a.manifest,a.apk,a.workspace,a.aapt,a.apksigner,a.receipt_bundle))
     else: print(publish_local(a.generation,a.origin,a.fingerprint,a.approved_generation,a.approval))
 if __name__=='__main__': main()

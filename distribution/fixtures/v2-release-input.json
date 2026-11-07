@@ -1,0 +1,103 @@
+{
+  "approval": {
+    "schema": 2,
+    "release_id": 1,
+    "tag": "synthetic-fixture-not-a-release",
+    "release_manifest_sha256": "3a133e489078d744c7d8352c869dbc9a457bbe7e616fc01f373838d0a835f91a",
+    "release_receipt_sha256": "c167f710e04c082aca92a6ec5994f2dab2f57c19fbd20cadd6b7d359d106d126",
+    "receipt_approvals": {
+      "source": "488a420e26d763412fbb068bf8015734a1748b8ae4076fb96a63c9a0a080b6d8",
+      "build": "f798337257027904e47d7907b8a8834ac6dc865b661fdf9b86fe2324e8fe591d",
+      "release": "c167f710e04c082aca92a6ec5994f2dab2f57c19fbd20cadd6b7d359d106d126"
+    },
+    "apk_sha256": "e27b274814e82c4247364228e1d51dd6f51e5c5abb4ab4ac5f0bb2e29c9c0ad3",
+    "apk_certificate_sha256": "7777777777777777777777777777777777777777777777777777777777777777",
+    "package": "im.collie.app",
+    "version_code": 177703,
+    "version_name": "fixture-v2",
+    "aliases": {
+      "collie-foss.apk": "e27b274814e82c4247364228e1d51dd6f51e5c5abb4ab4ac5f0bb2e29c9c0ad3",
+      "collie.apk": "e27b274814e82c4247364228e1d51dd6f51e5c5abb4ab4ac5f0bb2e29c9c0ad3",
+      "molly-continued.apk": "e27b274814e82c4247364228e1d51dd6f51e5c5abb4ab4ac5f0bb2e29c9c0ad3",
+      "molly-foss-continued.apk": "e27b274814e82c4247364228e1d51dd6f51e5c5abb4ab4ac5f0bb2e29c9c0ad3",
+      "molly-minimal.apk": "e27b274814e82c4247364228e1d51dd6f51e5c5abb4ab4ac5f0bb2e29c9c0ad3"
+    }
+  },
+  "source": {
+    "schema": 2,
+    "kind": "source",
+    "payload": {
+      "upstream_commit": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "engineering_revision": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "generator_revision": "cccccccccccccccccccccccccccccccccccccccc",
+      "verifier_revision": "dddddddddddddddddddddddddddddddddddddddd",
+      "layers": [],
+      "reconstructed_tree": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+      "overlays": [],
+      "published_commit": "ffffffffffffffffffffffffffffffffffffffff",
+      "published_tree": "1111111111111111111111111111111111111111"
+    },
+    "evidence": [
+      {
+        "status": "PASS",
+        "description": "synthetic adapter fixture only; no production build or signing claim",
+        "sha256": "3521c98eba5bcf5a3361684a3743983f870ed74b0123ded92cac593181af51ee"
+      }
+    ]
+  },
+  "build": {
+    "schema": 2,
+    "kind": "build",
+    "payload": {
+      "source_receipt_sha256": "488a420e26d763412fbb068bf8015734a1748b8ae4076fb96a63c9a0a080b6d8",
+      "source_commit": "ffffffffffffffffffffffffffffffffffffffff",
+      "source_tree": "1111111111111111111111111111111111111111",
+      "recipe_revision": "2222222222222222222222222222222222222222",
+      "toolchain_sha256": "3333333333333333333333333333333333333333333333333333333333333333",
+      "dependencies_sha256": "4444444444444444444444444444444444444444444444444444444444444444",
+      "native_inputs_sha256": "5555555555555555555555555555555555555555555555555555555555555555",
+      "unsigned_apk_sha256": "e27b274814e82c4247364228e1d51dd6f51e5c5abb4ab4ac5f0bb2e29c9c0ad3",
+      "trust_level": "synthetic test fixture; no reproduction claim"
+    },
+    "evidence": [
+      {
+        "status": "PASS",
+        "description": "synthetic adapter fixture only; no production build or signing claim",
+        "sha256": "3521c98eba5bcf5a3361684a3743983f870ed74b0123ded92cac593181af51ee"
+      }
+    ]
+  },
+  "release": {
+    "schema": 2,
+    "kind": "release",
+    "payload": {
+      "release_manifest_sha256": "3a133e489078d744c7d8352c869dbc9a457bbe7e616fc01f373838d0a835f91a",
+      "source_receipt_sha256": "488a420e26d763412fbb068bf8015734a1748b8ae4076fb96a63c9a0a080b6d8",
+      "build_receipt_sha256": "f798337257027904e47d7907b8a8834ac6dc865b661fdf9b86fe2324e8fe591d",
+      "source_commit": "ffffffffffffffffffffffffffffffffffffffff",
+      "engineering_revision": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "workflow_revision": "6666666666666666666666666666666666666666",
+      "package": "im.collie.app",
+      "version_code": 177703,
+      "version_name": "fixture-v2",
+      "apk_sha256": "e27b274814e82c4247364228e1d51dd6f51e5c5abb4ab4ac5f0bb2e29c9c0ad3",
+      "apk_certificate_sha256": "7777777777777777777777777777777777777777777777777777777777777777",
+      "aliases": [
+        "collie-foss.apk",
+        "collie.apk",
+        "molly-continued.apk",
+        "molly-foss-continued.apk",
+        "molly-minimal.apk"
+      ]
+    },
+    "evidence": [
+      {
+        "status": "PASS",
+        "description": "synthetic adapter fixture only; no production build or signing claim",
+        "sha256": "3521c98eba5bcf5a3361684a3743983f870ed74b0123ded92cac593181af51ee"
+      }
+    ]
+  },
+  "manifest_utf8": "synthetic raw final manifest; not a release\n",
+  "apk_utf8": "synthetic APK; signature inspection mocked by fixture test\n"
+}
