@@ -1,0 +1,69 @@
+{
+  "device": {
+    "api": "35",
+    "abi": "x86_64",
+    "fingerprint": "google/sdk_gphone64_x86_64/emu64xa:15/AE3A.240806.043/12960925:userdebug/dev-keys",
+    "image_revision": 9,
+    "emulator_version": "37.2.13 build16740729",
+    "headless": true,
+    "audio": false,
+    "software_renderer": "swiftshader_indirect",
+    "adb_server_port": 5038,
+    "serial": "emulator-5580"
+  },
+  "clients": [
+    {
+      "package": "org.fdroid.fdroid",
+      "version": "1.23.2",
+      "version_code": 1023052,
+      "origin": "https://f-droid.org/repo/org.fdroid.fdroid_1023052.apk",
+      "sha256": "985f5181d48bb6bafd54083a048b391271e0ab28385881cc41294fb01a222762",
+      "certificate_sha256": "43238d512c1e5eb2d6569f4a3afbf5523418b82e0a3ed1552770abb9a9c9ccab",
+      "repository_add": "PASS",
+      "refresh": "PASS v2 entry.jar/index-v2.json",
+      "fresh_install": "PASS",
+      "upgrade_rc3_to_rc1": "PASS",
+      "upgrade_first_install_time": "2026-11-07 05:46:32",
+      "upgrade_last_update_time": "2026-11-07 05:52:03"
+    },
+    {
+      "package": "com.looker.droidify",
+      "version": "0.7.8",
+      "version_code": 780,
+      "origin": "https://github.com/Droid-ify/client/releases/download/v0.7.8/app-release.apk",
+      "sha256": "3e7934ff9b811c2f77794793381241095a02bac2d163bf922cb5a5a0ed25ca82",
+      "certificate_sha256": "ed8859c55af311162658b94af982b9f091dcd27628d4de3486d1217ebf3c9935",
+      "repository_add": "PASS",
+      "refresh": "PASS index-v1.jar",
+      "fresh_install": "PASS",
+      "upgrade_rc3_to_rc1": "PASS",
+      "upgrade_first_install_time": "2026-11-07 05:56:43",
+      "upgrade_last_update_time": "2026-11-07 05:57:43"
+    }
+  ],
+  "legacy_release": {
+    "older_tag": "v8.33.2-1-rc3",
+    "older_code": 177203,
+    "older_sha256": "189b0bf0056945bd6dde9a9e9f5a9e664f8aa5e294de3ade77d2850ce7d3a313",
+    "newer_tag": "v8.35.1-1-rc1",
+    "newer_code": 177702,
+    "newer_sha256": "5fbd0fe817bc6711c56fbc39b8479cc0a68a7d7fe921a7d9c9fab59333fda9ee",
+    "certificate_sha256": "f8cc0c0c052e5635c26fcd293c2b0af3e87d61ff7f2df3602a9af6e91f73c826"
+  },
+  "repository": {
+    "url": "http://127.0.0.1:8765/fdroid/repo",
+    "certificate_sha256": "94f58c117091566ec04d8b36c16cbd8cbfb37c32b4d4c1718918f9ecfb4ebe16",
+    "generation": "8701124e4480f5f584d86f271fcc95d00ae33b5e18ebbc8fe7cac5874a0f9062",
+    "fdroidserver": "2.4.5"
+  },
+  "final_installed_apk_sha256": "5fbd0fe817bc6711c56fbc39b8479cc0a68a7d7fe921a7d9c9fab59333fda9ee",
+  "final_package_metadata": [
+    "versionCode=177702 minSdk=27 targetSdk=36",
+    "versionName=8.35.1-1-rc1",
+    "lastUpdateTime=2026-11-07 05:57:43",
+    "installerPackageName=com.looker.droidify",
+    "firstInstallTime=2026-11-07 05:56:43"
+  ],
+  "final_app_pid": "7322",
+  "scope": "Disposable emulator, no accounts or messages, attachment/locked-database/physical-device/new-source-candidate upgrades NOT RUN. Actual legacy production releases only. Public network blocked inside emulator; feed via adb reverse."
+}

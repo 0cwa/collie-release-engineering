@@ -187,3 +187,14 @@ reviewed checkout's `tools/patches`; do not substitute unreviewed policy code in
 privileged workflows. `receipt.py --client-evidence <recorded-json>` records the
 operator's actual client evidence digest; it is a claim bound to a file, not an
 independent signature or proof of application rebuild reproducibility.
+
+## Loopback staging delivery
+
+`serve_staging.py` serves only approved public path formats at
+http://127.0.0.1:8765/fdroid/repo/. It checks the approved generation before startup,
+requires the same fingerprint and selected release approvals as publication, and
+never serves the private workspace. Run through agent-heavy. Its HTTP cache
+contract returns no-store for404s, immutable for successful versioned APKs, and
+current bytes for mutable indexes even when a conditional request carries the
+same-second previous Last-Modified value. No real provider/CDN is configured by
+this adapter. See DEVICE-ACCEPTANCE.md for actual isolated client results and gaps.

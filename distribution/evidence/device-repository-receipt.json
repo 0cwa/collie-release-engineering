@@ -1,0 +1,57 @@
+{
+  "schema": 2,
+  "kind": "repository",
+  "payload": {
+    "release_manifest_sha256": "4adb60596a2d9c96b19b39e74f98deebd46902a763e873bebae53699c0fd8b11",
+    "release_receipt_sha256": null,
+    "apk_sha256": "5fbd0fe817bc6711c56fbc39b8479cc0a68a7d7fe921a7d9c9fab59333fda9ee",
+    "apk_certificate_sha256": "f8cc0c0c052e5635c26fcd293c2b0af3e87d61ff7f2df3602a9af6e91f73c826",
+    "repository_certificate_sha256": "94f58c117091566ec04d8b36c16cbd8cbfb37c32b4d4c1718918f9ecfb4ebe16",
+    "fdroidserver_revision": "PyPI fdroidserver==2.4.5",
+    "metadata_revision": "2804dde9117f9fc2bc0a21dbc12d68342d8ed553",
+    "indexes": [
+      {
+        "file": "entry.jar",
+        "sha256": "07ce87104c541470d30fce9f26876c5ed759189e3037339a98aff388f50396e2"
+      },
+      {
+        "file": "entry.json",
+        "sha256": "09a8b416775993d25f73a2958b126b03ffc046aaa542fde7f57433c092eeb01e"
+      },
+      {
+        "file": "index-v1.jar",
+        "sha256": "a26829341bf076bd8e0ca09872e3fc81f1887e4b54aad7e8cf1d326525e96c0e"
+      },
+      {
+        "file": "index-v1.json",
+        "sha256": "0bd6a836100aa453a05b21cd7cdd852d36abb98f9ddd9648f148a92ba81ebc99"
+      },
+      {
+        "file": "index-v2.json",
+        "sha256": "d9952e417c2881ba8746d1a2fcbf431ec5dabde2cbfad794cb1c845adb11924f"
+      },
+      {
+        "file": "index.jar",
+        "sha256": "8cdf69faf1b536ba9568fa3dc452862f8f7d4fb9841e7827e1cc62d718fd0178"
+      }
+    ],
+    "generation": "8701124e4480f5f584d86f271fcc95d00ae33b5e18ebbc8fe7cac5874a0f9062"
+  },
+  "evidence": [
+    {
+      "status": "PASS",
+      "description": "Pinned fdroidserver verifies repository v1/v2 signatures, entry digest and indexed local APK hashes",
+      "sha256": "07ce87104c541470d30fce9f26876c5ed759189e3037339a98aff388f50396e2"
+    },
+    {
+      "status": "PASS",
+      "description": "Operator-recorded isolated client add/refresh/install/upgrade evidence; not independent build reproduction",
+      "sha256": "9e73478dfc8d57c463b30636aa4d8cafb2298576b6343aaea765bc4eb78c7f3b"
+    },
+    {
+      "status": "NOT RUN",
+      "description": "Production HTTPS read-back and provider cache headers",
+      "sha256": null
+    }
+  ]
+}
