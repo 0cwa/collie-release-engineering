@@ -93,3 +93,10 @@ class PublicationTests(unittest.TestCase):
         new = self.generate()
         m.git(self.repo, 'merge-base', '--is-ancestor', old['integration_commit'], new['integration_commit'])
         m.git(self.repo, 'merge-base', '--is-ancestor', upgraded, new['integration_commit'])
+
+    def test_duplicate_fields_and_boolean_schema_rejected(self):
+        with self.assertRaisesRegex(ValueError, 'duplicate JSON'):
+            m.load_plan('{"schema":1,"schema":1}')
+        self.plan['schema'] = True
+        with self.assertRaisesRegex(ValueError, 'publication-plan'):
+            self.generate()

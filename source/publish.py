@@ -63,8 +63,21 @@ def commit(repo, tree_id, parents, message):
     return git(repo, *args, data=message.encode()).decode().strip()
 
 
+def unique_object(pairs):
+    result = {}
+    for key, value in pairs:
+        if key in result:
+            raise ValueError('duplicate JSON field: ' + key)
+        result[key] = value
+    return result
+
+
+def load_plan(raw):
+    return validate_plan(json.loads(raw, object_pairs_hook=unique_object))
+
+
 def validate_plan(plan):
-    if set(plan) != {'schema', 'signal', 'old_main', 'reconstructed_tree', 'layers', 'final_tree'} or plan['schema'] != 1:
+    if set(plan) != {'schema', 'signal', 'old_main', 'reconstructed_tree', 'layers', 'final_tree'} or type(plan['schema']) is not int or plan['schema'] != 1:
         raise ValueError('unknown or missing publication-plan fields')
     for key in ('signal', 'old_main', 'reconstructed_tree', 'final_tree'):
         oid(plan[key])
@@ -96,7 +109,7 @@ def publish(repo, path, approved_digest, expected_main):
     raw = path.read_bytes()
     if hashlib.sha256(raw).hexdigest() != approved_digest:
         raise ValueError('publication plan differs from external approval')
-    plan = validate_plan(json.loads(raw))
+    plan = load_plan(raw)
     if oid(expected_main) != plan['old_main']:
         raise ValueError('current base differs from approved base')
     if tree(repo, plan['signal']) != plan['layers'][0]['before_tree']:

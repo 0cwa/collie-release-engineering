@@ -17,7 +17,7 @@ args = parser.parse_args()
 raw = args.plan.read_bytes()
 if hashlib.sha256(raw).hexdigest() != args.expected_plan_sha256:
     raise ValueError('plan approval digest differs')
-plan = json.loads(raw)
+plan = publish.load_plan(raw)
 publish.verify(args.repo, plan, args.expected_source, args.expected_integration, args.current_main)
 print(json.dumps({'status':'PASS','scope':'Complete source graph/tree identity only; no build, production authorization or signed attestation',
                   'source':args.expected_source,'integration':args.expected_integration,'base':args.current_main,
