@@ -1,0 +1,12 @@
+{
+  "code_head": "59fb2236aed973bea413cc28c6a937c65c91041f",
+  "evidence_trust": "Unsigned independent agent observations, separate from author browser execution; not a signed attestation",
+  "checks": {
+    "renderer_activation_badge_tests": "13 PASS",
+    "six_final_screenshot_QR_decodes": "PASS, all exact expected fdroidrepos URI/fingerprint",
+    "desktop_auto_and_mobile_dark_visual_read": "PASS",
+    "six_static_asset_hashes_sizes_and_original62_icon": "PASS",
+    "changed_code_and_approval_boundaries": "NO ISSUES"
+  },
+  "scope": "No UI push, production settings/DNS/deployment, active README badge, Android/native build claim or key activation."
+}
