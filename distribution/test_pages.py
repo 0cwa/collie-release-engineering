@@ -186,3 +186,17 @@ class NativePagesTest(unittest.TestCase):
         self.assertFalse(b.load(journal)['previous_verified'])
         p.preflight(plan,journal,fetch=lambda url:dict(plan['manifests']['phase1'][url.removeprefix(p.ORIGIN)],status=200) if '/native-inputs/' in url else {'status':404})
         self.assertTrue(b.load(journal)['previous_verified'])
+
+    def test_existing_feed_new_native_url_conflict_blocks_preflight(self):
+        self.add_native(only=True);old=self.bundle/'previous/fdroid/repo';old.mkdir(parents=True);(old/'entry.jar').write_bytes(b'previous signed entry');self.seal_previous()
+        plan=self.prepare();journal=self.output/'journal.json';visited=[]
+        def fetch(url):
+            name=url.removeprefix(p.ORIGIN);visited.append(name)
+            if name in plan['previous_files']:return dict(plan['previous_files'][name],status=200)
+            return {'status':200,'sha256':'0'*64,'bytes':0}
+        with self.assertRaisesRegex(ValueError,'native URL differs'):p.preflight(plan,journal,fetch=fetch)
+        self.assertTrue(any(name.startswith('native-inputs/') for name in visited));self.assertFalse(b.load(journal)['previous_verified'])
+        def absent(url):
+            name=url.removeprefix(p.ORIGIN)
+            return dict(plan['previous_files'][name],status=200) if name in plan['previous_files'] else {'status':404}
+        p.preflight(plan,journal,fetch=absent);self.assertTrue(b.load(journal)['previous_verified'])

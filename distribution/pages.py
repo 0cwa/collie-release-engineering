@@ -218,16 +218,18 @@ def preflight(plan,journal_path,*,fetch=observe):
                 actual=fetch(plan['origin']+name)
                 if actual.get('status')!=404:raise ValueError('initial origin is not the explicitly approved empty feed')
                 observations[name]=actual
-            for name,expected in plan['manifests']['phase1'].items():
-                if not name.startswith('native-inputs/'):continue
-                actual=fetch(plan['origin']+name)
-                if actual.get('status')!=404 and (actual.get('status',200)!=200 or actual.get('sha256')!=expected['sha256'] or actual.get('bytes')!=expected['bytes']):raise ValueError('existing native URL differs before initial publication')
-                observations[name]=actual
         else:
             for name,expected in plan['previous_files'].items():
                 safe_name(name);actual=fetch(plan['origin']+name)
                 if actual.get('status',200)!=200 or actual.get('sha256')!=expected['sha256'] or actual.get('bytes')!=expected['bytes']:raise ValueError('live previous site differs from approved snapshot')
                 observations[name]=actual
+        # A retained feed can predate native hosting. Also inspect every NEW
+        # native URL: absence from its inventory does not prove the URL is empty.
+        for name,expected in plan['manifests']['phase1'].items():
+            if not name.startswith('native-inputs/') or name in plan['previous_files']:continue
+            actual=fetch(plan['origin']+name)
+            if actual.get('status')!=404 and (actual.get('status',200)!=200 or actual.get('sha256')!=expected['sha256'] or actual.get('bytes')!=expected['bytes']):raise ValueError('existing native URL differs before initial publication')
+            observations[name]=actual
         journal['previous_verified']=True;journal['previous_readback']=observations
         b.atomic_json(journal_path,journal)
         return journal
