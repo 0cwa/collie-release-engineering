@@ -48,7 +48,7 @@ def plan(args,*,historical_rehearsal=False):
     for key in ('source_commit','engineering_revision','workflow_revision'):receipts.check(data[key],'git')
     for key in ('certificate_sha256',):receipts.check(data[key],'sha')
     receipts.check(data['package'],'package');receipts.check(data['version_code'],'code');receipts.check(data['version_name'],'text')
-    if not isinstance(data['required_test_reports'],list) or len(set(data['required_test_reports']))!=len(data['required_test_reports']) or any(not isinstance(x,str) or not x.strip() for x in data['required_test_reports']):raise ValueError('required report names')
+    if not isinstance(data['required_test_reports'],list) or any(not isinstance(x,str) or not x.strip() for x in data['required_test_reports']) or len(set(data['required_test_reports']))!=len(data['required_test_reports']):raise ValueError('required report names')
     for key in ('source_receipt_sha256','build_inputs_sha256'):
         if data['mode']=='new-source':receipts.check(data[key],'sha')
         elif data[key] is not None:raise ValueError('legacy plan must explicitly omit new-source receipts')
@@ -121,6 +121,7 @@ def collect(args,context,unsigned_sha):
             if entry['sha256'] is not None or entry['status']=='PASS':raise ValueError('passed test report needs actual bytes')
         else:
             receipts.check(entry['sha256'],'sha')
+            receipts.check(entry['file'],'text')
             path=Path(entry['file'])
             if path.is_absolute() or '..' in path.parts:raise ValueError('test report path must remain relative')
             target=args.test_reports.parent/path
