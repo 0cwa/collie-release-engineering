@@ -224,16 +224,11 @@ def publish_local(generation,origin,fingerprint,expected_generation,approvals):
         atomic_json(state,journal)
     return generation_id
 
-def landing(output,repo_url,repo_cert,apk_cert,download):
-    if not re.fullmatch('[0-9a-fA-F]{64}',repo_cert) or not re.fullmatch('[0-9a-fA-F]{64}',apk_cert): raise ValueError('certificate fingerprint')
-    if not repo_url.startswith('https://') or not download.startswith('https://'): raise ValueError('HTTPS required')
-    link=repo_url+'?fingerprint='+repo_cert.upper()
-    import qrcode
-    import qrcode.image.svg
-    output.mkdir(parents=True,exist_ok=True)
-    qrcode.make(link,image_factory=qrcode.image.svg.SvgPathImage).save(output/'add-repository.svg')
-    e=html.escape
-    (output/'index.html').write_text(f'''<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Collie repository — staging preview</title><style>body{{font:18px/1.6 system-ui;max-width:42rem;margin:3rem auto;padding:0 1.2rem;background:#faf8f2;color:#5a4033}}a{{color:#2f4f3a}}code{{overflow-wrap:anywhere}}img{{width:180px;height:180px}}h1{{line-height:1.2}}</style><main><p>STAGING PREVIEW · Not deployed</p><h1>Collie, from the same trusted APK.</h1><p>This custom F-Droid-compatible repository distributes the same signed Collie APK as GitHub, including optional FCM support. It is separate from the official F-Droid catalogue.</p><p><a href="{e(link)}">Add repository</a> in your compatible client, then compare the repository fingerprint below before refreshing.</p><img src="add-repository.svg" alt="QR code containing the fingerprint-pinned repository link"><p>Repository index certificate<br><code>{e(repo_cert.upper())}</code></p><p>APK signing certificate<br><code>{e(apk_cert.upper())}</code></p><p><a href="{e(download)}">Canonical APK</a> · <a href="https://github.com/0cwa/collieim-android">Source</a> · <a href="https://github.com/0cwa/collie-release-engineering/tree/main/distribution">Verification</a></p></main></html>''')
+def landing(output,repo_url,repo_cert,apk_cert,download,*,state='inactive'):
+    # Rendering data grants no publication authority. First-link activation is
+    # separately verified by pages_activation against actual production evidence.
+    import site_page
+    return site_page.render(output,repo_url,repo_cert,apk_cert,download,state=state)
 
 def main():
     p=argparse.ArgumentParser();s=p.add_subparsers(dest='cmd',required=True)

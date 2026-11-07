@@ -1,0 +1,23 @@
+{
+  "schema": 1,
+  "scope": "Official source observations; not a new runtime client test",
+  "chosen_scheme": "fdroidrepos:// for HTTPS, with fingerprint query",
+  "fallback": "selectable HTTPS URL; optional official https://fdroid.link/#HTTPS_URL",
+  "clients": {
+    "F-Droid suggested1.23.2": {
+      "manifest_sha256": "dc9c7f53d27dc36426a6f8510c8aba9336edb3f5359c6374e8f81318b0b847e9",
+      "origin": "https://gitlab.com/fdroid/fdroidclient/-/raw/1.23.2/app/src/main/AndroidManifest.xml"
+    },
+    "F-Droid available2.0.3": {
+      "manifest_sha256": "b416c50f4418025086f37f4030a847a0044bd185512b1e54672bea6c5c3a5209",
+      "origin": "https://gitlab.com/fdroid/fdroidclient/-/raw/2.0.3/app/src/main/AndroidManifest.xml"
+    },
+    "Droidify0.7.8": {
+      "commit": "ff1453ed957f3b2382abce9a7eb9a9db8def3a3a",
+      "manifest_sha256": "c5250be05e4b40582a5fafa85eeb3157b4b44d6b904adcc63df3d576693355d0",
+      "origin": "https://github.com/Droid-ify/client/blob/ff1453ed957f3b2382abce9a7eb9a9db8def3a3a/app/src/main/AndroidManifest.xml"
+    }
+  },
+  "official_universal_link_JS_sha256": "ad61c4ffe7ef64a40503815beb4e677621b9ba06d8eb9b5079106a7203f14185",
+  "badge_guidance": "Official unchanged badge CC-BY-SA3.0 intended main catalogue; owner requests custom-repo target with explicit custom context, only after approved production activation. No official listing/endorsement claimed."
+}

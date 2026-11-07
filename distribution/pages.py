@@ -10,6 +10,7 @@ import sys
 import tarfile
 import urllib.request
 import binary_repo as b
+import site_page
 
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'tools'/'patches'))
 import migration_receipts as receipts
@@ -43,8 +44,8 @@ def inventory(root):
     return result
 
 def public_site_name(name):
-    if name in native_files():return True
-    if name in {'index.html','add-repository.svg','site-manifest.json','.nojekyll'}:return True
+    if name in native_files() or name in site_page.STATIC:return True
+    if name in {'index.html','add-repository.png','add-repository.svg','site-manifest.json','.nojekyll'}:return True
     if name.startswith('fdroid/repo/'):return b.public_path(name[len('fdroid/repo/'):])
     if re.fullmatch(r'_generations/[0-9a-f]{64}/[A-Za-z0-9_.-]+',name):return name.rsplit('/',1)[1] in INDEXES|{'repository-receipt.json'}
     return bool(re.fullmatch(r'assets/[A-Za-z0-9_.-]+\.(png|svg|css|webp)',name))
@@ -112,10 +113,17 @@ def prepare(bundle,output,expected_policy):
     additions={name:(bundle/'native'/name,entry) for name,entry in supplied_native.items()}
     receipt_bytes=None;prefix=None
     if not native_only:
-        if set(landing_files)!={'index.html','add-repository.svg'}:raise ValueError('unexpected landing files')
+        if set(landing_files) not in ({'index.html','add-repository.svg'},{'index.html'}|site_page.STATIC,{'index.html','add-repository.png'}|site_page.STATIC):raise ValueError('unexpected landing files')
         # This checks strings as binding hints, not HTML correctness; operator reviews
         # the exact landing digest. Never execute a candidate build or script.
         text=(landing/'index.html').read_text()
+        if 'data-repository-state="preview"' in text:raise ValueError('test preview cannot be a production landing')
+        prior_active=(old/'index.html').is_file() and site_page.has_add_link((old/'index.html').read_text(),ORIGIN)
+        new_qr_assets={name for name in {'add-repository.png','add-repository.svg'} & set(landing_files) if landing_files[name]!=old_files.get(name)}
+        if new_qr_assets and not prior_active:raise ValueError('new repository QR requires completed production activation evidence')
+        if site_page.has_add_link(text,ORIGIN) and not (old/'index.html').is_file():raise ValueError('first repository link requires completed production activation evidence')
+        if site_page.has_add_link(text,ORIGIN) and not site_page.has_add_link((old/'index.html').read_text(),ORIGIN):raise ValueError('first repository link requires completed production activation evidence')
+        if (old/'index.html').is_file() and site_page.has_add_link((old/'index.html').read_text(),ORIGIN) and not site_page.has_add_link(text,ORIGIN):raise ValueError('an active repository landing must remain active during updates')
         if a['repository_certificate_sha256'].upper() not in text or b.APK_CERTIFICATE.upper() not in text:raise ValueError('landing fingerprints differ')
         if not isinstance(a['release_approvals'],list) or not a['release_approvals']:raise ValueError('release approvals missing')
         approvals=[]
@@ -165,8 +173,8 @@ def prepare(bundle,output,expected_policy):
                 if phase=='phase2' or immutable(name):mapping[name]=(path,entry)
             if phase=='phase2' and not native_only:mapping.update({name:(landing/name,entry) for name,entry in landing_files.items()})
             if not old_files and (phase=='phase1' or native_only):
-                placeholder=('<!doctype html><html lang="en"><title>Collie native inputs</title><h1>Native inputs preparation</h1><p>Collie native inputs are being prepared. The F-Droid feed is not active.</p></html>' if native_only else '<!doctype html><html lang="en"><title>Collie repository preparation</title><h1>Repository preparation</h1><p>The feed is not active. Approved assets and signed index previews are being verified.</p></html>')
-                (site/'index.html').write_text(placeholder)
+                if native_only:site_page.render(site,state='native')
+                else:(site/'index.html').write_text('<!doctype html><html lang="en"><title>Collie repository preparation</title><h1>Repository preparation</h1><p>The feed is not active. Approved assets and signed index previews are being verified.</p></html>')
             for name,(path,entry) in mapping.items():copy_pinned(path,site/name,entry)
             if receipt_bytes is not None:
                 archive_dir=site/prefix;archive_dir.mkdir(parents=True,exist_ok=True)

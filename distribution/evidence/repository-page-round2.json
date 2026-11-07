@@ -1,0 +1,342 @@
+{
+  "browser": "HeadlessChrome/156.0.8078.4",
+  "protocol": "1.3",
+  "cases": {
+    "preview-desktop-light": {
+      "dark": false,
+      "width": 1280,
+      "height": 900,
+      "overflow": false,
+      "bodyFont": "Manrope, sans-serif",
+      "bodyWeight": "350",
+      "fonts": [
+        {
+          "family": "Manrope",
+          "status": "loaded",
+          "weight": "200 800"
+        },
+        {
+          "family": "Sora",
+          "status": "loaded",
+          "weight": "100 800"
+        }
+      ],
+      "qr": {
+        "x": 820,
+        "y": 223.5,
+        "width": 240,
+        "height": 240
+      },
+      "dark_requested": false,
+      "auto_dark_requested": false,
+      "screenshot_sha256": "8e0a2ae5b4209fad7190496a28b2eb77586a12250957a4bb59e73a287fb403e6",
+      "decoded": [
+        "fdroidrepos://repo.collie.im/fdroid/repo/?fingerprint=4FCC45341A4BF5F31453D9087E309D6008686673334F8DE5C7054E4BB8E3FB90"
+      ],
+      "quiet_zone_pixel": [
+        255,
+        255,
+        255
+      ]
+    },
+    "preview-desktop-dark": {
+      "dark": true,
+      "width": 1280,
+      "height": 900,
+      "overflow": false,
+      "bodyFont": "Manrope, sans-serif",
+      "bodyWeight": "350",
+      "fonts": [
+        {
+          "family": "Manrope",
+          "status": "loaded",
+          "weight": "200 800"
+        },
+        {
+          "family": "Sora",
+          "status": "loaded",
+          "weight": "100 800"
+        }
+      ],
+      "qr": {
+        "x": 820,
+        "y": 223.5,
+        "width": 240,
+        "height": 240
+      },
+      "dark_requested": true,
+      "auto_dark_requested": false,
+      "screenshot_sha256": "8e0a2ae5b4209fad7190496a28b2eb77586a12250957a4bb59e73a287fb403e6",
+      "decoded": [
+        "fdroidrepos://repo.collie.im/fdroid/repo/?fingerprint=4FCC45341A4BF5F31453D9087E309D6008686673334F8DE5C7054E4BB8E3FB90"
+      ],
+      "quiet_zone_pixel": [
+        255,
+        255,
+        255
+      ]
+    },
+    "preview-desktop-auto-dark": {
+      "dark": true,
+      "width": 1280,
+      "height": 900,
+      "overflow": false,
+      "bodyFont": "Manrope, sans-serif",
+      "bodyWeight": "350",
+      "fonts": [
+        {
+          "family": "Manrope",
+          "status": "loaded",
+          "weight": "200 800"
+        },
+        {
+          "family": "Sora",
+          "status": "loaded",
+          "weight": "100 800"
+        }
+      ],
+      "qr": {
+        "x": 820,
+        "y": 223.5,
+        "width": 240,
+        "height": 240
+      },
+      "dark_requested": true,
+      "auto_dark_requested": true,
+      "screenshot_sha256": "8e0a2ae5b4209fad7190496a28b2eb77586a12250957a4bb59e73a287fb403e6",
+      "decoded": [
+        "fdroidrepos://repo.collie.im/fdroid/repo/?fingerprint=4FCC45341A4BF5F31453D9087E309D6008686673334F8DE5C7054E4BB8E3FB90"
+      ],
+      "quiet_zone_pixel": [
+        255,
+        255,
+        255
+      ]
+    },
+    "preview-mobile-light": {
+      "dark": false,
+      "width": 390,
+      "height": 844,
+      "overflow": false,
+      "bodyFont": "Manrope, sans-serif",
+      "bodyWeight": "350",
+      "fonts": [
+        {
+          "family": "Manrope",
+          "status": "loaded",
+          "weight": "200 800"
+        },
+        {
+          "family": "Sora",
+          "status": "loaded",
+          "weight": "100 800"
+        }
+      ],
+      "qr": {
+        "x": 75,
+        "y": 539.671875,
+        "width": 240,
+        "height": 240
+      },
+      "dark_requested": false,
+      "auto_dark_requested": false,
+      "screenshot_sha256": "e222bd4f48a68d58ca4dd8e8f42cffecc904e818fcdea0cb9e21070b8f1bf119",
+      "decoded": [
+        "fdroidrepos://repo.collie.im/fdroid/repo/?fingerprint=4FCC45341A4BF5F31453D9087E309D6008686673334F8DE5C7054E4BB8E3FB90"
+      ],
+      "quiet_zone_pixel": [
+        255,
+        255,
+        255
+      ]
+    },
+    "preview-mobile-dark": {
+      "dark": true,
+      "width": 390,
+      "height": 844,
+      "overflow": false,
+      "bodyFont": "Manrope, sans-serif",
+      "bodyWeight": "350",
+      "fonts": [
+        {
+          "family": "Manrope",
+          "status": "loaded",
+          "weight": "200 800"
+        },
+        {
+          "family": "Sora",
+          "status": "loaded",
+          "weight": "100 800"
+        }
+      ],
+      "qr": {
+        "x": 75,
+        "y": 539.671875,
+        "width": 240,
+        "height": 240
+      },
+      "dark_requested": true,
+      "auto_dark_requested": false,
+      "screenshot_sha256": "e222bd4f48a68d58ca4dd8e8f42cffecc904e818fcdea0cb9e21070b8f1bf119",
+      "decoded": [
+        "fdroidrepos://repo.collie.im/fdroid/repo/?fingerprint=4FCC45341A4BF5F31453D9087E309D6008686673334F8DE5C7054E4BB8E3FB90"
+      ],
+      "quiet_zone_pixel": [
+        255,
+        255,
+        255
+      ]
+    },
+    "preview-mobile-auto-dark": {
+      "dark": true,
+      "width": 390,
+      "height": 844,
+      "overflow": false,
+      "bodyFont": "Manrope, sans-serif",
+      "bodyWeight": "350",
+      "fonts": [
+        {
+          "family": "Manrope",
+          "status": "loaded",
+          "weight": "200 800"
+        },
+        {
+          "family": "Sora",
+          "status": "loaded",
+          "weight": "100 800"
+        }
+      ],
+      "qr": {
+        "x": 75,
+        "y": 539.671875,
+        "width": 240,
+        "height": 240
+      },
+      "dark_requested": true,
+      "auto_dark_requested": true,
+      "screenshot_sha256": "e222bd4f48a68d58ca4dd8e8f42cffecc904e818fcdea0cb9e21070b8f1bf119",
+      "decoded": [
+        "fdroidrepos://repo.collie.im/fdroid/repo/?fingerprint=4FCC45341A4BF5F31453D9087E309D6008686673334F8DE5C7054E4BB8E3FB90"
+      ],
+      "quiet_zone_pixel": [
+        255,
+        255,
+        255
+      ]
+    },
+    "inactive-mobile-light": {
+      "dark": false,
+      "width": 390,
+      "height": 844,
+      "overflow": false,
+      "bodyFont": "Manrope, sans-serif",
+      "bodyWeight": "350",
+      "fonts": [
+        {
+          "family": "Manrope",
+          "status": "loaded",
+          "weight": "200 800"
+        },
+        {
+          "family": "Sora",
+          "status": "loaded",
+          "weight": "100 800"
+        }
+      ],
+      "qr": null,
+      "dark_requested": false,
+      "auto_dark_requested": false,
+      "screenshot_sha256": "3cc33add0639e65d7bab6510eaf84dd31c053caff80be64f50e7bdb9e5adcee0"
+    },
+    "native-mobile-light": {
+      "dark": false,
+      "width": 390,
+      "height": 844,
+      "overflow": false,
+      "bodyFont": "Manrope, sans-serif",
+      "bodyWeight": "350",
+      "fonts": [
+        {
+          "family": "Manrope",
+          "status": "loaded",
+          "weight": "200 800"
+        },
+        {
+          "family": "Sora",
+          "status": "loaded",
+          "weight": "100 800"
+        }
+      ],
+      "qr": null,
+      "dark_requested": false,
+      "auto_dark_requested": false,
+      "screenshot_sha256": "d24ecceaacbbe54999fdf50185606dbff8a0c0640216f79a1394e72a47275f7e"
+    },
+    "control-control-light": {
+      "dark": false,
+      "width": 400,
+      "height": 300,
+      "overflow": false,
+      "bodyFont": "\"Times New Roman\"",
+      "bodyWeight": "400",
+      "fonts": [],
+      "qr": null,
+      "dark_requested": false,
+      "auto_dark_requested": false,
+      "screenshot_sha256": "1d93aa2ddb13b4a0b2b80242af2def949dc0a19747adff08eec8c0a641477f2f",
+      "control_pixel": [
+        255,
+        255,
+        255
+      ]
+    },
+    "control-control-auto-dark": {
+      "dark": true,
+      "width": 400,
+      "height": 300,
+      "overflow": false,
+      "bodyFont": "\"Times New Roman\"",
+      "bodyWeight": "400",
+      "fonts": [],
+      "qr": null,
+      "dark_requested": true,
+      "auto_dark_requested": true,
+      "screenshot_sha256": "3a3b9766bfe21e3612ee42136f121c2e22998667adda0f915293c7dfcab9990f",
+      "control_pixel": [
+        18,
+        18,
+        18
+      ]
+    }
+  },
+  "code_head": "be0b89d88fc271619980a98521af14bfcc7550bb",
+  "scope": "Round2 actual local browser/QR proof; no public production test",
+  "review_code": "b1a1dcca066134a43523c57f70eac352006f17fe",
+  "renderer_revision": "be0b89d88fc271619980a98521af14bfcc7550bb",
+  "renderer_sha256": "e131e09311981da151a52f2cbcd4b53ffb07fda3087f8545dc4f2d1ae23c962c",
+  "full_suite": "68 PASS on exact policy source",
+  "evidence_trust": "Unsigned author-executed local TEST browser proof; not public hosting, signed attestation or Android/native reproduction",
+  "findings": {
+    "SHOULD1": {
+      "disposition": "valid",
+      "evidence": "Both relative forms were undetected on f765; URLjoin now resolves against approved origin, actual ordinary prepare rejects them",
+      "validation": "PASS"
+    },
+    "SHOULD2": {
+      "disposition": "valid",
+      "evidence": "Preview\u2192inactive retained PNG on f765; inactive/native render now rejects PNG/SVG before writes without deletion; ordinary prepare rejects new or changed unactivated QR bytes",
+      "validation": "PASS"
+    },
+    "NIT": {
+      "disposition": "valid",
+      "evidence": "Displayed address omitted fingerprint; full pinned HTTPS URL is now rendered and read in desktop/mobile DOM",
+      "validation": "PASS"
+    }
+  },
+  "cleanup": "Disposable browser container/profiles and redundant fixture assets removed; original caches unchanged; final PNGs remain scratch only",
+  "not_run": [
+    "production TLS/CDN/readback/client acceptance",
+    "arbitrary extension behavior",
+    "new-source Android/native reproduction"
+  ]
+}
