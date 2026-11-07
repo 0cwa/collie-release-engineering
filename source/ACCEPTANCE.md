@@ -98,3 +98,33 @@ or signed attestation. A changed recipe/current base still requires new approval
 and complete regeneration. Direct Android compilation, device/account/attachment
 upgrades, independently reproduced native outputs and live required-check setup
 remain BLOCKED/NOT RUN as above.
+
+## Tracked native source candidate G3
+
+Current source draft replaces G2 without moving old refs: G3
+6301e215418c69c8ccab2012fbcc05a76d7081eb, I3
+8b119e357d1c9c6863eff31756660bc07d6cfb8b, complete tree
+b5fbed355186be1e728d556a48718e7158e7ab8f; plan SHA256
+b81dcc44ccd52bcc3b0e3c7d344cf1244021da68b96969220c02c83aa3368d03.
+Implementation79badedf materializes eight paths before compilation: exclusive
+mandatory-POM native repository, six historical-coordinate substitutions, exact
+strict stage XML, ambient local-input removal and typed production/host-test
+declarations. Catalog pins and application Gradle script/gate/ABIs/product
+Java/Kotlin/resources are unchanged. The public origin remains NOT PUBLISHED.
+
+Seven actual-six-byte isolated offline resolver checks PASS: normal direct and
+transitive native resolution, missing module despite matching fallback, missing
+POM, .module-only fallback, metadata-redirection marker, POM tamper and binary
+tamper. Non-native runtime dependencies are excluded only in that fixture. It is
+not an Android build, gate activation or public readback. Source unit suite37
+tests PASS, including existing staging cases. Combined source79 + distribution
+e3e3182e merge-tree759ed74a exports cleanly and24 standalone distribution tests
+PASS. The shared receipt helper is unchanged.
+
+The six production inputs do not establish native JVM regression readiness.
+Tracked host-test declaration names the separately verified historical local JNI
+input, OLD lock and immutable staging-guard recipe; no public host input/complete
+builder is supplied, tests remain NOT RUN. User authorization for native artifact
+publication, independent public readback, final recipe pins/current-base approval,
+reviewed gate layer and actual Android/device/native acceptance remain gates.
+No application/source publication is represented as compiled APK provenance.
