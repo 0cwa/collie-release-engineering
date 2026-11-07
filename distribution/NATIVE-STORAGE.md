@@ -1,45 +1,41 @@
-# Native storage decision package — not activated
+# Initial native storage budget — prepared, not activated
 
-The selected binary-feed/landing host is GitHub Pages. Native Maven inputs should
-use a separately approved immutable HTTPS origin: proposed
-`https://native.collie.im/maven/v1/`, backed by the existing small six-file R2
-publication route. This proposal is not permission to create a bucket, domain,
-DNS record, account, key or upload. Current `repo.collie.im/native-inputs/v1/maven/`
-source inputs remain NOT PUBLISHED; changing the URL layer/locks requires review
-before final G generation.
+GitHub Pages at `https://repo.collie.im/` is the selected initial host for both the
+binary feed and exactly one existing native-v1 Maven generation at
+`/native-inputs/v1/maven/`. This explicit capacity decision preserves the original
+source URLs. No Pages/DNS/TLS setting, key or upload has been activated. The former
+separate R2/native.collie.im proposal is an inactive future alternative, not an
+initial requirement or a second feed provider.
 
-`native-origin-proposal.json` lists every file's exact hash/size, proposed URL and
-R2 object key. No native binary is included in the Pages artifact or Git. The
-accepted six files total310,836,447bytes; canonical RC1 is97,054,341bytes. Sharing
-Pages initially fits407,890,788bytes before indexes/site. One native generation
-plus six similarly sized APKs consumes893,162,493bytes; seven consumes990,216,834
-before overhead. Two native generations plus four APKs exceeds1GB. Immutable old
-native inputs must remain reachable for source builds, so deleting generations
-is not an acceptable capacity policy. A separate native origin avoids making
-application source retention compete with binary-feed history.
+`native-v1.json` is the trusted six-file policy: three existing binary inputs and
+three transformed POMs, exact SHA256 and sizes, totaling310,836,447bytes. The data
+bundle must carry an identical `native-manifest.json` with a separately approved
+raw SHA256 and the six files beneath `native/`. No arbitrary native file, new
+coordinate/generation, symlink, omission or changed byte is admitted. These are
+accepted trusted-local inputs; independent native reproduction remains NOT RUN.
 
-Pages packaging enforces a conservative950,000,000byte total per snapshot/tar,
-leaving50MB below the documented1GB limit. With no native files, nine RC1-sized
-APKs consume873,489,069bytes before metadata; the exact full artifact still decides
-acceptance. At the100GB/month soft transfer limit, about1030 full RC1 downloads
-alone consume that budget, before indexes/readback/other traffic. Actual access
-volume and CDN behavior remain unmeasured. Do not promise a free quota or infer
-existing R2/DNS access.
+Native-v1 plus the canonical RC1 APK is407,890,788bytes before index/site overhead.
+One native generation plus six RC1-sized APKs is893,162,493bytes; seven is990,216,834
+before overhead, exceeding the950,000,000byte operational ceiling. Both complete
+site snapshots AND their tar artifacts must fit this ceiling. Every published
+native-v1 file stays reachable in every later snapshot. No automatic pruning or
+old-binary overwrite is permitted; growth requires a separate archive/storage
+approval. Pages has a documented1GB site limit and100GB soft monthly transfer
+limit; six binaries plus indexes/readbacks/download traffic are budgeted together.
 
-R2 custom-domain setup requires checking its current account/zone prerequisites;
-no suitable Cloudflare zone or account has been established by this task. Domain
-registration, DNS ownership, billing and existing host availability remain operator
-items. The source repository's native origin tool supplies exact six-file plan
-and readback checks; this document supplies the proposed destination, not a second
-feed provider framework. The old R2 feed planner is historical/inactive for this
-rollout. Pages stays the only selected feed host.
+A native-only bundle needs no APK, repository-index signer, signed index or add
+link. Both snapshots preserve any existing feed/landing; an initial empty site
+shows preparation text and no active feed. Initial preflight checks absent
+manifest/entry plus every native URL (absent or already identical). Full canonical
+HTTPS readback must succeed before a new-source build may use these public inputs.
+Later feed publication needs its own approved production index certificate and
+signed repository receipt. Test staging keys are never production authorization.
 
-After native-origin approval, the operator freezes account/bucket/domain, object
-keys, immutable content/cache policy and six SHA256/size pairs; performs no-overwrite
-upload; reads all six canonical HTTPS URLs back; preserves a durable receipt; then
-reviews the changed source URL layer before source regeneration. APK signing,
-repository-index signing and HTTPS identities remain separate. The binaries retain
-trusted-local provenance, with independent native reproduction NOT RUN.
+Operator package: exact policy revision, native-manifest raw SHA256, complete
+input bundle SHA256, previous published inventory/manifest, both tar SHA256/sizes,
+per-file URL/hash/size plan and durable journal. Provision/activate Pages/custom
+domain/TLS/protected reviewers only with separate production approval. Read every
+canonical URL back before source-build acceptance; preserve the receipt outside
+CI retention. R2 account/DNS migration is not requested for this initial route.
 
-Official constraints: https://docs.github.com/en/pages/getting-started-with-github-pages/github-pages-limits
-and https://developers.cloudflare.com/r2/buckets/public-buckets/ .
+Official limits: https://docs.github.com/en/pages/getting-started-with-github-pages/github-pages-limits

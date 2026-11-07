@@ -15,6 +15,11 @@ sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'tools'/'patches'))
 import migration_receipts as receipts
 ORIGIN='https://repo.collie.im/'
 MAX_BYTES=950_000_000  # conservative decimal1GB minus50MB operational margin
+NATIVE_POLICY=Path(__file__).with_name('native-v1.json')
+
+def native_files():
+    return b.load(NATIVE_POLICY)['files']
+
 INDEXES={'entry.jar','entry.json','index-v1.jar','index-v1.json','index-v2.json','index.jar','index.xml'}
 
 def digest(value):
@@ -38,6 +43,7 @@ def inventory(root):
     return result
 
 def public_site_name(name):
+    if name in native_files():return True
     if name in {'index.html','add-repository.svg','site-manifest.json','.nojekyll'}:return True
     if name.startswith('fdroid/repo/'):return b.public_path(name[len('fdroid/repo/'):])
     if re.fullmatch(r'_generations/[0-9a-f]{64}/[A-Za-z0-9_.-]+',name):return name.rsplit('/',1)[1] in INDEXES|{'repository-receipt.json'}
@@ -71,65 +77,83 @@ def archive(site,output,manifest):
 
 def prepare(bundle,output,expected_policy):
     a=b.load(bundle/'approval.json')
+    native_only=a.get('kind')=='collie-pages-native-input'
     fields={'schema','kind','origin','previous_site_sha256','previous_manifest_sha256','candidate_generation_sha256','repository_certificate_sha256','repository_receipt_sha256','release_approvals','landing_sha256','maximum_bytes','policy_revision'}
-    if set(a)!=fields or type(a['schema']) is not int or a['schema']!=1 or a['kind']!='collie-pages-input':raise ValueError('Pages input fields/schema')
+    if native_only:fields={'schema','kind','origin','previous_site_sha256','previous_manifest_sha256','native_manifest_sha256','maximum_bytes','policy_revision'}
+    elif a.get('schema')==2:fields.add('native_manifest_sha256')
+    if set(a)!=fields or type(a['schema']) is not int or a['schema'] not in ((1,) if native_only else (1,2)) or a['kind'] not in ('collie-pages-input','collie-pages-native-input'):raise ValueError('Pages input fields/schema')
     if a['origin']!=ORIGIN or a['policy_revision']!=expected_policy or not re.fullmatch('[0-9a-f]{40}',expected_policy):raise ValueError('origin/policy approval differs')
     if type(a['maximum_bytes']) is not int or not 0<a['maximum_bytes']<=MAX_BYTES:raise ValueError('Pages budget')
     if a['previous_manifest_sha256'] is not None and not re.fullmatch('[0-9a-f]{64}',a['previous_manifest_sha256']):raise ValueError('previous manifest digest')
-    for key in ('previous_site_sha256','candidate_generation_sha256','repository_certificate_sha256','repository_receipt_sha256','landing_sha256'):
+    keys=('previous_site_sha256',) if native_only else ('previous_site_sha256','candidate_generation_sha256','repository_certificate_sha256','repository_receipt_sha256','landing_sha256')
+    for key in keys:
         if not re.fullmatch('[0-9a-f]{64}',a[key]):raise ValueError('Pages digest '+key)
     old=bundle/'previous';candidate=bundle/'candidate';landing=bundle/'landing'
-    old_files=inventory(old);landing_files=inventory(landing)
+    old_files=inventory(old);landing_files={} if native_only else inventory(landing)
+    pinned_native=native_files()
+    supplied_native=inventory(bundle/'native')
+    native_digest=a.get('native_manifest_sha256')
+    if native_only and native_digest is None:raise ValueError('native manifest approval required')
+    if native_digest is not None:
+        if not isinstance(native_digest,str) or not re.fullmatch('[0-9a-f]{64}',native_digest) or b.sha(bundle/'native-manifest.json')!=native_digest:raise ValueError('native manifest digest differs')
+        if b.load(bundle/'native-manifest.json')!=b.load(NATIVE_POLICY):raise ValueError('native manifest differs from fixed six-file policy')
+        if supplied_native!=pinned_native:raise ValueError('native inputs differ from approved six files')
+    elif supplied_native:raise ValueError('native inputs lack approval')
+    retained_native={n:e for n,e in old_files.items() if n.startswith('native-inputs/')}
+    if retained_native and (retained_native!=pinned_native or native_digest is None):raise ValueError('published native v1 must remain complete and approved')
     for name in old_files:
-        if name.startswith('native-inputs/'):raise ValueError('native origin requires its own approved storage migration; not Pages feed input')
         if not public_site_name(name):raise ValueError('unexpected previous public file')
     if old_files:
         prior=b.load(old/'site-manifest.json')
         if set(prior)!={'schema','kind','origin','files'} or type(prior['schema']) is not int or prior['schema']!=1 or prior['kind']!='collie-pages-public-inventory' or prior['origin']!=ORIGIN:raise ValueError('previous manifest format')
         if prior['files']!={k:v for k,v in old_files.items() if k!='site-manifest.json'} or b.sha(old/'site-manifest.json')!=a['previous_manifest_sha256']:raise ValueError('previous manifest does not cover full retained site')
     elif a['previous_manifest_sha256'] is not None:raise ValueError('initial publication requires explicit null previous manifest')
-    if digest(old_files)!=a['previous_site_sha256'] or digest(landing_files)!=a['landing_sha256']:raise ValueError('previous site/landing changed')
-    if set(landing_files)!={'index.html','add-repository.svg'}:raise ValueError('unexpected landing files')
-    # This checks strings as binding hints, not HTML correctness; operator reviews
-    # the exact landing digest. Never execute a candidate build or script.
-    text=(landing/'index.html').read_text()
-    if a['repository_certificate_sha256'].upper() not in text or b.APK_CERTIFICATE.upper() not in text:raise ValueError('landing fingerprints differ')
-    if not isinstance(a['release_approvals'],list) or not a['release_approvals']:raise ValueError('release approvals missing')
-    approvals=[]
-    for name in a['release_approvals']:
-        if not re.fullmatch(r'[A-Za-z0-9_-]+\.json',name):raise ValueError('release approval filename')
-        path=bundle/'releases'/name;approval=b.approval(path)
-        b.verify_release_approval(approval,bundle/'bundles'/str(approval['release_id']) if approval['schema']==2 else None)
-        approvals.append(path)
-    _,data=b.approved_generation(candidate,a['repository_certificate_sha256'],a['candidate_generation_sha256'],approvals)
-    if data['repo']['address'].rstrip('/')!=ORIGIN+'fdroid/repo':raise ValueError('signed index origin differs')
-    if 'fdroid/repo/entry.jar' in old_files:
-        previous_data=b.verify_indexes(old/'fdroid/repo',a['repository_certificate_sha256'])
-        if previous_data['repo']['address'].rstrip('/')!=ORIGIN+'fdroid/repo':raise ValueError('previous signed origin differs')
-    receipt=receipts.load(bundle/'repository-receipt.json','repository')
-    if receipts.digest(receipt)!=a['repository_receipt_sha256']:raise ValueError('repository receipt unapproved')
-    payload=receipt['payload']
-    if payload['generation']!=a['candidate_generation_sha256'] or payload['repository_certificate_sha256']!=a['repository_certificate_sha256']:raise ValueError('repository receipt identity differs')
-    selected=[b.approval(p) for p in approvals]
-    if not any(x['apk_sha256']==payload['apk_sha256'] and x['apk_certificate_sha256']==payload['apk_certificate_sha256'] and x['release_manifest_sha256']==payload['release_manifest_sha256'] and x.get('release_receipt_sha256')==payload['release_receipt_sha256'] for x in selected):raise ValueError('repository receipt release differs')
-    for entry in payload['indexes']:
-        if b.sha(candidate/entry['file'])!=entry['sha256']:raise ValueError('repository receipt index differs')
-    candidate_files=inventory(candidate)
-    additions={('fdroid/repo/'+name):(candidate/name,entry) for name,entry in candidate_files.items()}
+    if digest(old_files)!=a['previous_site_sha256'] or (not native_only and digest(landing_files)!=a['landing_sha256']):raise ValueError('previous site/landing changed')
+    additions={name:(bundle/'native'/name,entry) for name,entry in supplied_native.items()}
+    receipt_bytes=None;prefix=None
+    if not native_only:
+        if set(landing_files)!={'index.html','add-repository.svg'}:raise ValueError('unexpected landing files')
+        # This checks strings as binding hints, not HTML correctness; operator reviews
+        # the exact landing digest. Never execute a candidate build or script.
+        text=(landing/'index.html').read_text()
+        if a['repository_certificate_sha256'].upper() not in text or b.APK_CERTIFICATE.upper() not in text:raise ValueError('landing fingerprints differ')
+        if not isinstance(a['release_approvals'],list) or not a['release_approvals']:raise ValueError('release approvals missing')
+        approvals=[]
+        for name in a['release_approvals']:
+            if not re.fullmatch(r'[A-Za-z0-9_-]+\.json',name):raise ValueError('release approval filename')
+            path=bundle/'releases'/name;approval=b.approval(path)
+            b.verify_release_approval(approval,bundle/'bundles'/str(approval['release_id']) if approval['schema']==2 else None)
+            approvals.append(path)
+        _,data=b.approved_generation(candidate,a['repository_certificate_sha256'],a['candidate_generation_sha256'],approvals)
+        if data['repo']['address'].rstrip('/')!=ORIGIN+'fdroid/repo':raise ValueError('signed index origin differs')
+        if 'fdroid/repo/entry.jar' in old_files:
+            previous_data=b.verify_indexes(old/'fdroid/repo',a['repository_certificate_sha256'])
+            if previous_data['repo']['address'].rstrip('/')!=ORIGIN+'fdroid/repo':raise ValueError('previous signed origin differs')
+        receipt=receipts.load(bundle/'repository-receipt.json','repository')
+        if receipts.digest(receipt)!=a['repository_receipt_sha256']:raise ValueError('repository receipt unapproved')
+        payload=receipt['payload']
+        if payload['generation']!=a['candidate_generation_sha256'] or payload['repository_certificate_sha256']!=a['repository_certificate_sha256']:raise ValueError('repository receipt identity differs')
+        selected=[b.approval(p) for p in approvals]
+        if not any(x['apk_sha256']==payload['apk_sha256'] and x['apk_certificate_sha256']==payload['apk_certificate_sha256'] and x['release_manifest_sha256']==payload['release_manifest_sha256'] and x.get('release_receipt_sha256')==payload['release_receipt_sha256'] for x in selected):raise ValueError('repository receipt release differs')
+        for entry in payload['indexes']:
+            if b.sha(candidate/entry['file'])!=entry['sha256']:raise ValueError('repository receipt index differs')
+        candidate_files=inventory(candidate)
+        additions.update({('fdroid/repo/'+name):(candidate/name,entry) for name,entry in candidate_files.items()})
     # Retain old immutable URLs. Replacing an APK/native URL is never retention.
     for name,(path,entry) in additions.items():
         if name in old_files and immutable(name) and entry!=old_files[name]:raise ValueError('immutable URL overwrite')
     for name,entry in old_files.items():
         if name.startswith('fdroid/repo/') and immutable(name) and name not in additions:additions[name]=(old/name,entry)
-    prefix='_generations/'+a['candidate_generation_sha256']+'/'
-    for name in INDEXES:
-        if name in candidate_files:additions[prefix+name]=(candidate/name,candidate_files[name])
-    for name,(path,entry) in additions.items():
-        if name in old_files and immutable(name) and entry!=old_files[name]:raise ValueError('immutable generation archive overwrite')
-    # Signed index previews are immutable archive evidence, never an active feed.
-    receipt_bytes=(bundle/'repository-receipt.json').read_bytes()
-    receipt_name=prefix+'repository-receipt.json'
-    if receipt_name in old_files and old_files[receipt_name]['sha256']!=hashlib.sha256(receipt_bytes).hexdigest():raise ValueError('immutable receipt archive overwrite')
+    if not native_only:
+        prefix='_generations/'+a['candidate_generation_sha256']+'/'
+        for name in INDEXES:
+            if name in candidate_files:additions[prefix+name]=(candidate/name,candidate_files[name])
+        for name,(path,entry) in additions.items():
+            if name in old_files and immutable(name) and entry!=old_files[name]:raise ValueError('immutable generation archive overwrite')
+        # Signed index previews are immutable archive evidence, never an active feed.
+        receipt_bytes=(bundle/'repository-receipt.json').read_bytes()
+        receipt_name=prefix+'repository-receipt.json'
+        if receipt_name in old_files and old_files[receipt_name]['sha256']!=hashlib.sha256(receipt_bytes).hexdigest():raise ValueError('immutable receipt archive overwrite')
     if output.exists():raise ValueError('new output directory required; reuse prepared artifacts on retry')
     output.mkdir(parents=True)
     try:
@@ -139,12 +163,13 @@ def prepare(bundle,output,expected_policy):
             mapping={name:(old/name,entry) for name,entry in old_files.items() if name!='site-manifest.json'}
             for name,(path,entry) in additions.items():
                 if phase=='phase2' or immutable(name):mapping[name]=(path,entry)
-            if phase=='phase2':mapping.update({name:(landing/name,entry) for name,entry in landing_files.items()})
-            elif not old_files:
+            if phase=='phase2' and not native_only:mapping.update({name:(landing/name,entry) for name,entry in landing_files.items()})
+            if not old_files and (phase=='phase1' or native_only):
                 (site/'index.html').write_text('<!doctype html><html lang="en"><title>Collie repository preparation</title><h1>Repository preparation</h1><p>The feed is not active. Approved assets and signed index previews are being verified.</p></html>')
             for name,(path,entry) in mapping.items():copy_pinned(path,site/name,entry)
-            archive_dir=site/prefix;archive_dir.mkdir(parents=True,exist_ok=True)
-            (archive_dir/'repository-receipt.json').write_bytes(receipt_bytes)
+            if receipt_bytes is not None:
+                archive_dir=site/prefix;archive_dir.mkdir(parents=True,exist_ok=True)
+                (archive_dir/'repository-receipt.json').write_bytes(receipt_bytes)
             public_inventory={'schema':1,'kind':'collie-pages-public-inventory','origin':ORIGIN,'files':inventory(site)}
             b.atomic_json(site/'site-manifest.json',public_inventory)
             manifest=inventory(site);size=sum(e['bytes'] for e in manifest.values())
@@ -158,7 +183,7 @@ def prepare(bundle,output,expected_policy):
         if immutable1!=immutable2:raise ValueError('phase immutable asset sets differ')
         for name in old_files:
             if name not in manifests['phase2']:raise ValueError('retained URL removed')
-        plan={'schema':1,'kind':'collie-pages-promotion','input_approval_sha256':digest(a),'origin':ORIGIN,'policy_revision':expected_policy,'repository_receipt_sha256':a['repository_receipt_sha256'],'repository_certificate_sha256':a['repository_certificate_sha256'],'candidate_generation_sha256':a['candidate_generation_sha256'],'maximum_bytes':a['maximum_bytes'],'previous_manifest_sha256':a['previous_manifest_sha256'],'previous_files':old_files,'manifests':manifests,'artifacts':artifacts}
+        plan={'schema':1,'kind':'collie-pages-promotion','input_approval_sha256':digest(a),'origin':ORIGIN,'policy_revision':expected_policy,'mode':'native-only' if native_only else 'feed','native_manifest_sha256':native_digest,'repository_receipt_sha256':a.get('repository_receipt_sha256'),'repository_certificate_sha256':a.get('repository_certificate_sha256'),'candidate_generation_sha256':a.get('candidate_generation_sha256'),'maximum_bytes':a['maximum_bytes'],'previous_manifest_sha256':a['previous_manifest_sha256'],'previous_files':old_files,'manifests':manifests,'artifacts':artifacts}
         b.atomic_json(output/'plan.json',plan)
         b.atomic_json(output/'journal.json',{'schema':1,'plan_sha256':digest(plan),'completed':[],'previous_verified':False,'readbacks':{}})
         return plan
@@ -192,6 +217,11 @@ def preflight(plan,journal_path,*,fetch=observe):
             for name in ('site-manifest.json','fdroid/repo/entry.jar'):
                 actual=fetch(plan['origin']+name)
                 if actual.get('status')!=404:raise ValueError('initial origin is not the explicitly approved empty feed')
+                observations[name]=actual
+            for name,expected in plan['manifests']['phase1'].items():
+                if not name.startswith('native-inputs/'):continue
+                actual=fetch(plan['origin']+name)
+                if actual.get('status')!=404 and (actual.get('status',200)!=200 or actual.get('sha256')!=expected['sha256'] or actual.get('bytes')!=expected['bytes']):raise ValueError('existing native URL differs before initial publication')
                 observations[name]=actual
         else:
             for name,expected in plan['previous_files'].items():

@@ -2,8 +2,8 @@
 
 GitHub Pages in collie-release-engineering is the selected host for
 https://repo.collie.im/ and /fdroid/repo/. Keep one canonical unchanged signed APK
-per selected version. The old R2 feed planner is inactive/historical. Native Maven
-inputs have a separate proposed origin requiring operator approval; see
+per selected version. The old R2 feed planner is inactive/historical. The existing six-file native-v1 generation shares this Pages budget by explicit
+initial decision; see
 NATIVE-STORAGE.md. A later collie.im website on an application website branch is a
 separate work item; it neither blocks this feed nor belongs in Android main.
 
@@ -51,6 +51,8 @@ bundles/<release-id>/{source,build,release}.json  # new-v2 approvals only
 candidate/<exact public fdroid repo files>
 previous/<complete last approved published site>
 landing/{index.html,add-repository.svg}
+native-manifest.json  # optional schema2 feed approval; required native-only
+native/native-inputs/v1/maven/<exact six paths>
 ```
 
 The complete archive SHA256 and explicit engineering release-asset ID are approved
@@ -208,3 +210,24 @@ access, removes only its own created partial on failure, and uses exclusive
 publication so a concurrently created destination is preserved. Regression tests
 cover both preexisting and raced paths; the actual Pages artifact bytes above are
 unchanged by this download-helper correction.
+
+## Native-v1 admission and initial native-only deployment
+
+The initial plan now explicitly cohosts only the six policy-fixed native-v1 files
+at their original URLs. `native-v1.json` binds exact paths/hashes/sizes; the outer
+approval separately binds raw `native-manifest.json` SHA256. Feed input schema2
+adds required `native_manifest_sha256` (null only when no native files have ever
+been published). Schema1 remains the historical feed-only format. Once native-v1
+is present, every approved bundle must carry all six unchanged files and the
+manifest approval; omission, changed bytes, extra files or new generations fail.
+
+For deployment before any production repository-index key exists, approval schema1
+kind `collie-pages-native-input` has only: origin, policy_revision,
+previous_site_sha256, previous_manifest_sha256, native_manifest_sha256,
+maximum_bytes, schema and kind. It needs no candidate repo, release approval,
+repository receipt, key or landing. Both snapshots add the six immutable files
+and preserve the complete prior site. On an empty site both show preparation
+text without an active feed/add link. The same workflow/reviewer/readback gates
+apply. Initial native URL conflicts fail preflight. A later separately signed
+feed bundle retains native-v1 forever; all bytes count toward950MB. No production
+settings, uploads, live feed, index key or new source build are authorized here.

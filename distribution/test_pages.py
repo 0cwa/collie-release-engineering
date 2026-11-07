@@ -115,3 +115,74 @@ class PagesTest(unittest.TestCase):
                 tar.addfile(entry,io.BytesIO(b'x'))
                 if kind=='duplicate':tar.addfile(entry,io.BytesIO(b'x'))
             with self.assertRaises(ValueError):p.unpack(file,self.root/(kind+'-output'))
+
+class NativePagesTest(unittest.TestCase):
+    setUp=PagesTest.setUp
+    write=PagesTest.write
+    prepare=PagesTest.prepare
+    seal_previous=PagesTest.seal_previous
+    def add_native(self,only=False):
+        # Small transport fixtures use the exact six production coordinate names;
+        # only content hashes/sizes are mocked. Actual inputs have separate evidence.
+        policy=b.load(p.NATIVE_POLICY)
+        for name,entry in policy['files'].items():
+            path=self.bundle/'native'/name;path.parent.mkdir(parents=True,exist_ok=True);path.write_bytes(('fixture '+name).encode())
+            entry.update(sha256=b.sha(path),bytes=path.stat().st_size)
+        self.native_policy=self.root/'native-policy.json';b.atomic_json(self.native_policy,policy)
+        b.atomic_json(self.bundle/'native-manifest.json',policy)
+        self.approval.update(schema=2,native_manifest_sha256=b.sha(self.bundle/'native-manifest.json'))
+        if only:
+            self.approval={k:v for k,v in self.approval.items() if k in {'schema','origin','previous_site_sha256','previous_manifest_sha256','native_manifest_sha256','maximum_bytes','policy_revision'}}
+            self.approval.update(schema=1,kind='collie-pages-native-input')
+        self.write();self.policy_patch=patch.object(p,'NATIVE_POLICY',self.native_policy);self.policy_patch.start();self.addCleanup(self.policy_patch.stop)
+        return policy['files']
+    def test_native_only_needs_no_apk_index_key_or_landing(self):
+        files=self.add_native(only=True)
+        for name in ('candidate','releases','landing'):__import__('shutil').rmtree(self.bundle/name)
+        with patch('binary_repo.verify_indexes',side_effect=AssertionError('no index verifier needed')):plan=p.prepare(self.bundle,self.output,'c'*40)
+        self.assertEqual(plan['mode'],'native-only');self.assertIsNone(plan['repository_certificate_sha256'])
+        for phase in ('phase1','phase2'):
+            site=self.output/phase/'site';self.assertIn('not active',(site/'index.html').read_text());self.assertFalse((site/'fdroid').exists());self.assertFalse((site/'add-repository.svg').exists())
+            self.assertEqual({n:e for n,e in plan['manifests'][phase].items() if n.startswith('native-inputs/')},files)
+        self.assertEqual(plan['artifacts']['phase1'],plan['artifacts']['phase2'])
+    def test_native_feed_both_phases_same_six_files(self):
+        files=self.add_native();plan=self.prepare()
+        for phase in ('phase1','phase2'):self.assertEqual({n:e for n,e in plan['manifests'][phase].items() if n.startswith('native-inputs/')},files)
+        self.assertFalse(p.public_site_name('native-inputs/v2/maven/extra.jar'))
+    def test_native_missing_extra_tampered_and_unapproved_fail(self):
+        files=self.add_native();name=next(iter(files));path=self.bundle/'native'/name;original=path.read_bytes()
+        for change in ('missing','tampered','extra','manifest','approval'):
+            with self.subTest(change=change):
+                if change=='missing':path.unlink()
+                elif change=='tampered':path.write_bytes(b'changed')
+                elif change=='extra':(self.bundle/'native/extra.jar').write_bytes(b'private')
+                elif change=='manifest':(self.bundle/'native-manifest.json').write_text('{}')
+                else:self.approval['native_manifest_sha256']=None;self.write()
+                with self.assertRaises(ValueError):self.prepare()
+                self.assertFalse(self.output.exists());path.write_bytes(original)
+                extra=self.bundle/'native/extra.jar'
+                if extra.exists():extra.unlink()
+                __import__('shutil').copyfile(self.native_policy,self.bundle/'native-manifest.json');self.approval['native_manifest_sha256']=b.sha(self.bundle/'native-manifest.json');self.write()
+    def test_native_previous_cannot_be_omitted_or_rewritten(self):
+        files=self.add_native();old=self.bundle/'previous'
+        for name in files:
+            dest=old/name;dest.parent.mkdir(parents=True,exist_ok=True);__import__('shutil').copyfile(self.bundle/'native'/name,dest)
+        self.seal_previous();self.approval['native_manifest_sha256']=None;self.write()
+        __import__('shutil').rmtree(self.bundle/'native')
+        with self.assertRaisesRegex(ValueError,'must remain complete'):self.prepare()
+    def test_native_previous_old_indexes_preserved_and_budget_enforced(self):
+        self.add_native(only=True);old=self.bundle/'previous/fdroid/repo';old.mkdir(parents=True);(old/'entry.jar').write_bytes(b'previous signed entry');self.seal_previous()
+        plan=self.prepare()
+        for phase in ('phase1','phase2'):self.assertEqual((self.output/phase/'site/fdroid/repo/entry.jar').read_bytes(),b'previous signed entry')
+        __import__('shutil').rmtree(self.output);self.approval['maximum_bytes']=100;self.write()
+        with self.assertRaisesRegex(ValueError,'budget'):self.prepare()
+
+    def test_initial_native_url_conflict_blocks_preflight(self):
+        self.add_native(only=True);plan=self.prepare();journal=self.output/'journal.json'
+        def conflict(url):
+            if '/native-inputs/' in url:return {'status':200,'sha256':'0'*64,'bytes':0}
+            return {'status':404}
+        with self.assertRaisesRegex(ValueError,'native URL differs'):p.preflight(plan,journal,fetch=conflict)
+        self.assertFalse(b.load(journal)['previous_verified'])
+        p.preflight(plan,journal,fetch=lambda url:dict(plan['manifests']['phase1'][url.removeprefix(p.ORIGIN)],status=200) if '/native-inputs/' in url else {'status':404})
+        self.assertTrue(b.load(journal)['previous_verified'])
