@@ -198,7 +198,8 @@ def validate_security_manifest(manifest):
 def shorten_message_subjects(messages):
     for entry in messages['layers']:
         if len(entry['subject']) > 120:
-            replacement = SHORT_SUBJECTS.get(entry['changes'])
+            source_name = entry['changes'].splitlines()[0].strip().rstrip('.')
+            replacement = SHORT_SUBJECTS.get(source_name)
             if replacement is None or len(replacement) > 120:
                 raise ValueError('publication layer has no reviewed short commit subject: ' + entry['changes'].splitlines()[0])
             entry['subject'] = replacement
