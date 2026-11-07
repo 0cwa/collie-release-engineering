@@ -6,6 +6,7 @@ import shutil
 import subprocess
 
 BASELINE = 'f6f68cdee08fb8d9acb6a866b1673deb10525f20'
+RECIPE_REVISION = '36779887ffc0bb1ecff55a87c350740662570039'
 RECONSTRUCTED_TREE = 'da5c03ff20ae2a672329eb8257bc33949845b268'
 
 
@@ -41,6 +42,7 @@ jobs:
         run: python3 -c 'import json; x=json.load(open("build-inputs/native-publication.json")); assert x["status"] == "BLOCKED"; print("Direct Android build acceptance BLOCKED pending public immutable native inputs; this source check is not build approval")'
 ''')
     (app / 'build-inputs').mkdir(exist_ok=True)
+    (app / 'build-inputs/engineering.json').write_text(json.dumps({'schema': 1, 'origin': 'https://github.com/0cwa/collie-release-engineering.git', 'recipe_revision': RECIPE_REVISION, 'native_recipe_path': 'tools/native', 'trust': 'trusted-local native outputs; independent reproduction not established'}, indent=2)+'\n')
     shutil.copyfile(engineering / 'tools/native/native-lock.json', app / 'build-inputs/native-lock.json')
     (app / 'build-inputs/native-publication.json').write_text(json.dumps({'schema':1,'status':'BLOCKED','repository':None,
         'reason':'Accepted trusted-local native artifacts have locked hashes but no verified public immutable origin. Release assembly remains blocked.',
