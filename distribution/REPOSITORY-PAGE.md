@@ -2,8 +2,9 @@
 
 This feature is separate from the reviewed hosting/native preparation. Merging
 preparation code does **not** publish F-Droid, native inputs, a website or a badge.
-The owner confirms DNS is not configured; no production deployment/activation or
-key was created. The later collie.im website branch is a separate task.
+The owner configures DNS/Pages separately; that configuration does not grant
+publication authority. No production deployment/activation or index key is created
+by this feature. The later collie.im website branch is a separate task.
 
 The page uses the unchanged approved Collie icon, the owner's golden/orange/bark
 palette and self-hosted Manrope body350/400 plus Sora headings300. Molly inspired
@@ -124,3 +125,20 @@ its empty output is not a full design/accessibility pass. Browser containers,
 profiles and superseded renders were removed; original caches were untouched.
 The64 tests are one complete suite, not added to overlapping focused counts.
 Production endpoint/client activation and a new-source Android build remain NOT RUN.
+
+## Review corrections, round2
+
+Sol SHOULD1, SHOULD2 and the address-copy NIT were all reproduced and valid on
+f765. Browser-relative URLs now resolve against the approved origin before link
+classification. Inactive/native rendering rejects existing PNG/SVG QR files before
+any writes, preserving those files; use a fresh output directory. Ordinary feed
+preparation rejects new or changed QR content before first approved link activation.
+The manual address displays its complete fingerprint query. The exact corrected
+policy passed68 tests; focused renderer/activation checks are overlapping subsets.
+
+Fresh actual desktop/mobile dark and forced-auto-dark screenshots again decoded
+all six QRs, retained white quiet zones and showed the full pinned address without
+horizontal overflow. Auto-dark control still changed white255→18; the browser
+container/profiles were removed. Small unsigned code/test/visual observations are
+in evidence/repository-page-round2.json; no PNG or key is committed. Production
+publication, client acceptance and arbitrary extensions remain untested here.
