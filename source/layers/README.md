@@ -5,6 +5,14 @@ and before publication/compilation. Their whole before/after trees and patch
 hashes are reviewed in the publication plan. Publication of source alone does
 not authorize building/signing/releasing an artifact.
 
+The publication layer's producer passes the exact application commit from the
+approved plan as `application_base=plan['old_main']`, together with that plan.
+The commit must be available in the pinned application repository. The layer
+copies `README.md`, `LICENSE`, `NOTICE`, and `assets` from that commit without
+rewriting them; the publisher and candidate verifier compare their complete
+Git entries, including modes and symlinks, with the same `old_main`. Never use
+the original cutover baseline after the approved application main has advanced.
+
 Direct build blockers: the accepted native lock binds libsignal-android/client
 0.106.1-collie.1 and ringrtc-android 2.74.0-collie.1 but has no public immutable
 artifact origin. Do not substitute upstream binaries. Obtain approval to publish

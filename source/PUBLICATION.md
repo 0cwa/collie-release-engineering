@@ -29,6 +29,15 @@ currently a draft until public native inputs and direct build acceptance pass.
    move old release tags. Keep candidate refs through review and protect retained
    release source refs using separately approved repository settings.
 
+The publication layer receives `application_base=plan['old_main']` and the same
+approved plan. That exact immutable application commit supplies `README.md`,
+`LICENSE`, `NOTICE`, and `assets`; these user-facing files are preserved without
+rewriting the README. `publish.py` and candidate verification compare their
+complete Git entries, including asset modes and symlinks, to `plan.old_main`.
+When an ordinary source contribution becomes part of application main, bind
+the regenerated plan and publication layer to that newly reviewed main tip. A
+stale baseline is rejected instead of silently restoring old user content.
+
 Source receipts are emitted *after* G exists and live outside G. Receipt hashes
 are implementation evidence unless separately signed; they do not prove
 independent reproduction. Neither equal trees nor upstream ancestry proves equal
