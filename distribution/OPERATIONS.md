@@ -142,3 +142,19 @@ supplied mismatch. Approval becomes invalid when any public file, release approv
 or repository signer changes. Historical staging tests dynamically compute their
 test approval digest only to exercise this interface; that is not production
 approval.
+
+The trusted local promoter freezes each approved public file hash before copying,
+checks temporary bytes against that hash before exposing a file, checks read-back
+against the same pinned hash and verifies final signed indexes before completing
+the journal. It never compares against a possibly changed candidate source as the
+approval authority. Standard fdroid `status/` outputs contain nonsecret local tool
+paths/command metadata; include them only after reviewing that privacy exposure.
+
+The R2 plan requires `--scratch <private-task-directory>` and emits calls to the
+trusted `upload_r2.py` wrapper. Each call copies its input into a fresh private
+snapshot, verifies the pinned SHA256, makes the snapshot read-only, and passes that
+snapshot to AWS CLI. Candidate changes after the snapshot cannot change the upload.
+Run the reviewed wrapper and plan in an isolated deployment environment without
+candidate processes; credentials are never passed to candidate code. Bucket lease,
+existing-object preflight and remote post-upload read-back remain explicit operator
+steps. Do not run a reviewed plan with another revision of the wrapper.

@@ -75,3 +75,11 @@ index-v2.json `b8dc82234de9287c7a3089ee37b2b8aa55ee3c41e6bf271df29eaa9599c983db`
 Original acceptance hashes above remain historical test evidence, not approvals
 for this revised implementation or production. All previously noted NOT RUN
 browser/device/provider acceptance gaps remain.
+
+PASS: follow-up mutable-input race fix, 14 tests total. Temporary local copies and
+read-back are compared to captured approved per-file hashes. The test replacing
+an APK between approval and copy fails before its destination appears. R2 mocked
+upload proves source mutation after snapshot cannot change uploaded bytes and
+wrong expected digest is rejected. R2 uses a private read-only snapshot wrapper;
+no real provider call was executed. Final actual signed staging local promotion
+was rechecked with the same generation and pinned-file verifier.

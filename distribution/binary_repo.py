@@ -59,15 +59,16 @@ def locked(root):
         fcntl.flock(lock,fcntl.LOCK_EX)
         yield
 
-def immutable_copy(source,dest):
+def immutable_copy(source,dest,expected=None):
+    if expected is None:expected=sha(source)
     if source.is_symlink() or not source.is_file(): raise ValueError('regular source file required')
     dest.parent.mkdir(parents=True,exist_ok=True)
     if dest.exists():
-        if dest.is_symlink() or sha(dest)!=sha(source): raise ValueError('immutable URL conflict: '+str(dest))
+        if dest.is_symlink() or sha(dest)!=expected: raise ValueError('immutable URL conflict: '+str(dest))
         return
     temp=dest.with_name(dest.name+'.partial')
     shutil.copyfile(source,temp)
-    if sha(source)!=sha(temp): raise ValueError('copy digest mismatch')
+    if sha(temp)!=expected: raise ValueError('copy digest mismatch')
     os.replace(temp,dest)
 
 def ingest(approved,manifest,apk,workspace,aapt,apksigner):
@@ -168,6 +169,8 @@ def publish_local(generation,origin,fingerprint,expected_generation,approvals):
     """
     generation_id,_=approved_generation(generation,fingerprint,expected_generation,approvals)
     files=public_files(generation)
+    pinned={str(p.relative_to(generation)):sha(p) for p in files}
+    if hashlib.sha256(json.dumps(pinned,sort_keys=True).encode()).hexdigest()!=expected_generation:raise ValueError('generation changed after approval')
     control=origin.parent/(origin.name+'.control')
     origin.mkdir(parents=True,exist_ok=True)
     with locked(control):
@@ -180,11 +183,16 @@ def publish_local(generation,origin,fingerprint,expected_generation,approvals):
         ordered=sorted(files,key=lambda p:(p.name in {'index.xml','index.jar','index-v1.json','index-v1.jar','index-v2.json','entry.json','entry.jar'},p.name=='entry.jar',str(p)))
         for p in ordered:
             rel=p.relative_to(generation); dest=origin/rel
-            if p.suffix=='.apk' or rel.parts[0]=='diff': immutable_copy(p,dest)
+            if p.suffix=='.apk' or rel.parts[0]=='diff': immutable_copy(p,dest,pinned[str(rel)])
             else:
                 dest.parent.mkdir(parents=True,exist_ok=True)
-                tmp=dest.with_name(dest.name+'.partial');shutil.copyfile(p,tmp);os.replace(tmp,dest)
-            if sha(p)!=sha(dest): raise ValueError('readback mismatch')
+                tmp=dest.with_name(dest.name+'.partial');shutil.copyfile(p,tmp)
+                if sha(tmp)!=pinned[str(rel)]:raise ValueError('approved file changed during copy')
+                os.replace(tmp,dest)
+            if pinned[str(rel)]!=sha(dest): raise ValueError('readback mismatch')
+        for rel,expected in pinned.items():
+            if sha(origin/rel)!=expected:raise ValueError('approved readback mismatch')
+        verify_indexes(origin,fingerprint)
         if generation_id not in journal['completed']:journal['completed'].append(generation_id)
         journal['active']=None
         atomic_json(state,journal)
