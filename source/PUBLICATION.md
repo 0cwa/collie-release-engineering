@@ -141,8 +141,9 @@ git -C APP_REPOSITORY diff --binary --full-index --no-ext-diff --no-textconv \
   --no-renames S T -- > reviewed-backlog.patch
 sha256sum reviewed-backlog.patch
 python3 source/import_contribution.py --repo APP_REPOSITORY --plan APPROVED_PLAN \
-  --aggregate --current-main T --overlay reviewed-backlog.patch \
+  --aggregate --current-main T --overlay imported-backlog.patch \
   --expected-patch-sha256 REVIEWED_SHA256
+cmp reviewed-backlog.patch imported-backlog.patch
 ```
 
 The helper computes the same `S..T` delta, checks its separately reviewed
