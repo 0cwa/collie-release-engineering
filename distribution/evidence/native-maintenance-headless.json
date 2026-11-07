@@ -1,0 +1,11 @@
+{
+  "status": "PASS",
+  "scope": "Actual native-only staging index rendered headlessly; no production endpoint/network used",
+  "native_inputs_named": true,
+  "inactive_feed_explicit": true,
+  "add_links_absent": true,
+  "signed_index_claim_absent": true,
+  "runtime": "cached headless shell1248 in cached network-none read-only disposable container; 2GiB/2CPU/1GiB tmpfs",
+  "evidence_trust": "Unsigned independent agent observation in a cached local TEST browser runtime. The runtime is not a public application build dependency; no public endpoint or native reproduction was tested.",
+  "code_head": "390443afeaf7bad8c0aee58fa37cf6ced2d6c95a"
+}
