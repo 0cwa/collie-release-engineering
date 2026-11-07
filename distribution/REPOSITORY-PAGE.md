@@ -104,3 +104,23 @@ Official references:
 - https://github.com/Droid-ify/client/blob/v0.7.8/app/src/main/AndroidManifest.xml
 - https://fdroid.link/ and its official repository-link normalization code
 - https://github.com/google/fonts/tree/b31870aff700ab7a1d74fa0c6887d95beb9e0037/ofl
+
+## Executed local acceptance
+
+Exact UI code59fb2236aed973bea413cc28c6a937c65c91041f passed64 owning
+distribution tests. Independent review passed13 focused renderer/activation/badge
+checks and decoded all six exact final screenshots, with desktop-auto/mobile-dark
+visual inspection and original approved icon/font asset parity checks. Author
+browser execution used actual dark media and auto-dark emulation; a separate
+white control visibly changed toRGB18 while every QR quiet zone stayed white
+and decoded correctly. Both desktop/mobile layouts had no horizontal overflow.
+The opaque PNG uses a four-module quiet zone; arbitrary extensions are untested.
+
+Small unsigned observations and source-link hashes are preserved under evidence/
+repository-page-browser.json, repository-page-independent.json and
+repository-deeplinks.json. PNGs remain only in disposable peer-review scratch.
+The detector ran once in degraded regex mode because parser modules were absent;
+its empty output is not a full design/accessibility pass. Browser containers,
+profiles and superseded renders were removed; original caches were untouched.
+The64 tests are one complete suite, not added to overlapping focused counts.
+Production endpoint/client activation and a new-source Android build remain NOT RUN.
