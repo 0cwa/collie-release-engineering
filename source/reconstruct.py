@@ -38,7 +38,15 @@ def reconstruct(engineering, workspace, profile='collie'):
     for target in targets:
         if target.exists() or target.is_symlink():
             raise ValueError('workspace/output/report must not exist: ' + str(target))
-    workspace = requested.resolve()
+    # Normalize the parent separately so an absent parent/../ prefix cannot
+    # conceal a canonical leaf, including a dangling workspace symlink.
+    if requested.name in ('', '.', '..'):raise ValueError('workspace must be a plain new leaf')
+    workspace = requested.parent.resolve() / requested.name
+    canonical_targets = (workspace, workspace.with_name(workspace.name + '-source'),
+                         workspace.with_name(workspace.name + '-reconstruction.json'))
+    for target in canonical_targets:
+        if target.exists() or target.is_symlink():
+            raise ValueError('workspace/output/report must not exist: ' + str(target))
     revision = run(engineering, 'git', 'rev-parse', 'HEAD')
     if run(engineering, 'git', 'status', '--porcelain', '--untracked-files=normal'):
         raise ValueError('engineering checkout must be clean')

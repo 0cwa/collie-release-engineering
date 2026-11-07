@@ -46,3 +46,17 @@ class AdapterTests(unittest.TestCase):
                     if kind=='file':self.assertEqual(target.read_text(),'preserve existing data')
                     if kind=='symlink':self.assertEqual((root/'original').read_text(),'preserve target data')
                     if kind=='dangling-symlink':self.assertFalse((root/'missing-target').exists())
+
+    def test_missing_parent_dotdot_does_not_hide_canonical_collision(self):
+        for leaf in ('work','work-source','work-reconstruction.json'):
+            for dangling in (False,True):
+                with self.subTest(leaf=leaf,dangling=dangling), tempfile.TemporaryDirectory() as directory:
+                    root=Path(directory);target=root/leaf
+                    if dangling:target.symlink_to(root/'missing-target')
+                    else:target.write_text('preserve canonical output')
+                    with patch.object(m,'run') as run:
+                        with self.assertRaisesRegex(ValueError,'must not exist'):
+                            m.reconstruct(root,root/'missing'/'..'/'work')
+                        run.assert_not_called()
+                    self.assertFalse((root/'missing').exists())
+                    if not dangling:self.assertEqual(target.read_text(),'preserve canonical output')
