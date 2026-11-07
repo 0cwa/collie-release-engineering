@@ -8,10 +8,8 @@ import argparse
 import contextlib
 import hashlib
 import json
-import os
 from pathlib import Path
 import re
-import stat
 
 
 def subject(text):
@@ -78,25 +76,19 @@ def markdown(data):
 
 
 def write_preview(json_path,markdown_path,data):
-    """Reserve both draft names exclusively before writing either preview."""
+    """Reserve drafts exclusively; never remove exposed output paths."""
     outputs=[(json_path,json.dumps(data,indent=2)+'\n'),(markdown_path,markdown(data))]
     with contextlib.ExitStack() as opened:
         created=[]
         try:
             for path,text in outputs:
                 stream=opened.enter_context(path.open('x',encoding='utf-8'))
-                created.append((path,stream,os.fstat(stream.fileno()),text))
-        except BaseException:
-            # Remove only our still-empty, untouched reservation. Keep handles
-            # open during this check, and preserve replacements or owner edits.
-            for path,stream,initial,text in reversed(created):
-                try:current=path.lstat()
-                except FileNotFoundError:continue
-                fields=('st_dev','st_ino','st_size','st_mtime_ns','st_ctime_ns')
-                if stat.S_ISREG(current.st_mode) and all(getattr(current,k)==getattr(initial,k) for k in fields):
-                    path.unlink()
+                created.append((path,stream,text))
+            for path,stream,text in created:stream.write(text)
+        except BaseException as error:
+            if created:
+                error.add_note('Preview output paths remain reserved or partial; inspect them before removal because they may contain owner edits: '+', '.join(str(path) for path,stream,text in created))
             raise
-        for path,stream,initial,text in created:stream.write(text)
 
 
 if __name__=='__main__':

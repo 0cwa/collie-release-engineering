@@ -62,12 +62,17 @@ class CommitPreviewWriting(unittest.TestCase):
                     if kind=='file':destination.write_bytes(b'owner draft')
                     else:destination.symlink_to('missing-owner-target')
                     try:
-                        with self.assertRaises(FileExistsError):self.write()
+                        with self.assertRaises(FileExistsError) as caught:self.write()
                         if kind=='file':self.assertEqual(destination.read_bytes(),b'owner draft')
                         else:self.assertTrue(destination.is_symlink());self.assertFalse((self.root/'missing-owner-target').exists())
                         other=self.markdown if destination==self.json else self.json
-                        self.assertFalse(other.exists(),'left a partial preview reservation')
-                    finally:destination.unlink()
+                        if destination==self.markdown:
+                            self.assertEqual(other.read_bytes(),b'')
+                            self.assertIn(str(other),' '.join(caught.exception.__notes__))
+                        else:self.assertFalse(other.exists())
+                    finally:
+                        for path in (self.json,self.markdown):
+                            if path.exists() or path.is_symlink():path.unlink()
     def test_raced_creation_of_either_output_preserves_owner_bytes(self):
         from unittest.mock import patch
         original=Path.open
@@ -79,12 +84,17 @@ class CommitPreviewWriting(unittest.TestCase):
                     return original(path,mode,*args,**kwargs)
                 try:
                     with patch.object(Path,'open',opening):
-                        with self.assertRaises(FileExistsError):self.write()
+                        with self.assertRaises(FileExistsError) as caught:self.write()
                     self.assertEqual(destination.read_text(),'raced owner draft')
                     other=self.markdown if destination==self.json else self.json
-                    self.assertFalse(other.exists())
-                finally:destination.unlink()
-    def test_cleanup_preserves_a_replacement_of_our_first_reservation(self):
+                    if destination==self.markdown:
+                        self.assertEqual(other.read_bytes(),b'')
+                        self.assertIn(str(other),' '.join(caught.exception.__notes__))
+                    else:self.assertFalse(other.exists())
+                finally:
+                    for path in (self.json,self.markdown):
+                        if path.exists() or path.is_symlink():path.unlink()
+    def test_creation_error_preserves_a_replacement_of_first_reservation(self):
         from unittest.mock import patch
         original=Path.open;self.markdown.write_text('existing owner Markdown')
         def opening(path,mode='r',*args,**kwargs):
@@ -94,7 +104,7 @@ class CommitPreviewWriting(unittest.TestCase):
         with patch.object(Path,'open',opening):
             with self.assertRaises(FileExistsError):self.write()
         self.assertEqual(self.json.read_text(),'replacement owner JSON');self.assertEqual(self.markdown.read_text(),'existing owner Markdown')
-    def test_cleanup_preserves_owner_edits_to_the_first_reservation(self):
+    def test_creation_error_preserves_owner_edits_to_first_reservation(self):
         from unittest.mock import patch
         original=Path.open;self.markdown.write_text('existing owner Markdown')
         def opening(path,mode='r',*args,**kwargs):
@@ -103,3 +113,22 @@ class CommitPreviewWriting(unittest.TestCase):
         with patch.object(Path,'open',opening):
             with self.assertRaises(FileExistsError):self.write()
         self.assertEqual(self.json.read_text(),'edited owner JSON');self.assertEqual(self.markdown.read_text(),'existing owner Markdown')
+    def test_creation_error_preserves_bytes_written_before_first_open_returns(self):
+        from unittest.mock import patch
+        original=Path.open;self.markdown.write_text('existing owner Markdown')
+        def opening(path,mode='r',*args,**kwargs):
+            stream=original(path,mode,*args,**kwargs)
+            if path==self.json and mode=='x':stream.write('owner bytes before open returns');stream.flush()
+            return stream
+        with patch.object(Path,'open',opening):
+            with self.assertRaises(FileExistsError) as caught:self.write()
+        self.assertEqual(self.json.read_text(),'owner bytes before open returns')
+        self.assertIn(str(self.json),' '.join(caught.exception.__notes__))
+    def test_creation_error_has_no_stat_or_unlink_rollback_window(self):
+        from unittest.mock import patch
+        self.markdown.write_text('existing owner Markdown')
+        with patch.object(Path,'lstat',side_effect=AssertionError('must not inspect exposed names for rollback')), \
+             patch.object(Path,'unlink',side_effect=AssertionError('must not remove exposed names')):
+            with self.assertRaises(FileExistsError) as caught:self.write()
+        self.assertEqual(self.json.read_bytes(),b'');self.assertEqual(self.markdown.read_text(),'existing owner Markdown')
+        self.assertIn(str(self.json),' '.join(caught.exception.__notes__))
