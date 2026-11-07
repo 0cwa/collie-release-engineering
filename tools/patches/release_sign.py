@@ -105,6 +105,7 @@ def main():
             m = json.loads(manifest.read_text())
             entries = artifacts.validate_manifest(m, args.approved_commit, args.approved_run, args.certificate_sha256, identities)
             if not args.rehearse:
+                artifacts.require_canonical_release(m)
                 reservation = dict(m, _unsigned_manifest_sha256=args.manifest_sha256)
                 version_policy.enforce(reservation, args.version_ledger, args.published_inventory, args.published_inventory_sha256)
             checklist = read_instrumentation_checklist(args.instrumentation_checklist, args.approved_commit)

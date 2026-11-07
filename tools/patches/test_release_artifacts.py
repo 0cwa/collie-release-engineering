@@ -93,11 +93,36 @@ class ReleaseArtifactsTests(unittest.TestCase):
             self.assertEqual(release_sign.main(), 1)
             run.assert_not_called()
 
+    def test_current_signer_rejects_legacy_profiles_before_keys(self):
+        for mode in (None,'five-profiles'):
+            m=dict(self.manifest)
+            if mode: m['artifact_mode']=mode
+            manifest=self.root/'manifest.json';manifest.write_text(json.dumps(m))
+            args=['release_sign','--manifest',str(manifest),'--manifest-sha256',a.sha256(manifest),
+                  '--approved-commit',self.commit,'--approved-run','123','--certificate-sha256',self.cert,
+                  '--apks',str(self.root),'--output',str(self.root/'out'),'--build-tools',str(self.root),'--scratch',str(self.root)]
+            with patch('sys.argv',args), patch.object(release_sign,'run') as run, patch.object(release_sign.getpass,'getpass') as prompt:
+                self.assertEqual(release_sign.main(),1)
+                run.assert_not_called();prompt.assert_not_called()
+
+    def test_own_repository_publisher_rejects_legacy_profiles_before_api(self):
+        final=self.root/'final.json'
+        final.write_text(json.dumps({'schema':1,'rehearsal':False,'commit':self.commit,'version_code':177703}))
+        args=['release_publish','draft','--repo','0cwa/collieim-android','--tag','vnext','--approved-commit',self.commit,
+              '--final-manifest',str(final),'--final-manifest-sha256',a.sha256(final),'--provenance',str(self.root/'unused'),
+              '--notes',str(self.root/'unused'),'--scratch',str(self.root)]
+        with patch('sys.argv',args),patch.object(release_publish,'command') as command:
+            self.assertEqual(release_publish.main(),1)
+            command.assert_not_called()
+
     def test_sign_records_the_unsigned_to_signed_mapping(self):
         for entry in self.entries:
             apk = self.root / entry['file']
             apk.write_bytes(entry['profile'].encode())
             entry['sha256'] = a.sha256(apk)
+        self.manifest.update(artifact_mode='single-collie', source_profile='collie')
+        for entry in self.entries:
+            entry['sha256'] = a.sha256(self.root / 'collie.apk')
         self.manifest.update(version_code=177703, build_tools='36.0.0', input_pins={'android': {'build_tools': '36.0.0'}})
         manifest = self.root / 'manifest.json'
         manifest.write_text(json.dumps(self.manifest))

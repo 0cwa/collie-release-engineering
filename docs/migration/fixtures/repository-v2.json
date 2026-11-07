@@ -1,0 +1,26 @@
+{
+  "schema": 2,
+  "kind": "repository",
+  "payload": {
+    "release_manifest_sha256": "942f9045e659fac5eac50e585f00cf524547949d430707f1e7426136007e6cfe",
+    "apk_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "apk_certificate_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "repository_certificate_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "fdroidserver_revision": "fixture trusted-local; not independently reproduced",
+    "metadata_revision": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "indexes": [
+      {
+        "file": "index-v2.json",
+        "sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+      }
+    ],
+    "generation": "fixture trusted-local; not independently reproduced"
+  },
+  "evidence": [
+    {
+      "status": "UNKNOWN",
+      "description": "synthetic fixture; not release evidence",
+      "sha256": null
+    }
+  ]
+}

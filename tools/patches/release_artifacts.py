@@ -129,3 +129,9 @@ def validate_alias_provenance(final, unsigned, commit, identities=None):
     if any(item['unsigned_sha256'] != unsigned_hash or
            item['certificate_sha256'] != final['certificate_sha256'] for item in signed):
         raise ValueError('compatibility aliases do not match unsigned provenance and certificate')
+
+
+def require_canonical_release(manifest):
+    """Current production policy; historical parsers remain profile-aware."""
+    if manifest.get('artifact_mode') != 'single-collie' or manifest.get('source_profile') != 'collie':
+        raise ValueError('current production requires single-collie artifact mode')

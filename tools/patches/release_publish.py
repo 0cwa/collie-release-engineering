@@ -105,6 +105,7 @@ def main():
             if manifest.get('schema') != 1 or manifest.get('rehearsal') is not False or manifest.get('commit') != args.approved_commit:
                 raise ValueError('final manifest is not a real release of the approved commit')
             if args.repo.lower() == '0cwa/collieim-android':
+                a.require_canonical_release(manifest)
                 a.validate_version_code(manifest.get('version_code'), a.PACKAGE)
                 if not args.dry_run:
                     version_policy.enforce(manifest, args.version_ledger, args.published_inventory, args.published_inventory_sha256)

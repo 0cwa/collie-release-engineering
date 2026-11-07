@@ -57,6 +57,32 @@ class Receipts(unittest.TestCase):
             wrong=dict(ids); wrong[field]='c'*40
             with self.assertRaises(ValueError): release_artifacts.validate_manifest(m,m['commit'],m['run_id'],m['certificate_sha256'],wrong)
 
+    def test_graph_approvals_and_substitution(self):
+        root=Path(__file__).resolve().parents[2]/'docs/migration/fixtures'
+        docs={k:receipts.load(root/(k+'-v2.json'),k) for k in receipts.FIELDS}
+        approved=json.loads((root/'graph-approvals.json').read_text())
+        receipts.verify_graph(**docs,approved=approved)
+        # Shape-valid replacement must fail both external approval and graph links.
+        for kind,field in [('source','published_commit'),('build','source_commit'),('release','engineering_revision'),('repository','apk_sha256')]:
+            wrong=copy.deepcopy(docs); wrong[kind]['payload'][field]='d'*(64 if field=='apk_sha256' else 40)
+            with self.assertRaises(ValueError): receipts.verify_graph(**wrong,approved=approved)
+            current={k:receipts.digest(v) for k,v in wrong.items()}
+            with self.assertRaises(ValueError): receipts.verify_graph(**wrong,approved=current)
+        with self.assertRaises(ValueError): receipts.verify_graph(**docs,approved=approved,promotion=True)
+        for doc in docs.values(): doc['evidence']=[{'status':'PASS','description':'synthetic passed fixture; no real attestation','sha256':'c'*64}]
+        # Recompute every digest link after evidence change.
+        docs['build']['payload']['source_receipt_sha256']=receipts.digest(docs['source'])
+        docs['release']['payload'].update(source_receipt_sha256=receipts.digest(docs['source']),build_receipt_sha256=receipts.digest(docs['build']))
+        docs['repository']['payload']['release_manifest_sha256']=receipts.digest(docs['release'])
+        current={k:receipts.digest(v) for k,v in docs.items()}
+        receipts.verify_graph(**docs,approved=current,promotion=True)
+
+    def test_current_policy_preserves_legacy_parser(self):
+        import release_artifacts as a
+        for manifest in ({},{'artifact_mode':'five-profiles'},{'artifact_mode':'single-collie','source_profile':'collie-foss'}):
+            with self.assertRaises(ValueError): a.require_canonical_release(manifest)
+        a.require_canonical_release({'artifact_mode':'single-collie','source_profile':'collie'})
+
     def test_production_gate(self):
         import hashlib
         with tempfile.TemporaryDirectory() as root:

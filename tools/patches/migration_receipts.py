@@ -85,3 +85,55 @@ def import_legacy(final, provenance):
     return {'schema':1,'commit':final['commit'],'version_code':final['version_code'],
             'source_receipt':'UNKNOWN','build_receipt':'UNKNOWN','independent_reproduction':'UNKNOWN',
             'instrumentation':final.get('instrumentation_checklist',{'status':'unknown'})}
+
+
+def verify_graph(source, build, release, repository, approved, *, promotion=False):
+    """Bind supplied receipts to external digest approvals and each other.
+
+    PASS claims are not attestations: an operator still authenticates evidence and
+    signer authorization separately. Historical UNKNOWN evidence cannot promote.
+    """
+    documents=dict(source=source,build=build,release=release,repository=repository)
+    exact(approved,documents)
+    for kind,document in documents.items():
+        validate(document,kind); check(approved[kind],'sha')
+        if digest(document) != approved[kind]:
+            raise ValueError('unapproved '+kind+' receipt')
+        if promotion and (not document['evidence'] or any(e['status']!='PASS' for e in document['evidence'])):
+            raise ValueError('promotion requires passed evidence for '+kind)
+    s,b,r,p=(documents[k]['payload'] for k in ('source','build','release','repository'))
+    links=(
+        (b['source_receipt_sha256'],digest(source),'build source receipt'),
+        (r['source_receipt_sha256'],digest(source),'release source receipt'),
+        (r['build_receipt_sha256'],digest(build),'release build receipt'),
+        (p['release_manifest_sha256'],digest(release),'repository release receipt'),
+        (b['source_commit'],s['published_commit'],'build source commit'),
+        (b['source_tree'],s['published_tree'],'build source tree'),
+        (r['source_commit'],s['published_commit'],'release source commit'),
+        (r['engineering_revision'],s['engineering_revision'],'release engineering revision'),
+        (p['apk_sha256'],r['apk_sha256'],'repository APK'),
+        (p['apk_certificate_sha256'],r['apk_certificate_sha256'],'repository APK signer'),
+    )
+    for actual,expected,label in links:
+        if actual != expected: raise ValueError(label+' differs')
+    return {kind:digest(document) for kind,document in documents.items()}
+
+
+def main():
+    import argparse
+    from pathlib import Path
+    parser=argparse.ArgumentParser(description='Verify approved Collie receipt graph; no keys or deployment.')
+    for kind in FIELDS: parser.add_argument('--'+kind,type=Path,required=True)
+    parser.add_argument('--approvals',type=Path,required=True,help='independently authenticated kind-to-digest JSON')
+    parser.add_argument('--promotion',action='store_true',help='reject empty or incomplete evidence')
+    args=parser.parse_args()
+    try:
+        documents={kind:load(getattr(args,kind),kind) for kind in FIELDS}
+        approved=json.loads(args.approvals.read_text(),object_pairs_hook=unique)
+        print(json.dumps(verify_graph(**documents,approved=approved,promotion=args.promotion),sort_keys=True))
+    except (ValueError,OSError) as exc:
+        parser.exit(1,str(exc)+'\n')
+    return 0
+
+
+if __name__=='__main__': raise SystemExit(main())
