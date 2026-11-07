@@ -122,7 +122,7 @@ requires its explicit trusted-local native acceptance. That is not independent
 native reproduction. Obtain the three locked artifacts and POMs from approved
 public immutable URLs, verify all hashes, materialize their exclusive repository
 and verification entries in source, then run a fresh controlled Gradle build.
-After that reviewed gate removal, releaseVersionCode and releaseVersionName are normal tracked-source Gradle properties; their final values must come from the serialized external version reservation and be recorded in the build receipt. The expected canonical task is `./gradlew --dependency-verification=strict
+After reviewed gate removal, releaseVersionCode and releaseVersionName are normal source-defined Gradle properties. Final values must come from serialized external reservation and be recorded in the build receipt. The expected canonical task is `./gradlew --dependency-verification=strict
 :app:assembleProdWebsiteRelease`; it is currently BLOCKED as described above.
 
 Release versions must be externally reserved above 177702 and all later published

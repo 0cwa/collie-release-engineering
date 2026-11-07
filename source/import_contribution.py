@@ -13,7 +13,7 @@ import tempfile
 import publish
 
 
-def import_reviewed(repo, plan_path, reviewed_commit, overlay_path, expected_patch_sha256=None):
+def import_reviewed(repo, plan_path, reviewed_commit, overlay_path, expected_patch_sha256=None, current_main=None):
     publish.plain(repo)
     plan = publish.load_plan(plan_path.read_bytes())
     parents = publish.git(repo, 'show', '-s', '--format=%P', publish.oid(reviewed_commit)).decode().split()
@@ -35,6 +35,11 @@ def import_reviewed(repo, plan_path, reviewed_commit, overlay_path, expected_pat
         actual=indexed('write-tree').decode().strip()
         if actual != publish.tree(repo,reviewed_commit):
             raise ValueError('round-trip reconstruction differs from full reviewed tree')
+    if current_main is not None:
+        publish.oid(current_main)
+        publish.git(repo, 'merge-base', '--is-ancestor', plan['old_main'], current_main)
+        publish.git(repo, 'merge-base', '--is-ancestor', reviewed_commit, current_main)
+        plan['old_main'] = current_main
     plan['layers'].append({'name':'Import reviewed ordinary application contribution',
                            'kind':'publication','before_tree':plan['final_tree'], 'after_tree':actual,
                            'provenance':f'Original reviewed contribution {reviewed_commit}; complete binary/mode delta SHA256 {record["patch_sha256"]}. Original commit retains contributor attribution; generated publication is composite.'})
@@ -50,5 +55,6 @@ if __name__ == '__main__':
     parser.add_argument('--reviewed-commit',required=True)
     parser.add_argument('--overlay',required=True,type=Path)
     parser.add_argument('--expected-patch-sha256',required=True)
+    parser.add_argument('--current-main',required=True,help='independently read reviewed current application main; must retain contribution')
     a=parser.parse_args()
-    print(json.dumps(import_reviewed(a.repo.resolve(),a.plan,a.reviewed_commit,a.overlay,a.expected_patch_sha256),indent=2))
+    print(json.dumps(import_reviewed(a.repo.resolve(),a.plan,a.reviewed_commit,a.overlay,a.expected_patch_sha256,a.current_main),indent=2))

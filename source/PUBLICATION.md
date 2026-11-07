@@ -82,3 +82,17 @@ This verifier is credential-free; manually approving it is separate from APK
 signing, index signing and production publication. A candidate cannot select its
 own trusted verifier. Required-check/ruleset administration remains an operator
 item; no policy protection is claimed merely because this command exists.
+
+## Import after an ordinary source PR merges
+
+`source/import_contribution.py` consumes a reviewed single-parent application
+commit and exports/replays the exact binary/mode delta against the complete
+approved source tree. Supply `--current-main` from an independent remote read,
+not the old cutover base: after a normal source contribution merges, that base
+has moved. The helper requires the old application history and the reviewed
+contributor commit to remain ancestors of current main, rebinds plan.old_main,
+then emits a plan for full publication regeneration. Approval must be renewed
+for changed current main/plan/G/I. This preserves actual contributor authorship
+in the integration ancestry as well as explicit attribution in generated
+layers. No contributor edits the engineering patch forest. Fixture roundtrips
+against actual candidate G/I are test evidence, not production contributions.
