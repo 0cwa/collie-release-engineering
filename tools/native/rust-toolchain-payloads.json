@@ -1,0 +1,2609 @@
+{
+  "scope": "signed Rust component payload entries only; other toolchain files and runtime dependencies unverified",
+  "entries": [
+    {
+      "component": "rustc",
+      "path": "share/man/man1/rustdoc.1",
+      "type": "file",
+      "sha256": "b5eb70625939603c736ed4144defad19c430b01aed84da2b93711579a270685f",
+      "executable": false
+    },
+    {
+      "component": "rustc",
+      "path": "share/man/man1/rustc.1",
+      "type": "file",
+      "sha256": "4d0f14c364492e9db9ffaa11787ec2489e485460917bf52a736c2894cbca756f",
+      "executable": false
+    },
+    {
+      "component": "rustc",
+      "path": "bin/rust-gdb",
+      "type": "file",
+      "sha256": "557985ec5a31f5617d25d26bd6fe23c4b8d6f85b1498e1aae82831ca0d7f17fe",
+      "executable": true
+    },
+    {
+      "component": "rustc",
+      "path": "bin/rust-lldb",
+      "type": "file",
+      "sha256": "a82c91ccb285aa4a1dbcf08cda68ba4e8c36082af0adfefdee514673113815da",
+      "executable": true
+    },
+    {
+      "component": "rustc",
+      "path": "bin/rustdoc",
+      "type": "file",
+      "sha256": "3ff7fed6d1064d8d75d24ae8beff9fe1d68031d3d819966481d22c3c9002b709",
+      "executable": true
+    },
+    {
+      "component": "rustc",
+      "path": "bin/rustc",
+      "type": "file",
+      "sha256": "859254978c0a0402c32f949f6de0d99aee73be8d15f45aac00ae1448aac51e74",
+      "executable": true
+    },
+    {
+      "component": "rustc",
+      "path": "lib/rustlib/x86_64-unknown-linux-gnu/bin/gcc-ld/wasm-ld",
+      "type": "file",
+      "sha256": "cc32ac78081f4fffca0a2098d5b541382b298d603688f235d7144d615ff14ab6",
+      "executable": true
+    },
+    {
+      "component": "rustc",
+      "path": "lib/rustlib/x86_64-unknown-linux-gnu/bin/wasm-component-ld",
+      "type": "file",
+      "sha256": "4f29f11c80609e5a6d0fe050d9642a0d02d6fef0b34d766a330859a9cee9e2ab",
+      "executable": true
+    },
+    {
+      "component": "rustc",
+      "path": "lib/rustlib/x86_64-unknown-linux-gnu/bin/rust-lld",
+      "type": "file",
+      "sha256": "8fdb035a0d8732dd47659e6e9a77ee75aacc1b7ab89ca822e97841176d58932b",
+      "executable": true
+    },
+    {
+      "component": "rustc",
+      "path": "lib/rustlib/x86_64-unknown-linux-gnu/bin/gcc-ld/ld64.lld",
+      "type": "file",
+      "sha256": "cc32ac78081f4fffca0a2098d5b541382b298d603688f235d7144d615ff14ab6",
+      "executable": true
+    },
+    {
+      "component": "rustc",
+      "path": "lib/rustlib/x86_64-unknown-linux-gnu/bin/gcc-ld/ld.lld",
+      "type": "file",
+      "sha256": "cc32ac78081f4fffca0a2098d5b541382b298d603688f235d7144d615ff14ab6",
+      "executable": true
+    },
+    {
+      "component": "rustc",
+      "path": "share/doc/rust/README.md",
+      "type": "file",
+      "sha256": "b3f6ef2fef88b98cb9ec013a5c86213095e53e40eb228679574e4d06517f33c8",
+      "executable": false
+    },
+    {
+      "component": "rustc",
+      "path": "lib/libLLVM.so.22.1-rust-1.98.1-stable",
+      "type": "file",
+      "sha256": "0fdf31a62575a5e3e9ac3f3bae29a8ba3cc965158ec78005d3c49fe0da3c253e",
+      "executable": false
+    },
+    {
+      "component": "rustc",
+      "path": "bin/rust-gdbgui",
+      "type": "file",
+      "sha256": "bc60613775a098e59b49fa4584cea73631697fe1456c44284c337d6700340315",
+      "executable": true
+    },
+    {
+      "component": "rustc",
+      "path": "lib/rustlib/x86_64-unknown-linux-gnu/bin/gcc-ld/lld-link",
+      "type": "file",
+      "sha256": "cc32ac78081f4fffca0a2098d5b541382b298d603688f235d7144d615ff14ab6",
+      "executable": true
+    },
+    {
+      "component": "rustc",
+      "path": "share/doc/rust/COPYRIGHT.html",
+      "type": "file",
+      "sha256": "5b0c93fc4e6d4b072eaa521b1762d1e746f4c368f65e81a0e5308e2772dac85e",
+      "executable": false
+    },
+    {
+      "component": "rustc",
+      "path": "share/doc/rust/COPYRIGHT-library.html",
+      "type": "file",
+      "sha256": "68129500b616d5838629e68f55ff3aed5e096dacf60ce9eb41bbe599a563afa6",
+      "executable": false
+    },
+    {
+      "component": "rustc",
+      "path": "etc/target-spec-json-schema.json",
+      "type": "file",
+      "sha256": "a907f22265e644dc3c47534b2f9c8a0d7e8e8889eedd324b284579f1d575d6b4",
+      "executable": false
+    },
+    {
+      "component": "rustc",
+      "path": "lib/librustc_driver-eaf3ed1d23ca5027.so",
+      "type": "file",
+      "sha256": "96218b68a4a569c06c6fea5ee95b9052ce61c7316ac265a7963e7fea90e985d2",
+      "executable": false
+    },
+    {
+      "component": "rustc",
+      "path": "lib/libLLVM-22-rust-1.98.1-stable.so",
+      "type": "file",
+      "sha256": "24d5732dea500078b4e235a69833ccb20d03bf71659a49d58828af8f13f6726c",
+      "executable": false
+    },
+    {
+      "component": "rustc",
+      "path": "share/doc/rust/licenses/Apache-2.0.txt",
+      "type": "file",
+      "sha256": "074e6e32c86a4c0ef8b3ed25b721ca23aca83df277cd88106ef7177c354615ff",
+      "executable": false
+    },
+    {
+      "component": "rustc",
+      "path": "share/doc/rust/licenses/Unicode-3.0.txt",
+      "type": "file",
+      "sha256": "f5062c9a188d81dfe66b56db4182dcf9e4b17c0d9b0d311a8e20b3a1b075c443",
+      "executable": false
+    },
+    {
+      "component": "rustc",
+      "path": "share/doc/rust/licenses/CC-BY-SA-4.0.txt",
+      "type": "file",
+      "sha256": "23ee78c8bae49cf08ea2f0c84945c66b987ebe4520881fb51b3dad4fb43d07c2",
+      "executable": false
+    },
+    {
+      "component": "rustc",
+      "path": "share/doc/rust/licenses/OFL-1.1.txt",
+      "type": "file",
+      "sha256": "8eea8287e5876b539670cadb82e99f9a7afddec6f6730811be1daf25d2e9bcfd",
+      "executable": false
+    },
+    {
+      "component": "rustc",
+      "path": "share/doc/rust/licenses/GCC-exception-3.1.txt",
+      "type": "file",
+      "sha256": "a3966c9410ef94a1efbfa9ec04e9c1994026a70623fbf0885ce36737bfba3b54",
+      "executable": false
+    },
+    {
+      "component": "rustc",
+      "path": "share/doc/rust/licenses/NCSA.txt",
+      "type": "file",
+      "sha256": "39cb0234065c92b9e6cee3830cbb52b1aa289aa8fe9ba2e66730fec5cf05c630",
+      "executable": false
+    },
+    {
+      "component": "rustc",
+      "path": "share/doc/rust/licenses/ISC.txt",
+      "type": "file",
+      "sha256": "0ff61769b238634e042ab759dddfd104a8e69d091e3600ae3410e401a6164381",
+      "executable": false
+    },
+    {
+      "component": "rustc",
+      "path": "share/doc/rust/licenses/MIT.txt",
+      "type": "file",
+      "sha256": "b85dcd3e453d05982552c52b5fc9e0bdd6d23c6f8e844b984a88af32570b0cc0",
+      "executable": false
+    },
+    {
+      "component": "rustc",
+      "path": "share/doc/rust/licenses/BSD-2-Clause.txt",
+      "type": "file",
+      "sha256": "f32fb3b417a194167cfad068223fc975ba96c5960513a10f66a3c28720aec1df",
+      "executable": false
+    },
+    {
+      "component": "rustc",
+      "path": "share/doc/rust/licenses/LLVM-exception.txt",
+      "type": "file",
+      "sha256": "e34c58338bd89d43e709e226610d8f32b3e3c47f4ad9a99a8dc1d4ac7842488e",
+      "executable": false
+    },
+    {
+      "component": "rustc",
+      "path": "share/doc/rust/licenses/GPL-3.0-or-later.txt",
+      "type": "file",
+      "sha256": "05315fce6c35f79b8a35454828995fa26336f235895ac64557abc028f4ffcea2",
+      "executable": false
+    },
+    {
+      "component": "rustc",
+      "path": "share/doc/rust/licenses/GPL-2.0-only.txt",
+      "type": "file",
+      "sha256": "54b212ba1f97f6948fa5486239ab505dd820b02e50cbfd296b4062c8609a70af",
+      "executable": false
+    },
+    {
+      "component": "rustc",
+      "path": "libexec/rust-analyzer-proc-macro-srv",
+      "type": "file",
+      "sha256": "98f6311d05a2f4b9132dbdeeefed058204374587f5efcf869db0a94025c3fc2a",
+      "executable": true
+    },
+    {
+      "component": "rustc",
+      "path": "lib/rustlib/etc/gdb_lookup.py",
+      "type": "file",
+      "sha256": "e0b68235a6c2874ef24922e2cd903baf91b258b9590a60ab8779b989d84927ae",
+      "executable": false
+    },
+    {
+      "component": "rustc",
+      "path": "lib/rustlib/etc/lldb_lookup.py",
+      "type": "file",
+      "sha256": "1a4f27e978c45995b28098e1506920afbc385e62e13803741e77536494e901c4",
+      "executable": false
+    },
+    {
+      "component": "rustc",
+      "path": "lib/rustlib/etc/rust_types.py",
+      "type": "file",
+      "sha256": "e1bb4a46461b943999c9e2346c71808168a982cbf812587622d9c807f32d5bb5",
+      "executable": false
+    },
+    {
+      "component": "rustc",
+      "path": "lib/rustlib/etc/gdb_providers.py",
+      "type": "file",
+      "sha256": "cb65879ac99f0b654035e3d8ba7504608c00f428db495dad517876a6f9b05034",
+      "executable": false
+    },
+    {
+      "component": "rustc",
+      "path": "lib/rustlib/etc/lldb_providers.py",
+      "type": "file",
+      "sha256": "7a030459e6626a9350fd3d3df42c63eee24e8299c3b0a8c8a49d23d51d96865b",
+      "executable": false
+    },
+    {
+      "component": "rustc",
+      "path": "lib/rustlib/etc/gdb_load_rust_pretty_printers.py",
+      "type": "file",
+      "sha256": "a32e7857651bc7ed7c52dfc71131cbbea01a5cd1886399876032c4de60fa4886",
+      "executable": false
+    },
+    {
+      "component": "rustc",
+      "path": "lib/rustlib/x86_64-unknown-linux-gnu/bin/rust-objcopy",
+      "type": "file",
+      "sha256": "12c91962ff1976ce5dcac2c45f88e9f0424c42d14c05686652ebd912e4a8b1e4",
+      "executable": true
+    },
+    {
+      "component": "cargo",
+      "path": "share/man/man1/cargo-metadata.1",
+      "type": "file",
+      "sha256": "572a3e2f8d7753855d6dab6941961deb5ac9b99c9ad7d4d3423d8e5f6bc61196",
+      "executable": false
+    },
+    {
+      "component": "cargo",
+      "path": "share/man/man1/cargo-doc.1",
+      "type": "file",
+      "sha256": "679cbbbb74c0352ea0d295a9d573419bb9533d10868866e260781caeffdd97bd",
+      "executable": false
+    },
+    {
+      "component": "cargo",
+      "path": "share/man/man1/cargo-rustdoc.1",
+      "type": "file",
+      "sha256": "9c558ed0899cf8e966d417dc2fea86d837c88b854bcdb0c62c30656fc41949d0",
+      "executable": false
+    },
+    {
+      "component": "cargo",
+      "path": "share/man/man1/cargo-rustc.1",
+      "type": "file",
+      "sha256": "b7fba799920da5bb8c510e8c9e3c91bde56abb6feb705efeca9a3a42d15cccf2",
+      "executable": false
+    },
+    {
+      "component": "cargo",
+      "path": "share/man/man1/cargo-add.1",
+      "type": "file",
+      "sha256": "e37eb5889856fcb19ff43dd2a7952aef092d8a5fc1f808b200a3c99d18c7dd79",
+      "executable": false
+    },
+    {
+      "component": "cargo",
+      "path": "share/man/man1/cargo-pkgid.1",
+      "type": "file",
+      "sha256": "f9353443ca1c342f95845579e56dd69410e7517116dd76efda9ab3845c074058",
+      "executable": false
+    },
+    {
+      "component": "cargo",
+      "path": "share/man/man1/cargo-build.1",
+      "type": "file",
+      "sha256": "ea0cb3adad4278bb427abb8fd7d2a96eff295d5b13a3f1d5c4b0933d5b3da9b0",
+      "executable": false
+    },
+    {
+      "component": "cargo",
+      "path": "share/man/man1/cargo-tree.1",
+      "type": "file",
+      "sha256": "9b0213fbb4e50ccaffc3bf1ab5bd3f7a50204059262f3b194dc99c12535f0ebb",
+      "executable": false
+    },
+    {
+      "component": "cargo",
+      "path": "share/man/man1/cargo-package.1",
+      "type": "file",
+      "sha256": "7c2c62f0aa11d7fbb4a5095377316b9a691deb594168ae886cd0a7aa9ea157ff",
+      "executable": false
+    },
+    {
+      "component": "cargo",
+      "path": "share/man/man1/cargo-generate-lockfile.1",
+      "type": "file",
+      "sha256": "9d673faf1b7c2bb645e1711592440da8d681c8a99744a8f8a927d6144446bc48",
+      "executable": false
+    },
+    {
+      "component": "cargo",
+      "path": "share/man/man1/cargo-update.1",
+      "type": "file",
+      "sha256": "b4fd2b6269aff5ee8eb696273315056d94c9de231130b7d6d2e68d98298662d9",
+      "executable": false
+    },
+    {
+      "component": "cargo",
+      "path": "share/man/man1/cargo-remove.1",
+      "type": "file",
+      "sha256": "ba248f85986b141882454f3313eafb5a64a8f244b6abcbb1f9e7114c56fbfbf2",
+      "executable": false
+    },
+    {
+      "component": "cargo",
+      "path": "share/man/man1/cargo-bench.1",
+      "type": "file",
+      "sha256": "51cc284d3718901a71ac8b2e812b2317890b1377f641eaf8989e865ccdcd8c05",
+      "executable": false
+    },
+    {
+      "component": "cargo",
+      "path": "share/man/man1/cargo-search.1",
+      "type": "file",
+      "sha256": "4761782dd91b5c471bf1b3fc5a3c7912c3c6935706383f3b2b44efb3a1893bea",
+      "executable": false
+    },
+    {
+      "component": "cargo",
+      "path": "share/man/man1/cargo-fetch.1",
+      "type": "file",
+      "sha256": "014fd2e78b79fe9134f5e3fc38e8a2906d2a3f4ca6ba4a236ae13aefdae70ec5",
+      "executable": false
+    },
+    {
+      "component": "cargo",
+      "path": "share/man/man1/cargo-publish.1",
+      "type": "file",
+      "sha256": "6d4859d5a12d4a8c814cc50b389d2f3d286bc6baae59d5c70e4cebb40058216c",
+      "executable": false
+    },
+    {
+      "component": "cargo",
+      "path": "share/man/man1/cargo-check.1",
+      "type": "file",
+      "sha256": "006c2a65dc3a8a5c56e351511678748c3bbdd3c3eeb5bfcf95b9e20828b04505",
+      "executable": false
+    },
+    {
+      "component": "cargo",
+      "path": "share/man/man1/cargo-yank.1",
+      "type": "file",
+      "sha256": "a324983332e33580330c0902af4ee7713940bf219c44a1e3a12fc9b8b0d58309",
+      "executable": false
+    },
+    {
+      "component": "cargo",
+      "path": "share/man/man1/cargo-install.1",
+      "type": "file",
+      "sha256": "8aaaef69518265d70d255f14444e43fd2e5b028f1be52934b3c282512add7936",
+      "executable": false
+    },
+    {
+      "component": "cargo",
+      "path": "share/man/man1/cargo-uninstall.1",
+      "type": "file",
+      "sha256": "145d9580dc8a5e5a73cc4a8dd27827e0413e2bad589b2e62fa4dff8798ffc980",
+      "executable": false
+    },
+    {
+      "component": "cargo",
+      "path": "share/man/man1/cargo-clean.1",
+      "type": "file",
+      "sha256": "ac1056f03dccba5d6a082f4491e83498507e0984a34551d7be7d4c1b4dfc7273",
+      "executable": false
+    },
+    {
+      "component": "cargo",
+      "path": "share/man/man1/cargo-login.1",
+      "type": "file",
+      "sha256": "53a957a73cfcac30b751a5c6277f94b5a8511ce3cc2af144678a285a598c417a",
+      "executable": false
+    },
+    {
+      "component": "cargo",
+      "path": "share/man/man1/cargo-version.1",
+      "type": "file",
+      "sha256": "1dc8ad353b33ef871660f7d5af5e977b07a32bf718adce2deb85efdd5568e44b",
+      "executable": false
+    },
+    {
+      "component": "cargo",
+      "path": "share/man/man1/cargo-run.1",
+      "type": "file",
+      "sha256": "85650a39631df37c75e2d894e723710c39f65b86096c4330ede6a99c3b4fd0be",
+      "executable": false
+    },
+    {
+      "component": "cargo",
+      "path": "share/man/man1/cargo-info.1",
+      "type": "file",
+      "sha256": "5e0b554a0d87716c2c3314289d225d8dfeaf2baad9ddc2b1666aed190b2761e4",
+      "executable": false
+    },
+    {
+      "component": "cargo",
+      "path": "share/man/man1/cargo.1",
+      "type": "file",
+      "sha256": "c483b800c9aceb307fb15ea4138783838cb379b6f4e306a8dabe84af8fd4b01d",
+      "executable": false
+    },
+    {
+      "component": "cargo",
+      "path": "share/man/man1/cargo-help.1",
+      "type": "file",
+      "sha256": "86b2088f8914fd887f14d3a691110bcd4fa3727ba77d5ace13de2c7cc2860df7",
+      "executable": false
+    },
+    {
+      "component": "cargo",
+      "path": "share/man/man1/cargo-owner.1",
+      "type": "file",
+      "sha256": "23e71b0c6b5f2701f978b818420835db0e74a938dccdc251ddb2f1c163f20d3d",
+      "executable": false
+    },
+    {
+      "component": "cargo",
+      "path": "share/man/man1/cargo-vendor.1",
+      "type": "file",
+      "sha256": "a8c4742f6b0b6d46da8b9cdc69766412efa72e02bf307753242c51394815bce4",
+      "executable": false
+    },
+    {
+      "component": "cargo",
+      "path": "share/man/man1/cargo-report-future-incompatibilities.1",
+      "type": "file",
+      "sha256": "a7642c840631e5659ef653271035760b1dc6c3fcf998b8d347fb49965a3ad35a",
+      "executable": false
+    },
+    {
+      "component": "cargo",
+      "path": "share/man/man1/cargo-locate-project.1",
+      "type": "file",
+      "sha256": "021abaf05ac72ac32bb7373ed9805bba19e204db25675895d2d41c013646f8d4",
+      "executable": false
+    },
+    {
+      "component": "cargo",
+      "path": "share/man/man1/cargo-init.1",
+      "type": "file",
+      "sha256": "574759d2269dff096b1c04bc1ae906c3a80389830966e6b5b2130410181f3a9d",
+      "executable": false
+    },
+    {
+      "component": "cargo",
+      "path": "share/man/man1/cargo-report.1",
+      "type": "file",
+      "sha256": "be9d8fe4a569a90e7e5d48c35c5daa74d1728133dc0f43240121654045b6f815",
+      "executable": false
+    },
+    {
+      "component": "cargo",
+      "path": "share/man/man1/cargo-test.1",
+      "type": "file",
+      "sha256": "daa865ffe6624ad518390a328d2632a4a6eacfafdfacf99b9c13d6f4d0c6a358",
+      "executable": false
+    },
+    {
+      "component": "cargo",
+      "path": "share/man/man1/cargo-logout.1",
+      "type": "file",
+      "sha256": "0f98f10235921e4fd2dd82e76c7fbf551121bef88cf8ef28027072c5d3ff5857",
+      "executable": false
+    },
+    {
+      "component": "cargo",
+      "path": "share/man/man1/cargo-new.1",
+      "type": "file",
+      "sha256": "920fa6698c28a2f5c2b2cfe69d1e4599e2698a0bceb3d514f19d891ec23b446b",
+      "executable": false
+    },
+    {
+      "component": "cargo",
+      "path": "share/man/man1/cargo-fix.1",
+      "type": "file",
+      "sha256": "5c7c676229879e262a3135298c22800c5c1afb57710ec19cc6dd2c8d23224ea6",
+      "executable": false
+    },
+    {
+      "component": "cargo",
+      "path": "share/doc/cargo/LICENSE-APACHE",
+      "type": "file",
+      "sha256": "8ada45cd9f843acf64e4722ae262c622a2b3b3007c7310ef36ac1061a30f6adb",
+      "executable": false
+    },
+    {
+      "component": "cargo",
+      "path": "share/doc/cargo/LICENSE-MIT",
+      "type": "file",
+      "sha256": "23f18e03dc49df91622fe2a76176497404e46ced8a715d9d2b67a7446571cca3",
+      "executable": false
+    },
+    {
+      "component": "cargo",
+      "path": "share/doc/cargo/LICENSE-THIRD-PARTY",
+      "type": "file",
+      "sha256": "cbc759b1f17a2ac38fe3eb9e9563b1a08ba0f900611c49faaf68b46907b6d898",
+      "executable": false
+    },
+    {
+      "component": "cargo",
+      "path": "share/doc/cargo/README.md",
+      "type": "file",
+      "sha256": "d9b7b448fdd1bcdff86dc4034733602b8bcb60bdc1a14c37148525b67a157054",
+      "executable": false
+    },
+    {
+      "component": "cargo",
+      "path": "lib/rustlib/manifest-cargo-x86_64-unknown-linux-gnu",
+      "type": "file",
+      "sha256": "5b2160ec3635b8c8f3129f12cbeee078d55d882f9362313e56e9fd484febe8ba",
+      "executable": false
+    },
+    {
+      "component": "cargo",
+      "path": "etc/bash_completion.d/cargo",
+      "type": "file",
+      "sha256": "5f88be4aa33639147f33999125db6f625a84d70788dffe4adc2b80b7158bc4b4",
+      "executable": false
+    },
+    {
+      "component": "cargo",
+      "path": "bin/cargo",
+      "type": "file",
+      "sha256": "da77c8b33849312255ccde3179198ada4c8deb370488d050286146b1d1b27e14",
+      "executable": true
+    },
+    {
+      "component": "cargo",
+      "path": "share/zsh/site-functions/_cargo",
+      "type": "file",
+      "sha256": "fe411eb92694460db5660d5cadb778bd96822ff310bee0eeb344d11d2a35950b",
+      "executable": false
+    },
+    {
+      "component": "rust-std-x86_64-unknown-linux-gnu",
+      "path": "lib/rustlib/x86_64-unknown-linux-gnu/lib/librustc-stable_rt.safestack.a",
+      "type": "file",
+      "sha256": "8e51ae0b8f75378ed0cb4bfdc730111ce1db72ddde68de0062014600033a8050",
+      "executable": false
+    },
+    {
+      "component": "rust-std-x86_64-unknown-linux-gnu",
+      "path": "lib/rustlib/x86_64-unknown-linux-gnu/lib/librustc-stable_rt.asan.a",
+      "type": "file",
+      "sha256": "282049582837a493253bcc4c61e8e923f8151a1bb26feb688acb2b5549ed591b",
+      "executable": false
+    },
+    {
+      "component": "rust-std-x86_64-unknown-linux-gnu",
+      "path": "lib/rustlib/x86_64-unknown-linux-gnu/lib/librustc-stable_rt.dfsan.a",
+      "type": "file",
+      "sha256": "af2c5cc016d855075045195d8e59bc830108d5f2bca60c9238749878254055b2",
+      "executable": false
+    },
+    {
+      "component": "rust-std-x86_64-unknown-linux-gnu",
+      "path": "lib/rustlib/x86_64-unknown-linux-gnu/lib/librustc-stable_rt.lsan.a",
+      "type": "file",
+      "sha256": "3cdc0c7d26d5fd2aa3917fd1ee34fac80bc8d569ae57ec92a049436af0836425",
+      "executable": false
+    },
+    {
+      "component": "rust-std-x86_64-unknown-linux-gnu",
+      "path": "lib/rustlib/x86_64-unknown-linux-gnu/lib/librustc-stable_rt.msan.a",
+      "type": "file",
+      "sha256": "0660a62b129e7bf22327b44e94b8ad67cc2178c303f13ab6dbd348bfd067d6ef",
+      "executable": false
+    },
+    {
+      "component": "rust-std-x86_64-unknown-linux-gnu",
+      "path": "lib/rustlib/x86_64-unknown-linux-gnu/lib/librustc-stable_rt.tsan.a",
+      "type": "file",
+      "sha256": "ff41a68be3139e7f199e59c2bf8bd9e37c02125761bac6ba3ca906171b34272c",
+      "executable": false
+    },
+    {
+      "component": "rust-std-x86_64-unknown-linux-gnu",
+      "path": "lib/rustlib/x86_64-unknown-linux-gnu/lib/librustc-stable_rt.rtsan.a",
+      "type": "file",
+      "sha256": "f0ac0bd459f2298baed57f0bbcff64a25f40f9e71fc3073c5c25dc3cd58a1d9c",
+      "executable": false
+    },
+    {
+      "component": "rust-std-x86_64-unknown-linux-gnu",
+      "path": "lib/rustlib/x86_64-unknown-linux-gnu/lib/liblibc-06449a08aaab5e30.rmeta",
+      "type": "file",
+      "sha256": "89ec5773a62128a7691b43f8f58bd907a3b23470617b78b8a07c077399ba583d",
+      "executable": false
+    },
+    {
+      "component": "rust-std-x86_64-unknown-linux-gnu",
+      "path": "lib/rustlib/x86_64-unknown-linux-gnu/lib/libhashbrown-143c77bb957d9940.rmeta",
+      "type": "file",
+      "sha256": "34a95cbdbb9c6cdd1c9d448fd790a7982f7e99b2366f69575fcbaf3c2422f790",
+      "executable": false
+    },
+    {
+      "component": "rust-std-x86_64-unknown-linux-gnu",
+      "path": "lib/rustlib/x86_64-unknown-linux-gnu/lib/libproc_macro-90f1d29c414141c0.rmeta",
+      "type": "file",
+      "sha256": "b59d86deff1cba568a18c095d41a9f6645bbaab3faa38f1fc6cca44d1e5d720c",
+      "executable": false
+    },
+    {
+      "component": "rust-std-x86_64-unknown-linux-gnu",
+      "path": "lib/rustlib/x86_64-unknown-linux-gnu/lib/libminiz_oxide-e44eaef1807e5fc0.rmeta",
+      "type": "file",
+      "sha256": "9bd33cd6e75b4f4713783972dd0ce2d930e82a1793544de24808a704b3b1f1b4",
+      "executable": false
+    },
+    {
+      "component": "rust-std-x86_64-unknown-linux-gnu",
+      "path": "lib/rustlib/x86_64-unknown-linux-gnu/lib/libgimli-9a1fede77fbbf2f0.rmeta",
+      "type": "file",
+      "sha256": "82704e45a991c12de6adf3e6107b751a82f19d65a5907b8d5440e96d8f522e02",
+      "executable": false
+    },
+    {
+      "component": "rust-std-x86_64-unknown-linux-gnu",
+      "path": "lib/rustlib/x86_64-unknown-linux-gnu/lib/libpanic_unwind-549498e8b2e4d924.rmeta",
+      "type": "file",
+      "sha256": "f2aee7121a3e066d30359e6b29df90b3fc728cb50181fa680f95f285b88fe997",
+      "executable": false
+    },
+    {
+      "component": "rust-std-x86_64-unknown-linux-gnu",
+      "path": "lib/rustlib/x86_64-unknown-linux-gnu/lib/libcfg_if-360da4ba13154744.rmeta",
+      "type": "file",
+      "sha256": "0cde6977be726e5a3fe8c03950551798c78afc53b8e4ecd3e4b1e929d4bdfa05",
+      "executable": false
+    },
+    {
+      "component": "rust-std-x86_64-unknown-linux-gnu",
+      "path": "lib/rustlib/x86_64-unknown-linux-gnu/lib/libaddr2line-09755979c57b7e64.rmeta",
+      "type": "file",
+      "sha256": "82f47369404e639a55eb105daef089b1a4c3e874c3dcb3bd01fe420dfb8769f3",
+      "executable": false
+    },
+    {
+      "component": "rust-std-x86_64-unknown-linux-gnu",
+      "path": "lib/rustlib/x86_64-unknown-linux-gnu/lib/libstd-64f5f36fb0927694.rmeta",
+      "type": "file",
+      "sha256": "0e5683f313cff28797243affbed81afd4e9f722d24caf1420262913c3031059f",
+      "executable": false
+    },
+    {
+      "component": "rust-std-x86_64-unknown-linux-gnu",
+      "path": "lib/rustlib/x86_64-unknown-linux-gnu/lib/libunwind-3ec41d3a5a80a4a4.rmeta",
+      "type": "file",
+      "sha256": "ee2027babacb51106ae42e3f8d651c3ec763651365b74db35cc10b0961b4033f",
+      "executable": false
+    },
+    {
+      "component": "rust-std-x86_64-unknown-linux-gnu",
+      "path": "lib/rustlib/x86_64-unknown-linux-gnu/lib/libgetopts-3faf21cb4217a5c4.rmeta",
+      "type": "file",
+      "sha256": "0488007b741ea68fc01fe5e2e375cb82a20763eb0f5aa4b69cb49d208c1a7558",
+      "executable": false
+    },
+    {
+      "component": "rust-std-x86_64-unknown-linux-gnu",
+      "path": "lib/rustlib/x86_64-unknown-linux-gnu/lib/libpanic_abort-c4dfdaf0b4399055.rmeta",
+      "type": "file",
+      "sha256": "ff8a804f07c2145fb1a0c0c96add1b032bb816cfe8ccb701700033d6b49f4f8c",
+      "executable": false
+    },
+    {
+      "component": "rust-std-x86_64-unknown-linux-gnu",
+      "path": "lib/rustlib/x86_64-unknown-linux-gnu/lib/libprofiler_builtins-c32d328e982fa0b5.rmeta",
+      "type": "file",
+      "sha256": "1361a106f31f3904b746184d932035960908b03739d0f8989ddba8a5cedd249b",
+      "executable": false
+    },
+    {
+      "component": "rust-std-x86_64-unknown-linux-gnu",
+      "path": "lib/rustlib/x86_64-unknown-linux-gnu/lib/librustc_std_workspace_core-cb0d4d77988d81b5.rmeta",
+      "type": "file",
+      "sha256": "7bf5b192b2634563576b9d8969817babc04cbe21c959d9b70ce2cef0d7d31f07",
+      "executable": false
+    },
+    {
+      "component": "rust-std-x86_64-unknown-linux-gnu",
+      "path": "lib/rustlib/x86_64-unknown-linux-gnu/lib/libcompiler_builtins-2d2ab9fb0fe1def5.rmeta",
+      "type": "file",
+      "sha256": "a8d590efe36486cd55d413c046a344bb5dbaa4e378c5a6dae6a5b178a8f79593",
+      "executable": false
+    },
+    {
+      "component": "rust-std-x86_64-unknown-linux-gnu",
+      "path": "lib/rustlib/x86_64-unknown-linux-gnu/lib/libmemchr-0e3477fb2664a277.rmeta",
+      "type": "file",
+      "sha256": "2d4da067f66156aa780e989a34077c389238ae79179157f087f79d818b6070d5",
+      "executable": false
+    },
+    {
+      "component": "rust-std-x86_64-unknown-linux-gnu",
+      "path": "lib/rustlib/x86_64-unknown-linux-gnu/lib/libadler2-dca52f01a59c33e7.rmeta",
+      "type": "file",
+      "sha256": "7654d6670b95687fa287aa2dbc26d56dd3be9b3ea81512ba470153db872be11d",
+      "executable": false
+    },
+    {
+      "component": "rust-std-x86_64-unknown-linux-gnu",
+      "path": "lib/rustlib/x86_64-unknown-linux-gnu/lib/libsysroot-002faa2f1d166f98.rmeta",
+      "type": "file",
+      "sha256": "10b1ed7dcb0b8b5dbf520507b9c7e498aa9608d6de05f3d4c90c19d18fcec6b7",
+      "executable": false
+    },
+    {
+      "component": "rust-std-x86_64-unknown-linux-gnu",
+      "path": "lib/rustlib/x86_64-unknown-linux-gnu/lib/librustc_literal_escaper-092f9360013d9ea8.rmeta",
+      "type": "file",
+      "sha256": "650e82ccdaa1b942154e6db8198e1f48d5dc681baecfa05d5ea1cdf693fc829e",
+      "executable": false
+    },
+    {
+      "component": "rust-std-x86_64-unknown-linux-gnu",
+      "path": "lib/rustlib/x86_64-unknown-linux-gnu/lib/liballoc-1ad4f876c768bda9.rmeta",
+      "type": "file",
+      "sha256": "2227c643549e1dbf7cab374e066e375c86192fbad7ea1973f4a2ffdab5962709",
+      "executable": false
+    },
+    {
+      "component": "rust-std-x86_64-unknown-linux-gnu",
+      "path": "lib/rustlib/x86_64-unknown-linux-gnu/lib/libstd_detect-f99feda5ce9e492a.rmeta",
+      "type": "file",
+      "sha256": "406ab55585760fd8ebc05ac90f0f6f02f92959184d1f9cd7b5aab3420bc3153a",
+      "executable": false
+    },
+    {
+      "component": "rust-std-x86_64-unknown-linux-gnu",
+      "path": "lib/rustlib/x86_64-unknown-linux-gnu/lib/librustc_std_workspace_std-04ecf85ec5d31aba.rmeta",
+      "type": "file",
+      "sha256": "861f965d5cbfbe4a087f87d9b61738f2b287c07cae08c8f03500390c91606e23",
+      "executable": false
+    },
+    {
+      "component": "rust-std-x86_64-unknown-linux-gnu",
+      "path": "lib/rustlib/x86_64-unknown-linux-gnu/lib/libcore-df1bddb45adbe94b.rmeta",
+      "type": "file",
+      "sha256": "e1d3830e4dcadd046a4f4abcf4d8249a4bb4f7832902598f117fbe4c035f71eb",
+      "executable": false
+    },
+    {
+      "component": "rust-std-x86_64-unknown-linux-gnu",
+      "path": "lib/rustlib/x86_64-unknown-linux-gnu/lib/librustc_std_workspace_alloc-145a318e0772276c.rmeta",
+      "type": "file",
+      "sha256": "8fa4d65760374eecc76781188ab6e05d88371894eef007d7ab96663631604a94",
+      "executable": false
+    },
+    {
+      "component": "rust-std-x86_64-unknown-linux-gnu",
+      "path": "lib/rustlib/x86_64-unknown-linux-gnu/lib/librustc_demangle-cfd0ab54bb33760e.rmeta",
+      "type": "file",
+      "sha256": "ac4a36c00afb3fa1d8e75111acc4f8c2a4bb0f7c61ba58ea1c198ceb560a1926",
+      "executable": false
+    },
+    {
+      "component": "rust-std-x86_64-unknown-linux-gnu",
+      "path": "lib/rustlib/x86_64-unknown-linux-gnu/lib/libtest-4052f37fcd02ccef.rmeta",
+      "type": "file",
+      "sha256": "c0331cc120c407caa406efec35c2be6f406ef0ea4e4cded0bcc7fccee07226da",
+      "executable": false
+    },
+    {
+      "component": "rust-std-x86_64-unknown-linux-gnu",
+      "path": "lib/rustlib/x86_64-unknown-linux-gnu/lib/libobject-7ff85ea729a864ff.rmeta",
+      "type": "file",
+      "sha256": "edfabcfc08a89f34212414bc8138f3461463612a671d9734238147074244bba3",
+      "executable": false
+    },
+    {
+      "component": "rust-std-x86_64-unknown-linux-gnu",
+      "path": "lib/rustlib/x86_64-unknown-linux-gnu/lib/liblibc-06449a08aaab5e30.rlib",
+      "type": "file",
+      "sha256": "f0d2145c01473567f0c0235768352fe373c49c80b47e8fcf0c695f0281aeb6db",
+      "executable": false
+    },
+    {
+      "component": "rust-std-x86_64-unknown-linux-gnu",
+      "path": "lib/rustlib/x86_64-unknown-linux-gnu/lib/libhashbrown-143c77bb957d9940.rlib",
+      "type": "file",
+      "sha256": "19cee31621ce0c4037472d286f45832ac7fa9bf62b5a7a7222392c71a42a2009",
+      "executable": false
+    },
+    {
+      "component": "rust-std-x86_64-unknown-linux-gnu",
+      "path": "lib/rustlib/x86_64-unknown-linux-gnu/lib/libproc_macro-90f1d29c414141c0.rlib",
+      "type": "file",
+      "sha256": "0c732a6a7773a1dc84de4b110ff75d72b327c82597e08d0cc8106e85d03164eb",
+      "executable": false
+    },
+    {
+      "component": "rust-std-x86_64-unknown-linux-gnu",
+      "path": "lib/rustlib/x86_64-unknown-linux-gnu/lib/libminiz_oxide-e44eaef1807e5fc0.rlib",
+      "type": "file",
+      "sha256": "68eb2a85c688cb8d910be4222ec37ca366bd7cdfbb05d9ff923b09a06aa57a3a",
+      "executable": false
+    },
+    {
+      "component": "rust-std-x86_64-unknown-linux-gnu",
+      "path": "lib/rustlib/x86_64-unknown-linux-gnu/lib/libgimli-9a1fede77fbbf2f0.rlib",
+      "type": "file",
+      "sha256": "2a28d6b3b3ad2fb5c88ad53053846c51cbce7218f52289ab58256f8769982116",
+      "executable": false
+    },
+    {
+      "component": "rust-std-x86_64-unknown-linux-gnu",
+      "path": "lib/rustlib/x86_64-unknown-linux-gnu/lib/libpanic_unwind-549498e8b2e4d924.rlib",
+      "type": "file",
+      "sha256": "afccbbad6e2b80c3134f0e018a2629f3f08c0c8a9457df774f83ab7e6d73916f",
+      "executable": false
+    },
+    {
+      "component": "rust-std-x86_64-unknown-linux-gnu",
+      "path": "lib/rustlib/x86_64-unknown-linux-gnu/lib/libcfg_if-360da4ba13154744.rlib",
+      "type": "file",
+      "sha256": "3056ab9b675fa0f293f4998b62bcd324923002a3f3638e40a30ae2d1681eb910",
+      "executable": false
+    },
+    {
+      "component": "rust-std-x86_64-unknown-linux-gnu",
+      "path": "lib/rustlib/x86_64-unknown-linux-gnu/lib/libaddr2line-09755979c57b7e64.rlib",
+      "type": "file",
+      "sha256": "b7b2ddc6169ad7bb67cb085e770da3d71ecfa94d40fe532801bb993710fc2a0d",
+      "executable": false
+    },
+    {
+      "component": "rust-std-x86_64-unknown-linux-gnu",
+      "path": "lib/rustlib/x86_64-unknown-linux-gnu/lib/libstd-64f5f36fb0927694.rlib",
+      "type": "file",
+      "sha256": "bf156342c5f849f27d8f53003131bc7c0e675143389d84dd549b2ebbaccfaa2f",
+      "executable": false
+    },
+    {
+      "component": "rust-std-x86_64-unknown-linux-gnu",
+      "path": "lib/rustlib/x86_64-unknown-linux-gnu/lib/libunwind-3ec41d3a5a80a4a4.rlib",
+      "type": "file",
+      "sha256": "9bcb7ac2880f01055170c5c4d7f383a1174cd5e97e6c4f440a103fec521b6561",
+      "executable": false
+    },
+    {
+      "component": "rust-std-x86_64-unknown-linux-gnu",
+      "path": "lib/rustlib/x86_64-unknown-linux-gnu/lib/libgetopts-3faf21cb4217a5c4.rlib",
+      "type": "file",
+      "sha256": "571e9b27e76900c9be94977540553c77379396156aa966715897facce50df1b8",
+      "executable": false
+    },
+    {
+      "component": "rust-std-x86_64-unknown-linux-gnu",
+      "path": "lib/rustlib/x86_64-unknown-linux-gnu/lib/libpanic_abort-c4dfdaf0b4399055.rlib",
+      "type": "file",
+      "sha256": "ee3ef25a4507609475833ba95359daa74828fee265b6bbaa51e9de4e75a6a794",
+      "executable": false
+    },
+    {
+      "component": "rust-std-x86_64-unknown-linux-gnu",
+      "path": "lib/rustlib/x86_64-unknown-linux-gnu/lib/libprofiler_builtins-c32d328e982fa0b5.rlib",
+      "type": "file",
+      "sha256": "d45f3cda78a7c97c30d725291aa19bed5c6b685956c6893090455c926b232160",
+      "executable": false
+    },
+    {
+      "component": "rust-std-x86_64-unknown-linux-gnu",
+      "path": "lib/rustlib/x86_64-unknown-linux-gnu/lib/librustc_std_workspace_core-cb0d4d77988d81b5.rlib",
+      "type": "file",
+      "sha256": "b4d99e606c6f45654c397c2754ef5e06b514085ffd9a8afec7bf3cd3ba5078aa",
+      "executable": false
+    },
+    {
+      "component": "rust-std-x86_64-unknown-linux-gnu",
+      "path": "lib/rustlib/x86_64-unknown-linux-gnu/lib/libcompiler_builtins-2d2ab9fb0fe1def5.rlib",
+      "type": "file",
+      "sha256": "1c262a8222305bf9e5925183fe14f20144ddfb84cefee76ff6eff945f0dfaa05",
+      "executable": false
+    },
+    {
+      "component": "rust-std-x86_64-unknown-linux-gnu",
+      "path": "lib/rustlib/x86_64-unknown-linux-gnu/lib/libmemchr-0e3477fb2664a277.rlib",
+      "type": "file",
+      "sha256": "b98c5cee91b2f30c87caf42d9fe975a0407fb0f9996d8c762d1738a826a892ef",
+      "executable": false
+    },
+    {
+      "component": "rust-std-x86_64-unknown-linux-gnu",
+      "path": "lib/rustlib/x86_64-unknown-linux-gnu/lib/libadler2-dca52f01a59c33e7.rlib",
+      "type": "file",
+      "sha256": "75baa52c1f030187625786027ac4030b27ff82c5a324dc31e064528185f3b737",
+      "executable": false
+    },
+    {
+      "component": "rust-std-x86_64-unknown-linux-gnu",
+      "path": "lib/rustlib/x86_64-unknown-linux-gnu/lib/libsysroot-002faa2f1d166f98.rlib",
+      "type": "file",
+      "sha256": "0c06de8c1ce571a587568d60b73cd599c483ddb66b0cdadf0873ee9def2f4442",
+      "executable": false
+    },
+    {
+      "component": "rust-std-x86_64-unknown-linux-gnu",
+      "path": "lib/rustlib/x86_64-unknown-linux-gnu/lib/librustc_literal_escaper-092f9360013d9ea8.rlib",
+      "type": "file",
+      "sha256": "6282ff8e4f12520674b9ad5c57adc233ae380531ec1a9aa2dc2662c76a572a70",
+      "executable": false
+    },
+    {
+      "component": "rust-std-x86_64-unknown-linux-gnu",
+      "path": "lib/rustlib/x86_64-unknown-linux-gnu/lib/liballoc-1ad4f876c768bda9.rlib",
+      "type": "file",
+      "sha256": "ea6eea65e99c8c64c146175a2e8eb0b5fdd0cadfb9cb13ade7d3d03fdd7a1e61",
+      "executable": false
+    },
+    {
+      "component": "rust-std-x86_64-unknown-linux-gnu",
+      "path": "lib/rustlib/x86_64-unknown-linux-gnu/lib/libstd_detect-f99feda5ce9e492a.rlib",
+      "type": "file",
+      "sha256": "cf0b708f1240644c0f5d0d672913a9998e9e8320184bc6073a4fbb8c07d55f3e",
+      "executable": false
+    },
+    {
+      "component": "rust-std-x86_64-unknown-linux-gnu",
+      "path": "lib/rustlib/x86_64-unknown-linux-gnu/lib/librustc_std_workspace_std-04ecf85ec5d31aba.rlib",
+      "type": "file",
+      "sha256": "66a8125b7c18a57d0ca69b422e7b3019e060a9a32c5ef6c5aa5ae0c195391dd1",
+      "executable": false
+    },
+    {
+      "component": "rust-std-x86_64-unknown-linux-gnu",
+      "path": "lib/rustlib/x86_64-unknown-linux-gnu/lib/libcore-df1bddb45adbe94b.rlib",
+      "type": "file",
+      "sha256": "c040da93caf73df2afaa5ea20ed90b0071e7ef71b53d6aed535c68d3e5fbdffd",
+      "executable": false
+    },
+    {
+      "component": "rust-std-x86_64-unknown-linux-gnu",
+      "path": "lib/rustlib/x86_64-unknown-linux-gnu/lib/librustc_std_workspace_alloc-145a318e0772276c.rlib",
+      "type": "file",
+      "sha256": "ab8c10edf4f723c54915357ad7b41cd1269b5f8d49ef304bbd8a0cf21b030258",
+      "executable": false
+    },
+    {
+      "component": "rust-std-x86_64-unknown-linux-gnu",
+      "path": "lib/rustlib/x86_64-unknown-linux-gnu/lib/librustc_demangle-cfd0ab54bb33760e.rlib",
+      "type": "file",
+      "sha256": "40a11efa12c9adba45094d6ff63f19d786ba54141392f06c0bc8716a070ab3f4",
+      "executable": false
+    },
+    {
+      "component": "rust-std-x86_64-unknown-linux-gnu",
+      "path": "lib/rustlib/x86_64-unknown-linux-gnu/lib/libtest-4052f37fcd02ccef.rlib",
+      "type": "file",
+      "sha256": "18285161e0c3e2bf8bc9b74d609a49ff27d0676b0c00a40b3730110e1df942bc",
+      "executable": false
+    },
+    {
+      "component": "rust-std-x86_64-unknown-linux-gnu",
+      "path": "lib/rustlib/x86_64-unknown-linux-gnu/lib/libobject-7ff85ea729a864ff.rlib",
+      "type": "file",
+      "sha256": "0dbdcbf63016c82b39a198bff4a7ba83eea5d328e02160c3da0f2a912007083f",
+      "executable": false
+    },
+    {
+      "component": "rust-std-x86_64-unknown-linux-gnu",
+      "path": "lib/rustlib/manifest-rust-std-x86_64-unknown-linux-gnu",
+      "type": "file",
+      "sha256": "c1d9f380ddbf04c0acd1525e4a5fbfd0ab2be25185a6089b3e59f0a9360008ef",
+      "executable": false
+    },
+    {
+      "component": "rust-std-x86_64-unknown-linux-gnu",
+      "path": "lib/rustlib/x86_64-unknown-linux-gnu/lib/libstd-64f5f36fb0927694.so",
+      "type": "file",
+      "sha256": "2988c07760fd0baeab583e75dc23aa56a56c5d169d94bcaeceb1c933318e32bb",
+      "executable": true
+    },
+    {
+      "component": "rust-std-aarch64-linux-android",
+      "path": "lib/rustlib/aarch64-linux-android/lib/libadler2-068a804c7a4da7c0.rmeta",
+      "type": "file",
+      "sha256": "219b28737e29ad405f94f2c390baaf74e2ab829c96afeac4f0ab13eed89f92e6",
+      "executable": false
+    },
+    {
+      "component": "rust-std-aarch64-linux-android",
+      "path": "lib/rustlib/aarch64-linux-android/lib/libpanic_abort-626a998ba7cf47e1.rmeta",
+      "type": "file",
+      "sha256": "585f6fceaebe35a2396e2cdf4482e65a600030f7a3366999f9fb54b16391cee2",
+      "executable": false
+    },
+    {
+      "component": "rust-std-aarch64-linux-android",
+      "path": "lib/rustlib/aarch64-linux-android/lib/libcfg_if-7940436b5bc09512.rmeta",
+      "type": "file",
+      "sha256": "dd3a594f3ebd348f8d02fc57382c0963a12fcf345f375a6b06f86ad728fcf14e",
+      "executable": false
+    },
+    {
+      "component": "rust-std-aarch64-linux-android",
+      "path": "lib/rustlib/aarch64-linux-android/lib/liballoc-e873bd788329a382.rmeta",
+      "type": "file",
+      "sha256": "a5b15753b147a457cd8535d0c7229550e92a13e268cc674d4d2713ee8aa8aea3",
+      "executable": false
+    },
+    {
+      "component": "rust-std-aarch64-linux-android",
+      "path": "lib/rustlib/aarch64-linux-android/lib/librustc_literal_escaper-a86cb08cc1dfc582.rmeta",
+      "type": "file",
+      "sha256": "ef330bdfe6ee69f85995eddcee64f5cdaef2c65a5f5f24e5468529c6e9b8a81c",
+      "executable": false
+    },
+    {
+      "component": "rust-std-aarch64-linux-android",
+      "path": "lib/rustlib/aarch64-linux-android/lib/libcore-1bf91c199a1ce463.rmeta",
+      "type": "file",
+      "sha256": "15dade098d73925c378197e21aae0ebb96361c02c5122caa8ef8f2b5b87d463c",
+      "executable": false
+    },
+    {
+      "component": "rust-std-aarch64-linux-android",
+      "path": "lib/rustlib/aarch64-linux-android/lib/libaddr2line-f00bf828c13f3ab3.rmeta",
+      "type": "file",
+      "sha256": "efc42393e2ee6c887c95bc2f65aa663845a691d39978f1f7f7688002bded44af",
+      "executable": false
+    },
+    {
+      "component": "rust-std-aarch64-linux-android",
+      "path": "lib/rustlib/aarch64-linux-android/lib/liblibc-9362df6966735ad3.rmeta",
+      "type": "file",
+      "sha256": "21d67aee8ec01a8e265d43d9f314ad4ea57e1e62273741229532b0c402c988f8",
+      "executable": false
+    },
+    {
+      "component": "rust-std-aarch64-linux-android",
+      "path": "lib/rustlib/aarch64-linux-android/lib/libminiz_oxide-2136f8b807dbd294.rmeta",
+      "type": "file",
+      "sha256": "9b1d135a953a643d0a1c966f1218010541f167b14e056ff6ba70a10c68ae0561",
+      "executable": false
+    },
+    {
+      "component": "rust-std-aarch64-linux-android",
+      "path": "lib/rustlib/aarch64-linux-android/lib/libsysroot-1a6a8b0ec897ced5.rmeta",
+      "type": "file",
+      "sha256": "25507cb1795db0a1b3e76a0e4571f3e957cf9fe357ccc555d9ad28520b1b9119",
+      "executable": false
+    },
+    {
+      "component": "rust-std-aarch64-linux-android",
+      "path": "lib/rustlib/aarch64-linux-android/lib/libunwind-f2266549852b5106.rmeta",
+      "type": "file",
+      "sha256": "72031c7ed42d19f9e0e3b47df0fd21d1df1dc269624f1489dbb69621c762d6ab",
+      "executable": false
+    },
+    {
+      "component": "rust-std-aarch64-linux-android",
+      "path": "lib/rustlib/aarch64-linux-android/lib/libstd_detect-1950ba6e9d9c4e17.rmeta",
+      "type": "file",
+      "sha256": "c095677bdb21462e8143e3c8c441f0a56f15b398286993261299f7ef20d4f0de",
+      "executable": false
+    },
+    {
+      "component": "rust-std-aarch64-linux-android",
+      "path": "lib/rustlib/aarch64-linux-android/lib/librustc_std_workspace_alloc-65ded7c6f6fa1bb7.rmeta",
+      "type": "file",
+      "sha256": "45146762dac346f0fa015506616e236a9c4a04d4cfb41ce30dd4c2e0c325a9f9",
+      "executable": false
+    },
+    {
+      "component": "rust-std-aarch64-linux-android",
+      "path": "lib/rustlib/aarch64-linux-android/lib/libproc_macro-be8a6a44d82b1408.rmeta",
+      "type": "file",
+      "sha256": "0835eab333ee875794d62fb84125d21ad6f7e8740d0c54f315ed25ff04b79ae5",
+      "executable": false
+    },
+    {
+      "component": "rust-std-aarch64-linux-android",
+      "path": "lib/rustlib/aarch64-linux-android/lib/libhashbrown-f806186a866b8a78.rmeta",
+      "type": "file",
+      "sha256": "3ab64bebf4633b50f4165bd7f78c807b7786149629fee0ad8fabb53d7bcd0f30",
+      "executable": false
+    },
+    {
+      "component": "rust-std-aarch64-linux-android",
+      "path": "lib/rustlib/aarch64-linux-android/lib/librustc_std_workspace_core-1c69fb9e2b8b7ea9.rmeta",
+      "type": "file",
+      "sha256": "1a30418d7c83720db29122e9fc149a780416ff2c670f9578f4a7f90ca0d92576",
+      "executable": false
+    },
+    {
+      "component": "rust-std-aarch64-linux-android",
+      "path": "lib/rustlib/aarch64-linux-android/lib/librustc_demangle-6c7f9e897ff52ab9.rmeta",
+      "type": "file",
+      "sha256": "17445c42c162cfd63dd67ae9d24dace6eabd18411b934dbff23e707ee4b8c1f9",
+      "executable": false
+    },
+    {
+      "component": "rust-std-aarch64-linux-android",
+      "path": "lib/rustlib/aarch64-linux-android/lib/libobject-6e12209a49bb3b1a.rmeta",
+      "type": "file",
+      "sha256": "f65d0cc845831a948c97ef1bf824eb3350084f3839a4b573471f94ea7181c35a",
+      "executable": false
+    },
+    {
+      "component": "rust-std-aarch64-linux-android",
+      "path": "lib/rustlib/aarch64-linux-android/lib/libprofiler_builtins-1526ec78105c2d0b.rmeta",
+      "type": "file",
+      "sha256": "649f82e21c25f718d30e164acb4fa1be528c49031d30871c3a6c4c2db84855ea",
+      "executable": false
+    },
+    {
+      "component": "rust-std-aarch64-linux-android",
+      "path": "lib/rustlib/aarch64-linux-android/lib/libpanic_unwind-88828a024024d89b.rmeta",
+      "type": "file",
+      "sha256": "c8156077d0f69d29b3c1e4a0df2a137df3e71fa907abea0ef198a7e036c4c7e8",
+      "executable": false
+    },
+    {
+      "component": "rust-std-aarch64-linux-android",
+      "path": "lib/rustlib/aarch64-linux-android/lib/libmemchr-f32bf962b0c2a4bc.rmeta",
+      "type": "file",
+      "sha256": "3055ed0b71ab668f08e5a7152aea1321a9fa8904a7ab1623a1b21e0f126a7f53",
+      "executable": false
+    },
+    {
+      "component": "rust-std-aarch64-linux-android",
+      "path": "lib/rustlib/aarch64-linux-android/lib/libcompiler_builtins-4b6ddcdc38eb70ec.rmeta",
+      "type": "file",
+      "sha256": "f2885632a8099b4a3791afd56a22ffdd84ca2e59e3d476cbafdc5958f8a51882",
+      "executable": false
+    },
+    {
+      "component": "rust-std-aarch64-linux-android",
+      "path": "lib/rustlib/aarch64-linux-android/lib/libgetopts-19aec95cc0bfbaed.rmeta",
+      "type": "file",
+      "sha256": "00164ce0f09497ac0a588f1eb85ed2ee933f990e59e628d33c4b582ef3d9be2a",
+      "executable": false
+    },
+    {
+      "component": "rust-std-aarch64-linux-android",
+      "path": "lib/rustlib/aarch64-linux-android/lib/libtest-5ef806f9ff13f85e.rmeta",
+      "type": "file",
+      "sha256": "2a92c9388d4dc528eb8c07398f30b18f3cdd1c98d31d539a87e9efbad1ca4718",
+      "executable": false
+    },
+    {
+      "component": "rust-std-aarch64-linux-android",
+      "path": "lib/rustlib/aarch64-linux-android/lib/libstd-69632c570ff376ae.rmeta",
+      "type": "file",
+      "sha256": "ff5f8aec785ffacc9fd79aa2bd6c66d1cbbbd052ae0c95b974d8d2290a154f62",
+      "executable": false
+    },
+    {
+      "component": "rust-std-aarch64-linux-android",
+      "path": "lib/rustlib/aarch64-linux-android/lib/libgimli-efcbe5df0664cf0f.rmeta",
+      "type": "file",
+      "sha256": "329e3846407180763b93fa4b6dc25200027188e514f75337e526fbc69b5dbd53",
+      "executable": false
+    },
+    {
+      "component": "rust-std-aarch64-linux-android",
+      "path": "lib/rustlib/aarch64-linux-android/lib/librustc_std_workspace_std-7df271ee4d3a583f.rmeta",
+      "type": "file",
+      "sha256": "10e08f77fd9c760e8e7245ac58d862ac88eceef5643d44532f2257b87b1468b4",
+      "executable": false
+    },
+    {
+      "component": "rust-std-aarch64-linux-android",
+      "path": "lib/rustlib/aarch64-linux-android/lib/libadler2-068a804c7a4da7c0.rlib",
+      "type": "file",
+      "sha256": "d2855979759c9e3c1f92a49a6481a941d22c69b9d518d59d3e66f533805458b4",
+      "executable": false
+    },
+    {
+      "component": "rust-std-aarch64-linux-android",
+      "path": "lib/rustlib/aarch64-linux-android/lib/libpanic_abort-626a998ba7cf47e1.rlib",
+      "type": "file",
+      "sha256": "d2f42de40f30bc1ffbae1fbd03dd29b8188739bd9c7e81f6a18354c46c546c27",
+      "executable": false
+    },
+    {
+      "component": "rust-std-aarch64-linux-android",
+      "path": "lib/rustlib/aarch64-linux-android/lib/libcfg_if-7940436b5bc09512.rlib",
+      "type": "file",
+      "sha256": "836264bc60155c741b0e85cfde55cc5993b81cd188e85a6b7632e436acda5642",
+      "executable": false
+    },
+    {
+      "component": "rust-std-aarch64-linux-android",
+      "path": "lib/rustlib/aarch64-linux-android/lib/liballoc-e873bd788329a382.rlib",
+      "type": "file",
+      "sha256": "60d437ebdf637848a8a043530197c77db6a3ee1de80bf14255e776af57eec091",
+      "executable": false
+    },
+    {
+      "component": "rust-std-aarch64-linux-android",
+      "path": "lib/rustlib/aarch64-linux-android/lib/librustc_literal_escaper-a86cb08cc1dfc582.rlib",
+      "type": "file",
+      "sha256": "6d3927c08f4477aa4207573ff4738271966d3842a0d61970cd214875360b3335",
+      "executable": false
+    },
+    {
+      "component": "rust-std-aarch64-linux-android",
+      "path": "lib/rustlib/aarch64-linux-android/lib/libcore-1bf91c199a1ce463.rlib",
+      "type": "file",
+      "sha256": "f047ade5ec91aa47b4de1dad7ab1c67d208423ec88138bf2b98b2e9e9fefa3fd",
+      "executable": false
+    },
+    {
+      "component": "rust-std-aarch64-linux-android",
+      "path": "lib/rustlib/aarch64-linux-android/lib/libaddr2line-f00bf828c13f3ab3.rlib",
+      "type": "file",
+      "sha256": "c018899891e23e81f03e02724161e9e342d7d092743f7385985e117b324aca21",
+      "executable": false
+    },
+    {
+      "component": "rust-std-aarch64-linux-android",
+      "path": "lib/rustlib/aarch64-linux-android/lib/liblibc-9362df6966735ad3.rlib",
+      "type": "file",
+      "sha256": "a5ba0e72bbf59612e6704c14dc1072c0a762673750fc94243b6e0729e4e76253",
+      "executable": false
+    },
+    {
+      "component": "rust-std-aarch64-linux-android",
+      "path": "lib/rustlib/aarch64-linux-android/lib/libminiz_oxide-2136f8b807dbd294.rlib",
+      "type": "file",
+      "sha256": "7ef152d0635ea4e94c9000e8bb8c25065c58679b343edd0ea763e561ced591ed",
+      "executable": false
+    },
+    {
+      "component": "rust-std-aarch64-linux-android",
+      "path": "lib/rustlib/aarch64-linux-android/lib/libsysroot-1a6a8b0ec897ced5.rlib",
+      "type": "file",
+      "sha256": "29173314fdb55c715449878c612e42debe67751da212c875e86effbae5302e7b",
+      "executable": false
+    },
+    {
+      "component": "rust-std-aarch64-linux-android",
+      "path": "lib/rustlib/aarch64-linux-android/lib/libunwind-f2266549852b5106.rlib",
+      "type": "file",
+      "sha256": "4c93c289cfb3a89bb4e74de40d00bc2faff547236aa2eb513ebf198cdfc5ab96",
+      "executable": false
+    },
+    {
+      "component": "rust-std-aarch64-linux-android",
+      "path": "lib/rustlib/aarch64-linux-android/lib/libstd_detect-1950ba6e9d9c4e17.rlib",
+      "type": "file",
+      "sha256": "c7347c818cb595b12e2ef39983816574b12817f7b96ff415044ebf15044364af",
+      "executable": false
+    },
+    {
+      "component": "rust-std-aarch64-linux-android",
+      "path": "lib/rustlib/aarch64-linux-android/lib/librustc_std_workspace_alloc-65ded7c6f6fa1bb7.rlib",
+      "type": "file",
+      "sha256": "ef9c0eae79cd3fb4826792a7cc1e71f5e0f2718ff935c3b6e780ef55781cfa06",
+      "executable": false
+    },
+    {
+      "component": "rust-std-aarch64-linux-android",
+      "path": "lib/rustlib/aarch64-linux-android/lib/libproc_macro-be8a6a44d82b1408.rlib",
+      "type": "file",
+      "sha256": "aff7fd5d59409668babb1a028e826881bc9a9c9640714cf1498d7681e152f916",
+      "executable": false
+    },
+    {
+      "component": "rust-std-aarch64-linux-android",
+      "path": "lib/rustlib/aarch64-linux-android/lib/libhashbrown-f806186a866b8a78.rlib",
+      "type": "file",
+      "sha256": "aff83201288d3babf9d1279f50914f8ff9e390c7b66b44a4ba13965d9aa4c316",
+      "executable": false
+    },
+    {
+      "component": "rust-std-aarch64-linux-android",
+      "path": "lib/rustlib/aarch64-linux-android/lib/librustc_std_workspace_core-1c69fb9e2b8b7ea9.rlib",
+      "type": "file",
+      "sha256": "3a44921eaac96aa0ec91c9607789ead72f2f29a33d63ad8501b5aac7c4555a38",
+      "executable": false
+    },
+    {
+      "component": "rust-std-aarch64-linux-android",
+      "path": "lib/rustlib/aarch64-linux-android/lib/librustc_demangle-6c7f9e897ff52ab9.rlib",
+      "type": "file",
+      "sha256": "15a8dac4eeb86d56bc9578d57c3cdc69d8e2fdf94bba52bcbb911d20673bded9",
+      "executable": false
+    },
+    {
+      "component": "rust-std-aarch64-linux-android",
+      "path": "lib/rustlib/aarch64-linux-android/lib/libobject-6e12209a49bb3b1a.rlib",
+      "type": "file",
+      "sha256": "6bdfc28f3fed056b98c94ac1f7eff5486972e303701d0f1803cb78c294a5de80",
+      "executable": false
+    },
+    {
+      "component": "rust-std-aarch64-linux-android",
+      "path": "lib/rustlib/aarch64-linux-android/lib/libprofiler_builtins-1526ec78105c2d0b.rlib",
+      "type": "file",
+      "sha256": "36a5d3ea4130cac238dd115546b8fe9e7eb910c0c5e00a3f49e98ae4e309f45c",
+      "executable": false
+    },
+    {
+      "component": "rust-std-aarch64-linux-android",
+      "path": "lib/rustlib/aarch64-linux-android/lib/libpanic_unwind-88828a024024d89b.rlib",
+      "type": "file",
+      "sha256": "0b8df966d43724b8aee7d60e3e2772898c92c1d2c2199a80edfd9eb919b6d5c9",
+      "executable": false
+    },
+    {
+      "component": "rust-std-aarch64-linux-android",
+      "path": "lib/rustlib/aarch64-linux-android/lib/libmemchr-f32bf962b0c2a4bc.rlib",
+      "type": "file",
+      "sha256": "c825ccb0acb9ac4e360585c81e17e12d70b7b72dc1512e336a83561953ffcf42",
+      "executable": false
+    },
+    {
+      "component": "rust-std-aarch64-linux-android",
+      "path": "lib/rustlib/aarch64-linux-android/lib/libcompiler_builtins-4b6ddcdc38eb70ec.rlib",
+      "type": "file",
+      "sha256": "88747bc1416de3386e063b9f89f2d6252d8622fc7ba4efc02a278529f872043d",
+      "executable": false
+    },
+    {
+      "component": "rust-std-aarch64-linux-android",
+      "path": "lib/rustlib/aarch64-linux-android/lib/libgetopts-19aec95cc0bfbaed.rlib",
+      "type": "file",
+      "sha256": "8f7f0e2e08602c1a19c3713274ddf53075304bd8869862fbc939e9228cf230fc",
+      "executable": false
+    },
+    {
+      "component": "rust-std-aarch64-linux-android",
+      "path": "lib/rustlib/aarch64-linux-android/lib/libtest-5ef806f9ff13f85e.rlib",
+      "type": "file",
+      "sha256": "4d9cde781a0f1b5a4343f0d18786c1b55a75b1750bae852954aa57536c0dd9bd",
+      "executable": false
+    },
+    {
+      "component": "rust-std-aarch64-linux-android",
+      "path": "lib/rustlib/aarch64-linux-android/lib/libstd-69632c570ff376ae.rlib",
+      "type": "file",
+      "sha256": "112c5c30248fb02bbd4ee1fdc73964f2bc3d81d63f7fcbbcb24c17afd0d63e2c",
+      "executable": false
+    },
+    {
+      "component": "rust-std-aarch64-linux-android",
+      "path": "lib/rustlib/aarch64-linux-android/lib/libgimli-efcbe5df0664cf0f.rlib",
+      "type": "file",
+      "sha256": "77397e72ea167dc75c0f823cbdfefb3429b3aaa7970b37bc633dfa575b8433c9",
+      "executable": false
+    },
+    {
+      "component": "rust-std-aarch64-linux-android",
+      "path": "lib/rustlib/aarch64-linux-android/lib/librustc_std_workspace_std-7df271ee4d3a583f.rlib",
+      "type": "file",
+      "sha256": "e177acb2d8c52046533e2cb79d3b9443d5fc327486717fb91dfca598eb57fc38",
+      "executable": false
+    },
+    {
+      "component": "rust-std-aarch64-linux-android",
+      "path": "lib/rustlib/manifest-rust-std-aarch64-linux-android",
+      "type": "file",
+      "sha256": "bd7be08c6f90dddfe0b49db3fcfd73febbea2ba8d6ec067c3c666b357f5f07fe",
+      "executable": false
+    },
+    {
+      "component": "rust-std-aarch64-linux-android",
+      "path": "lib/rustlib/aarch64-linux-android/lib/libstd-69632c570ff376ae.so",
+      "type": "file",
+      "sha256": "14cb9d8f88daa15c5326e09dbd088da6cab74db666ce8ebd13f4919cc4668d7c",
+      "executable": true
+    },
+    {
+      "component": "rust-std-armv7-linux-androideabi",
+      "path": "lib/rustlib/armv7-linux-androideabi/lib/libpanic_abort-e67bde35e757ec30.rmeta",
+      "type": "file",
+      "sha256": "b0074402b01a8641f7ebc371f89fd6f9d2b57645f2bc642fa017d25d7b3bc758",
+      "executable": false
+    },
+    {
+      "component": "rust-std-armv7-linux-androideabi",
+      "path": "lib/rustlib/armv7-linux-androideabi/lib/liblibc-5725d230672dedd0.rmeta",
+      "type": "file",
+      "sha256": "38a13d37a2c24708fa06344023335f7e97dd7590a768cc4f083c825172c7f117",
+      "executable": false
+    },
+    {
+      "component": "rust-std-armv7-linux-androideabi",
+      "path": "lib/rustlib/armv7-linux-androideabi/lib/libunwind-16ab6004211e0801.rmeta",
+      "type": "file",
+      "sha256": "2c192332da688315019959600a57608aefbd35eeb9748609895fd932e7447376",
+      "executable": false
+    },
+    {
+      "component": "rust-std-armv7-linux-androideabi",
+      "path": "lib/rustlib/armv7-linux-androideabi/lib/libprofiler_builtins-37dc3764099fcbf3.rmeta",
+      "type": "file",
+      "sha256": "9470c8391d970624e908ec1663100d5cdbb88d17b73396910bd3e51842fe322f",
+      "executable": false
+    },
+    {
+      "component": "rust-std-armv7-linux-androideabi",
+      "path": "lib/rustlib/armv7-linux-androideabi/lib/libminiz_oxide-ca136753b7b0d164.rmeta",
+      "type": "file",
+      "sha256": "13d46e81f52587d4b99e49a6a90828a7903345eda83516595cdbd667ada1a49b",
+      "executable": false
+    },
+    {
+      "component": "rust-std-armv7-linux-androideabi",
+      "path": "lib/rustlib/armv7-linux-androideabi/lib/libgimli-2387e2dfe59fc8e4.rmeta",
+      "type": "file",
+      "sha256": "23cb1364386f2b1faa705671a22c1e60a02b126132f2c2b90a68d0055ffd6c4e",
+      "executable": false
+    },
+    {
+      "component": "rust-std-armv7-linux-androideabi",
+      "path": "lib/rustlib/armv7-linux-androideabi/lib/librustc_demangle-d36e14f6f53525f4.rmeta",
+      "type": "file",
+      "sha256": "61ddd0e2c0ae34becd2325c7297a4f7b64603fab6fc5045d7cab857b02b527b6",
+      "executable": false
+    },
+    {
+      "component": "rust-std-armv7-linux-androideabi",
+      "path": "lib/rustlib/armv7-linux-androideabi/lib/libstd_detect-1b809a24794608f4.rmeta",
+      "type": "file",
+      "sha256": "a3da42a933d747da2fdd48f49794cfb22024ccf581ac42e09a4362ed67aa6b9a",
+      "executable": false
+    },
+    {
+      "component": "rust-std-armv7-linux-androideabi",
+      "path": "lib/rustlib/armv7-linux-androideabi/lib/libcompiler_builtins-a3adb725c6965616.rmeta",
+      "type": "file",
+      "sha256": "487901b63b73c59e2e3d271c07bceed5a791539d3b9e01dc5239a0e42b2f0e55",
+      "executable": false
+    },
+    {
+      "component": "rust-std-armv7-linux-androideabi",
+      "path": "lib/rustlib/armv7-linux-androideabi/lib/libmemchr-c08ba55a8c3a7508.rmeta",
+      "type": "file",
+      "sha256": "f9a0db37aefd0db007323fb5ef9a28a9138e9db8a75e5d79d7c32e597df09245",
+      "executable": false
+    },
+    {
+      "component": "rust-std-armv7-linux-androideabi",
+      "path": "lib/rustlib/armv7-linux-androideabi/lib/libsysroot-82ee7c94f3cf1718.rmeta",
+      "type": "file",
+      "sha256": "b85bea48a844eea4eb560cd67a8e8e790aeabb4f9fd1d740befb4f39236063f2",
+      "executable": false
+    },
+    {
+      "component": "rust-std-armv7-linux-androideabi",
+      "path": "lib/rustlib/armv7-linux-androideabi/lib/libgetopts-af347f15be8d0e78.rmeta",
+      "type": "file",
+      "sha256": "105dafbcdd6e9896af64b5afdaee7b5aead451d62ec05cce97392387ecfb42f6",
+      "executable": false
+    },
+    {
+      "component": "rust-std-armv7-linux-androideabi",
+      "path": "lib/rustlib/armv7-linux-androideabi/lib/librustc_std_workspace_alloc-193f6a79816677b8.rmeta",
+      "type": "file",
+      "sha256": "9896bf2a98035a60b9587b53a0392a2dce3f7864cfebad433a8e2d7d7a624198",
+      "executable": false
+    },
+    {
+      "component": "rust-std-armv7-linux-androideabi",
+      "path": "lib/rustlib/armv7-linux-androideabi/lib/libproc_macro-d541ce6540048ab8.rmeta",
+      "type": "file",
+      "sha256": "abdf798db5396b0e0e1e7ab79ac0fdb4e7cdfe199dbc6e094ff6085768d974df",
+      "executable": false
+    },
+    {
+      "component": "rust-std-armv7-linux-androideabi",
+      "path": "lib/rustlib/armv7-linux-androideabi/lib/librustc_literal_escaper-cbe004adc5e201f8.rmeta",
+      "type": "file",
+      "sha256": "278b1859f209dd3a594bae3aeccb27e03aabe37fd6612d0cde3a9aad6d8a1ed5",
+      "executable": false
+    },
+    {
+      "component": "rust-std-armv7-linux-androideabi",
+      "path": "lib/rustlib/armv7-linux-androideabi/lib/librustc_std_workspace_std-6b39c35e95591e19.rmeta",
+      "type": "file",
+      "sha256": "50cb303e7305a84d9d9340618019117e37f6dbe649da4fded945e96d6e70a12f",
+      "executable": false
+    },
+    {
+      "component": "rust-std-armv7-linux-androideabi",
+      "path": "lib/rustlib/armv7-linux-androideabi/lib/libcfg_if-7a7f10b2528ee21a.rmeta",
+      "type": "file",
+      "sha256": "e08c0fd2fcaf916419e4c0a8d940f4952fcf5d6b3df1945217605b94298209d9",
+      "executable": false
+    },
+    {
+      "component": "rust-std-armv7-linux-androideabi",
+      "path": "lib/rustlib/armv7-linux-androideabi/lib/libstd-5f97272d60d5967a.rmeta",
+      "type": "file",
+      "sha256": "1ec744262d3320b2812aea6049d9d21e23d8772d5f73078cedcafb651dac8fdc",
+      "executable": false
+    },
+    {
+      "component": "rust-std-armv7-linux-androideabi",
+      "path": "lib/rustlib/armv7-linux-androideabi/lib/liballoc-49b20a427b28a08a.rmeta",
+      "type": "file",
+      "sha256": "3faf6e5dec9dd38686b50f4615be4f31c5ae1c0e5c0eb4abb4d795ba76afc8a6",
+      "executable": false
+    },
+    {
+      "component": "rust-std-armv7-linux-androideabi",
+      "path": "lib/rustlib/armv7-linux-androideabi/lib/libadler2-8a07aabe642f0b2c.rmeta",
+      "type": "file",
+      "sha256": "dbd49792c25948f1b0da1bd767cbf5f977244d575af0d49221418638ade1aeac",
+      "executable": false
+    },
+    {
+      "component": "rust-std-armv7-linux-androideabi",
+      "path": "lib/rustlib/armv7-linux-androideabi/lib/libaddr2line-254df88cfad581ac.rmeta",
+      "type": "file",
+      "sha256": "a4a204cf50500deb8b719e6edb65f8031678dcd0359ebdfd2b6f4b0b7a2fde77",
+      "executable": false
+    },
+    {
+      "component": "rust-std-armv7-linux-androideabi",
+      "path": "lib/rustlib/armv7-linux-androideabi/lib/librustc_std_workspace_core-72c3719babb980fc.rmeta",
+      "type": "file",
+      "sha256": "9d457dcb33bdc7e4abd2594d66536dcfc82f8d7948d0dcd49d738269e9edd5a5",
+      "executable": false
+    },
+    {
+      "component": "rust-std-armv7-linux-androideabi",
+      "path": "lib/rustlib/armv7-linux-androideabi/lib/libobject-7acbba3a396011cd.rmeta",
+      "type": "file",
+      "sha256": "a3ae343cd360fcda80ffb97b14169802ab886e56db54d4eddce12c2545190997",
+      "executable": false
+    },
+    {
+      "component": "rust-std-armv7-linux-androideabi",
+      "path": "lib/rustlib/armv7-linux-androideabi/lib/libtest-2c5d5bff5982703e.rmeta",
+      "type": "file",
+      "sha256": "63dd92565f517fa9d865413273e33506e9358db5d5239076ae1eb48a8cba0032",
+      "executable": false
+    },
+    {
+      "component": "rust-std-armv7-linux-androideabi",
+      "path": "lib/rustlib/armv7-linux-androideabi/lib/libpanic_unwind-02ae4fcdf452606e.rmeta",
+      "type": "file",
+      "sha256": "2de57495dd0a3bfc0fea8f05644bca8e5b2720a99ff3a7e6ff1fe5aa3d3b6aea",
+      "executable": false
+    },
+    {
+      "component": "rust-std-armv7-linux-androideabi",
+      "path": "lib/rustlib/armv7-linux-androideabi/lib/libcore-049ab37080a21d4f.rmeta",
+      "type": "file",
+      "sha256": "aabc0911e259e082f879ff7593d2dce374cfb91e119ae52003fc69ebf5280f69",
+      "executable": false
+    },
+    {
+      "component": "rust-std-armv7-linux-androideabi",
+      "path": "lib/rustlib/armv7-linux-androideabi/lib/libhashbrown-abfb1bd6bdd8e3ef.rmeta",
+      "type": "file",
+      "sha256": "b7ffd7f4aa9f3819251ea8ced7ea34de3860de0a994467d749e8fd54dc97c4b5",
+      "executable": false
+    },
+    {
+      "component": "rust-std-armv7-linux-androideabi",
+      "path": "lib/rustlib/armv7-linux-androideabi/lib/libpanic_abort-e67bde35e757ec30.rlib",
+      "type": "file",
+      "sha256": "90ba3da4ffe71f1c5a5c49f80328dd137d8d8903d5d413bc12a76efcc139fe7f",
+      "executable": false
+    },
+    {
+      "component": "rust-std-armv7-linux-androideabi",
+      "path": "lib/rustlib/armv7-linux-androideabi/lib/liblibc-5725d230672dedd0.rlib",
+      "type": "file",
+      "sha256": "dc4fa51950356d3e55b6bc3f01b33b79f737d4bf482d6754271d9aa3c6a99ad3",
+      "executable": false
+    },
+    {
+      "component": "rust-std-armv7-linux-androideabi",
+      "path": "lib/rustlib/armv7-linux-androideabi/lib/libunwind-16ab6004211e0801.rlib",
+      "type": "file",
+      "sha256": "5ebc285d16e1857907a739a458d12bda0c86b0119f76d666743bda3b3f0f05ff",
+      "executable": false
+    },
+    {
+      "component": "rust-std-armv7-linux-androideabi",
+      "path": "lib/rustlib/armv7-linux-androideabi/lib/libprofiler_builtins-37dc3764099fcbf3.rlib",
+      "type": "file",
+      "sha256": "96360532038079e7393d6f98423a849bf4ade7a87929df28bfd7905dbeb877e7",
+      "executable": false
+    },
+    {
+      "component": "rust-std-armv7-linux-androideabi",
+      "path": "lib/rustlib/armv7-linux-androideabi/lib/libminiz_oxide-ca136753b7b0d164.rlib",
+      "type": "file",
+      "sha256": "c7dfc42029beded0ed7556f1158bb7bd5fabb63ff33e56e2e494a410bb0c57b7",
+      "executable": false
+    },
+    {
+      "component": "rust-std-armv7-linux-androideabi",
+      "path": "lib/rustlib/armv7-linux-androideabi/lib/libgimli-2387e2dfe59fc8e4.rlib",
+      "type": "file",
+      "sha256": "8ede5cc4ba4b04c2b8fbbd301276831fe178259dc4babc2557bda290dc9eab35",
+      "executable": false
+    },
+    {
+      "component": "rust-std-armv7-linux-androideabi",
+      "path": "lib/rustlib/armv7-linux-androideabi/lib/librustc_demangle-d36e14f6f53525f4.rlib",
+      "type": "file",
+      "sha256": "d54bf1a054d95be0003521012ae4b4774a001c819bfa4c0656e4024f486965f9",
+      "executable": false
+    },
+    {
+      "component": "rust-std-armv7-linux-androideabi",
+      "path": "lib/rustlib/armv7-linux-androideabi/lib/libstd_detect-1b809a24794608f4.rlib",
+      "type": "file",
+      "sha256": "e3f863d09089de5af1d503d94c10aeb87443b2ba63f8952f65dce7719b434458",
+      "executable": false
+    },
+    {
+      "component": "rust-std-armv7-linux-androideabi",
+      "path": "lib/rustlib/armv7-linux-androideabi/lib/libcompiler_builtins-a3adb725c6965616.rlib",
+      "type": "file",
+      "sha256": "89484d5920fe322895919cff043b6da475cd1ce1e5b26aaeae8981bc9161cbf0",
+      "executable": false
+    },
+    {
+      "component": "rust-std-armv7-linux-androideabi",
+      "path": "lib/rustlib/armv7-linux-androideabi/lib/libmemchr-c08ba55a8c3a7508.rlib",
+      "type": "file",
+      "sha256": "5f57b95f246d35e024d26e0bf6dac8d7782423bbeb453b5b59b7c9d3b0e0d4d2",
+      "executable": false
+    },
+    {
+      "component": "rust-std-armv7-linux-androideabi",
+      "path": "lib/rustlib/armv7-linux-androideabi/lib/libsysroot-82ee7c94f3cf1718.rlib",
+      "type": "file",
+      "sha256": "48d02b2bc796c7a434d22b64994eb6aa11442902438c4a7e716232a70728377a",
+      "executable": false
+    },
+    {
+      "component": "rust-std-armv7-linux-androideabi",
+      "path": "lib/rustlib/armv7-linux-androideabi/lib/libgetopts-af347f15be8d0e78.rlib",
+      "type": "file",
+      "sha256": "aeacfdb8300874febfd71a6f64db0157b67ca59fad23af9b55219c65f7f487e2",
+      "executable": false
+    },
+    {
+      "component": "rust-std-armv7-linux-androideabi",
+      "path": "lib/rustlib/armv7-linux-androideabi/lib/librustc_std_workspace_alloc-193f6a79816677b8.rlib",
+      "type": "file",
+      "sha256": "fd84750823fd951cd92b09b9d80c666513ff00d578cd1dc60955628196cb6e98",
+      "executable": false
+    },
+    {
+      "component": "rust-std-armv7-linux-androideabi",
+      "path": "lib/rustlib/armv7-linux-androideabi/lib/libproc_macro-d541ce6540048ab8.rlib",
+      "type": "file",
+      "sha256": "b0a8767d4ccc5350b77fc684fe397ef8ef8418e3b0bd9afa4653850f6651b2a3",
+      "executable": false
+    },
+    {
+      "component": "rust-std-armv7-linux-androideabi",
+      "path": "lib/rustlib/armv7-linux-androideabi/lib/librustc_literal_escaper-cbe004adc5e201f8.rlib",
+      "type": "file",
+      "sha256": "b902c05d87d953b59b4d98f34944857c0c4bb05a8d2b3e9cad5d61bc75f6747d",
+      "executable": false
+    },
+    {
+      "component": "rust-std-armv7-linux-androideabi",
+      "path": "lib/rustlib/armv7-linux-androideabi/lib/librustc_std_workspace_std-6b39c35e95591e19.rlib",
+      "type": "file",
+      "sha256": "2087594b2cd1c96cfe41e60c3c2d51331c159c96c1d9ff99e218b0451c6a400f",
+      "executable": false
+    },
+    {
+      "component": "rust-std-armv7-linux-androideabi",
+      "path": "lib/rustlib/armv7-linux-androideabi/lib/libcfg_if-7a7f10b2528ee21a.rlib",
+      "type": "file",
+      "sha256": "7134c3993b18d2e7a406e488fbab43df3dff1b1d4d220951df1bbc1d7054f177",
+      "executable": false
+    },
+    {
+      "component": "rust-std-armv7-linux-androideabi",
+      "path": "lib/rustlib/armv7-linux-androideabi/lib/libstd-5f97272d60d5967a.rlib",
+      "type": "file",
+      "sha256": "82d19e35d655f6824f37e0b783928b9a4d4f126506e5e5a5dac44f122854ec56",
+      "executable": false
+    },
+    {
+      "component": "rust-std-armv7-linux-androideabi",
+      "path": "lib/rustlib/armv7-linux-androideabi/lib/liballoc-49b20a427b28a08a.rlib",
+      "type": "file",
+      "sha256": "14566f57af26ba319931295fbcc1cd7b7202e7fd22849d807a903dcb98dfbc67",
+      "executable": false
+    },
+    {
+      "component": "rust-std-armv7-linux-androideabi",
+      "path": "lib/rustlib/armv7-linux-androideabi/lib/libadler2-8a07aabe642f0b2c.rlib",
+      "type": "file",
+      "sha256": "b3093eff5d20bd2dcf08d32c031595168fbe8bdd1c799dc64b812625443d50a7",
+      "executable": false
+    },
+    {
+      "component": "rust-std-armv7-linux-androideabi",
+      "path": "lib/rustlib/armv7-linux-androideabi/lib/libaddr2line-254df88cfad581ac.rlib",
+      "type": "file",
+      "sha256": "3c3b603721af9e3b5f3659e08d4ca58ab269e79d0dafa9cf81b1d35f2114747c",
+      "executable": false
+    },
+    {
+      "component": "rust-std-armv7-linux-androideabi",
+      "path": "lib/rustlib/armv7-linux-androideabi/lib/librustc_std_workspace_core-72c3719babb980fc.rlib",
+      "type": "file",
+      "sha256": "49b64edddb98d696ecd5b4fd586ed51ffee907ce37409605b995f3258460e08a",
+      "executable": false
+    },
+    {
+      "component": "rust-std-armv7-linux-androideabi",
+      "path": "lib/rustlib/armv7-linux-androideabi/lib/libobject-7acbba3a396011cd.rlib",
+      "type": "file",
+      "sha256": "b6f555b7b413fb5da08d28cf1eabfdfec711427c9c011edee6c71e489fc0ee43",
+      "executable": false
+    },
+    {
+      "component": "rust-std-armv7-linux-androideabi",
+      "path": "lib/rustlib/armv7-linux-androideabi/lib/libtest-2c5d5bff5982703e.rlib",
+      "type": "file",
+      "sha256": "0770a8849564e21047af847476aaa88ed27cfc2397350a6f498c4b4bd7defea4",
+      "executable": false
+    },
+    {
+      "component": "rust-std-armv7-linux-androideabi",
+      "path": "lib/rustlib/armv7-linux-androideabi/lib/libpanic_unwind-02ae4fcdf452606e.rlib",
+      "type": "file",
+      "sha256": "7e04f2dfec9364ac1c0245ba03cff5324cc6ad86a7b8ceaad7a8bc02ac6d3a21",
+      "executable": false
+    },
+    {
+      "component": "rust-std-armv7-linux-androideabi",
+      "path": "lib/rustlib/armv7-linux-androideabi/lib/libcore-049ab37080a21d4f.rlib",
+      "type": "file",
+      "sha256": "5d9f16c47cd643acd0b9ebff43d649fc10ced82028d09f32319bfd31348bdda2",
+      "executable": false
+    },
+    {
+      "component": "rust-std-armv7-linux-androideabi",
+      "path": "lib/rustlib/armv7-linux-androideabi/lib/libhashbrown-abfb1bd6bdd8e3ef.rlib",
+      "type": "file",
+      "sha256": "1dfc001dfe53bb5683da25e216b6e7e5dab1dd95d45b36d203c1f4a814fe870a",
+      "executable": false
+    },
+    {
+      "component": "rust-std-armv7-linux-androideabi",
+      "path": "lib/rustlib/manifest-rust-std-armv7-linux-androideabi",
+      "type": "file",
+      "sha256": "0ea28f77ba49c168eb3d07f2be24771edab8e03251b3a8ab14ffaad1dbe397ad",
+      "executable": false
+    },
+    {
+      "component": "rust-std-armv7-linux-androideabi",
+      "path": "lib/rustlib/armv7-linux-androideabi/lib/libstd-5f97272d60d5967a.so",
+      "type": "file",
+      "sha256": "0d12e0485e4dcad34ab1a5b3602cd7a6621037fc766002eb47d66a0a80cd51f9",
+      "executable": true
+    },
+    {
+      "component": "rust-std-i686-linux-android",
+      "path": "lib/rustlib/i686-linux-android/lib/librustc_demangle-c773b7b966d0c840.rmeta",
+      "type": "file",
+      "sha256": "73fa70385e0bafc0e79bb132c4156d9190412a97e866cf46f65d4fdf2a57e569",
+      "executable": false
+    },
+    {
+      "component": "rust-std-i686-linux-android",
+      "path": "lib/rustlib/i686-linux-android/lib/librustc_std_workspace_alloc-1d68e5a8496ccc11.rmeta",
+      "type": "file",
+      "sha256": "a3e4fb5bd5ff597fba1e4c6478fe995307ed878038fd56f7c77f71fc611b5a45",
+      "executable": false
+    },
+    {
+      "component": "rust-std-i686-linux-android",
+      "path": "lib/rustlib/i686-linux-android/lib/liballoc-7759e7a5b15797f2.rmeta",
+      "type": "file",
+      "sha256": "8000e01e750ad53f76d9d20368431f6a36afa0c98e7f3db7557d809364f3ec80",
+      "executable": false
+    },
+    {
+      "component": "rust-std-i686-linux-android",
+      "path": "lib/rustlib/i686-linux-android/lib/libproc_macro-5907327795d71823.rmeta",
+      "type": "file",
+      "sha256": "71401c0ae8be7db57d94e833036821d5278a2e4cb5f11c49d030977c9f25bc2a",
+      "executable": false
+    },
+    {
+      "component": "rust-std-i686-linux-android",
+      "path": "lib/rustlib/i686-linux-android/lib/libpanic_unwind-9beabe8330352a43.rmeta",
+      "type": "file",
+      "sha256": "c6d0356cbe081898fa7fbd7ea99ac6f2c03ebfeaa1842419db32f4c7ecd0ddcc",
+      "executable": false
+    },
+    {
+      "component": "rust-std-i686-linux-android",
+      "path": "lib/rustlib/i686-linux-android/lib/libprofiler_builtins-b59fb0f5e61ef644.rmeta",
+      "type": "file",
+      "sha256": "e32bd2c950cde44819fa572b01c8e1cf1f86e93038e80a625bd023d349bfb92e",
+      "executable": false
+    },
+    {
+      "component": "rust-std-i686-linux-android",
+      "path": "lib/rustlib/i686-linux-android/lib/libpanic_abort-4e2068ab32a4d456.rmeta",
+      "type": "file",
+      "sha256": "928c34558caf0c684a5614853bc7ae9db48c6a644baced984b4e386aefd35ca3",
+      "executable": false
+    },
+    {
+      "component": "rust-std-i686-linux-android",
+      "path": "lib/rustlib/i686-linux-android/lib/libobject-7d0164c7b137a556.rmeta",
+      "type": "file",
+      "sha256": "08244f490de97a2dd79609fceebeafcd398865051a7c9b21193cb3e560a77292",
+      "executable": false
+    },
+    {
+      "component": "rust-std-i686-linux-android",
+      "path": "lib/rustlib/i686-linux-android/lib/libadler2-65a1eeb23058e8c6.rmeta",
+      "type": "file",
+      "sha256": "9c562ad43abd63c1559776549b17d47c080e49fc65c9dea204e70bdcd0c404be",
+      "executable": false
+    },
+    {
+      "component": "rust-std-i686-linux-android",
+      "path": "lib/rustlib/i686-linux-android/lib/libminiz_oxide-b2894302a9cee717.rmeta",
+      "type": "file",
+      "sha256": "5123c412b67c54eff0f05d7efc9693b3b3ed65bf1e4f52ffe86e34023986d8b6",
+      "executable": false
+    },
+    {
+      "component": "rust-std-i686-linux-android",
+      "path": "lib/rustlib/i686-linux-android/lib/libcore-d0098d26f3b25a87.rmeta",
+      "type": "file",
+      "sha256": "6bb075239dda788136b1fa208283f72c37b63e09d007611cdd995ecf78195711",
+      "executable": false
+    },
+    {
+      "component": "rust-std-i686-linux-android",
+      "path": "lib/rustlib/i686-linux-android/lib/libgimli-ccd5ee9a99d98097.rmeta",
+      "type": "file",
+      "sha256": "66c4369fd192ac5b25ad87f495134a03f61201d28e0d117b3b19552ba78f4202",
+      "executable": false
+    },
+    {
+      "component": "rust-std-i686-linux-android",
+      "path": "lib/rustlib/i686-linux-android/lib/libstd-eb33c57d3912d549.rmeta",
+      "type": "file",
+      "sha256": "4a27f9b444dd5df3509506083a410ad7849fe5991adcf7368ea24c6713c46878",
+      "executable": false
+    },
+    {
+      "component": "rust-std-i686-linux-android",
+      "path": "lib/rustlib/i686-linux-android/lib/libstd_detect-eba426f0d582ef0a.rmeta",
+      "type": "file",
+      "sha256": "ea1d9ccaa622f4cf47aa1e4df565eb17d545122a76e0db57c4223d89ac6a58a0",
+      "executable": false
+    },
+    {
+      "component": "rust-std-i686-linux-android",
+      "path": "lib/rustlib/i686-linux-android/lib/libcfg_if-9956cd5dbbfbc58a.rmeta",
+      "type": "file",
+      "sha256": "89d83b4823134e2caaca5f556b5771f1a38db4d532a312fed04bf68e080e9ead",
+      "executable": false
+    },
+    {
+      "component": "rust-std-i686-linux-android",
+      "path": "lib/rustlib/i686-linux-android/lib/librustc_std_workspace_core-f946dd7d7a38d29a.rmeta",
+      "type": "file",
+      "sha256": "854f26842ac1637c3298468c73235314fe723302a5113d9ab2cc35c75c07dd43",
+      "executable": false
+    },
+    {
+      "component": "rust-std-i686-linux-android",
+      "path": "lib/rustlib/i686-linux-android/lib/libcompiler_builtins-3aa7c9b06b1ecd3c.rmeta",
+      "type": "file",
+      "sha256": "645ae3b4683bb977e7ac7495a47242213a6de80bdc2851079c34b8ce9f6321c9",
+      "executable": false
+    },
+    {
+      "component": "rust-std-i686-linux-android",
+      "path": "lib/rustlib/i686-linux-android/lib/librustc_literal_escaper-0ccd2bad96f80dbc.rmeta",
+      "type": "file",
+      "sha256": "ae4c5c18837d9e9e0b0f2b2370d81ed854dd9dd14438bac11768fa9c6e698b43",
+      "executable": false
+    },
+    {
+      "component": "rust-std-i686-linux-android",
+      "path": "lib/rustlib/i686-linux-android/lib/libhashbrown-02e4852a4394dfbc.rmeta",
+      "type": "file",
+      "sha256": "f91143359e9de004241319a53862de8573bf0961f5008d8e7ce53ef838b4081b",
+      "executable": false
+    },
+    {
+      "component": "rust-std-i686-linux-android",
+      "path": "lib/rustlib/i686-linux-android/lib/libaddr2line-b906bb8c5e83bdcc.rmeta",
+      "type": "file",
+      "sha256": "75ba3f7e442b8e057ecd2f706a8aed3108b98f6804d792b7c06bd38d4a557fd1",
+      "executable": false
+    },
+    {
+      "component": "rust-std-i686-linux-android",
+      "path": "lib/rustlib/i686-linux-android/lib/libtest-2dca924e8c93846d.rmeta",
+      "type": "file",
+      "sha256": "52438a5b3b4ef3e534781f49d9b488c31ebcd4bb27849267a056bc0637d881ba",
+      "executable": false
+    },
+    {
+      "component": "rust-std-i686-linux-android",
+      "path": "lib/rustlib/i686-linux-android/lib/libgetopts-fb84a6d610cc568d.rmeta",
+      "type": "file",
+      "sha256": "9506a18f3e278cccf61675ad442c1449b6c3bc95bba3c10e9ca995644b14f82b",
+      "executable": false
+    },
+    {
+      "component": "rust-std-i686-linux-android",
+      "path": "lib/rustlib/i686-linux-android/lib/libunwind-400600c337806a2e.rmeta",
+      "type": "file",
+      "sha256": "d65c2f3ec09c250f55dd35e76bfb5b6412ba9bc778fa10e321ceb01e18706ec0",
+      "executable": false
+    },
+    {
+      "component": "rust-std-i686-linux-android",
+      "path": "lib/rustlib/i686-linux-android/lib/librustc_std_workspace_std-5da1dd8d7381cfbe.rmeta",
+      "type": "file",
+      "sha256": "370ab59b9057b9eaa17c955154b53ec506cea8f329b4551cadfaf8c8ede9a475",
+      "executable": false
+    },
+    {
+      "component": "rust-std-i686-linux-android",
+      "path": "lib/rustlib/i686-linux-android/lib/liblibc-7d42f307cb3c32cf.rmeta",
+      "type": "file",
+      "sha256": "bf8414e4738255abf5957ef1ccd5fe7d009f6e707c058a8c989ca5d4a6f195b1",
+      "executable": false
+    },
+    {
+      "component": "rust-std-i686-linux-android",
+      "path": "lib/rustlib/i686-linux-android/lib/libsysroot-9df83d2c00f9bcdf.rmeta",
+      "type": "file",
+      "sha256": "5604b4ed24a0e218561bf7af6cc380510390d3acbb25699e09140346c40ae928",
+      "executable": false
+    },
+    {
+      "component": "rust-std-i686-linux-android",
+      "path": "lib/rustlib/i686-linux-android/lib/libmemchr-8c54305434493ddf.rmeta",
+      "type": "file",
+      "sha256": "529a0ee3dfc3e1d7835a1627dc5bb4977a2a3f113a004a7b98c0c53865f26453",
+      "executable": false
+    },
+    {
+      "component": "rust-std-i686-linux-android",
+      "path": "lib/rustlib/i686-linux-android/lib/librustc_demangle-c773b7b966d0c840.rlib",
+      "type": "file",
+      "sha256": "09c929c9149d6b9805c63325ce4f209c3fab0c272caf3c07fddbe683ff83b987",
+      "executable": false
+    },
+    {
+      "component": "rust-std-i686-linux-android",
+      "path": "lib/rustlib/i686-linux-android/lib/librustc_std_workspace_alloc-1d68e5a8496ccc11.rlib",
+      "type": "file",
+      "sha256": "7cf2f88d0113137b97f2ed98335bcff4093dd83a2d2bb541d7cd864126db6160",
+      "executable": false
+    },
+    {
+      "component": "rust-std-i686-linux-android",
+      "path": "lib/rustlib/i686-linux-android/lib/liballoc-7759e7a5b15797f2.rlib",
+      "type": "file",
+      "sha256": "ac3b301f3565512b9d679c1c8f6773cca00f3fa49e394c27062061eff01188a3",
+      "executable": false
+    },
+    {
+      "component": "rust-std-i686-linux-android",
+      "path": "lib/rustlib/i686-linux-android/lib/libproc_macro-5907327795d71823.rlib",
+      "type": "file",
+      "sha256": "ab1fbf74d4f1678b6cec12e8790057002f29321b13507138cd6252cbb6de9aa6",
+      "executable": false
+    },
+    {
+      "component": "rust-std-i686-linux-android",
+      "path": "lib/rustlib/i686-linux-android/lib/libpanic_unwind-9beabe8330352a43.rlib",
+      "type": "file",
+      "sha256": "0c8a99302b171385acad943192782be981c685461b4beafc97f7af36bfd81c76",
+      "executable": false
+    },
+    {
+      "component": "rust-std-i686-linux-android",
+      "path": "lib/rustlib/i686-linux-android/lib/libprofiler_builtins-b59fb0f5e61ef644.rlib",
+      "type": "file",
+      "sha256": "6d028d71a089505d1951f3df1b013a045c7acfee235cf76ca96b28476f39b126",
+      "executable": false
+    },
+    {
+      "component": "rust-std-i686-linux-android",
+      "path": "lib/rustlib/i686-linux-android/lib/libpanic_abort-4e2068ab32a4d456.rlib",
+      "type": "file",
+      "sha256": "15a3a15003c19ef0eb78d8e4cf8dfb13e991d1121b33e681297a7b4007c88690",
+      "executable": false
+    },
+    {
+      "component": "rust-std-i686-linux-android",
+      "path": "lib/rustlib/i686-linux-android/lib/libobject-7d0164c7b137a556.rlib",
+      "type": "file",
+      "sha256": "808efe76df838aff229065cae197196896389aa732f341fa24d553f970facdb1",
+      "executable": false
+    },
+    {
+      "component": "rust-std-i686-linux-android",
+      "path": "lib/rustlib/i686-linux-android/lib/libadler2-65a1eeb23058e8c6.rlib",
+      "type": "file",
+      "sha256": "fcf43b53b938732efad4d5519c66e29bd56ff52110ccc29cdd1a7cbd8da25713",
+      "executable": false
+    },
+    {
+      "component": "rust-std-i686-linux-android",
+      "path": "lib/rustlib/i686-linux-android/lib/libminiz_oxide-b2894302a9cee717.rlib",
+      "type": "file",
+      "sha256": "7edcaf82de6f2019e567e7faf0e04766365f856b424c892e3b6dbaf506da1859",
+      "executable": false
+    },
+    {
+      "component": "rust-std-i686-linux-android",
+      "path": "lib/rustlib/i686-linux-android/lib/libcore-d0098d26f3b25a87.rlib",
+      "type": "file",
+      "sha256": "0226b2e690b3fa04f57e1d65a2f6d21266c6c496ef2c7165a8772e64b23c4ba9",
+      "executable": false
+    },
+    {
+      "component": "rust-std-i686-linux-android",
+      "path": "lib/rustlib/i686-linux-android/lib/libgimli-ccd5ee9a99d98097.rlib",
+      "type": "file",
+      "sha256": "488efce90866b1864bea2ff177f5886cf89832733ddabdb7ddffdda49d09cc84",
+      "executable": false
+    },
+    {
+      "component": "rust-std-i686-linux-android",
+      "path": "lib/rustlib/i686-linux-android/lib/libstd-eb33c57d3912d549.rlib",
+      "type": "file",
+      "sha256": "fe8aeafcde527e19504afc3335af8cf4a76af88d2a246fb7c9361271c81d2f8b",
+      "executable": false
+    },
+    {
+      "component": "rust-std-i686-linux-android",
+      "path": "lib/rustlib/i686-linux-android/lib/libstd_detect-eba426f0d582ef0a.rlib",
+      "type": "file",
+      "sha256": "3a1d69c422f978e660b41373a61ccb27a0c987c35485b8d848ad7902e380e241",
+      "executable": false
+    },
+    {
+      "component": "rust-std-i686-linux-android",
+      "path": "lib/rustlib/i686-linux-android/lib/libcfg_if-9956cd5dbbfbc58a.rlib",
+      "type": "file",
+      "sha256": "60733e5b4bb47a3455c73c2c7b7142a81361f507e08c217e8d82fa149ba6bc44",
+      "executable": false
+    },
+    {
+      "component": "rust-std-i686-linux-android",
+      "path": "lib/rustlib/i686-linux-android/lib/librustc_std_workspace_core-f946dd7d7a38d29a.rlib",
+      "type": "file",
+      "sha256": "15235f8e4cdac5f5c68d2c623efe8b25d80530b634c882b5557c63ebdc58f1c9",
+      "executable": false
+    },
+    {
+      "component": "rust-std-i686-linux-android",
+      "path": "lib/rustlib/i686-linux-android/lib/libcompiler_builtins-3aa7c9b06b1ecd3c.rlib",
+      "type": "file",
+      "sha256": "fe940db73d0e18fcfc6f2062cf78a10a66740384a8d81f01c866f8d2a6050cdd",
+      "executable": false
+    },
+    {
+      "component": "rust-std-i686-linux-android",
+      "path": "lib/rustlib/i686-linux-android/lib/librustc_literal_escaper-0ccd2bad96f80dbc.rlib",
+      "type": "file",
+      "sha256": "daabdd8249c33f872ff27acc31372bf3e00667ba903780eb9ab65a91a980b2ab",
+      "executable": false
+    },
+    {
+      "component": "rust-std-i686-linux-android",
+      "path": "lib/rustlib/i686-linux-android/lib/libhashbrown-02e4852a4394dfbc.rlib",
+      "type": "file",
+      "sha256": "25ccf5b71c66a222a7de39533cb57a37e57ab34656ce592f304fcd40b6b0ce03",
+      "executable": false
+    },
+    {
+      "component": "rust-std-i686-linux-android",
+      "path": "lib/rustlib/i686-linux-android/lib/libaddr2line-b906bb8c5e83bdcc.rlib",
+      "type": "file",
+      "sha256": "498b03dba662cc8208ad87411187379e95f1e243055f6d351b78bd41256c4f1a",
+      "executable": false
+    },
+    {
+      "component": "rust-std-i686-linux-android",
+      "path": "lib/rustlib/i686-linux-android/lib/libtest-2dca924e8c93846d.rlib",
+      "type": "file",
+      "sha256": "a3d3e74031a94e75677d785d4c191cc5ea91bdfd2452222828ac85e8ef1787b3",
+      "executable": false
+    },
+    {
+      "component": "rust-std-i686-linux-android",
+      "path": "lib/rustlib/i686-linux-android/lib/libgetopts-fb84a6d610cc568d.rlib",
+      "type": "file",
+      "sha256": "dfc76064b0169b2d7e14b2cdcac491fc8b2f61ea498fcc1eb410dd7805cd746a",
+      "executable": false
+    },
+    {
+      "component": "rust-std-i686-linux-android",
+      "path": "lib/rustlib/i686-linux-android/lib/libunwind-400600c337806a2e.rlib",
+      "type": "file",
+      "sha256": "cedebcdaaf77ae6136f6dac49ca0202a229df0a1645caaa5728f32e49fd90a2d",
+      "executable": false
+    },
+    {
+      "component": "rust-std-i686-linux-android",
+      "path": "lib/rustlib/i686-linux-android/lib/librustc_std_workspace_std-5da1dd8d7381cfbe.rlib",
+      "type": "file",
+      "sha256": "2d0ae597f1a077a6ad349a9b0a9bddb4439ee91be7b7b3cc73d38f6907ef19e7",
+      "executable": false
+    },
+    {
+      "component": "rust-std-i686-linux-android",
+      "path": "lib/rustlib/i686-linux-android/lib/liblibc-7d42f307cb3c32cf.rlib",
+      "type": "file",
+      "sha256": "bea0a2b57bc0091629dd51d46e59a5a1f40069a323a5b94c9027e2fcc060e99e",
+      "executable": false
+    },
+    {
+      "component": "rust-std-i686-linux-android",
+      "path": "lib/rustlib/i686-linux-android/lib/libsysroot-9df83d2c00f9bcdf.rlib",
+      "type": "file",
+      "sha256": "5a9ea3ed48a6aba909e8090110825fcc8318e3821e7caf36f901c1c36a93bbfb",
+      "executable": false
+    },
+    {
+      "component": "rust-std-i686-linux-android",
+      "path": "lib/rustlib/i686-linux-android/lib/libmemchr-8c54305434493ddf.rlib",
+      "type": "file",
+      "sha256": "afae5a31722d89b2738a058664e2e3df2fea35983bb59bbb2ef96ce441991d1a",
+      "executable": false
+    },
+    {
+      "component": "rust-std-i686-linux-android",
+      "path": "lib/rustlib/manifest-rust-std-i686-linux-android",
+      "type": "file",
+      "sha256": "394f11af4386da31b4cebcbcb7572174dce3a73e493b5fc2ceaedba9c293c50e",
+      "executable": false
+    },
+    {
+      "component": "rust-std-i686-linux-android",
+      "path": "lib/rustlib/i686-linux-android/lib/libstd-eb33c57d3912d549.so",
+      "type": "file",
+      "sha256": "9fa29b14baf031ebf62ed20c502f8e7aca0634255608be44224d47a535aee91f",
+      "executable": true
+    },
+    {
+      "component": "rust-std-x86_64-linux-android",
+      "path": "lib/rustlib/x86_64-linux-android/lib/libstd_detect-47b12a8c8e578c50.rmeta",
+      "type": "file",
+      "sha256": "9d0f704f2fbc3e39e3b9edd2b7c80b882bc072fb8172260cd86d28830b207073",
+      "executable": false
+    },
+    {
+      "component": "rust-std-x86_64-linux-android",
+      "path": "lib/rustlib/x86_64-linux-android/lib/libcfg_if-e6a31e18df17e8c0.rmeta",
+      "type": "file",
+      "sha256": "dc103c7a30fd298497a066a151af2eefb321d381e1433e6899462697a823b9b8",
+      "executable": false
+    },
+    {
+      "component": "rust-std-x86_64-linux-android",
+      "path": "lib/rustlib/x86_64-linux-android/lib/libadler2-5d93a94d08c8d822.rmeta",
+      "type": "file",
+      "sha256": "239044ec76194ef9643f095b8c07256c6c0de3aa6f73afda26dbd4fb65305305",
+      "executable": false
+    },
+    {
+      "component": "rust-std-x86_64-linux-android",
+      "path": "lib/rustlib/x86_64-linux-android/lib/libtest-7f09e3e099e157c2.rmeta",
+      "type": "file",
+      "sha256": "4909d7fd390c01831f14e710e7cbaea6d0821604bcdac4215d3f8c14dd14b258",
+      "executable": false
+    },
+    {
+      "component": "rust-std-x86_64-linux-android",
+      "path": "lib/rustlib/x86_64-linux-android/lib/librustc_demangle-1f6b6e7d722b3033.rmeta",
+      "type": "file",
+      "sha256": "ad35f3f01ac873c8636173720356f9e373ac7017dd087ec1ee87e50e10a64e4f",
+      "executable": false
+    },
+    {
+      "component": "rust-std-x86_64-linux-android",
+      "path": "lib/rustlib/x86_64-linux-android/lib/libstd-7fb7d93196c61333.rmeta",
+      "type": "file",
+      "sha256": "f5946a95ecc7199d9022c522a2dbefc4d78d8be7e5ab4b135b82805011271fa2",
+      "executable": false
+    },
+    {
+      "component": "rust-std-x86_64-linux-android",
+      "path": "lib/rustlib/x86_64-linux-android/lib/liballoc-2b6541c412e67024.rmeta",
+      "type": "file",
+      "sha256": "74f73565c1902233b7c47a88ea712748d5eb117bd755e3ecfeb5f4a1adf9b4ea",
+      "executable": false
+    },
+    {
+      "component": "rust-std-x86_64-linux-android",
+      "path": "lib/rustlib/x86_64-linux-android/lib/libmemchr-4f8fe02c0e72ce54.rmeta",
+      "type": "file",
+      "sha256": "e875c192bbb9940f14066ef5b15a3b12acca9ed161930b4365ba7ce3edb573ae",
+      "executable": false
+    },
+    {
+      "component": "rust-std-x86_64-linux-android",
+      "path": "lib/rustlib/x86_64-linux-android/lib/libgetopts-edbf95e7ada3e6e4.rmeta",
+      "type": "file",
+      "sha256": "1d8d7d6b4975da22d079db500b3f60ca84f65e02e1c5565d3a91b6dbbbbb2009",
+      "executable": false
+    },
+    {
+      "component": "rust-std-x86_64-linux-android",
+      "path": "lib/rustlib/x86_64-linux-android/lib/libgimli-ef8eb10394d1aae4.rmeta",
+      "type": "file",
+      "sha256": "582b62862b86a9dc606467de317faa5d8aad238e90451711fcdb6081e12b6aa2",
+      "executable": false
+    },
+    {
+      "component": "rust-std-x86_64-linux-android",
+      "path": "lib/rustlib/x86_64-linux-android/lib/librustc_std_workspace_alloc-a9892e8b52f8a215.rmeta",
+      "type": "file",
+      "sha256": "4e4cb9320988156d62d43f201e9b606b91e2ed4cb04463be4eb09d60d35283dc",
+      "executable": false
+    },
+    {
+      "component": "rust-std-x86_64-linux-android",
+      "path": "lib/rustlib/x86_64-linux-android/lib/libhashbrown-ba81ba5fff6a13c5.rmeta",
+      "type": "file",
+      "sha256": "2dfc9de917453749506fef821782cf0480d2a0074b4db6e2e357795ad88cd9c1",
+      "executable": false
+    },
+    {
+      "component": "rust-std-x86_64-linux-android",
+      "path": "lib/rustlib/x86_64-linux-android/lib/libprofiler_builtins-9eb021e0a1afcd06.rmeta",
+      "type": "file",
+      "sha256": "aeb37146c49b30ca5526a7360b747ef636c6b319e01a959064a88ed1e54927a9",
+      "executable": false
+    },
+    {
+      "component": "rust-std-x86_64-linux-android",
+      "path": "lib/rustlib/x86_64-linux-android/lib/libproc_macro-1fc38529d041f126.rmeta",
+      "type": "file",
+      "sha256": "c991a0ebd42297914a9cf5222ef5a419d682a29a6ef008ee2872c4b98bda370e",
+      "executable": false
+    },
+    {
+      "component": "rust-std-x86_64-linux-android",
+      "path": "lib/rustlib/x86_64-linux-android/lib/libcore-031f8bcee104d276.rmeta",
+      "type": "file",
+      "sha256": "ba2ed6e0a3aada77ff488a56f45fb466625635fcec59d6d2951696b17cfb67bc",
+      "executable": false
+    },
+    {
+      "component": "rust-std-x86_64-linux-android",
+      "path": "lib/rustlib/x86_64-linux-android/lib/liblibc-e12042dd98388257.rmeta",
+      "type": "file",
+      "sha256": "4bf3f160e3f08ff8021bd4f398483d138b0d0c066af46678947c21e735b01905",
+      "executable": false
+    },
+    {
+      "component": "rust-std-x86_64-linux-android",
+      "path": "lib/rustlib/x86_64-linux-android/lib/libobject-12629fd2acbc0497.rmeta",
+      "type": "file",
+      "sha256": "5b4f251387d2408b403c1e9208e2463bd16b7f1243eb11515d19826610a2d493",
+      "executable": false
+    },
+    {
+      "component": "rust-std-x86_64-linux-android",
+      "path": "lib/rustlib/x86_64-linux-android/lib/libsysroot-6ec914e61ebdada7.rmeta",
+      "type": "file",
+      "sha256": "1401b7018bf3b5c4bee239d399fa77cdce71adf24401b008c8120808ac783bd7",
+      "executable": false
+    },
+    {
+      "component": "rust-std-x86_64-linux-android",
+      "path": "lib/rustlib/x86_64-linux-android/lib/libpanic_abort-fa3780a641648d88.rmeta",
+      "type": "file",
+      "sha256": "5fa4f4f1fd682a1190b5fcde2c995eec6aad6516454bab6a2457ad8e566da094",
+      "executable": false
+    },
+    {
+      "component": "rust-std-x86_64-linux-android",
+      "path": "lib/rustlib/x86_64-linux-android/lib/librustc_std_workspace_core-ef4bac770ba3a669.rmeta",
+      "type": "file",
+      "sha256": "f5a4c85246d6ef5bb518710b5f473d7d2f0f3a409395dd1f7c9c236be7904888",
+      "executable": false
+    },
+    {
+      "component": "rust-std-x86_64-linux-android",
+      "path": "lib/rustlib/x86_64-linux-android/lib/librustc_literal_escaper-8f555202fc7853a9.rmeta",
+      "type": "file",
+      "sha256": "de48d829402d0cba97d820e1ea1d22f471d55b14dddf0d9df580980feb4fec82",
+      "executable": false
+    },
+    {
+      "component": "rust-std-x86_64-linux-android",
+      "path": "lib/rustlib/x86_64-linux-android/lib/libcompiler_builtins-c11961ff1f22ca5b.rmeta",
+      "type": "file",
+      "sha256": "648533309d2c3b98eebe9f3805b0930da77a2bd0022a6f5842e9993355961ded",
+      "executable": false
+    },
+    {
+      "component": "rust-std-x86_64-linux-android",
+      "path": "lib/rustlib/x86_64-linux-android/lib/libaddr2line-dc21df907c1d09bb.rmeta",
+      "type": "file",
+      "sha256": "48a9ef20ce6e003ca5240c29e926025d518800763e86fd74f29e1c0403cba143",
+      "executable": false
+    },
+    {
+      "component": "rust-std-x86_64-linux-android",
+      "path": "lib/rustlib/x86_64-linux-android/lib/libminiz_oxide-f0b8a7b78bbf9ebb.rmeta",
+      "type": "file",
+      "sha256": "b2d8c78b3d18f1c8eef3034ea1bed19880ea4eacfd8107830dd97ca4b1ab19ab",
+      "executable": false
+    },
+    {
+      "component": "rust-std-x86_64-linux-android",
+      "path": "lib/rustlib/x86_64-linux-android/lib/libunwind-34c1f103c0f05a9c.rmeta",
+      "type": "file",
+      "sha256": "3003df54cc3cb9c9daa2bfcf641d94e1eb938f81025b93daaabab31ac2d1d1ab",
+      "executable": false
+    },
+    {
+      "component": "rust-std-x86_64-linux-android",
+      "path": "lib/rustlib/x86_64-linux-android/lib/libpanic_unwind-0d9eea3f9629aecd.rmeta",
+      "type": "file",
+      "sha256": "b60057f79649ea90c15a4a384514cd4d515069a677dea7fb7349d748d91277ed",
+      "executable": false
+    },
+    {
+      "component": "rust-std-x86_64-linux-android",
+      "path": "lib/rustlib/x86_64-linux-android/lib/librustc_std_workspace_std-a2cf3dcd7e7a6abe.rmeta",
+      "type": "file",
+      "sha256": "8135d1f8c207abb7c7de7c044d7a90d6892ba317a4984c9fd5f40daab925ddb5",
+      "executable": false
+    },
+    {
+      "component": "rust-std-x86_64-linux-android",
+      "path": "lib/rustlib/x86_64-linux-android/lib/libstd_detect-47b12a8c8e578c50.rlib",
+      "type": "file",
+      "sha256": "cb7a7f92375ac80726241eb31c2d8a30bcc901b7f4f09402af5e9df01e6d6826",
+      "executable": false
+    },
+    {
+      "component": "rust-std-x86_64-linux-android",
+      "path": "lib/rustlib/x86_64-linux-android/lib/libcfg_if-e6a31e18df17e8c0.rlib",
+      "type": "file",
+      "sha256": "f5e56ae215bc66bf1f1415c0ae42a13cb2b6fc31c932082470b4f26bfeae2f1f",
+      "executable": false
+    },
+    {
+      "component": "rust-std-x86_64-linux-android",
+      "path": "lib/rustlib/x86_64-linux-android/lib/libadler2-5d93a94d08c8d822.rlib",
+      "type": "file",
+      "sha256": "510a83fc6294bc8421e0883985051ca5c7e13b605e7c5fc5294ec108bc14b7d9",
+      "executable": false
+    },
+    {
+      "component": "rust-std-x86_64-linux-android",
+      "path": "lib/rustlib/x86_64-linux-android/lib/libtest-7f09e3e099e157c2.rlib",
+      "type": "file",
+      "sha256": "3ed8e1631456b7c86fae0546ae2a884350e4aba92599d4653f1a19f82e0412d8",
+      "executable": false
+    },
+    {
+      "component": "rust-std-x86_64-linux-android",
+      "path": "lib/rustlib/x86_64-linux-android/lib/librustc_demangle-1f6b6e7d722b3033.rlib",
+      "type": "file",
+      "sha256": "0d0f2efe25989385ac2674b4f7047f9d4c691bc280c30aaba1e099edced114f0",
+      "executable": false
+    },
+    {
+      "component": "rust-std-x86_64-linux-android",
+      "path": "lib/rustlib/x86_64-linux-android/lib/libstd-7fb7d93196c61333.rlib",
+      "type": "file",
+      "sha256": "042405b2e01b2b2be9442e7d17d297384bfe95dec5bfcf58ff73885b624ca3cc",
+      "executable": false
+    },
+    {
+      "component": "rust-std-x86_64-linux-android",
+      "path": "lib/rustlib/x86_64-linux-android/lib/liballoc-2b6541c412e67024.rlib",
+      "type": "file",
+      "sha256": "fdb5ce15f196fca7cf667cf8a78d5d14db8c5a34294fdc71a4b45c63e3d551d1",
+      "executable": false
+    },
+    {
+      "component": "rust-std-x86_64-linux-android",
+      "path": "lib/rustlib/x86_64-linux-android/lib/libmemchr-4f8fe02c0e72ce54.rlib",
+      "type": "file",
+      "sha256": "965e20c856597668e10ffeccad0799b4095099640f68b7341321cb3287f05c19",
+      "executable": false
+    },
+    {
+      "component": "rust-std-x86_64-linux-android",
+      "path": "lib/rustlib/x86_64-linux-android/lib/libgetopts-edbf95e7ada3e6e4.rlib",
+      "type": "file",
+      "sha256": "f77d88df245ff12d6c9330e19c77f0c4e7c35720c0c07279124cd9d956467101",
+      "executable": false
+    },
+    {
+      "component": "rust-std-x86_64-linux-android",
+      "path": "lib/rustlib/x86_64-linux-android/lib/libgimli-ef8eb10394d1aae4.rlib",
+      "type": "file",
+      "sha256": "ba3b9ce5ff9f5043c55fe744f5d7b62d9341eac10f1a71cbcd2b4733a21b5335",
+      "executable": false
+    },
+    {
+      "component": "rust-std-x86_64-linux-android",
+      "path": "lib/rustlib/x86_64-linux-android/lib/librustc_std_workspace_alloc-a9892e8b52f8a215.rlib",
+      "type": "file",
+      "sha256": "a1436ee00902603828cf06913f1051453b81c48c4d6f6cd2be7d67819382ff62",
+      "executable": false
+    },
+    {
+      "component": "rust-std-x86_64-linux-android",
+      "path": "lib/rustlib/x86_64-linux-android/lib/libhashbrown-ba81ba5fff6a13c5.rlib",
+      "type": "file",
+      "sha256": "c06d3e5293ed7916a6029a8b9f6480ffaf67436eb3d9db7fd894ccb388f1f2c8",
+      "executable": false
+    },
+    {
+      "component": "rust-std-x86_64-linux-android",
+      "path": "lib/rustlib/x86_64-linux-android/lib/libprofiler_builtins-9eb021e0a1afcd06.rlib",
+      "type": "file",
+      "sha256": "8dfd62f9f21fa1cd8303e414416f987efb837548a9c396e7a6b85b3d489c2ead",
+      "executable": false
+    },
+    {
+      "component": "rust-std-x86_64-linux-android",
+      "path": "lib/rustlib/x86_64-linux-android/lib/libproc_macro-1fc38529d041f126.rlib",
+      "type": "file",
+      "sha256": "721887a8e9269c36374ed75c80ae67028060f973e34ced6082ea3b19c810d2c2",
+      "executable": false
+    },
+    {
+      "component": "rust-std-x86_64-linux-android",
+      "path": "lib/rustlib/x86_64-linux-android/lib/libcore-031f8bcee104d276.rlib",
+      "type": "file",
+      "sha256": "c3c73cb8a1c380cddd20c68a10308a0e8d01f6dd9017b689938192bcf0c650cc",
+      "executable": false
+    },
+    {
+      "component": "rust-std-x86_64-linux-android",
+      "path": "lib/rustlib/x86_64-linux-android/lib/liblibc-e12042dd98388257.rlib",
+      "type": "file",
+      "sha256": "a6ec49771c5eb316bcc6d1e0aee991f89430f177fb7c2409a92fce147c08b5c4",
+      "executable": false
+    },
+    {
+      "component": "rust-std-x86_64-linux-android",
+      "path": "lib/rustlib/x86_64-linux-android/lib/libobject-12629fd2acbc0497.rlib",
+      "type": "file",
+      "sha256": "6a409b583b23b3eb9dc4040a8c8189ed8905fcc3a7c420585880aa4339dc2a59",
+      "executable": false
+    },
+    {
+      "component": "rust-std-x86_64-linux-android",
+      "path": "lib/rustlib/x86_64-linux-android/lib/libsysroot-6ec914e61ebdada7.rlib",
+      "type": "file",
+      "sha256": "23121c3c864b87af1ee78e5273cb32989a3b3d11101bb4f675fb7864c151c78e",
+      "executable": false
+    },
+    {
+      "component": "rust-std-x86_64-linux-android",
+      "path": "lib/rustlib/x86_64-linux-android/lib/libpanic_abort-fa3780a641648d88.rlib",
+      "type": "file",
+      "sha256": "17e93d0e8aa807fa544d2fad141760501c5aa0f110d7910377d34dbaf0c970f4",
+      "executable": false
+    },
+    {
+      "component": "rust-std-x86_64-linux-android",
+      "path": "lib/rustlib/x86_64-linux-android/lib/librustc_std_workspace_core-ef4bac770ba3a669.rlib",
+      "type": "file",
+      "sha256": "b3ae1fa9acffa0e48943a89882d765caf3bc8220a4141853958037efc2a95440",
+      "executable": false
+    },
+    {
+      "component": "rust-std-x86_64-linux-android",
+      "path": "lib/rustlib/x86_64-linux-android/lib/librustc_literal_escaper-8f555202fc7853a9.rlib",
+      "type": "file",
+      "sha256": "e2d856a4bb68b39efb8b4ae4f9c6c70cbcb582eac48b6b5eb059f07e8b5d658e",
+      "executable": false
+    },
+    {
+      "component": "rust-std-x86_64-linux-android",
+      "path": "lib/rustlib/x86_64-linux-android/lib/libcompiler_builtins-c11961ff1f22ca5b.rlib",
+      "type": "file",
+      "sha256": "433f71a302dc877dfbcbfe21134b358159332a6adc9df5184d09d30a72703d0a",
+      "executable": false
+    },
+    {
+      "component": "rust-std-x86_64-linux-android",
+      "path": "lib/rustlib/x86_64-linux-android/lib/libaddr2line-dc21df907c1d09bb.rlib",
+      "type": "file",
+      "sha256": "ee6cafcfcbf88997c5c5f9cd48213f22d6b52ca1ce333bf56bab9f63f2644526",
+      "executable": false
+    },
+    {
+      "component": "rust-std-x86_64-linux-android",
+      "path": "lib/rustlib/x86_64-linux-android/lib/libminiz_oxide-f0b8a7b78bbf9ebb.rlib",
+      "type": "file",
+      "sha256": "e846aa018c2985df38f9b0342d4aad2226869d756fefda2cd114bf679954ea85",
+      "executable": false
+    },
+    {
+      "component": "rust-std-x86_64-linux-android",
+      "path": "lib/rustlib/x86_64-linux-android/lib/libunwind-34c1f103c0f05a9c.rlib",
+      "type": "file",
+      "sha256": "2415b45ecb261aa6ce265472b09e818d51ce86b486cdee3bfba345f4a3c6ca50",
+      "executable": false
+    },
+    {
+      "component": "rust-std-x86_64-linux-android",
+      "path": "lib/rustlib/x86_64-linux-android/lib/libpanic_unwind-0d9eea3f9629aecd.rlib",
+      "type": "file",
+      "sha256": "9ca51ece5f4ba26f88418bc99c4b76e4db81072afde9c843dc965e4b0788748a",
+      "executable": false
+    },
+    {
+      "component": "rust-std-x86_64-linux-android",
+      "path": "lib/rustlib/x86_64-linux-android/lib/librustc_std_workspace_std-a2cf3dcd7e7a6abe.rlib",
+      "type": "file",
+      "sha256": "52f38c4790a6a3d809579f40df417e1add798eedd0f65d2b2ff6adb502cf3315",
+      "executable": false
+    },
+    {
+      "component": "rust-std-x86_64-linux-android",
+      "path": "lib/rustlib/manifest-rust-std-x86_64-linux-android",
+      "type": "file",
+      "sha256": "9056b79932cedb5dcb96348fbad9b15261328c897c5f19ece8fb9a2e84e8a74c",
+      "executable": false
+    },
+    {
+      "component": "rust-std-x86_64-linux-android",
+      "path": "lib/rustlib/x86_64-linux-android/lib/libstd-7fb7d93196c61333.so",
+      "type": "file",
+      "sha256": "556d2914d4e4ad7d721d89abe9aa64e57d99d88d5003dbb96f58b92ac22da11b",
+      "executable": true
+    }
+  ]
+}

@@ -1,0 +1,419 @@
+{
+  "schema": 1,
+  "scope": "Linux Android pinned DEPS payload reference; not complete build provenance",
+  "packages": [
+    {
+      "subdir": "src/buildtools/linux64",
+      "package": "gn/gn/linux-amd64",
+      "instance": "HLEDiXp8XhFejlfLdCibC9i-A6U66r7SRJAeyQZhxWkC",
+      "manifest_sha256": "89b8dadb70d2c8f2a41d88848639485757caaa1a1e1820dcfac1aa593f450578",
+      "method": "reconstructed-archive"
+    },
+    {
+      "subdir": "src/buildtools/reclient",
+      "package": "infra/rbe/client/linux-amd64",
+      "instance": "ADvz6sQzvQcUUOl6LmYz9_kwRoKMi-QopcOTjGPdF2QC",
+      "manifest_sha256": "46f8b5d8ccef15685d35263e863875aa69285f08ba99ddb78121d0d1d1c0f6fd",
+      "method": "reconstructed-archive"
+    },
+    {
+      "subdir": "src/buildtools/third_party/mold/cipd",
+      "package": "chromium/buildtools/third_party/mold/mold",
+      "instance": "w9QqZ-oP3GovA-zjOawYzb5yca-t47GbT-ejPa0BQmYC",
+      "manifest_sha256": "618934758739bb1460b8fca3a0f2c61209638a4b64edb6ab012e14eb4a3dcc95",
+      "method": "reconstructed-archive"
+    },
+    {
+      "subdir": "src/third_party/android_build_tools/aapt2/cipd",
+      "package": "chromium/third_party/android_build_tools/aapt2",
+      "instance": "7tEuuB92wV8xh54fCO0bRk_6FS_7XtsBl9LB5Tf5d0AC",
+      "manifest_sha256": "c96b9664ee9387b49ab963f34a12602ce3350bc502598395fbfdc09e85e03c2d",
+      "method": "reconstructed-archive"
+    },
+    {
+      "subdir": "src/third_party/android_build_tools/bundletool/cipd",
+      "package": "chromium/third_party/android_build_tools/bundletool",
+      "instance": "7Vo6ZzIxIaC51ATTBlo_KUkgxJCmmGmXAijlVkXUTpAC",
+      "manifest_sha256": "61e5dfab80a642c4f41e4aac9fe6cf5687f80b67b8e87c2c7a1444ddfccbe292",
+      "method": "reconstructed-archive"
+    },
+    {
+      "subdir": "src/third_party/android_build_tools/dagger_compiler/cipd",
+      "package": "chromium/third_party/android_build_tools/dagger_compiler",
+      "instance": "AC0DoTEXQf40KFt7hyCNSEJPrT9Rprw9zsZxNKdw7BQC",
+      "manifest_sha256": "c8651f31da06e790829744999e6618d6d144e24bf804314de3d249c09bc49f57",
+      "method": "reconstructed-archive"
+    },
+    {
+      "subdir": "src/third_party/android_build_tools/error_prone/cipd",
+      "package": "chromium/third_party/android_build_tools/error_prone",
+      "instance": "f0aG4OXz6uVx2m-hdEm-b1Ub-t8BZ9J1PDLOcaqvYWMC",
+      "manifest_sha256": "2999ac26ceda12b72b8cfaa9b32d8428ef27c685986b32f2c9dc3af67e19fba0",
+      "method": "reconstructed-archive"
+    },
+    {
+      "subdir": "src/third_party/android_build_tools/error_prone_javac/cipd",
+      "package": "chromium/third_party/android_build_tools/error_prone_javac",
+      "instance": "7EcHxlEXEaLRWEyHIAxf0ouPjkmN1Od6jkutuo0sfBIC",
+      "manifest_sha256": "5c63e2622bab8b2be75dfc51eceab7f6b38c2f6855cf99217aa11f2fb09d14d3",
+      "method": "reconstructed-archive"
+    },
+    {
+      "subdir": "src/third_party/android_build_tools/lint/cipd",
+      "package": "chromium/third_party/android_build_tools/lint",
+      "instance": "7KJxYhmiewyMOfPS--lQWH0_J1zgLJRpUbo3AojmLNgC",
+      "manifest_sha256": "ecbe4181da3244aaa352c30472a89e110ca61c4827e2a6d44307390e7e8bc9a2",
+      "method": "reconstructed-archive"
+    },
+    {
+      "subdir": "src/third_party/android_build_tools/manifest_merger/cipd",
+      "package": "chromium/third_party/android_build_tools/manifest_merger",
+      "instance": "R87N5LyYrVSmzfflFltkkUvsf2DzGvNn2lejlsXVgCYC",
+      "manifest_sha256": "3fa19695c8b85b6c24c00a3df4e8bfc4fd39f6634dabab4047d4db2f480e3da2",
+      "method": "reconstructed-archive"
+    },
+    {
+      "subdir": "src/third_party/android_build_tools/nullaway/cipd",
+      "package": "chromium/third_party/android_build_tools/nullaway",
+      "instance": "ds9Vm6LkQNc9O9nuG0_FbrsNQ5VoGPpFIWKur53l3wUC",
+      "manifest_sha256": "191165b86c05ce8b6a75414342e39e5e8dd5d6f251391361120b2b4ea2f72bc7",
+      "method": "reconstructed-archive"
+    },
+    {
+      "subdir": "src/third_party/android_deps/autorolled/cipd",
+      "package": "chromium/third_party/android_deps/autorolled",
+      "instance": "qgGIpnHQaa3kQar4rzYZyCGh0H-pKChjxujM3uzK9SwC",
+      "manifest_sha256": "99608cfe0c80d2fb3a1d348a443111a25a121ca64d7b39c76d5ba46923998899",
+      "method": "reconstructed-archive"
+    },
+    {
+      "subdir": "src/third_party/android_deps/cipd/libs/com_android_tools_common",
+      "package": "chromium/third_party/android_deps/libs/com_android_tools_common",
+      "instance": "FOV4PMUisy1RVFDSQUyc_obH8KrF8nXgB763RlqbthEC",
+      "manifest_sha256": "245d288774aa2596c4d3efeea94b25f51cf028e63aeb3e4c1195be529fb4af3a",
+      "method": "reconstructed-archive"
+    },
+    {
+      "subdir": "src/third_party/android_deps/cipd/libs/com_android_tools_layoutlib_layoutlib_api",
+      "package": "chromium/third_party/android_deps/libs/com_android_tools_layoutlib_layoutlib_api",
+      "instance": "OcQZaF_n_flyX-3TcufXl8BANDGwcTPkx54tlAopcOUC",
+      "manifest_sha256": "c78aabe00c50de0305ee8654ed3b6a0995d6b0092969073a42a16a9a4b5614a1",
+      "method": "reconstructed-archive"
+    },
+    {
+      "subdir": "src/third_party/android_deps/cipd/libs/com_android_tools_sdk_common",
+      "package": "chromium/third_party/android_deps/libs/com_android_tools_sdk_common",
+      "instance": "qkcSm-GiktWQd7WUgoWUgCu7LQpEJQGmBppf-G6yLPQC",
+      "manifest_sha256": "be34aeb74370e488ee70b344fd5a37a9423abe078afd0a652d7ab4e66639fda8",
+      "method": "reconstructed-archive"
+    },
+    {
+      "subdir": "src/third_party/android_deps/cipd/libs/com_google_android_apps_common_testing_accessibility_framework_accessibility_test_framework",
+      "package": "chromium/third_party/android_deps/libs/com_google_android_apps_common_testing_accessibility_framework_accessibility_test_framework",
+      "instance": "1myWHH9krAajp2NTi7R2cyPPf1o6aK59BPXhTuD_PDoC",
+      "manifest_sha256": "ef47651a9c62939a9602149c6f25e9bbc8ceeba79490aaa0032b1fe9935db635",
+      "method": "reconstructed-archive"
+    },
+    {
+      "subdir": "src/third_party/android_deps/cipd/libs/com_googlecode_java_diff_utils_diffutils",
+      "package": "chromium/third_party/android_deps/libs/com_googlecode_java_diff_utils_diffutils",
+      "instance": "qg9voiBQsPJlj6--B2wZaxwqF8a2CJQEBN9HpHlmhawC",
+      "manifest_sha256": "371cc0ba75ac9a7d5e145c8dcb403ce30fd7ea2d6d23e5788b2b639b0dfdefe6",
+      "method": "reconstructed-archive"
+    },
+    {
+      "subdir": "src/third_party/android_deps/cipd/libs/com_squareup_javapoet",
+      "package": "chromium/third_party/android_deps/libs/com_squareup_javapoet",
+      "instance": "PLkzP5q_Ibv28xxg6VlmPhyL9O9hAKJt57VWyHc7URsC",
+      "manifest_sha256": "8edce648a57e9b9299c7d6c198857a67fd2ecd43e0688a8b4a61732807104868",
+      "method": "reconstructed-archive"
+    },
+    {
+      "subdir": "src/third_party/android_deps/cipd/libs/net_bytebuddy_byte_buddy",
+      "package": "chromium/third_party/android_deps/libs/net_bytebuddy_byte_buddy",
+      "instance": "nkNivLmmhYr6XPTY_DvupJkm0jOtuA2NcdXYtZusLmsC",
+      "manifest_sha256": "9a99e32afb0e4f992fdaaff27c2e9be43c53afbd73c4de0f1fdbe6ec9f72c1d4",
+      "method": "reconstructed-archive"
+    },
+    {
+      "subdir": "src/third_party/android_deps/cipd/libs/net_bytebuddy_byte_buddy_agent",
+      "package": "chromium/third_party/android_deps/libs/net_bytebuddy_byte_buddy_agent",
+      "instance": "jXOUAPGbEtR2RPqg-zExTfKMPge_j6-TD9VYo7BOXYEC",
+      "manifest_sha256": "00f6bf0aa6ec62adaba7b741b64d82f4551d4d89d2f129a6ef63b7f94823ba64",
+      "method": "reconstructed-archive"
+    },
+    {
+      "subdir": "src/third_party/android_deps/cipd/libs/org_ccil_cowan_tagsoup_tagsoup",
+      "package": "chromium/third_party/android_deps/libs/org_ccil_cowan_tagsoup_tagsoup",
+      "instance": "ODYdkxn6MIuQiWbZa7zWCEF8QwA-tEjnGD-yHDAKkLAC",
+      "manifest_sha256": "5c2f763aa1188572a31842b358b7b0b741baef73fa7ef696de652be76aeed65a",
+      "method": "reconstructed-archive"
+    },
+    {
+      "subdir": "src/third_party/android_deps/cipd/libs/org_checkerframework_checker_compat_qual",
+      "package": "chromium/third_party/android_deps/libs/org_checkerframework_checker_compat_qual",
+      "instance": "XtJiShgMC0oqkhpgMER2yrgZvSn3Bm_EU8mjsP3TMqoC",
+      "manifest_sha256": "65db31fdee2a81564a78aaa6da92904dd3950b0c62a72a740e20f216c4392036",
+      "method": "reconstructed-archive"
+    },
+    {
+      "subdir": "src/third_party/android_deps/cipd/libs/org_jetbrains_kotlin_kotlin_android_extensions_runtime",
+      "package": "chromium/third_party/android_deps/libs/org_jetbrains_kotlin_kotlin_android_extensions_runtime",
+      "instance": "8sZK-EYIif-uriaQ7Uxvo3QgUsWlY9Nr-xFT9s2TcOIC",
+      "manifest_sha256": "8dfe56778ccf31a04eaf8b7779b61861f4bcd548ff9c76e9b1cf66ed4026f8d6",
+      "method": "reconstructed-archive"
+    },
+    {
+      "subdir": "src/third_party/android_deps/cipd/libs/org_jetbrains_kotlin_kotlin_parcelize_runtime",
+      "package": "chromium/third_party/android_deps/libs/org_jetbrains_kotlin_kotlin_parcelize_runtime",
+      "instance": "0ggy0W8NxR2_XXFj49WDR3LaxvA8gSLyOxgbJg8PoH0C",
+      "manifest_sha256": "1ec5655041913e7dbff2bd7b916fc5cee9dc8c59ae1be55022bd882d93f47b9b",
+      "method": "reconstructed-archive"
+    },
+    {
+      "subdir": "src/third_party/android_deps/cipd/libs/org_jsoup_jsoup",
+      "package": "chromium/third_party/android_deps/libs/org_jsoup_jsoup",
+      "instance": "p8OBklQWJeDiAU94kfYte-DAypKtiYTkwvPAWrtayT4C",
+      "manifest_sha256": "e13ea40c377c302b6e6f0ea6380e1d3e0d8d4a33c7d645545345d4cb6dc28e43",
+      "method": "reconstructed-archive"
+    },
+    {
+      "subdir": "src/third_party/android_deps/cipd/libs/org_mockito_mockito_android",
+      "package": "chromium/third_party/android_deps/libs/org_mockito_mockito_android",
+      "instance": "C_K3Z_U5wV-fQOEpwnnjGQF5kkiuJtq_Erk6L8fpylIC",
+      "manifest_sha256": "2edc107130ac93fde018aa76908854b42f66b34b2cdad3648908bdf379aeb6c4",
+      "method": "reconstructed-archive"
+    },
+    {
+      "subdir": "src/third_party/android_deps/cipd/libs/org_mockito_mockito_core",
+      "package": "chromium/third_party/android_deps/libs/org_mockito_mockito_core",
+      "instance": "HLNt5Hv6xzAIfqt7u36rux-dOs2pl0ljNkqCvp76WCAC",
+      "manifest_sha256": "e49689d8ad8a718e36d72cba5b460b6274287f864910e11971d272ad3b5d41c0",
+      "method": "reconstructed-archive"
+    },
+    {
+      "subdir": "src/third_party/android_deps/cipd/libs/org_mockito_mockito_subclass",
+      "package": "chromium/third_party/android_deps/libs/org_mockito_mockito_subclass",
+      "instance": "9DH43jLIZTK-l_3XHw7iGxKgmdQAxBXqWzbHt2i4jjMC",
+      "manifest_sha256": "23541c1e98dce8de4384c50bdc920660f8663f4ed1b36be53faeb7cdd5000ac2",
+      "method": "reconstructed-archive"
+    },
+    {
+      "subdir": "src/third_party/android_deps/cipd/libs/org_objenesis_objenesis",
+      "package": "chromium/third_party/android_deps/libs/org_objenesis_objenesis",
+      "instance": "ErkTEGXpWlPqbndRdOkv19eE07jMjF5kURWJovcjQQUC",
+      "manifest_sha256": "dbb924d65787564dc22149cbca7a1264262ae3371f1649e8f355a9a0867aa1bf",
+      "method": "reconstructed-archive"
+    },
+    {
+      "subdir": "src/third_party/android_sdk/public",
+      "package": "chromium/third_party/android_sdk/public/build-tools/37.0.0",
+      "instance": "febJrTgiK9s1ANoUlc4Orn3--zs9GjGCj2vQc8g7OaMC",
+      "manifest_sha256": "187945cdc960952d6729617c9bf23020e60d10fa568a7f4b4e139db397b256a8",
+      "method": "reconstructed-archive"
+    },
+    {
+      "subdir": "src/third_party/android_sdk/public",
+      "package": "chromium/third_party/android_sdk/public/cmdline-tools/linux",
+      "instance": "vO477CZmV97fP5b9ZnNGZYK-23J4g_6FPPhhdSNvTfsC",
+      "manifest_sha256": "0471204dc0c2c6749b15aac6cbbc23698cdacd1fdb241b8e38a81eeeeb6915d8",
+      "method": "reconstructed-archive"
+    },
+    {
+      "subdir": "src/third_party/android_sdk/public",
+      "package": "chromium/third_party/android_sdk/public/emulator",
+      "instance": "9lGp8nTUCRRWGMnI_96HcKfzjnxEJKUcfvfwmA3wXNkC",
+      "manifest_sha256": "c1a45611b7c74e0bfdbe5e65091fa0178c31c4e4194d5455918d7d4bac0aa97f",
+      "method": "verified-original-archive"
+    },
+    {
+      "subdir": "src/third_party/android_sdk/public",
+      "package": "chromium/third_party/android_sdk/public/platform-tools",
+      "instance": "qTD9QdBlBf3dyHsN1lJ0RH6AhHxR42Hmg2Ih-Vj4zIEC",
+      "manifest_sha256": "5492b18ab5e9057304e686e0dd25be1dc3d05b0db0b2f43688f11727faa16375",
+      "method": "reconstructed-archive"
+    },
+    {
+      "subdir": "src/third_party/android_sdk/public",
+      "package": "chromium/third_party/android_sdk/public/platforms/android-37.0",
+      "instance": "WhtP32Q46ZHdTmgCgdauM3ws_H9iPoGKEZ_cPggcQ6wC",
+      "manifest_sha256": "91cdf76769e581ff236fd94054a70eb79414fd8b129556762f6ed884657d588c",
+      "method": "reconstructed-archive"
+    },
+    {
+      "subdir": "src/third_party/android_system_sdk/cipd",
+      "package": "chromium/third_party/android_system_sdk/public",
+      "instance": "EpgkrtsLblLuw0BrsWCF0h_njBzIZsBNDxQ5VtA4s2UC",
+      "manifest_sha256": "0ff1e49a1b453d142d926d4f6c3dc1315456569221d744a5d8d78d789ae40a35",
+      "method": "reconstructed-archive"
+    },
+    {
+      "subdir": "src/third_party/android_toolchain/ndk",
+      "package": "chromium/third_party/android_toolchain/android_toolchain/linux-amd64",
+      "instance": "HNymMuKLuw-OYiESXSsSIIsE1B-h6mGLLrKmJ7FxV-UC",
+      "manifest_sha256": "1019f46f2e8f533abb691943f3127d2aba372e55ec0551787cc1deb2c129da04",
+      "method": "reconstructed-archive"
+    },
+    {
+      "subdir": "src/third_party/androidx/cipd",
+      "package": "chromium/third_party/androidx",
+      "instance": "stqZyLWSguiZUIpMgiR1Tg-z6i1BtyUD5yKbWh1Pjh0C",
+      "manifest_sha256": "ce1d3dd0b5a0f94698ec1f545463d7350e1f4f73db106bb51aafddf981fee8ad",
+      "method": "reconstructed-archive"
+    },
+    {
+      "subdir": "src/third_party/aosp_dalvik/cipd",
+      "package": "chromium/third_party/aosp_dalvik/linux-amd64",
+      "instance": "rM6HteTn5CdJzMk6TPnhsvxjv83zPBJi8P1qgc7TRUkC",
+      "manifest_sha256": "7293d0c89eaeb3d72a51fd048c4116f8d36bbda8d89504d2a9a25d1f2b965d36",
+      "method": "reconstructed-archive"
+    },
+    {
+      "subdir": "src/third_party/cpython3/host",
+      "package": "infra/3pp/tools/cpython3/linux-amd64",
+      "instance": "t7igptFxuJGP2lGu4db_6wyKFMeR-x0LxddFTIydlJsC",
+      "manifest_sha256": "b376b9bb9c4ee99db5114522d4bb4415394bde18b9a0867f8910c98ce5de5847",
+      "method": "reconstructed-archive"
+    },
+    {
+      "subdir": "src/third_party/cpython3/linux-amd64",
+      "package": "infra/3pp/tools/cpython3/linux-amd64",
+      "instance": "t7igptFxuJGP2lGu4db_6wyKFMeR-x0LxddFTIydlJsC",
+      "manifest_sha256": "b376b9bb9c4ee99db5114522d4bb4415394bde18b9a0867f8910c98ce5de5847",
+      "method": "reconstructed-archive"
+    },
+    {
+      "subdir": "src/third_party/espresso",
+      "package": "chromium/third_party/espresso",
+      "instance": "5LoBT0j383h_4dXbnap7gnNQMtMjpbMJD1JaGIYNj-IC",
+      "manifest_sha256": "0bdce5ae68ed0a364e3f2dfafe1d010c3e6379c1915c5bdafff2a2114cfd1226",
+      "method": "reconstructed-archive"
+    },
+    {
+      "subdir": "src/third_party/hamcrest/cipd",
+      "package": "chromium/third_party/hamcrest",
+      "instance": "dBioOAmFJjqAr_DY7dipbXdVfAxUQwjOBNibMPtX8lQC",
+      "manifest_sha256": "d19acbf85dff65b35ffdddf420f9df84a19e722b333070d2bbfd7c8a718b7fd5",
+      "method": "verified-original-archive"
+    },
+    {
+      "subdir": "src/third_party/icu4j/cipd",
+      "package": "chromium/third_party/icu4j",
+      "instance": "8dV7WRVX0tTaNNqkLEnCA_dMofr2MJXFK400E7gOFygC",
+      "manifest_sha256": "ac3dc0f638c4a3a63e2e9542e7c61b45efe4f59c59062244a92fb85fe76d1bbe",
+      "method": "verified-original-archive"
+    },
+    {
+      "subdir": "src/third_party/jdk/current",
+      "package": "chromium/third_party/jdk/linux-amd64",
+      "instance": "Ac1SdNGLeE0dSBE6mDm4oq8NvcHCLDgYMWYZki0QkVAC",
+      "manifest_sha256": "bf24e07511cee2ac5d53412afc884601a8036218c4d5179ae7a5ebfad14fb9b9",
+      "method": "reconstructed-archive"
+    },
+    {
+      "subdir": "src/third_party/jdk11",
+      "package": "chromium/third_party/jdk",
+      "instance": "egbcSHbmF1XZQbKxp_PQiGLFWlQK65krTGqQE-Bj4j8C",
+      "manifest_sha256": "e523d2328eeebaaf7d921cf45d4fd86a4be2c249f3c6a670c68524feeea26cab",
+      "method": "verified-original-archive"
+    },
+    {
+      "subdir": "src/third_party/kotlin_stdlib/cipd",
+      "package": "chromium/third_party/kotlin_stdlib",
+      "instance": "bA0QP5Z7EuFbnakJwU36Hvxfl73_RrbuVfrDfo-WNm8C",
+      "manifest_sha256": "381d11d619542a3434d35e1dca5795f727ce2281b668a5113f606cf6bee4aceb",
+      "method": "reconstructed-archive"
+    },
+    {
+      "subdir": "src/third_party/kotlinc/current",
+      "package": "chromium/third_party/kotlinc",
+      "instance": "_TbalRHqOOWTHttZVLFGKk2_NmCRdmU-RPOVA4cizScC",
+      "manifest_sha256": "e6ef226b374d1663a89c6b43544237a82b6644800d26c9d0c07a9fb30f8af195",
+      "method": "reconstructed-archive"
+    },
+    {
+      "subdir": "src/third_party/ninja",
+      "package": "infra/3pp/tools/ninja/linux-amd64",
+      "instance": "Px8cwPaaG8_fZ_tsK8dBmx3YEruNDnmvqb-oo1U7UIIC",
+      "manifest_sha256": "766f449d8e17b758bf2f9c0d9412b3a2bb26d2af65232fdce92194cd6b599f04",
+      "method": "reconstructed-archive"
+    },
+    {
+      "subdir": "src/third_party/r8/cipd",
+      "package": "chromium/third_party/r8",
+      "instance": "gfbyk0tBsuxhygIXcmbMgdAWUL9LrI7cF4qPTEAdKTMC",
+      "manifest_sha256": "e32d167c24f7f274142b92d3b6c55af91131b241298d1dc204de089954fa7e8e",
+      "method": "reconstructed-archive"
+    },
+    {
+      "subdir": "src/third_party/r8/d8/cipd",
+      "package": "chromium/third_party/r8",
+      "instance": "mgvcxRdCK77IxF9-PPyFpRK2J0UCfEHWKbNInpzj4CkC",
+      "manifest_sha256": "ecf945f06e408971a2f2a3ef8e012e26b5e21228b77ac61ddfe26d2bfa8862e3",
+      "method": "reconstructed-archive"
+    },
+    {
+      "subdir": "src/third_party/robolectric/cipd",
+      "package": "chromium/third_party/robolectric",
+      "instance": "2VsyOy5QqREpP3T_yBOVM23M7Te5o0vz6oHubhKzYbsC",
+      "manifest_sha256": "e3b6d07731454e13efa3ed28f6e6aecd860e3067313a78dba1fc68057486d9ca",
+      "method": "reconstructed-archive"
+    },
+    {
+      "subdir": "src/third_party/siso/cipd",
+      "package": "build/siso/linux-amd64",
+      "instance": "QFJ6IUodhFfIxbketRa6ixgVGvt1HfwBB45QURaLc4AC",
+      "manifest_sha256": "79d52b15dd8c1a81f56a6b60920217b1bd30f37adfed4e547c377b53378a4d5f",
+      "method": "reconstructed-archive"
+    },
+    {
+      "subdir": "src/third_party/sqlite4java/cipd",
+      "package": "chromium/third_party/sqlite4java",
+      "instance": "LofjKH9dgXIAJhRYCPQlMFywSwxYimrfDeBmaHc-Z5EC",
+      "manifest_sha256": "c67c1d3ca82e2cb6e0d8a0f88420bf08f6b461c44449a98b980e336288ca13cf",
+      "method": "verified-original-archive"
+    },
+    {
+      "subdir": "src/third_party/turbine/cipd",
+      "package": "chromium/third_party/turbine",
+      "instance": "x7YCQkT0AvVA-g-D7_U-cmSVgjxgy3FefNyP30-KubkC",
+      "manifest_sha256": "6a9713bbb6ce7a88005ee17409e53122109fe4fbe1d5476411d42a7c48fa8954",
+      "method": "reconstructed-archive"
+    },
+    {
+      "subdir": "src/third_party/wireplumber/linux-amd64",
+      "package": "chromium/third_party/wireplumber/linux-amd64",
+      "instance": "yfe349C2e6pWCcu7DaSPJHNWdwDbNP9FfSQoV9j6A5UC",
+      "manifest_sha256": "706c959eab178530aadad4893032078037b33971da63f015f93e1f942b437910",
+      "method": "reconstructed-archive"
+    },
+    {
+      "subdir": "src/tools/luci-go",
+      "package": "infra/tools/luci/cas/linux-amd64",
+      "instance": "11qrF6463RH3xr0SgcelI-Kg957zONdZIa0bB-PCE54C",
+      "manifest_sha256": "bba02f774d2354709de9a9638a9be7283c860928f6d0ba90b4605fad40f6a0a8",
+      "method": "reconstructed-archive"
+    },
+    {
+      "subdir": "src/tools/luci-go",
+      "package": "infra/tools/luci/isolate/linux-amd64",
+      "instance": "WOz7aub5Ue3jjHQhcAYJqAhs_Oy95jCtS2OxdNT26n4C",
+      "manifest_sha256": "1c4aedfd90815881a2d38e45ad5ec0fd31578371d1f56c6c92fdf5d525c73fe3",
+      "method": "reconstructed-archive"
+    },
+    {
+      "subdir": "src/tools/luci-go",
+      "package": "infra/tools/luci/swarming/linux-amd64",
+      "instance": "IYQgc2VOLAgrwzqFdXiW11Xno8EYMLllYnpO9E2TE9wC",
+      "manifest_sha256": "2b7dd9c958f13bc1b315b06389667969c5acddd37e95b39c25fbef450a2af749",
+      "method": "reconstructed-archive"
+    },
+    {
+      "subdir": "src/tools/resultdb",
+      "package": "infra/tools/result_adapter/linux-amd64",
+      "instance": "v9d06vVBFkAEPeZc_T_Hlp7dru37V52eI1N19xBapo4C",
+      "manifest_sha256": "b18e1b3bbdc121d6dfd4b6087bfa82056a19db49bbcfa88046aa43ea5eaffa7a",
+      "method": "reconstructed-archive"
+    }
+  ]
+}

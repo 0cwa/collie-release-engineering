@@ -1,0 +1,26 @@
+From 685ec946cd7f08375768aef4708d59949ebd9c6a Mon Sep 17 00:00:00 2001
+From: 0cwa <0@none.org>
+Date: Fri, 6 Nov 2026 10:20:53 +0100
+Subject: [PATCH] Correct Arabic Molly donation label
+
+Carry this AI-assisted source change as its own
+reviewable patch, preserving the original source author and diff.
+The official Molly snapshot and earlier resolution patches do
+not receive regenerated provenance headers.
+
+Source-Commit: 05c7e9399d44aa27e6df8bef2e0cff7700364a7d
+AI-Generated: true
+
+diff --git a/app/src/main/res/values-ar/strings.xml b/app/src/main/res/values-ar/strings.xml
+index ec3e444090c146407828d3ba7ec988cadf629095..6dc9fc4f383d08cdf6f23bbc996a4f7b8fb0544a 100644
+--- a/app/src/main/res/values-ar/strings.xml
++++ b/app/src/main/res/values-ar/strings.xml
+@@ -4174,7 +4174,7 @@
+     <string name="preferences__led_color_unknown">مجهول</string>
+     <string name="preferences__silent">صامت</string>
+     <string name="preferences__advanced">مُتقدِّم</string>
+-    <string name="preferences__donate_to_signal">التبرُّع لسيجنال</string>
++    <string name="preferences__donate_to_signal">التبرُّع لمولي</string>
+     <!-- Preference label for stories -->
+     <string name="preferences__stories">القِصَص</string>
+     <string name="preferences__payments">عمليات الدفع</string>

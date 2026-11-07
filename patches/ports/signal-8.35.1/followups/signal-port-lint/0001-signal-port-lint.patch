@@ -1,0 +1,53 @@
+From 3731c188f3747908f2e06b41d75677f5c02b0e30 Mon Sep 17 00:00:00 2001
+From: 0cwa <0@none.org>
+Date: Thu, 5 Nov 2026 12:18:20 +0100
+Subject: [PATCH] Fix lint errors in the Signal 8.33.2 port
+
+- RegistrationNavigation: log through the file's TAG constant (LogTagInlined).
+- values-night/dark_colors.xml: comment out five quote_view colors that the merge
+  restored from Signal. Molly reads these colors from theme attributes and keeps the
+  color entries commented out in both color files; the live night-only entries had no
+  default (MissingDefaultResource).
+
+Carry this AI-assisted source change as its own
+reviewable patch, preserving the original source author and diff.
+The official Molly snapshot and earlier resolution patches do
+not receive regenerated provenance headers.
+
+Source-Commit: 316b16bf38514723fedcd71a2aa7a4a5a30f6081
+AI-Generated: true
+
+diff --git a/app/src/main/res/values-night/dark_colors.xml b/app/src/main/res/values-night/dark_colors.xml
+index e52d0dece204b1e724551708ae0eb29e0ddc1707..9838f8bfcd556a30c97a0db09627d38af1aa8054 100644
+--- a/app/src/main/res/values-night/dark_colors.xml
++++ b/app/src/main/res/values-night/dark_colors.xml
+@@ -110,11 +110,11 @@
+ 
+     <color name="settings_ripple_color">@color/transparent_white_10</color>
+ 
+-    <color name="quote_view_background_outgoing_wallpaper">@color/transparent_black_40</color>
+-    <color name="quote_view_bar_outgoing_wallpaper">@color/signal_colorOnCustom</color>
+-    <color name="quote_view_foreground_outgoing_wallpaper">@color/signal_colorNeutralInverse</color>
+-    <color name="quote_view_background_outgoing_normal">@color/transparent_black_40</color>
+-    <color name="quote_view_foreground_outgoing_normal">@color/signal_colorNeutralInverse</color>
++    <!-- <color name="quote_view_background_outgoing_wallpaper">@color/transparent_black_40</color> -->
++    <!-- <color name="quote_view_bar_outgoing_wallpaper">@color/signal_colorOnCustom</color> -->
++    <!-- <color name="quote_view_foreground_outgoing_wallpaper">@color/signal_colorNeutralInverse</color> -->
++    <!-- <color name="quote_view_background_outgoing_normal">@color/transparent_black_40</color> -->
++    <!-- <color name="quote_view_foreground_outgoing_normal">@color/signal_colorNeutralInverse</color> -->
+     <color name="top_toast_background_color">@color/core_grey_80</color>
+ 
+     <color name="sent_gift_button_tint">@color/transparent_white_20</color>
+diff --git a/feature/registration/src/main/java/org/signal/registration/RegistrationNavigation.kt b/feature/registration/src/main/java/org/signal/registration/RegistrationNavigation.kt
+index 1caa6c82f6561a3a066e615e4d2beca6873cff35..a4cd7e0c80653b14f43bef9d2b4be541b48d8bb1 100644
+--- a/feature/registration/src/main/java/org/signal/registration/RegistrationNavigation.kt
++++ b/feature/registration/src/main/java/org/signal/registration/RegistrationNavigation.kt
+@@ -758,7 +758,7 @@ private fun EntryProviderScope<NavKey>.navigationEntries(
+             try {
+               availability.getErrorResolutionPendingIntent(activity, status, 0)?.send()
+             } catch (e: android.app.PendingIntent.CanceledException) {
+-              Log.w("RegistrationNavigation", "Unable to launch Play Services settings.", e)
++              Log.w(TAG, "Unable to launch Play Services settings.", e)
+             }
+             viewModel.onEvent(SignalLoginPaymentScreenEvents.Foregrounded)
+           }

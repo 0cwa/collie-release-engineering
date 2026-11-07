@@ -1,0 +1,70 @@
+From 742d113bc6d6716f13b62d5b105e3719c144dc0e Mon Sep 17 00:00:00 2001
+From: Molly Patch Reconstruction <molly-patch-reconstruction@example.invalid>
+Date: Fri, 6 Nov 2026 10:40:24 +0100
+Subject: [PATCH] Port resources-and-branding to Signal 8.35.1, part 15
+
+Resolve shared resource conflicts and relocated resources, retaining the port source's Molly branding and translations.
+
+These are AI-assisted compatibility changes from the recorded
+source checkpoint, exported after Git has performed its deterministic
+three-way merge of the unchanged official Molly 8.19.2-4 snapshot
+with Signal 8.35.1. The original Molly mailboxes remain unchanged.
+Offset-only movement and conflict-free automatic merges are already
+in the parent tree and are not re-exported as patch rewrites.
+
+This batch owns 2 whole-file changes. It records AI-assisted
+compatibility changes in the pinned source tree.
+The source commit records a derived candidate, not an official
+Molly release or a claim of upstream authorship.
+
+Source-Commit: f2a6b716b37cf8816223f392dc127dde319be968
+Origin-Base: c47a74ba0961903eeaeda6d22347a990056c3e83
+Origin-Target: 0e202dda90785771ff8c87526eaaf30c655f54f3
+Signal-Base: a74583b01e260944f699c4da03ba4e8ce04de32b
+Mechanical-Merge-Tree: d1b1951155a3e600a1c9af606e440ed25fc4b11d
+AI-Generated: true
+
+diff --git a/feature/media-send/src/main/res/values-zh-rHK/strings.xml b/feature/media-send/src/main/res/values-zh-rHK/strings.xml
+index e4d398e959daf4824c1f09e921fa8564d71a8583..6d41ccfe984d74241da4179fdc222292d0e17cc7 100644
+--- a/feature/media-send/src/main/res/values-zh-rHK/strings.xml
++++ b/feature/media-send/src/main/res/values-zh-rHK/strings.xml
+@@ -225,9 +225,6 @@
+   <string name="LinkedDeviceScannedDialog__it_looks_like_youre_trying">你似乎正嘗試連結 Signal 裝置。輕按繼續，然後輕按「連結新的裝置」並再次掃描二維碼。</string>
+   <!-- The label of a dialog asking the user if they would like to continue to the linked device settings screen. -->
+   <string name="LinkedDeviceScannedDialog__device_link_dialog_continue">繼續</string>
+-<<<<<<< MOLLY
+-</resources>
+-=======
+ 
+   <!-- The title of a dialog shown when the user scanned a transfer QR code from a device that is too old to accept their account. -->
+   <string name="ReRegistrationScannedDialog__transfer_failed_title">無法轉移帳戶</string>
+@@ -256,5 +253,4 @@
+     </plurals>
+     <!-- x of y label displayed in a pill in the editor specifying the type of media being sent. First placeholder is selected page, second is total count. -->
+     <string name="MediaEditScreen__d_of_d">第 %1$d 個，共 %2$d 個</string>
+-</resources>
+->>>>>>> SIGNAL
++</resources>
+\ No newline at end of file
+diff --git a/feature/media-send/src/main/res/values-zh-rTW/strings.xml b/feature/media-send/src/main/res/values-zh-rTW/strings.xml
+index b10016d842a0c04617d7a8a2a7773eff446d3a61..e2e74db7054bdcf5485176069919b724a1f54703 100644
+--- a/feature/media-send/src/main/res/values-zh-rTW/strings.xml
++++ b/feature/media-send/src/main/res/values-zh-rTW/strings.xml
+@@ -225,9 +225,6 @@
+   <string name="LinkedDeviceScannedDialog__it_looks_like_youre_trying">你似乎正嘗試連結 Signal 裝置。輕按繼續，然後輕按「連結新的裝置」並再次掃描二維碼。</string>
+   <!-- The label of a dialog asking the user if they would like to continue to the linked device settings screen. -->
+   <string name="LinkedDeviceScannedDialog__device_link_dialog_continue">繼續</string>
+-<<<<<<< MOLLY
+-</resources>
+-=======
+ 
+   <!-- The title of a dialog shown when the user scanned a transfer QR code from a device that is too old to accept their account. -->
+   <string name="ReRegistrationScannedDialog__transfer_failed_title">無法轉移帳戶</string>
+@@ -256,5 +253,4 @@
+     </plurals>
+     <!-- x of y label displayed in a pill in the editor specifying the type of media being sent. First placeholder is selected page, second is total count. -->
+     <string name="MediaEditScreen__d_of_d">第 %1$d 個，共 %2$d 個</string>
+-</resources>
+->>>>>>> SIGNAL
++</resources>
+\ No newline at end of file

@@ -1,0 +1,121 @@
+From aca76aae7c40c45339e478abad6acad17ad9af50 Mon Sep 17 00:00:00 2001
+From: 0cwa <0@none.org>
+Date: Fri, 6 Nov 2026 10:20:32 +0100
+Subject: [PATCH] Defer notification restoration until the database unlocks
+
+Carry this AI-assisted source change as its own
+reviewable patch, preserving the original source author and diff.
+The official Molly snapshot and earlier resolution patches do
+not receive regenerated provenance headers.
+
+Source-Commit: 575cbca26d012b1f6dd0f29a89b0ae023a003cf7
+AI-Generated: true
+
+diff --git a/app/src/main/java/org/thoughtcrime/securesms/ApplicationContext.java b/app/src/main/java/org/thoughtcrime/securesms/ApplicationContext.java
+index e9838f4d4282314285a35b0675f21b1cb35c20df..7c577842f1e65d0ba9edc2eaa889da7c60f48d48 100644
+--- a/app/src/main/java/org/thoughtcrime/securesms/ApplicationContext.java
++++ b/app/src/main/java/org/thoughtcrime/securesms/ApplicationContext.java
+@@ -370,6 +370,8 @@ public class ApplicationContext extends Application implements AppForegroundObse
+ 
+     if (!isAppInitialized) {
+       onCreateUnlock();
++      // A boot or package-replaced broadcast may have arrived while the database was locked.
++      org.thoughtcrime.securesms.jobs.RestoreNotificationsJob.Companion.enqueue();
+       registerKeyEventReceiver();
+       onStartUnlock();
+       isAppInitialized = true;
+diff --git a/app/src/main/java/org/thoughtcrime/securesms/notifications/RestoreNotificationsReceiver.kt b/app/src/main/java/org/thoughtcrime/securesms/notifications/RestoreNotificationsReceiver.kt
+index 4159714e0be68a4a1ec241cfb7711d0389d4c951..968600dc2ee68b0e87819377d1bfe44a5ca4865b 100644
+--- a/app/src/main/java/org/thoughtcrime/securesms/notifications/RestoreNotificationsReceiver.kt
++++ b/app/src/main/java/org/thoughtcrime/securesms/notifications/RestoreNotificationsReceiver.kt
+@@ -5,6 +5,8 @@ import android.content.Context
+ import android.content.Intent
+ import org.signal.core.util.logging.Log
+ import org.thoughtcrime.securesms.jobs.RestoreNotificationsJob
++import org.thoughtcrime.securesms.dependencies.AppDependencies
++import org.thoughtcrime.securesms.service.KeyCachingService
+ 
+ /** The system drops our posted notifications on app update and reboot, and nothing else puts them back. */
+ class RestoreNotificationsReceiver : BroadcastReceiver() {
+@@ -14,6 +16,10 @@ class RestoreNotificationsReceiver : BroadcastReceiver() {
+   }
+ 
+   override fun onReceive(context: Context, intent: Intent) {
++    if (KeyCachingService.isLocked() || !AppDependencies.isInitialized) {
++      Log.i(TAG, "Deferring notification restore until after unlock")
++      return
++    }
+     Log.i(TAG, "Enqueuing notification restore after ${intent.action}")
+     RestoreNotificationsJob.enqueue()
+   }
+diff --git a/app/src/test/java/org/thoughtcrime/securesms/notifications/RestoreNotificationsReceiverTest.kt b/app/src/test/java/org/thoughtcrime/securesms/notifications/RestoreNotificationsReceiverTest.kt
+new file mode 100644
+index 0000000000000000000000000000000000000000..22e3ffd41907c90169c9166e380c1cfee822d29f
+--- /dev/null
++++ b/app/src/test/java/org/thoughtcrime/securesms/notifications/RestoreNotificationsReceiverTest.kt
+@@ -0,0 +1,65 @@
++package org.thoughtcrime.securesms.notifications
++
++import android.app.Application
++import android.content.Intent
++import androidx.test.core.app.ApplicationProvider
++import io.mockk.every
++import io.mockk.mockkObject
++import io.mockk.mockkStatic
++import io.mockk.unmockkObject
++import io.mockk.unmockkStatic
++import io.mockk.verify
++import org.junit.After
++import org.junit.Before
++import org.junit.Test
++import org.junit.runner.RunWith
++import org.robolectric.RobolectricTestRunner
++import org.robolectric.annotation.Config
++import org.thoughtcrime.securesms.dependencies.AppDependencies
++import org.thoughtcrime.securesms.jobs.RestoreNotificationsJob
++import org.thoughtcrime.securesms.service.KeyCachingService
++
++@RunWith(RobolectricTestRunner::class)
++@Config(application = Application::class)
++class RestoreNotificationsReceiverTest {
++  private val context = ApplicationProvider.getApplicationContext<Application>()
++
++  @Before
++  fun setUp() {
++    mockkStatic(KeyCachingService::class)
++    mockkStatic(AppDependencies::class)
++    mockkObject(RestoreNotificationsJob.Companion)
++    every { RestoreNotificationsJob.enqueue() } returns Unit
++  }
++
++  @After
++  fun tearDown() {
++    unmockkObject(RestoreNotificationsJob.Companion)
++    unmockkStatic(AppDependencies::class)
++    unmockkStatic(KeyCachingService::class)
++  }
++
++  @Test
++  fun `locked process defers restoration even when dependencies were initialized`() {
++    every { KeyCachingService.isLocked() } returns true
++    every { AppDependencies.isInitialized } returns true
++    RestoreNotificationsReceiver().onReceive(context, Intent(Intent.ACTION_BOOT_COMPLETED))
++    verify(exactly = 0) { RestoreNotificationsJob.enqueue() }
++  }
++
++  @Test
++  fun `uninitialized dependencies defer restoration`() {
++    every { KeyCachingService.isLocked() } returns false
++    every { AppDependencies.isInitialized } returns false
++    RestoreNotificationsReceiver().onReceive(context, Intent(Intent.ACTION_MY_PACKAGE_REPLACED))
++    verify(exactly = 0) { RestoreNotificationsJob.enqueue() }
++  }
++
++  @Test
++  fun `unlocked initialized process schedules restoration`() {
++    every { KeyCachingService.isLocked() } returns false
++    every { AppDependencies.isInitialized } returns true
++    RestoreNotificationsReceiver().onReceive(context, Intent(Intent.ACTION_BOOT_COMPLETED))
++    verify(exactly = 1) { RestoreNotificationsJob.enqueue() }
++  }
++}

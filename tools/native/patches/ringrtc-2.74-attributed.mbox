@@ -1,0 +1,753 @@
+From acb52399c16905394431e75268540e384646c250 Mon Sep 17 00:00:00 2001
+From: 0cwa <0@none.org>
+Date: Fri, 6 Nov 2026 08:06:20 +0100
+Subject: [PATCH 1/2] Port Molly proxy support to RingRTC 2.74
+
+Adapted from Molly RingRTC 2.73.0-1, commit 78dfbe7d4ed8d46f372b67701543e3678c64e5f0, against Signal RingRTC 2.73.0 (84c5b2). Further validation is required.
+---
+ .../api/org/signal/ringrtc/CallManager.java   | 13 ++-
+ .../api/org/signal/ringrtc/GroupCall.java     |  7 ++
+ .../src/androidTest/java/CallLinksTest.java   |  2 +-
+ src/rust/src/android/api/jni_call_manager.rs  |  4 +
+ src/rust/src/android/call_manager.rs          | 58 ++++++++++++-
+ .../call_sim-cli/endpoint/group_call_sim.rs   |  1 +
+ src/rust/src/bin/group_call.rs                |  1 +
+ src/rust/src/core/call_manager.rs             |  8 +-
+ src/rust/src/core/group_call.rs               | 12 ++-
+ src/rust/src/native.rs                        |  5 +-
+ .../src/webrtc/ffi/peer_connection_factory.rs |  2 +
+ .../src/webrtc/peer_connection_factory.rs     | 81 +++++++++++++++++++
+ .../src/webrtc/sim/peer_connection_factory.rs |  2 +
+ .../webrtc_include/peer_connection_factory.h  | 18 +++++
+ src/rust/tests/common/mod.rs                  |  1 +
+ 15 files changed, 208 insertions(+), 7 deletions(-)
+
+diff --git a/src/android/api/org/signal/ringrtc/CallManager.java b/src/android/api/org/signal/ringrtc/CallManager.java
+index 53942a0..047f032 100644
+--- a/src/android/api/org/signal/ringrtc/CallManager.java
++++ b/src/android/api/org/signal/ringrtc/CallManager.java
+@@ -28,6 +28,7 @@ import org.webrtc.MediaConstraints;
+ import org.webrtc.MediaStream;
+ import org.webrtc.NativeLibraryLoader;
+ import org.webrtc.PeerConnection;
++import org.webrtc.PeerConnection.ProxyInfo;
+ import org.webrtc.PeerConnectionFactory;
+ import org.webrtc.VideoDecoderFactory;
+ import org.webrtc.VideoEncoderFactory;
+@@ -475,6 +476,7 @@ public class CallManager {
+                       @NonNull  VideoSink                      remoteSink,
+                       @NonNull  CameraControl                  camera,
+                       @NonNull  List<PeerConnection.IceServer> iceServers,
++                      @Nullable PeerConnection.ProxyInfo       proxyInfo,
+                                 boolean                        hideIp,
+                                 DataMode                       dataMode,
+                       @Nullable Integer                        audioLevelsIntervalMs,
+@@ -502,6 +504,7 @@ public class CallManager {
+                                               remoteSink,
+                                               camera,
+                                               iceServers,
++                                              proxyInfo,
+                                               hideIp);
+ 
+     callContext.setVideoEnabled(enableCamera);
+@@ -1346,6 +1349,7 @@ public class CallManager {
+   @Nullable
+   public GroupCall createGroupCall(@NonNull  byte[]             groupId,
+                                    @NonNull  String             sfuUrl,
++                                   @Nullable ProxyInfo          proxyInfo,
+                                    @NonNull  byte[]             hkdfExtraInfo,
+                                    @Nullable Integer            audioLevelsIntervalMs,
+                                    @Nullable Byte               dredDuration,
+@@ -1364,7 +1368,7 @@ public class CallManager {
+       }
+     }
+ 
+-    GroupCall groupCall = GroupCall.create(nativeCallManager, groupId, sfuUrl, hkdfExtraInfo, audioLevelsIntervalMs, dredDuration, svcConfig, this.groupFactory, observer);
++    GroupCall groupCall = GroupCall.create(nativeCallManager, groupId, sfuUrl, proxyInfo, hkdfExtraInfo, audioLevelsIntervalMs, dredDuration, svcConfig, this.groupFactory, observer);
+ 
+     if (groupCall != null) {
+       // Add the groupCall to the map.
+@@ -1401,6 +1405,7 @@ public class CallManager {
+    */
+   @Nullable
+   public GroupCall createCallLinkCall(@NonNull  String                sfuUrl,
++                                      @Nullable ProxyInfo             proxyInfo,
+                                       @NonNull  byte[]                endorsementPublicKey,
+                                       @NonNull  byte[]                authCredentialPresentation,
+                                       @NonNull  CallLinkRootKey       linkRootKey,
+@@ -1423,7 +1428,7 @@ public class CallManager {
+       }
+     }
+ 
+-    GroupCall groupCall = GroupCall.create(nativeCallManager, sfuUrl, endorsementPublicKey, authCredentialPresentation, linkRootKey, adminPasskey, hkdfExtraInfo, audioLevelsIntervalMs, dredDuration, svcConfig, this.groupFactory, observer);
++    GroupCall groupCall = GroupCall.create(nativeCallManager, sfuUrl, proxyInfo, endorsementPublicKey, authCredentialPresentation, linkRootKey, adminPasskey, hkdfExtraInfo, audioLevelsIntervalMs, dredDuration, svcConfig, this.groupFactory, observer);
+ 
+     if (groupCall != null) {
+       // Add the groupCall to the map.
+@@ -1460,6 +1465,7 @@ public class CallManager {
+     MediaConstraints                constraints   = new MediaConstraints();
+     PeerConnection.RTCConfiguration configuration = new PeerConnection.RTCConfiguration(callContext.iceServers);
+ 
++    configuration.proxyInfo     = callContext.proxyInfo;
+     configuration.sdpSemantics  = PeerConnection.SdpSemantics.UNIFIED_PLAN;
+     configuration.bundlePolicy  = PeerConnection.BundlePolicy.MAXBUNDLE;
+     configuration.rtcpMuxPolicy = PeerConnection.RtcpMuxPolicy.REQUIRE;
+@@ -1995,6 +2001,7 @@ public class CallManager {
+     @NonNull  public final  CameraControl                  cameraControl;
+     /** ICE server list */
+     @NonNull  public final  List<PeerConnection.IceServer> iceServers;
++    @Nullable public final  PeerConnection.ProxyInfo       proxyInfo;
+     /** If true, use TURN servers */
+               public final  boolean                        hideIp;
+     @Nullable public final  VideoSource                    videoSource;
+@@ -2007,6 +2014,7 @@ public class CallManager {
+                        @NonNull VideoSink                      remoteSink,
+                        @NonNull CameraControl                  camera,
+                        @NonNull List<PeerConnection.IceServer> iceServers,
++                       @Nullable PeerConnection.ProxyInfo      proxyInfo,
+                                 boolean                        hideIp) {
+ 
+       Log.i(TAG, "ctor(): " + callId);
+@@ -2016,6 +2024,7 @@ public class CallManager {
+       this.remoteSink    = remoteSink;
+       this.cameraControl = camera;
+       this.iceServers    = iceServers;
++      this.proxyInfo     = proxyInfo;
+       this.hideIp        = hideIp;
+ 
+       // Create a video track that will be shared across all
+diff --git a/src/android/api/org/signal/ringrtc/GroupCall.java b/src/android/api/org/signal/ringrtc/GroupCall.java
+index 3693a46..93614d9 100644
+--- a/src/android/api/org/signal/ringrtc/GroupCall.java
++++ b/src/android/api/org/signal/ringrtc/GroupCall.java
+@@ -15,6 +15,7 @@ import org.webrtc.DefaultVideoDecoderFactory;
+ import org.webrtc.DefaultVideoEncoderFactory;
+ import org.webrtc.EglBase;
+ import org.webrtc.MediaConstraints;
++import org.webrtc.PeerConnection.ProxyInfo;
+ import org.webrtc.PeerConnectionFactory;
+ import org.webrtc.VideoDecoderFactory;
+ import org.webrtc.VideoEncoderFactory;
+@@ -139,6 +140,7 @@ public final class GroupCall {
+     static GroupCall create(          long                  nativeCallManager,
+                             @NonNull  byte[]                groupId,
+                             @NonNull  String                sfuUrl,
++                            @Nullable ProxyInfo             proxyInfo,
+                             @NonNull  byte[]                hkdfExtraInfo,
+                             @Nullable Integer               audioLevelsIntervalMs,
+                             @Nullable Byte                  dredDuration,
+@@ -156,6 +158,7 @@ public final class GroupCall {
+                 nativeCallManager,
+                 groupId,
+                 sfuUrl,
++                proxyInfo,
+                 hkdfExtraInfo,
+                 audioLevelsIntervalMillis,
+                 dredDurationByte,
+@@ -185,6 +188,7 @@ public final class GroupCall {
+      */
+     static GroupCall create(          long                  nativeCallManager,
+                             @NonNull  String                sfuUrl,
++                            @Nullable ProxyInfo             proxyInfo,
+                             @NonNull  byte[]                endorsementPublicKey,
+                             @NonNull  byte[]                authCredentialPresentation,
+                             @NonNull  CallLinkRootKey       rootKey,
+@@ -205,6 +209,7 @@ public final class GroupCall {
+             call.clientId = ringrtcCreateCallLinkCallClient(
+                 nativeCallManager,
+                 sfuUrl,
++                proxyInfo,
+                 endorsementPublicKey,
+                 authCredentialPresentation,
+                 rootKey.getKeyBytes(),
+@@ -1377,6 +1382,7 @@ public final class GroupCall {
+         long ringrtcCreateGroupCallClient(long nativeCallManager,
+                                           byte[] groupId,
+                                           String sfuUrl,
++                                          ProxyInfo proxyInfo,
+                                           byte[] hkdfExtraInfo,
+                                           int audioLevelsIntervalMillis,
+                                           byte dredDuration,
+@@ -1389,6 +1395,7 @@ public final class GroupCall {
+     private static native
+         long ringrtcCreateCallLinkCallClient(long nativeCallManager,
+                                              String sfuUrl,
++                                             ProxyInfo proxyInfo,
+                                              byte[] endorsementPublicKey,
+                                              byte[] authCredentialPresentation,
+                                              byte[] rootKeyBytes,
+diff --git a/src/android/src/androidTest/java/CallLinksTest.java b/src/android/src/androidTest/java/CallLinksTest.java
+index 1ffdb5d..83e1ad6 100644
+--- a/src/android/src/androidTest/java/CallLinksTest.java
++++ b/src/android/src/androidTest/java/CallLinksTest.java
+@@ -441,7 +441,7 @@ public class CallLinksTest extends CallTestBase {
+         CallManager callManager = CallManager.createCallManager(observer);
+ 
+         GroupCall.Observer callObserver = mock();
+-        GroupCall call = callManager.createCallLinkCall("sfu.example", ENDORSEMENT_PUBLIC_KEY, new byte[] { 1, 2, 3 }, EXAMPLE_KEY, null, new byte[] {}, null, null, new AudioConfig(), null, callObserver);
++        GroupCall call = callManager.createCallLinkCall("sfu.example", null, ENDORSEMENT_PUBLIC_KEY, new byte[] { 1, 2, 3 }, EXAMPLE_KEY, null, new byte[] {}, null, null, new AudioConfig(), null, callObserver);
+         assertEquals(call.getKind(), GroupCall.Kind.CALL_LINK);
+ 
+         call.connect();
+diff --git a/src/rust/src/android/api/jni_call_manager.rs b/src/rust/src/android/api/jni_call_manager.rs
+index 222f4a1..05647a8 100644
+--- a/src/rust/src/android/api/jni_call_manager.rs
++++ b/src/rust/src/android/api/jni_call_manager.rs
+@@ -832,6 +832,7 @@ pub unsafe extern "C" fn Java_org_signal_ringrtc_GroupCall_ringrtcCreateGroupCal
+     call_manager: jlong,
+     group_id: JByteArray,
+     sfu_url: JString,
++    jni_proxy_info: JObject,
+     hkdf_extra_info: JByteArray,
+     audio_levels_interval_millis: jint,
+     dred_duration: jbyte,
+@@ -847,6 +848,7 @@ pub unsafe extern "C" fn Java_org_signal_ringrtc_GroupCall_ringrtcCreateGroupCal
+                 call_manager as *mut AndroidCallManager,
+                 group_id,
+                 sfu_url,
++                jni_proxy_info,
+                 hkdf_extra_info,
+                 audio_levels_interval_millis,
+                 dred_duration,
+@@ -868,6 +870,7 @@ pub unsafe extern "C" fn Java_org_signal_ringrtc_GroupCall_ringrtcCreateCallLink
+     _cls: JClass,
+     call_manager: jlong,
+     sfu_url: JString,
++    jni_proxy_info: JObject,
+     endorsement_public_key: JByteArray,
+     auth_presentation: JByteArray,
+     call_link_bytes: JByteArray,
+@@ -886,6 +889,7 @@ pub unsafe extern "C" fn Java_org_signal_ringrtc_GroupCall_ringrtcCreateCallLink
+                 env,
+                 call_manager as *mut AndroidCallManager,
+                 sfu_url,
++                jni_proxy_info,
+                 endorsement_public_key,
+                 auth_presentation,
+                 call_link_bytes,
+diff --git a/src/rust/src/android/call_manager.rs b/src/rust/src/android/call_manager.rs
+index dc1bd15..a91e72c 100644
+--- a/src/rust/src/android/call_manager.rs
++++ b/src/rust/src/android/call_manager.rs
+@@ -42,7 +42,7 @@ use crate::{
+     webrtc::{
+         self, media,
+         peer_connection::PeerConnection,
+-        peer_connection_factory::{self as pcf, PeerConnectionFactory},
++        peer_connection_factory::{self as pcf, PeerConnectionFactory, ProxyInfo, RffiProxyType},
+         peer_connection_observer::PeerConnectionObserver,
+     },
+ };
+@@ -856,12 +856,53 @@ pub fn peek_call_link_call(
+     Ok(())
+ }
+ 
++fn jni_get_proxy_info(env: &mut Env, jni_proxy_info: &JObject) -> Result<ProxyInfo> {
++    const STRING_TYPE: FieldSignature<'static> = jni_sig!(java.lang.String);
++    const INT_TYPE: FieldSignature<'static> = jni_sig!(int);
++    const PROXYTYPE_TYPE: FieldSignature<'static> = jni_sig!(org.webrtc.PeerConnection::ProxyType);
++    let hostname = env
++        .get_field(jni_proxy_info, jni_str!("hostname"), &STRING_TYPE)?
++        .l()?;
++    let hostname: JString = env.cast_local::<JString>(hostname)?;
++    let username = env
++        .get_field(jni_proxy_info, jni_str!("username"), &STRING_TYPE)?
++        .l()?;
++    let username: JString = env.cast_local::<JString>(username)?;
++    let password = env
++        .get_field(jni_proxy_info, jni_str!("password"), &STRING_TYPE)?
++        .l()?;
++    let password: JString = env.cast_local::<JString>(password)?;
++    let port = env
++        .get_field(jni_proxy_info, jni_str!("port"), &INT_TYPE)?
++        .into_int()? as u16;
++    let proxy_type_enum = env
++        .get_field(jni_proxy_info, jni_str!("type"), &PROXYTYPE_TYPE)?
++        .l()?;
++    let proxy_type = RffiProxyType::from_u8(
++        env.call_method(
++            proxy_type_enum,
++            jni_str!("ordinal"),
++            jni_sig!(() -> int),
++            &[],
++        )?
++        .into_int()? as u8,
++    );
++    Ok(ProxyInfo::new(
++        proxy_type,
++        &hostname.try_to_string(env)?,
++        &username.try_to_string(env)?,
++        &password.try_to_string(env)?,
++        port,
++    ))
++}
++
+ #[allow(clippy::too_many_arguments)]
+ pub fn create_group_call_client(
+     env: &mut Env,
+     call_manager: *mut AndroidCallManager,
+     group_id: JByteArray,
+     sfu_url: JString,
++    jni_proxy_info: JObject,
+     hkdf_extra_info: JByteArray,
+     audio_levels_interval_millis: jint,
+     dred_duration: jbyte,
+@@ -910,10 +951,17 @@ pub fn create_group_call_client(
+ 
+     let svc_config = jobject_to_svc_config(env, svc_config)?;
+ 
++    let proxy_info = if jni_proxy_info.is_null() {
++        None
++    } else {
++        Some(jni_get_proxy_info(env, &jni_proxy_info)?)
++    };
++
+     let call_manager = unsafe { ptr_as_mut(call_manager)? };
+     call_manager.create_group_call_client(CreateGroupCallParams {
+         group_id,
+         sfu_url,
++        proxy_info,
+         hkdf_extra_info,
+         audio_levels_interval,
+         dred_duration: dred_duration as u8,
+@@ -930,6 +978,7 @@ pub fn create_call_link_call_client(
+     env: &mut Env,
+     call_manager: *mut AndroidCallManager,
+     sfu_url: JString,
++    jni_proxy_info: JObject,
+     endorsement_public_key: JByteArray,
+     auth_presentation: JByteArray,
+     root_key: JByteArray,
+@@ -990,9 +1039,16 @@ pub fn create_call_link_call_client(
+ 
+     let svc_config = jobject_to_svc_config(env, svc_config)?;
+ 
++    let proxy_info = if jni_proxy_info.is_null() {
++        None
++    } else {
++        Some(jni_get_proxy_info(env, &jni_proxy_info)?)
++    };
++
+     let call_manager = unsafe { ptr_as_mut(call_manager)? };
+     call_manager.create_call_link_call_client(CreateCallLinkCallParams {
+         sfu_url,
++        proxy_info,
+         endorsement_public_key: &endorsement_public_key,
+         auth_presentation: &auth_presentation,
+         root_key,
+diff --git a/src/rust/src/bin/call_sim-cli/endpoint/group_call_sim.rs b/src/rust/src/bin/call_sim-cli/endpoint/group_call_sim.rs
+index 939d966..be1c352 100644
+--- a/src/rust/src/bin/call_sim-cli/endpoint/group_call_sim.rs
++++ b/src/rust/src/bin/call_sim-cli/endpoint/group_call_sim.rs
+@@ -106,6 +106,7 @@ impl CallEndpoint {
+                 .create_group_call_client(CreateGroupCallParams {
+                     group_id: group_id.clone(),
+                     sfu_url,
++                    proxy_info: None,
+                     hkdf_extra_info,
+                     audio_levels_interval: Some(Duration::from_millis(200)),
+                     dred_duration: 0,
+diff --git a/src/rust/src/bin/group_call.rs b/src/rust/src/bin/group_call.rs
+index 2db2c96..66c966e 100644
+--- a/src/rust/src/bin/group_call.rs
++++ b/src/rust/src/bin/group_call.rs
+@@ -276,6 +276,7 @@ fn main() {
+         client_id: 1,
+         kind: group_call::GroupCallKind::SignalGroup,
+         sfu_client,
++        proxy_info: None,
+         obfuscated_resolver,
+         observer: Box::new(observer.clone()),
+         busy,
+diff --git a/src/rust/src/core/call_manager.rs b/src/rust/src/core/call_manager.rs
+index f22ab5d..809c564 100644
+--- a/src/rust/src/core/call_manager.rs
++++ b/src/rust/src/core/call_manager.rs
+@@ -55,7 +55,7 @@ use crate::{
+     webrtc::{
+         media::{AudioTrack, MediaStream, VideoSink, VideoTrack},
+         peer_connection::{AudioLevel, ReceivedAudioLevel},
+-        peer_connection_factory::PeerConnectionFactory,
++        peer_connection_factory::{PeerConnectionFactory, ProxyInfo},
+         peer_connection_observer::NetworkRoute,
+     },
+ };
+@@ -506,6 +506,7 @@ impl SvcConfig {
+ pub struct CreateGroupCallParams {
+     pub group_id: group_call::GroupId,
+     pub sfu_url: String,
++    pub proxy_info: Option<ProxyInfo>,
+     pub hkdf_extra_info: Vec<u8>,
+     pub audio_levels_interval: Option<Duration>,
+     pub dred_duration: u8,
+@@ -518,6 +519,7 @@ pub struct CreateGroupCallParams {
+ 
+ pub struct CreateCallLinkCallParams<'a> {
+     pub sfu_url: String,
++    pub proxy_info: Option<ProxyInfo>,
+     pub endorsement_public_key: &'a [u8],
+     pub auth_presentation: &'a [u8],
+     pub root_key: CallLinkRootKey,
+@@ -3197,6 +3199,7 @@ where
+         let CreateGroupCallParams {
+             group_id,
+             sfu_url,
++            proxy_info,
+             hkdf_extra_info,
+             audio_levels_interval,
+             dred_duration,
+@@ -3266,6 +3269,7 @@ where
+             client_id,
+             kind: GroupCallKind::SignalGroup,
+             sfu_client: Box::new(sfu_client),
++            proxy_info,
+             observer: Box::new(self.clone()),
+             obfuscated_resolver,
+             busy: self.busy.clone(),
+@@ -3301,6 +3305,7 @@ where
+     ) -> Result<ClientId> {
+         let CreateCallLinkCallParams {
+             sfu_url,
++            proxy_info,
+             endorsement_public_key,
+             auth_presentation,
+             root_key,
+@@ -3381,6 +3386,7 @@ where
+             client_id,
+             kind: GroupCallKind::CallLink,
+             sfu_client: Box::new(sfu_client),
++            proxy_info,
+             observer: Box::new(self.clone()),
+             obfuscated_resolver,
+             busy: self.busy.clone(),
+diff --git a/src/rust/src/core/group_call.rs b/src/rust/src/core/group_call.rs
+index 7209be1..e99dd16 100644
+--- a/src/rust/src/core/group_call.rs
++++ b/src/rust/src/core/group_call.rs
+@@ -68,7 +68,9 @@ use crate::{
+             VideoSink, VideoTrack, configure_dred_from_assets,
+         },
+         peer_connection::{AudioLevel, PeerConnection, Protocol, ReceivedAudioLevel, SendRates},
+-        peer_connection_factory::{self as pcf, AudioJitterBufferConfig, PeerConnectionFactory},
++        peer_connection_factory::{
++            self as pcf, AudioJitterBufferConfig, PeerConnectionFactory, ProxyInfo,
++        },
+         peer_connection_observer::{
+             IceConnectionState, NetworkRoute, PeerConnectionObserver, PeerConnectionObserverTrait,
+         },
+@@ -1294,6 +1296,7 @@ pub struct ClientStartParams {
+     pub client_id: ClientId,
+     pub kind: GroupCallKind,
+     pub sfu_client: Box<dyn SfuClient + Send>,
++    pub proxy_info: Option<ProxyInfo>,
+     pub observer: Box<dyn Observer + Send>,
+     pub busy: Arc<CallMutex<bool>>,
+     pub self_uuid: Arc<CallMutex<Option<UserId>>>,
+@@ -1317,6 +1320,7 @@ impl Client {
+             client_id,
+             kind,
+             sfu_client,
++            proxy_info,
+             observer,
+             busy,
+             self_uuid,
+@@ -1380,6 +1384,10 @@ impl Client {
+                 let local_ice_pwd = random_alphanumeric(22);
+                 let audio_rtcp_report_interval_ms = 5000;
+                 let ice_servers = vec![];
++                let proxy_info = match proxy_info {
++                    None => ProxyInfo::none(),
++                    Some(i) => i,
++                };
+                 let peer_connection = peer_connection_factory
+                     .create_peer_connection(
+                         peer_connection_observer,
+@@ -1387,6 +1395,7 @@ impl Client {
+                         &AudioJitterBufferConfig::default(),
+                         audio_rtcp_report_interval_ms,
+                         &ice_servers,
++                        &proxy_info,
+                         outgoing_audio_track,
+                         outgoing_video_track,
+                     )
+@@ -6459,6 +6468,7 @@ mod tests {
+                 client_id: demux_id,
+                 kind: GroupCallKind::SignalGroup,
+                 sfu_client: Box::new(sfu_client.clone()),
++                proxy_info: None,
+                 obfuscated_resolver,
+                 observer: Box::new(observer.clone()),
+                 busy: fake_busy,
+diff --git a/src/rust/src/native.rs b/src/rust/src/native.rs
+index 6855608..e34c720 100644
+--- a/src/rust/src/native.rs
++++ b/src/rust/src/native.rs
+@@ -28,7 +28,9 @@ use crate::{
+     webrtc::{
+         media::{AudioTrack, MediaStream, VideoSink, VideoTrack},
+         peer_connection::{AudioLevel, ReceivedAudioLevel},
+-        peer_connection_factory::{IceServer, PeerConnectionFactory, RffiPeerConnectionKind},
++        peer_connection_factory::{
++            IceServer, PeerConnectionFactory, ProxyInfo, RffiPeerConnectionKind,
++        },
+         peer_connection_observer::{NetworkRoute, PeerConnectionObserver},
+     },
+ };
+@@ -468,6 +470,7 @@ impl Platform for NativePlatform {
+             &connection.call_config().audio_jitter_buffer_config,
+             connection.call_config().audio_rtcp_report_interval_ms,
+             &context.ice_servers,
++            &ProxyInfo::none(),
+             context.outgoing_audio_track.clone(),
+             Some(context.outgoing_video_track.clone()),
+         )?;
+diff --git a/src/rust/src/webrtc/ffi/peer_connection_factory.rs b/src/rust/src/webrtc/ffi/peer_connection_factory.rs
+index cd1e603..1b1622a 100644
+--- a/src/rust/src/webrtc/ffi/peer_connection_factory.rs
++++ b/src/rust/src/webrtc/ffi/peer_connection_factory.rs
+@@ -17,6 +17,7 @@ use crate::{
+         },
+         peer_connection_factory::{
+             RffiAudioConfig, RffiAudioJitterBufferConfig, RffiIceServers, RffiPeerConnectionKind,
++            RffiProxyInfo,
+         },
+     },
+ };
+@@ -61,6 +62,7 @@ unsafe extern "C" {
+         audio_jitter_buffer_config: webrtc::ptr::Borrowed<RffiAudioJitterBufferConfig>,
+         audio_rtcp_report_interval_ms: i32,
+         ice_servers: webrtc::ptr::Borrowed<RffiIceServers>,
++        proxy_info: webrtc::ptr::Borrowed<RffiProxyInfo>,
+         outgoing_audio_track: webrtc::ptr::BorrowedRc<RffiAudioTrack>,
+         outgoing_video_track: webrtc::ptr::BorrowedRc<RffiVideoTrack>,
+     ) -> webrtc::ptr::OwnedRc<RffiPeerConnection>;
+diff --git a/src/rust/src/webrtc/peer_connection_factory.rs b/src/rust/src/webrtc/peer_connection_factory.rs
+index 4f386b5..9d43d75 100644
+--- a/src/rust/src/webrtc/peer_connection_factory.rs
++++ b/src/rust/src/webrtc/peer_connection_factory.rs
+@@ -113,6 +113,84 @@ pub struct RffiIceServers {
+     servers_size: usize,
+ }
+ 
++#[repr(C)]
++#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
++pub enum RffiProxyType {
++    #[default]
++    None,
++    Https,
++    Socks5,
++    Unknown,
++}
++
++impl RffiProxyType {
++    pub fn from_u8(u: u8) -> Self {
++        match u {
++            0 => RffiProxyType::None,
++            1 => RffiProxyType::Https,
++            2 => RffiProxyType::Socks5,
++            _ => RffiProxyType::Unknown,
++        }
++    }
++}
++
++#[repr(C)]
++#[derive(Clone, Debug)]
++pub struct RffiProxyInfo {
++    pub proxy_type: RffiProxyType,
++    pub hostname: webrtc::ptr::Borrowed<c_char>,
++    pub username: webrtc::ptr::Borrowed<c_char>,
++    pub password: webrtc::ptr::Borrowed<c_char>,
++    pub port: u16,
++}
++
++#[derive(Clone, Debug)]
++pub struct ProxyInfo {
++    proxy_type: RffiProxyType,
++    hostname: CString,
++    password: CString,
++    username: CString,
++    port: u16,
++}
++
++impl ProxyInfo {
++    pub fn new(
++        proxy_type: RffiProxyType,
++        hostname: &str,
++        password: &str,
++        username: &str,
++        port: u16,
++    ) -> Self {
++        Self {
++            proxy_type,
++            hostname: CString::new(hostname).unwrap(),
++            password: CString::new(password).unwrap(),
++            username: CString::new(username).unwrap(),
++            port,
++        }
++    }
++
++    pub fn none() -> Self {
++        Self {
++            proxy_type: RffiProxyType::None,
++            hostname: CString::new("").unwrap(),
++            username: CString::new("").unwrap(),
++            password: CString::new("").unwrap(),
++            port: 0,
++        }
++    }
++
++    pub fn rffi(&self) -> RffiProxyInfo {
++        RffiProxyInfo {
++            proxy_type: self.proxy_type,
++            hostname: webrtc::ptr::Borrowed::from_ptr(self.hostname.as_ptr()),
++            username: webrtc::ptr::Borrowed::from_ptr(self.username.as_ptr()),
++            password: webrtc::ptr::Borrowed::from_ptr(self.password.as_ptr()),
++            port: self.port,
++        }
++    }
++}
++
+ /// Describes an audio input or output device.
+ #[derive(Clone, PartialEq, Eq)]
+ pub struct AudioDevice {
+@@ -438,6 +516,7 @@ impl PeerConnectionFactory {
+         audio_jitter_buffer_config: &AudioJitterBufferConfig,
+         audio_rtcp_report_interval_ms: i32,
+         ice_servers: &[IceServer],
++        proxy_info: &ProxyInfo,
+         outgoing_audio_track: AudioTrack,
+         outgoing_video_track: Option<VideoTrack>,
+     ) -> Result<PeerConnection> {
+@@ -458,6 +537,7 @@ impl PeerConnectionFactory {
+             servers: webrtc::ptr::Borrowed::from_ptr(servers.as_ptr()),
+             servers_size: servers.len(),
+         };
++        let rffi_proxy_info = proxy_info.rffi();
+ 
+         let rffi = webrtc::Arc::from_owned(unsafe {
+             pcf::Rust_createPeerConnection(
+@@ -467,6 +547,7 @@ impl PeerConnectionFactory {
+                 webrtc::ptr::Borrowed::from_ptr(&audio_jitter_buffer_config.rffi()),
+                 audio_rtcp_report_interval_ms,
+                 webrtc::ptr::Borrowed::from_ptr(&rffi_ice_servers),
++                webrtc::ptr::Borrowed::from_ptr(&rffi_proxy_info),
+                 outgoing_audio_track.rffi().as_borrowed(),
+                 outgoing_video_track
+                     .map_or_else(webrtc::ptr::BorrowedRc::null, |outgoing_video_track| {
+diff --git a/src/rust/src/webrtc/sim/peer_connection_factory.rs b/src/rust/src/webrtc/sim/peer_connection_factory.rs
+index 6d4820e..5d4797e 100644
+--- a/src/rust/src/webrtc/sim/peer_connection_factory.rs
++++ b/src/rust/src/webrtc/sim/peer_connection_factory.rs
+@@ -10,6 +10,7 @@ use crate::{
+     webrtc::{
+         peer_connection_factory::{
+             RffiAudioConfig, RffiAudioJitterBufferConfig, RffiIceServers, RffiPeerConnectionKind,
++            RffiProxyInfo,
+         },
+         sim::{
+             media::{
+@@ -55,6 +56,7 @@ pub unsafe fn Rust_createPeerConnection(
+     _audio_jitter_buffer_config: webrtc::ptr::Borrowed<RffiAudioJitterBufferConfig>,
+     _audio_rtcp_report_interval_ms: i32,
+     _ice_servers: webrtc::ptr::Borrowed<RffiIceServers>,
++    _proxy_info: webrtc::ptr::Borrowed<RffiProxyInfo>,
+     _outgoing_audio_track: webrtc::ptr::BorrowedRc<RffiAudioTrack>,
+     _outgoing_video_track: webrtc::ptr::BorrowedRc<RffiVideoTrack>,
+ ) -> webrtc::ptr::OwnedRc<RffiPeerConnection> {
+diff --git a/src/rust/src/webrtc_include/peer_connection_factory.h b/src/rust/src/webrtc_include/peer_connection_factory.h
+index 63633e5..aefc147 100644
+--- a/src/rust/src/webrtc_include/peer_connection_factory.h
++++ b/src/rust/src/webrtc_include/peer_connection_factory.h
+@@ -39,6 +39,23 @@ typedef struct {
+   size_t servers_size;
+ } RffiIceServers;
+ 
++// MOLLY: Proxy support for calls; must match RffiProxyInfo/RffiProxyType in
++// src/rust/src/webrtc/peer_connection_factory.rs (see FORK.md).
++enum RffiProxyType {
++  kRffiProxyTypeNone,
++  kRffiProxyTypeHttps,
++  kRffiProxyTypeSocks5,
++  kRffiProxyTypeUnknown,
++};
++
++typedef struct {
++  RffiProxyType type;
++  ptr::Borrowed<const char> hostname_borrowed;
++  ptr::Borrowed<const char> username_borrowed;
++  ptr::Borrowed<const char> password_borrowed;
++  uint16_t port;
++} RffiProxyInfo;
++
+ enum class RffiPeerConnectionKind : uint8_t {
+   kDirect,
+   kRelayed,
+@@ -89,6 +106,7 @@ Rust_createPeerConnection(
+         audio_jitter_buffer_config_borrowed,
+     int32_t audio_rtcp_report_interval_ms,
+     ptr::Borrowed<const RffiIceServers> ice_servers_borrowed,
++    ptr::Borrowed<const RffiProxyInfo> proxy_info_borrowed,
+     ptr::BorrowedRc<webrtc::AudioTrackInterface>
+         outgoing_audio_track_borrowed_rc,
+     ptr::BorrowedRc<webrtc::VideoTrackInterface>
+diff --git a/src/rust/tests/common/mod.rs b/src/rust/tests/common/mod.rs
+index 627acad..aa16934 100644
+--- a/src/rust/tests/common/mod.rs
++++ b/src/rust/tests/common/mod.rs
+@@ -388,6 +388,7 @@ impl TestContext {
+         self.cm().create_group_call_client(CreateGroupCallParams {
+             group_id,
+             sfu_url: "".to_owned(),
++            proxy_info: None,
+             hkdf_extra_info: vec![],
+             audio_levels_interval: None,
+             dred_duration: 0,
+-- 
+2.56.0
+
+
+From 4b910e17f0fde4cde00041dbcb842b6aae1e1f01 Mon Sep 17 00:00:00 2001
+From: 0cwa <0@none.org>
+Date: Fri, 6 Nov 2026 08:08:01 +0100
+Subject: [PATCH 2/2] Keep call proxy credentials in the correct fields
+
+---
+ src/rust/src/webrtc/peer_connection_factory.rs | 14 +++++++++++++-
+ 1 file changed, 13 insertions(+), 1 deletion(-)
+
+diff --git a/src/rust/src/webrtc/peer_connection_factory.rs b/src/rust/src/webrtc/peer_connection_factory.rs
+index 9d43d75..bab1e44 100644
+--- a/src/rust/src/webrtc/peer_connection_factory.rs
++++ b/src/rust/src/webrtc/peer_connection_factory.rs
+@@ -157,8 +157,8 @@ impl ProxyInfo {
+     pub fn new(
+         proxy_type: RffiProxyType,
+         hostname: &str,
+-        password: &str,
+         username: &str,
++        password: &str,
+         port: u16,
+     ) -> Self {
+         Self {
+@@ -191,6 +191,18 @@ impl ProxyInfo {
+     }
+ }
+ 
++#[cfg(test)]
++mod proxy_info_tests {
++    use super::{ProxyInfo, RffiProxyType};
++
++    #[test]
++    fn keeps_username_and_password_in_their_correct_fields() {
++        let proxy = ProxyInfo::new(RffiProxyType::Socks5, "proxy.example", "alice", "secret", 1080);
++        assert_eq!(proxy.username.to_str().unwrap(), "alice");
++        assert_eq!(proxy.password.to_str().unwrap(), "secret");
++    }
++}
++
+ /// Describes an audio input or output device.
+ #[derive(Clone, PartialEq, Eq)]
+ pub struct AudioDevice {
+-- 
+2.56.0
+

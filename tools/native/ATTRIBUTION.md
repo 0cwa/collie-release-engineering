@@ -1,0 +1,7 @@
+# Native source attribution
+
+The libsignal mailbox preserves Oscar Mira's proxy-only commit and a separate 0cwa-authored test commit. The RingRTC mailbox preserves the adapted 2.74 proxy-port commit and the independent credential-order fix as separate commits; the port must not be presented as an unchanged upstream Molly commit.
+
+The WebRTC adaptation derives from Molly's changes between upstream 7871n `25e48ee75ff1b6fcab10c6a200f233d449dd421e` and Molly 7871n-1 `50bb01c1c09ec8f141b04fd9b869b012dd2d8345`. The following reference changes were authored by Oscar Mira: `b73845e586cf9fff9247034ced16c4043bd00801`, `ac1906e7afa5ab5c3f5ebf07a8e7102d2da9d40e`, `46412a923f0b2397a828e2846beeb4ed33f5cb03`, `a57095476fd736df7e79e7540b3f39f022ddc603`, `30149bf5fa438be70236a6174ae7cdb263151062`, `7d4a00d4a985215bf0d8030d683bdc83a9973079`, `24c95baca7200ff3fa1c4a94d8f2eeb23e48994e`, `217e50994711c8917a543e936a7cd94688e46af6`, and `50bb01c1c09ec8f141b04fd9b869b012dd2d8345`. Some are reverts; this attribution does not claim authorship of the original reverted work. Source: https://github.com/mollyim/webrtc/compare/25e48ee75ff1b6fcab10c6a200f233d449dd421e...50bb01c1c09ec8f141b04fd9b869b012dd2d8345
+
+The adaptation to 8037b is a derived patch, not those original commits. The unknown-proxy and IPv6 SOCKS patches are separate new fixes and must not be attributed to Molly. Source preparation records the resulting WebRTC tree as a staged diff while retaining these attributed input records; it does not synthesize an author for the composite adaptation.
