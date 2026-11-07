@@ -1,5 +1,9 @@
 # Executed staging acceptance, 2026-11-07
 
+Latest actual device/client results and updated test counts are recorded in
+DEVICE-ACCEPTANCE.md. Earlier NOT RUN client entries below describe earlier
+checkpoints and are superseded by that recorded execution, not by assumptions.
+
 Input application baseline: `f6f68cdee08fb8d9acb6a866b1673deb10525f20`.
 Explicit existing GitHub release ID `437221260`, tag `v8.35.1-1-rc1`, peeled source
 `698902e405975bbd87789a2e376f80b564031738`; this route does not claim a new build.

@@ -98,6 +98,10 @@ class BinaryRepositoryTest(unittest.TestCase):
     def test_private_file_rejected_before_r2_plan(self):
         g=self.root/'g';g.mkdir();(g/'keystore.p12').write_bytes(b'private')
         with self.assertRaisesRegex(ValueError,'unexpected public file'):b.public_files(g)
+    def test_boolean_schema_is_not_legacy_integer_one(self):
+        a=b.load(Path(__file__).parent/'approval.fixture.json');a['schema']=True
+        path=self.root/'boolean.json';path.write_text(json.dumps(a))
+        with self.assertRaisesRegex(ValueError,'fields/schema'):b.approval(path)
     def test_unapproved_unknown_field(self):
         p=self.root/'approval';p.write_text(json.dumps({'schema':1,'unexpected':True}))
         with self.assertRaisesRegex(ValueError,'fields'):b.approval(p)

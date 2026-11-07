@@ -198,3 +198,11 @@ contract returns no-store for404s, immutable for successful versioned APKs, and
 current bytes for mutable indexes even when a conditional request carries the
 same-second previous Last-Modified value. No real provider/CDN is configured by
 this adapter. See DEVICE-ACCEPTANCE.md for actual isolated client results and gaps.
+
+Current draft integration imports reviewed engineering dependency
+`087fdfb26f4e2ee4167165d761b0baf6197f6fe4` through a normal feature-branch merge.
+The distribution branch therefore contains its shared verifier and standalone
+`python3 -m unittest discover -s distribution -p 'test_*.py'` needs no ambient
+PYTHONPATH or unpublished local helper. PR3 is stacked on engineering PR2 until
+its dependencies merge. Retarget to main and rerun checks after dependency merge;
+no automatic protected-main update is enabled.

@@ -31,6 +31,10 @@ class ReceiptAdapterTest(unittest.TestCase):
         # Device/provider evidence stays NOT RUN, so graph coherence is tested without promotion.
         documents={k:self.fixture[k] for k in ('source','build','release')};documents['repository']=receipt
         m.verify_graph(**documents,approved={k:m.digest(v) for k,v in documents.items()})
+        with self.assertRaisesRegex(ValueError,'passed evidence'):
+            m.verify_graph(**documents,approved={k:m.digest(v) for k,v in documents.items()},promotion=True)
+        synthetic=copy.deepcopy(documents);synthetic['repository']['evidence']=[dict(status='PASS',description='synthetic complete-graph test only; not production evidence',sha256=b.sha(repo/'entry.jar'))]
+        m.verify_graph(**synthetic,approved={k:m.digest(v) for k,v in synthetic.items()},promotion=True)
         self.assertEqual(receipt['payload']['release_manifest_sha256'],b.sha(self.manifest))
         self.assertEqual(receipt['payload']['release_receipt_sha256'],m.digest(self.fixture['release']))
     def test_wrong_raw_manifest_rejected_by_canonical_chain(self):
