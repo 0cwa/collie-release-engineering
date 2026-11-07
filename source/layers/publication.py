@@ -14,6 +14,8 @@ def apply(app, engineering, previous_application):
     app, engineering, previous_application = map(Path, (app, engineering, previous_application))
     if subprocess.check_output(['git','-C',str(app),'rev-parse','HEAD^{tree}'],text=True).strip() != RECONSTRUCTED_TREE:
         raise ValueError('publication layer requires exact merged-main reconstruction')
+    if subprocess.check_output(['git','-C',str(app),'status','--porcelain'], text=True).strip():
+        raise ValueError('publication layer requires a clean reconstructed checkout')
     # Retain approved human-facing content/assets, without carrying construction tools.
     for name in ('README.md','LICENSE','NOTICE','assets'):
         data = subprocess.check_output(['git','-C',str(previous_application),'archive',BASELINE,name])
