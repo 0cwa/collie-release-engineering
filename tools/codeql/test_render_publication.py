@@ -1,6 +1,5 @@
 import subprocess,tempfile,unittest
 from pathlib import Path
-from unittest import mock
 import render_publication as r
 class RenderPublicationTests(unittest.TestCase):
     def test_exact_pin_no_old_layout_or_private_builder_values(self):

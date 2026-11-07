@@ -67,8 +67,13 @@ jobs:
         if: always() && !cancelled()
         run: |
           mkdir -p "$RUNNER_TEMP/codeql-evidence"
-          python3 trusted-policy/tools/codeql/report.py "$RUNNER_TEMP/codeql-sarif" \
-            --language actions --reviews trusted-policy/.github/codeql/reviewed-findings.json \
+          review_file=trusted-policy/.github/codeql/reviewed-findings.json
+          if [[ ! -f "$review_file" ]]; then
+            review_file="$RUNNER_TEMP/codeql-evidence/empty-reviews.json"
+            printf '%s\n' '{"schema":1,"reviews":[]}' > "$review_file"
+          fi
+          python3 policy/tools/codeql/report.py "$RUNNER_TEMP/codeql-sarif" \
+            --language actions --reviews "$review_file" \
             --source-root source --output "$RUNNER_TEMP/codeql-evidence/audit.json" \
             --summary "$RUNNER_TEMP/codeql-evidence/audit.md"
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
