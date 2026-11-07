@@ -101,7 +101,7 @@ def ingest(approved,manifest,apk,workspace,aapt,apksigner,receipt_bundle=None):
     if any(a[k]!=v for k,v in info.items()): raise ValueError('APK identity substitution')
     with locked(workspace):
         target=workspace/'repo'/f"{APP}_{a['version_code']}.apk"
-        immutable_copy(apk,target)
+        immutable_copy(apk,target,a['apk_sha256'])
         metadata=Path(__file__).parent/'metadata'/f'{APP}.yml'
         text=metadata.read_text()
         (workspace/'metadata').mkdir(exist_ok=True)

@@ -13,6 +13,16 @@ class BinaryRepositoryTest(unittest.TestCase):
         b.immutable_copy(s,d);b.immutable_copy(s,d);s.write_bytes(b'replacement')
         with self.assertRaisesRegex(ValueError,'immutable'): b.immutable_copy(s,d)
         self.assertEqual(d.read_bytes(),b'approved')
+    def test_ingest_pins_approved_digest_after_apk_inspection(self):
+        apk=self.root/'candidate.apk';apk.write_bytes(b'approved synthetic APK')
+        manifest=self.root/'final-manifest.json';manifest.write_text('{}')
+        a=b.load(Path(__file__).parent/'approval.fixture.json');a.update(apk_sha256=b.sha(apk),release_manifest_sha256=b.sha(manifest));a['aliases']={k:a['apk_sha256'] for k in b.ALIASES}
+        approval=self.root/'approval.json';approval.write_text(json.dumps(a))
+        info={k:a[k] for k in ('package','version_code','version_name','apk_certificate_sha256')}
+        def mutate(*args):apk.write_bytes(b'changed after inspection');return info
+        with patch('binary_repo.inspect',side_effect=mutate):
+            with self.assertRaisesRegex(ValueError,'copy digest mismatch'):b.ingest(approval,manifest,apk,self.root/'stage','unused','unused')
+        self.assertFalse((self.root/'stage/repo'/f"{b.APP}_{a['version_code']}.apk").exists())
     def test_duplicate_approval_fields_rejected(self):
         p=self.root/'a.json';p.write_text('{"schema":1,"schema":1}')
         with self.assertRaisesRegex(ValueError,'duplicate'):b.load(p)
