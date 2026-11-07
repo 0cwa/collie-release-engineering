@@ -12,6 +12,7 @@ from unittest.mock import patch
 sys.path.insert(0,str(Path(__file__).parents[1]/'tools/patches'))
 import release_artifacts as a
 import release_publish as m
+from test_release_plan_support import legacy_args
 
 class ResumeEntryPointTests(unittest.TestCase):
     def setUp(self):
@@ -49,7 +50,7 @@ class ResumeEntryPointTests(unittest.TestCase):
         return types.SimpleNamespace(stdout='')
     def invoke(self,action):
         args=['release_publish',action,'--repo','fixture/repo','--tag','vfixture','--approved-commit',self.commit,'--final-manifest',str(self.manifest),'--final-manifest-sha256',a.sha256(self.manifest),'--provenance',str(self.root/'provenance.json'),'--notes',str(self.notes),'--scratch',str(self.root)]
-        with patch('sys.argv',args),patch.object(m,'command',side_effect=self.fake),patch.object(m,'ensure_signed_tag'),patch.object(m,'verify_remote_tag'),contextlib.redirect_stdout(io.StringIO()),contextlib.redirect_stderr(io.StringIO()):return m.main()
+        with patch('sys.argv',legacy_args(args,self.root)),patch.object(m,'command',side_effect=self.fake),patch.object(m,'ensure_signed_tag'),patch.object(m,'verify_remote_tag'),contextlib.redirect_stdout(io.StringIO()),contextlib.redirect_stderr(io.StringIO()):return m.main()
     def test_create_response_loss_and_existing_draft_resume(self):
         self.interrupt='create';self.assertEqual(self.invoke('draft'),0)
         self.assertEqual(self.invoke('draft'),0)
