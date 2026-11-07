@@ -1,11 +1,12 @@
 import json,tempfile,unittest
 from pathlib import Path
 from PIL import Image
+import binary_repo
 import site_page as s
 class SitePageTest(unittest.TestCase):
     def setUp(self):
         t=tempfile.TemporaryDirectory();self.addCleanup(t.cleanup);self.root=Path(t.name)
-    def render(self,state):return s.render(self.root/state,'https://repo.collie.im/fdroid/repo/','a'*64,'b'*64,'https://github.com/0cwa/collieim-android/releases/download/v8.35.1-1-rc1/collie.apk',state=state)
+    def render(self,state):return s.render(self.root/state,'https://repo.collie.im/fdroid/repo/','a'*64,binary_repo.APK_CERTIFICATE,'https://github.com/0cwa/collieim-android/releases/download/v8.35.1-1-rc1/collie.apk',state=state)
     def test_deeplink_and_manual_universal_fallbacks_bind_fingerprint(self):
         urls=s.links('https://repo.collie.im/fdroid/repo/','a'*64)
         self.assertEqual(urls['deep'],'fdroidrepos://repo.collie.im/fdroid/repo/?fingerprint='+'A'*64)
@@ -42,6 +43,24 @@ class SitePageTest(unittest.TestCase):
     def test_displayed_manual_address_includes_full_pinned_fingerprint(self):
         self.render('preview');text=(self.root/'preview/index.html').read_text();pinned=s.links('https://repo.collie.im/fdroid/repo/','a'*64)['https']
         self.assertIn('>'+pinned+'</a>',text)
+
+    def test_verification_shows_canonical_package_and_signer_with_accessible_copy_fallback(self):
+        self.render('preview');text=(self.root/'preview/index.html').read_text();signer=':'.join(binary_repo.APK_CERTIFICATE.upper()[i:i+2] for i in range(0,64,2))
+        self.assertIn('<section class="verification" id="verification"',text)
+        self.assertIn('<a href="#verification">Verification</a>',text)
+        self.assertIn('<h2 id="verification-title">Verification</h2>',text)
+        self.assertIn('>im.collie.app</code>',text);self.assertIn('>'+signer+'</code>',text)
+        self.assertIn('aria-label="Copy package and APK signing SHA256"',text)
+        self.assertIn('aria-describedby="verification-copy-status"',text)
+        self.assertIn('role="status" aria-live="polite"',text)
+        self.assertIn('aria-label="Verification details selected for manual copying"',text)
+        script=(s.ROOT/'assets/site.js').read_text();self.assertIn('navigator.clipboard.writeText',script);self.assertIn('fallback.select()',script)
+        self.assertTrue((self.root/'preview/assets/site.js').is_file())
+
+    def test_verification_defaults_to_canonical_signer_when_input_omits_it(self):
+        s.render(self.root/'inactive','https://repo.collie.im/fdroid/repo/','a'*64,None,'https://github.com/0cwa/collieim-android/releases/download/v1/collie.apk',state='inactive')
+        text=(self.root/'inactive/index.html').read_text();signer=':'.join(binary_repo.APK_CERTIFICATE.upper()[i:i+2] for i in range(0,64,2))
+        self.assertIn('>im.collie.app</code>',text);self.assertIn('>'+signer+'</code>',text)
 
     def test_noncanonical_backslash_control_and_base_forms_fail_closed(self):
         for href in (r'/fdroid\repo/?fingerprint=A',r'https://repo.collie.im\fdroid\repo/?fingerprint=A','/fdroid/\nrepo/?fingerprint=A'):

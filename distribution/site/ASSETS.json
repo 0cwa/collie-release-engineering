@@ -37,9 +37,15 @@
       "license": "existing approved Collie branding; preserved unchanged"
     },
     "assets/site.css": {
-      "sha256": "9b8e6180ffc189d13ecf3e98cc95c65df7ef5c8511a8e153f3bd0a8ad02e5fe1",
-      "bytes": 3174,
+      "sha256": "c557428c3ba68273bdb3252bc4abaa14a0b4b29637f18c0e570e58bab5e2c874",
+      "bytes": 4945,
       "origin": "authored from owner palette and font direction",
+      "license": "repository AGPL-3.0-only"
+    },
+    "assets/site.js": {
+      "sha256": "4a462c5aea200c7b5941a8d62fa489025d10d97e4b2e29da867a942530765af4",
+      "bytes": 1234,
+      "origin": "authored for accessible verification copy",
       "license": "repository AGPL-3.0-only"
     }
   },
