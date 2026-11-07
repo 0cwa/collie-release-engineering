@@ -98,7 +98,7 @@ class ReleaseArtifactsTests(unittest.TestCase):
             apk = self.root / entry['file']
             apk.write_bytes(entry['profile'].encode())
             entry['sha256'] = a.sha256(apk)
-        self.manifest.update(build_tools='36.0.0', input_pins={'android': {'build_tools': '36.0.0'}})
+        self.manifest.update(version_code=177703, build_tools='36.0.0', input_pins={'android': {'build_tools': '36.0.0'}})
         manifest = self.root / 'manifest.json'
         manifest.write_text(json.dumps(self.manifest))
         output = self.root / 'signed'
@@ -110,6 +110,9 @@ class ReleaseArtifactsTests(unittest.TestCase):
                 '--approved-commit', self.commit, '--approved-run', '123', '--certificate-sha256', self.cert,
                 '--apks', str(self.root), '--output', str(output), '--build-tools', str(self.root / '36.0.0'),
                 '--scratch', str(self.root), '--instrumentation-checklist', str(checklist)]
+        inventory=self.root / 'published.json'
+        inventory.write_text(json.dumps([{'release':'v8.35.1-1-rc1','code':177702,'sha256':'a'*64}]))
+        args += ['--version-ledger',str(self.root/'versions.json'),'--published-inventory',str(inventory),'--published-inventory-sha256',a.sha256(inventory)]
         snapshot = a.snapshot
         class TrackingStream(io.StringIO):
             def __init__(self):

@@ -1,0 +1,1 @@
+Imported release continuity and receipt contracts from application preparatory commit `1c57d5bcaa3445b98e2b9ed168022b0fb9f79154` (application PR #40). Original author attribution remains in that application commit. This is a reviewed extraction, not an independently authored replacement. Regenerate final recipe pins after dependent PRs merge.

@@ -12,6 +12,7 @@ import subprocess
 import sys
 import tempfile
 
+import version_policy
 import release_artifacts as artifacts
 
 
@@ -80,6 +81,9 @@ def main():
                    help='commit-bound instrumentation JSON (or set COLLIE_INSTRUMENTATION_CHECKLIST)')
     p.add_argument('--rehearse', action='store_true')
     p.add_argument('--scratch', type=Path, required=True, help='existing private directory for temporary files')
+    p.add_argument('--version-ledger', type=Path, help='durable shared operator reservation ledger')
+    p.add_argument('--published-inventory', type=Path, help='fresh verified production release inventory')
+    p.add_argument('--published-inventory-sha256', help='independently approved inventory digest')
     args = p.parse_args()
     try:
         if not args.scratch.is_dir():
@@ -96,6 +100,9 @@ def main():
                 raise ValueError('manifest differs from independently authenticated SHA-256')
             m = json.loads(manifest.read_text())
             entries = artifacts.validate_manifest(m, args.approved_commit, args.approved_run, args.certificate_sha256)
+            if not args.rehearse:
+                reservation = dict(m, _unsigned_manifest_sha256=args.manifest_sha256)
+                version_policy.enforce(reservation, args.version_ledger, args.published_inventory, args.published_inventory_sha256)
             checklist = read_instrumentation_checklist(args.instrumentation_checklist, args.approved_commit)
             print('Instrumentation checklist (maintainer-provided; not independently verified):')
             print(json.dumps(checklist, indent=2, ensure_ascii=True), flush=True)

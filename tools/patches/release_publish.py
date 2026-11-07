@@ -10,6 +10,7 @@ import subprocess
 import sys
 import tempfile
 
+import version_policy
 import release_artifacts as a
 from release_sign import validate_instrumentation_checklist
 
@@ -75,6 +76,9 @@ def main():
     p.add_argument('--ssh-askpass', type=Path, help='optional helper supplying the SSH key passphrase')
     p.add_argument('--prerelease', action='store_true', help='create and verify a testing prerelease')
     p.add_argument('--dry-run', action='store_true')
+    p.add_argument('--version-ledger', type=Path, help='durable shared operator reservation ledger')
+    p.add_argument('--published-inventory', type=Path, help='fresh verified production release inventory')
+    p.add_argument('--published-inventory-sha256', help='independently approved inventory digest')
     args = p.parse_args()
     try:
         if not re.fullmatch(r'[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+', args.repo):
@@ -98,6 +102,9 @@ def main():
                 raise ValueError('final manifest is not a real release of the approved commit')
             if args.repo.lower() == '0cwa/collieim-android':
                 a.validate_version_code(manifest.get('version_code'), a.PACKAGE)
+                if not args.dry_run:
+                    version_policy.enforce(manifest, args.version_ledger, args.published_inventory, args.published_inventory_sha256)
+                    version_policy.bind_signed(args.version_ledger, manifest)
             validate_instrumentation_checklist(manifest.get('instrumentation_checklist'), args.approved_commit)
             entries = manifest['apks']
             if len(entries) != 5 or {x['profile'] for x in entries} != a.PROFILES:

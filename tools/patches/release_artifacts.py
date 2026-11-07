@@ -70,12 +70,22 @@ def check_unsigned(apk):
                 raise ValueError('APK contains a signing block')
 
 
-def validate_manifest(m, commit, run, cert):
-    if m.get('schema') != 1 or m.get('commit') != commit or str(m.get('run_id')) != str(run):
+def validate_manifest(m, commit, run, cert, identities=None):
+    schema=m.get('schema')
+    if schema not in (1,2) or m.get('commit') != commit or str(m.get('run_id')) != str(run):
         raise ValueError('manifest does not match approved commit and run')
     if not re.fullmatch(r'[0-9a-f]{40}', commit):
         raise ValueError('approved commit must be a full lowercase SHA-1')
-    if m.get('workflow_revision') != commit or m.get('package') != PACKAGE:
+    if schema == 2:
+        expected={'source_commit','engineering_revision','workflow_revision'}
+        if not isinstance(identities,dict) or set(identities)!=expected:
+            raise ValueError('schema2 requires independent source/engineering/workflow approval')
+        for field in expected:
+            if not re.fullmatch(r'[0-9a-f]{40}', str(identities[field])) or m.get(field)!=identities[field]:
+                raise ValueError('unapproved '+field)
+        if m['source_commit'] != commit:
+            raise ValueError('source commit differs from approved commit')
+    if (schema == 1 and m.get('workflow_revision') != commit) or m.get('package') != PACKAGE:
         raise ValueError('workflow revision or package does not match approved release')
     if not re.fullmatch(r'[1-9][0-9]*', str(m.get('run_attempt', ''))):
         raise ValueError('invalid workflow run attempt')
