@@ -31,9 +31,7 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.base.sha || github.sha }}
           path: trusted-policy
-          sparse-checkout: |
-            .github/codeql/reviewed-findings.json
-            tools/codeql
+          sparse-checkout: .github/codeql
           persist-credentials: false
           lfs: false
       - name: Load the independently reviewed engineering policy

@@ -33,6 +33,41 @@ class RenderPublicationTests(unittest.TestCase):
             rendered=(output/'.github/workflows/codeql.yml').read_text()
             self.assertIn('Published workflow CodeQL',rendered)
             self.assertNotIn('tampered mutable template',rendered)
+    def test_trusted_review_checkout_includes_manifest_with_cone_sparse_checkout(self):
+        repository_root=Path(__file__).resolve().parents[2]
+        workflows=[repository_root/'tools/codeql/publication/codeql.yml.in']
+        direct=repository_root/'.github/workflows/codeql.yml'
+        if direct.is_file() and 'path: trusted-policy' in direct.read_text():
+            workflows.insert(0,direct)
+        for workflow in workflows:
+            with self.subTest(workflow=workflow.name):
+                lines=workflow.read_text().splitlines()
+                position=next(i for i,line in enumerate(lines) if line.strip()=='path: trusted-policy')
+                key,value=lines[position+1].strip().split(':',1)
+                self.assertEqual(key,'sparse-checkout')
+                sparse_paths=value.strip().split()
+                self.assertIn('.github/codeql',sparse_paths)
+                with tempfile.TemporaryDirectory() as tmp:
+                    root=Path(tmp);source=root/'source';checkout=root/'checkout'
+                    subprocess.run(['git','init','-q',str(source)],check=True)
+                    files={
+                        '.github/codeql/reviewed-findings.json':'{"schema":1,"reviews":[]}\n',
+                        '.github/codeql/other-policy.json':'{}\n',
+                        '.github/workflows/codeql.yml':'name: CodeQL\n',
+                        'tools/codeql/report.py':'pass\n',
+                    }
+                    for relative,content in files.items():
+                        path=source/relative;path.parent.mkdir(parents=True,exist_ok=True);path.write_text(content)
+                    subprocess.run(['git','-C',str(source),'add','.'],check=True,capture_output=True)
+                    subprocess.run(['git','-C',str(source),'-c','user.name=fixture','-c','user.email=fixture@example.invalid','commit','-m','base'],check=True,capture_output=True)
+                    revision=subprocess.check_output(['git','-C',str(source),'rev-parse','HEAD'],text=True).strip()
+                    subprocess.run(['git','clone','-q','--no-checkout',str(source),str(checkout)],check=True,capture_output=True)
+                    subprocess.run(['git','-C',str(checkout),'sparse-checkout','init','--cone'],check=True,capture_output=True)
+                    subprocess.run(['git','-C',str(checkout),'sparse-checkout','set',*sparse_paths],check=True,capture_output=True)
+                    subprocess.run(['git','-C',str(checkout),'checkout','--force',revision],check=True,capture_output=True)
+                    self.assertEqual((checkout/'.github/codeql/reviewed-findings.json').read_text(),files['.github/codeql/reviewed-findings.json'])
+                    self.assertFalse((checkout/'.github/workflows/codeql.yml').exists())
+                    self.assertFalse((checkout/'tools/codeql/report.py').exists())
     def test_mutable_pins_and_existing_outputs_rejected(self):
         with tempfile.TemporaryDirectory() as tmp:
             for value in ('main','v1',True,'a'*39):
