@@ -68,3 +68,33 @@ distribution; never rotate APK keys to recover a feed failure.
 
 No production release, APK key rotation, repository production key generation,
 DNS/TLS/live access change or protected-history rewrite has been performed.
+
+## Reviewed continuation candidate v2
+
+Original PR41/refs remain immutable review evidence. Replacement candidateG
+856a394df23168ef08e651b551edb660b79cefb9 andI
+4fa701188f3c27cd4af3fa919da2f64ebee5bd6c share full tree
+50f5c32b8dd11cac12520bcacb9e7dbb5e2ea74d; plan-v2 digest
+67ee8c1ed1a04728e2b99b59c5d3ef66fa26189f5fa2019e81898d9c804ccdce.
+The source release gate now blocks every Android configuration independent of
+CLI task spelling; actual emitted Kotlin Gradle fixture tests explicit release,
+aggregate assemble/build and source-defined releaseVersionCode/name PASS.
+Fixture177703 is not a production allocation/build.18 publisher/journal tests
+and14 native stage/plan tests PASS. Actual full application contributor commit
+roundtrip and independent I-based contributor-ancestry check PASS, with no fixture
+refs pushed. A second original patch assembler run was not performed; publication
+regeneration consumed cached publicly fetched checkpoint trees retained in Git.
+
+Native exact accepted six binary/original-POM hashes were rechecked locally;
+bounded official/fork discovery finds different upstream hashes/metadata, not
+matching public inputs. No large binary download/substitution occurred.
+See NATIVE-PUBLICATION.md for the concrete operator decision and existing-stage
+publication plan; no artifact is uploaded by that helper. The proposal URL is
+not advertised as live. COORDINATED-PROMOTION.md binds one manifest/artifact graph
+to GitHub and repository readback using a durable credential-free journal.
+
+Source receipt-v2 is post-generation implementation evidence, not owner approval
+or signed attestation. A changed recipe/current base still requires new approval
+and complete regeneration. Direct Android compilation, device/account/attachment
+upgrades, independently reproduced native outputs and live required-check setup
+remain BLOCKED/NOT RUN as above.

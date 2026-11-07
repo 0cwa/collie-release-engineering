@@ -1,0 +1,44 @@
+[
+  {
+    "url": "https://build-artifacts.signal.org/libraries/maven/org/signal/libsignal-android/0.106.1/libsignal-android-0.106.1.pom",
+    "status": 200,
+    "bytes": 2038,
+    "sha256": "3997082db8fa728c126e41f3965fc0077306ee70be924597465f4e62f0ec7820",
+    "reported_digest": null
+  },
+  {
+    "url": "https://build-artifacts.signal.org/libraries/maven/org/signal/libsignal-android/0.106.1/libsignal-android-0.106.1.aar.sha256",
+    "status": 200,
+    "bytes": 64,
+    "sha256": "512c6884c7c66a6a63f14f8fae915dee4d5912afd24d1d7c1b8d20b1bb125e82",
+    "reported_digest": "865b2cfba4005ba830800021f70144687252c095880171d4cd213e29f989d204"
+  },
+  {
+    "url": "https://build-artifacts.signal.org/libraries/maven/org/signal/libsignal-client/0.106.1/libsignal-client-0.106.1.pom",
+    "status": 200,
+    "bytes": 2024,
+    "sha256": "70b9206667c177e1df98321c5731b64c81f25a69b910e31b9b15c124e6b90e9e",
+    "reported_digest": null
+  },
+  {
+    "url": "https://build-artifacts.signal.org/libraries/maven/org/signal/libsignal-client/0.106.1/libsignal-client-0.106.1.jar.sha256",
+    "status": 200,
+    "bytes": 64,
+    "sha256": "dd2a9b3c7065882f82535bf061a120083c3270a004c7e8f3483ef15a7ac74206",
+    "reported_digest": "8a2da96b0bae7ae431fb871ea864e9219bf7d78eacb3e11c7e5986ad7f672274"
+  },
+  {
+    "url": "https://build-artifacts.signal.org/libraries/maven/org/signal/ringrtc-android/2.74.0/ringrtc-android-2.74.0.pom",
+    "status": 200,
+    "bytes": 1907,
+    "sha256": "aef5c58c67b8d300f94f76c4882bbbc6c777089d537e1bf178ea3ec01e558a44",
+    "reported_digest": null
+  },
+  {
+    "url": "https://build-artifacts.signal.org/libraries/maven/org/signal/ringrtc-android/2.74.0/ringrtc-android-2.74.0.aar.sha256",
+    "status": 200,
+    "bytes": 64,
+    "sha256": "f1027591226aa5fec8a4941b7779c09eae9103d29f0b1f99fcf435419c10343f",
+    "reported_digest": "4e6c65aabddb8bb6cb5ad1e6fac635484290d8a520f9f3d3851f0efc529bceab"
+  }
+]
