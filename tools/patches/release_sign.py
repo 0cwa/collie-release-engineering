@@ -71,6 +71,8 @@ def main():
     p.add_argument('--manifest', type=Path, required=True)
     p.add_argument('--manifest-sha256', required=True, help='digest authenticated independently from the downloaded artifact')
     p.add_argument('--approved-commit', required=True)
+    p.add_argument('--engineering-revision', help='independently approved schema2 engineering revision')
+    p.add_argument('--workflow-revision', help='independently approved schema2 workflow revision')
     p.add_argument('--approved-run', required=True)
     p.add_argument('--certificate-sha256', required=True)
     p.add_argument('--apks', type=Path, required=True)
@@ -85,6 +87,8 @@ def main():
     p.add_argument('--published-inventory', type=Path, help='fresh verified production release inventory')
     p.add_argument('--published-inventory-sha256', help='independently approved inventory digest')
     args = p.parse_args()
+    identities = ({'source_commit':args.approved_commit,'engineering_revision':args.engineering_revision,'workflow_revision':args.workflow_revision}
+                  if args.engineering_revision or args.workflow_revision else None)
     try:
         if not args.scratch.is_dir():
             raise ValueError('--scratch must be an existing private directory')
@@ -99,7 +103,7 @@ def main():
             if artifacts.sha256(manifest) != args.manifest_sha256:
                 raise ValueError('manifest differs from independently authenticated SHA-256')
             m = json.loads(manifest.read_text())
-            entries = artifacts.validate_manifest(m, args.approved_commit, args.approved_run, args.certificate_sha256)
+            entries = artifacts.validate_manifest(m, args.approved_commit, args.approved_run, args.certificate_sha256, identities)
             if not args.rehearse:
                 reservation = dict(m, _unsigned_manifest_sha256=args.manifest_sha256)
                 version_policy.enforce(reservation, args.version_ledger, args.published_inventory, args.published_inventory_sha256)

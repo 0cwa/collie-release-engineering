@@ -65,6 +65,8 @@ def main():
     p.add_argument('--repo', required=True)
     p.add_argument('--tag', required=True)
     p.add_argument('--approved-commit', required=True)
+    p.add_argument('--engineering-revision', help='independently approved schema2 engineering revision')
+    p.add_argument('--workflow-revision', help='independently approved schema2 workflow revision')
     p.add_argument('--final-manifest', type=Path, required=True)
     p.add_argument('--final-manifest-sha256', required=True)
     p.add_argument('--provenance', type=Path, required=True)
@@ -80,6 +82,8 @@ def main():
     p.add_argument('--published-inventory', type=Path, help='fresh verified production release inventory')
     p.add_argument('--published-inventory-sha256', help='independently approved inventory digest')
     args = p.parse_args()
+    identities = ({'source_commit':args.approved_commit,'engineering_revision':args.engineering_revision,'workflow_revision':args.workflow_revision}
+                  if args.engineering_revision or args.workflow_revision else None)
     try:
         if not re.fullmatch(r'[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+', args.repo):
             raise ValueError('invalid GitHub repository')
@@ -139,7 +143,7 @@ def main():
             if final_mode != unsigned_mode:
                 raise ValueError('signed and unsigned artifact modes differ')
             if final_mode == 'single-collie':
-                a.validate_alias_provenance(manifest, unsigned, args.approved_commit)
+                a.validate_alias_provenance(manifest, unsigned, args.approved_commit, identities)
             assets += [final, provenance, notes]
             expected.update({final.name: args.final_manifest_sha256,
                              provenance.name: manifest['unsigned_manifest_sha256'],

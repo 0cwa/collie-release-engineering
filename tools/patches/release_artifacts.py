@@ -111,9 +111,9 @@ def validate_manifest(m, commit, run, cert, identities=None):
     return entries
 
 
-def validate_alias_provenance(final, unsigned, commit):
+def validate_alias_provenance(final, unsigned, commit, identities=None):
     """Bind single-build signed aliases to the authenticated unsigned manifest."""
-    entries = validate_manifest(unsigned, commit, final['run_id'], final['certificate_sha256'])
+    entries = validate_manifest(unsigned, commit, final['run_id'], final['certificate_sha256'], identities)
     if unsigned.get('artifact_mode') != 'single-collie' or final.get('artifact_mode') != 'single-collie':
         raise ValueError('signed and unsigned artifact modes differ')
     if final.get('source_profile') != 'collie':

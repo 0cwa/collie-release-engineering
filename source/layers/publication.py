@@ -53,17 +53,13 @@ jobs:
     text=text.replace('val baseAppFileName = getCiEnv("CI_APP_FILENAME") ?: properties["baseAppFileName"] as String','val baseAppFileName = "Collie"')
     text=text.replace('val basePackageId = getCiEnv("CI_PACKAGE_ID") ?: properties["basePackageId"] as String','val basePackageId = "im.collie.app"')
     # Git history is publication metadata, not an undeclared build input.
-    start=text.index('fun getLastCommitTimestamp(): String {'); end=text.index('fun getNightlyVersionCode(',start)
+    start=text.index('fun getLastCommitTimestamp(): String {')
     text=text[:start]+'''fun getLastCommitTimestamp(): String = providers.gradleProperty("collieBuildTimestamp").get() + "000"
 
 fun getGitHash(): String = providers.gradleProperty("collieBuildRevision").get()
 
-fun getNightlyTagForCurrentCommit(): String? = null
-
-'''+text[end:]
-    start=text.index('  val timestamp = providers.exec {',text.index('fun getLastCommitDateTimeUtc'))
-    end=text.index('  val instant =',start)
-    text=text[:start]+'  val timestamp = providers.gradleProperty("collieBuildTimestamp").get().toLong()\n'+text[end:]
+fun requireCommitTag(): String = providers.gradleProperty("releaseVersionName").getOrElse("8.35.1-1-port-unvalidated")
+'''
     # A release cannot accidentally use the old unvalidated source default version.
     text += '''
 // Publication migration gate: remove only with reviewed public native inputs and
