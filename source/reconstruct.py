@@ -29,9 +29,16 @@ def run(directory, *args):
 
 
 def reconstruct(engineering, workspace, profile='collie'):
-    engineering, workspace = engineering.resolve(), workspace.resolve()
-    if workspace.exists():
-        raise ValueError('workspace must not exist; reuse of ambient objects is forbidden')
+    engineering = engineering.resolve()
+    # Check lexical leaves before resolve(): dangling symlinks must remain
+    # visible, and legacy release.py writes its report without exclusive create.
+    requested = workspace.absolute()
+    targets = (requested, requested.with_name(requested.name + '-source'),
+               requested.with_name(requested.name + '-reconstruction.json'))
+    for target in targets:
+        if target.exists() or target.is_symlink():
+            raise ValueError('workspace/output/report must not exist: ' + str(target))
+    workspace = requested.resolve()
     revision = run(engineering, 'git', 'rev-parse', 'HEAD')
     if run(engineering, 'git', 'status', '--porcelain', '--untracked-files=normal'):
         raise ValueError('engineering checkout must be clean')
