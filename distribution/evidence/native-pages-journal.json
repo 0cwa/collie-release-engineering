@@ -1,0 +1,225 @@
+{
+  "schema": 1,
+  "plan_sha256": "a9c824e0ea45ffbc46ced6c358f734004e11e769c7d4f62fc63813d069343ac0",
+  "completed": [
+    "phase1",
+    "phase2"
+  ],
+  "previous_verified": true,
+  "readbacks": {
+    "phase1": {
+      "index.html": {
+        "status": 200,
+        "sha256": "039d4f75168492350d155ac4279754fed5e02f00ae6577bdb3aff2beac0d6386",
+        "bytes": 186,
+        "headers": {
+          "Cache-Control": null,
+          "ETag": null,
+          "Last-Modified": "Sat, 07 Nov 2026 17:56:28 GMT",
+          "Age": null
+        }
+      },
+      "native-inputs/v1/maven/im/collie/native/libsignal-android/0.106.1-collie.1/libsignal-android-0.106.1-collie.1.aar": {
+        "status": 200,
+        "sha256": "4247031a753f73f12753d04f14d9316436bbf07af2097c1b897feedd360dbd9a",
+        "bytes": 215587114,
+        "headers": {
+          "Cache-Control": null,
+          "ETag": null,
+          "Last-Modified": "Sat, 07 Nov 2026 17:56:28 GMT",
+          "Age": null
+        }
+      },
+      "native-inputs/v1/maven/im/collie/native/libsignal-android/0.106.1-collie.1/libsignal-android-0.106.1-collie.1.pom": {
+        "status": 200,
+        "sha256": "94432b6fefcb0eeaae4622dc3d381b4ed1ae7c2a453967db6f416a636c25ad87",
+        "bytes": 1718,
+        "headers": {
+          "Cache-Control": null,
+          "ETag": null,
+          "Last-Modified": "Sat, 07 Nov 2026 17:56:29 GMT",
+          "Age": null
+        }
+      },
+      "native-inputs/v1/maven/im/collie/native/libsignal-client/0.106.1-collie.1/libsignal-client-0.106.1-collie.1.jar": {
+        "status": 200,
+        "sha256": "c361b8e905c770b838535fdac5a0bdf0f995f8ed6ce0a6837cb4c7360e8c5a79",
+        "bytes": 1003356,
+        "headers": {
+          "Cache-Control": null,
+          "ETag": null,
+          "Last-Modified": "Sat, 07 Nov 2026 17:56:29 GMT",
+          "Age": null
+        }
+      },
+      "native-inputs/v1/maven/im/collie/native/libsignal-client/0.106.1-collie.1/libsignal-client-0.106.1-collie.1.pom": {
+        "status": 200,
+        "sha256": "cb706c8229ba35967c285a4f28e0049769e904b9cc9fbbb6c97d37596690cd23",
+        "bytes": 1693,
+        "headers": {
+          "Cache-Control": null,
+          "ETag": null,
+          "Last-Modified": "Sat, 07 Nov 2026 17:56:29 GMT",
+          "Age": null
+        }
+      },
+      "native-inputs/v1/maven/im/collie/native/ringrtc-android/2.74.0-collie.1/ringrtc-android-2.74.0-collie.1.aar": {
+        "status": 200,
+        "sha256": "51f1f9b1f2335ba1b6557b5f0810227ac66a54ec8cbf0f2c789091b0ab5d245b",
+        "bytes": 94240994,
+        "headers": {
+          "Cache-Control": null,
+          "ETag": null,
+          "Last-Modified": "Sat, 07 Nov 2026 17:56:29 GMT",
+          "Age": null
+        }
+      },
+      "native-inputs/v1/maven/im/collie/native/ringrtc-android/2.74.0-collie.1/ringrtc-android-2.74.0-collie.1.pom": {
+        "status": 200,
+        "sha256": "ab10045f321d1023e3c810625a209c0c8e007db7622fa4a0fdfcf1156e115b8b",
+        "bytes": 1572,
+        "headers": {
+          "Cache-Control": null,
+          "ETag": null,
+          "Last-Modified": "Sat, 07 Nov 2026 17:56:29 GMT",
+          "Age": null
+        }
+      },
+      "site-manifest.json": {
+        "status": 200,
+        "sha256": "253c4dd07cb970c5d376888c1465bd6014a2427e96262afcb3f541880b96705d",
+        "bytes": 1647,
+        "headers": {
+          "Cache-Control": null,
+          "ETag": null,
+          "Last-Modified": "Sat, 07 Nov 2026 17:56:29 GMT",
+          "Age": null
+        }
+      }
+    },
+    "phase2": {
+      "index.html": {
+        "status": 200,
+        "sha256": "039d4f75168492350d155ac4279754fed5e02f00ae6577bdb3aff2beac0d6386",
+        "bytes": 186,
+        "headers": {
+          "Cache-Control": null,
+          "ETag": null,
+          "Last-Modified": "Sat, 07 Nov 2026 17:56:31 GMT",
+          "Age": null
+        }
+      },
+      "native-inputs/v1/maven/im/collie/native/libsignal-android/0.106.1-collie.1/libsignal-android-0.106.1-collie.1.aar": {
+        "status": 200,
+        "sha256": "4247031a753f73f12753d04f14d9316436bbf07af2097c1b897feedd360dbd9a",
+        "bytes": 215587114,
+        "headers": {
+          "Cache-Control": null,
+          "ETag": null,
+          "Last-Modified": "Sat, 07 Nov 2026 17:56:31 GMT",
+          "Age": null
+        }
+      },
+      "native-inputs/v1/maven/im/collie/native/libsignal-android/0.106.1-collie.1/libsignal-android-0.106.1-collie.1.pom": {
+        "status": 200,
+        "sha256": "94432b6fefcb0eeaae4622dc3d381b4ed1ae7c2a453967db6f416a636c25ad87",
+        "bytes": 1718,
+        "headers": {
+          "Cache-Control": null,
+          "ETag": null,
+          "Last-Modified": "Sat, 07 Nov 2026 17:56:31 GMT",
+          "Age": null
+        }
+      },
+      "native-inputs/v1/maven/im/collie/native/libsignal-client/0.106.1-collie.1/libsignal-client-0.106.1-collie.1.jar": {
+        "status": 200,
+        "sha256": "c361b8e905c770b838535fdac5a0bdf0f995f8ed6ce0a6837cb4c7360e8c5a79",
+        "bytes": 1003356,
+        "headers": {
+          "Cache-Control": null,
+          "ETag": null,
+          "Last-Modified": "Sat, 07 Nov 2026 17:56:31 GMT",
+          "Age": null
+        }
+      },
+      "native-inputs/v1/maven/im/collie/native/libsignal-client/0.106.1-collie.1/libsignal-client-0.106.1-collie.1.pom": {
+        "status": 200,
+        "sha256": "cb706c8229ba35967c285a4f28e0049769e904b9cc9fbbb6c97d37596690cd23",
+        "bytes": 1693,
+        "headers": {
+          "Cache-Control": null,
+          "ETag": null,
+          "Last-Modified": "Sat, 07 Nov 2026 17:56:31 GMT",
+          "Age": null
+        }
+      },
+      "native-inputs/v1/maven/im/collie/native/ringrtc-android/2.74.0-collie.1/ringrtc-android-2.74.0-collie.1.aar": {
+        "status": 200,
+        "sha256": "51f1f9b1f2335ba1b6557b5f0810227ac66a54ec8cbf0f2c789091b0ab5d245b",
+        "bytes": 94240994,
+        "headers": {
+          "Cache-Control": null,
+          "ETag": null,
+          "Last-Modified": "Sat, 07 Nov 2026 17:56:31 GMT",
+          "Age": null
+        }
+      },
+      "native-inputs/v1/maven/im/collie/native/ringrtc-android/2.74.0-collie.1/ringrtc-android-2.74.0-collie.1.pom": {
+        "status": 200,
+        "sha256": "ab10045f321d1023e3c810625a209c0c8e007db7622fa4a0fdfcf1156e115b8b",
+        "bytes": 1572,
+        "headers": {
+          "Cache-Control": null,
+          "ETag": null,
+          "Last-Modified": "Sat, 07 Nov 2026 17:56:31 GMT",
+          "Age": null
+        }
+      },
+      "site-manifest.json": {
+        "status": 200,
+        "sha256": "253c4dd07cb970c5d376888c1465bd6014a2427e96262afcb3f541880b96705d",
+        "bytes": 1647,
+        "headers": {
+          "Cache-Control": null,
+          "ETag": null,
+          "Last-Modified": "Sat, 07 Nov 2026 17:56:32 GMT",
+          "Age": null
+        }
+      }
+    }
+  },
+  "previous_readback": {
+    "site-manifest.json": {
+      "status": 404,
+      "headers": {}
+    },
+    "fdroid/repo/entry.jar": {
+      "status": 404,
+      "headers": {}
+    },
+    "native-inputs/v1/maven/im/collie/native/libsignal-android/0.106.1-collie.1/libsignal-android-0.106.1-collie.1.aar": {
+      "status": 404,
+      "headers": {}
+    },
+    "native-inputs/v1/maven/im/collie/native/libsignal-android/0.106.1-collie.1/libsignal-android-0.106.1-collie.1.pom": {
+      "status": 404,
+      "headers": {}
+    },
+    "native-inputs/v1/maven/im/collie/native/libsignal-client/0.106.1-collie.1/libsignal-client-0.106.1-collie.1.jar": {
+      "status": 404,
+      "headers": {}
+    },
+    "native-inputs/v1/maven/im/collie/native/libsignal-client/0.106.1-collie.1/libsignal-client-0.106.1-collie.1.pom": {
+      "status": 404,
+      "headers": {}
+    },
+    "native-inputs/v1/maven/im/collie/native/ringrtc-android/2.74.0-collie.1/ringrtc-android-2.74.0-collie.1.aar": {
+      "status": 404,
+      "headers": {}
+    },
+    "native-inputs/v1/maven/im/collie/native/ringrtc-android/2.74.0-collie.1/ringrtc-android-2.74.0-collie.1.pom": {
+      "status": 404,
+      "headers": {}
+    }
+  }
+}

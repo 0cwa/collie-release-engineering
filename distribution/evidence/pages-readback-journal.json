@@ -1,0 +1,399 @@
+{
+  "schema": 1,
+  "plan_sha256": "f250e758a02bb0aaf669e90fbf506d84d268b821d0ac30bc3a6b2bde47aab63d",
+  "completed": [
+    "phase1",
+    "phase2"
+  ],
+  "previous_verified": true,
+  "readbacks": {
+    "phase1": {
+      "_generations/8a5d5c39712038b79d0576d6f9c7bc6d98feeba72082bb88e3f4e0e081128ca2/entry.jar": {
+        "status": 200,
+        "sha256": "f5867132b1f94a6f60381db1e8d7c566f50983e717c5b60e85be71ce1d6bd276",
+        "bytes": 2377,
+        "headers": {
+          "Cache-Control": null,
+          "ETag": null,
+          "Last-Modified": "Sat, 07 Nov 2026 16:35:35 GMT",
+          "Age": null
+        }
+      },
+      "_generations/8a5d5c39712038b79d0576d6f9c7bc6d98feeba72082bb88e3f4e0e081128ca2/entry.json": {
+        "status": 200,
+        "sha256": "918383eb2e6696a62f9b264e23599c49ea7ced3ff021e255b0cc5d70d466a899",
+        "bytes": 237,
+        "headers": {
+          "Cache-Control": null,
+          "ETag": null,
+          "Last-Modified": "Sat, 07 Nov 2026 16:35:35 GMT",
+          "Age": null
+        }
+      },
+      "_generations/8a5d5c39712038b79d0576d6f9c7bc6d98feeba72082bb88e3f4e0e081128ca2/index-v1.jar": {
+        "status": 200,
+        "sha256": "78273cd87d6c837f6d955b5549b1e453c7ee2143930a606731e188b635fa5d95",
+        "bytes": 4221,
+        "headers": {
+          "Cache-Control": null,
+          "ETag": null,
+          "Last-Modified": "Sat, 07 Nov 2026 16:35:35 GMT",
+          "Age": null
+        }
+      },
+      "_generations/8a5d5c39712038b79d0576d6f9c7bc6d98feeba72082bb88e3f4e0e081128ca2/index-v1.json": {
+        "status": 200,
+        "sha256": "294d022d2f2bc4daefae1b71b0dc13c9ec3e15527dd3587ade3abc87c135d7c0",
+        "bytes": 9273,
+        "headers": {
+          "Cache-Control": null,
+          "ETag": null,
+          "Last-Modified": "Sat, 07 Nov 2026 16:35:35 GMT",
+          "Age": null
+        }
+      },
+      "_generations/8a5d5c39712038b79d0576d6f9c7bc6d98feeba72082bb88e3f4e0e081128ca2/index-v2.json": {
+        "status": 200,
+        "sha256": "7f52be651137438873daa77f8dc0dc7d77932ab2bd28eb210773fd18df24e832",
+        "bytes": 10003,
+        "headers": {
+          "Cache-Control": null,
+          "ETag": null,
+          "Last-Modified": "Sat, 07 Nov 2026 16:35:35 GMT",
+          "Age": null
+        }
+      },
+      "_generations/8a5d5c39712038b79d0576d6f9c7bc6d98feeba72082bb88e3f4e0e081128ca2/index.jar": {
+        "status": 200,
+        "sha256": "35e02368b1237f7091e301ab7f11596e65e497500910a4906aeb07211fb1bea3",
+        "bytes": 5441,
+        "headers": {
+          "Cache-Control": null,
+          "ETag": null,
+          "Last-Modified": "Sat, 07 Nov 2026 16:35:35 GMT",
+          "Age": null
+        }
+      },
+      "_generations/8a5d5c39712038b79d0576d6f9c7bc6d98feeba72082bb88e3f4e0e081128ca2/index.xml": {
+        "status": 200,
+        "sha256": "dcc1a6ac5bab56bd0c422e2ee97f9328c985af79c02840d9952a0ca73398850b",
+        "bytes": 5951,
+        "headers": {
+          "Cache-Control": null,
+          "ETag": null,
+          "Last-Modified": "Sat, 07 Nov 2026 16:35:35 GMT",
+          "Age": null
+        }
+      },
+      "_generations/8a5d5c39712038b79d0576d6f9c7bc6d98feeba72082bb88e3f4e0e081128ca2/repository-receipt.json": {
+        "status": 200,
+        "sha256": "5a82bcd1a3484076ffe3c88c31fcbefba11021d5290f92ebe5e72b4c258476dd",
+        "bytes": 2089,
+        "headers": {
+          "Cache-Control": null,
+          "ETag": null,
+          "Last-Modified": "Sat, 07 Nov 2026 16:35:35 GMT",
+          "Age": null
+        }
+      },
+      "fdroid/repo/im.collie.app_177702.apk": {
+        "status": 200,
+        "sha256": "5fbd0fe817bc6711c56fbc39b8479cc0a68a7d7fe921a7d9c9fab59333fda9ee",
+        "bytes": 97054341,
+        "headers": {
+          "Cache-Control": null,
+          "ETag": null,
+          "Last-Modified": "Sat, 07 Nov 2026 16:35:35 GMT",
+          "Age": null
+        }
+      },
+      "index.html": {
+        "status": 200,
+        "sha256": "15e73076d81dd782965559f3e99283ce83e955a1766e4e70c22a3e7fad411e2e",
+        "bytes": 205,
+        "headers": {
+          "Cache-Control": null,
+          "ETag": null,
+          "Last-Modified": "Sat, 07 Nov 2026 16:35:35 GMT",
+          "Age": null
+        }
+      },
+      "site-manifest.json": {
+        "status": 200,
+        "sha256": "df85ac0ede5703ef3b627ea304eaa8f248098f45f054cc080a01d675c400186e",
+        "bytes": 2098,
+        "headers": {
+          "Cache-Control": null,
+          "ETag": null,
+          "Last-Modified": "Sat, 07 Nov 2026 16:35:35 GMT",
+          "Age": null
+        }
+      }
+    },
+    "phase2": {
+      "_generations/8a5d5c39712038b79d0576d6f9c7bc6d98feeba72082bb88e3f4e0e081128ca2/entry.jar": {
+        "status": 200,
+        "sha256": "f5867132b1f94a6f60381db1e8d7c566f50983e717c5b60e85be71ce1d6bd276",
+        "bytes": 2377,
+        "headers": {
+          "Cache-Control": null,
+          "ETag": null,
+          "Last-Modified": "Sat, 07 Nov 2026 16:35:36 GMT",
+          "Age": null
+        }
+      },
+      "_generations/8a5d5c39712038b79d0576d6f9c7bc6d98feeba72082bb88e3f4e0e081128ca2/entry.json": {
+        "status": 200,
+        "sha256": "918383eb2e6696a62f9b264e23599c49ea7ced3ff021e255b0cc5d70d466a899",
+        "bytes": 237,
+        "headers": {
+          "Cache-Control": null,
+          "ETag": null,
+          "Last-Modified": "Sat, 07 Nov 2026 16:35:36 GMT",
+          "Age": null
+        }
+      },
+      "_generations/8a5d5c39712038b79d0576d6f9c7bc6d98feeba72082bb88e3f4e0e081128ca2/index-v1.jar": {
+        "status": 200,
+        "sha256": "78273cd87d6c837f6d955b5549b1e453c7ee2143930a606731e188b635fa5d95",
+        "bytes": 4221,
+        "headers": {
+          "Cache-Control": null,
+          "ETag": null,
+          "Last-Modified": "Sat, 07 Nov 2026 16:35:36 GMT",
+          "Age": null
+        }
+      },
+      "_generations/8a5d5c39712038b79d0576d6f9c7bc6d98feeba72082bb88e3f4e0e081128ca2/index-v1.json": {
+        "status": 200,
+        "sha256": "294d022d2f2bc4daefae1b71b0dc13c9ec3e15527dd3587ade3abc87c135d7c0",
+        "bytes": 9273,
+        "headers": {
+          "Cache-Control": null,
+          "ETag": null,
+          "Last-Modified": "Sat, 07 Nov 2026 16:35:36 GMT",
+          "Age": null
+        }
+      },
+      "_generations/8a5d5c39712038b79d0576d6f9c7bc6d98feeba72082bb88e3f4e0e081128ca2/index-v2.json": {
+        "status": 200,
+        "sha256": "7f52be651137438873daa77f8dc0dc7d77932ab2bd28eb210773fd18df24e832",
+        "bytes": 10003,
+        "headers": {
+          "Cache-Control": null,
+          "ETag": null,
+          "Last-Modified": "Sat, 07 Nov 2026 16:35:36 GMT",
+          "Age": null
+        }
+      },
+      "_generations/8a5d5c39712038b79d0576d6f9c7bc6d98feeba72082bb88e3f4e0e081128ca2/index.jar": {
+        "status": 200,
+        "sha256": "35e02368b1237f7091e301ab7f11596e65e497500910a4906aeb07211fb1bea3",
+        "bytes": 5441,
+        "headers": {
+          "Cache-Control": null,
+          "ETag": null,
+          "Last-Modified": "Sat, 07 Nov 2026 16:35:36 GMT",
+          "Age": null
+        }
+      },
+      "_generations/8a5d5c39712038b79d0576d6f9c7bc6d98feeba72082bb88e3f4e0e081128ca2/index.xml": {
+        "status": 200,
+        "sha256": "dcc1a6ac5bab56bd0c422e2ee97f9328c985af79c02840d9952a0ca73398850b",
+        "bytes": 5951,
+        "headers": {
+          "Cache-Control": null,
+          "ETag": null,
+          "Last-Modified": "Sat, 07 Nov 2026 16:35:36 GMT",
+          "Age": null
+        }
+      },
+      "_generations/8a5d5c39712038b79d0576d6f9c7bc6d98feeba72082bb88e3f4e0e081128ca2/repository-receipt.json": {
+        "status": 200,
+        "sha256": "5a82bcd1a3484076ffe3c88c31fcbefba11021d5290f92ebe5e72b4c258476dd",
+        "bytes": 2089,
+        "headers": {
+          "Cache-Control": null,
+          "ETag": null,
+          "Last-Modified": "Sat, 07 Nov 2026 16:35:36 GMT",
+          "Age": null
+        }
+      },
+      "add-repository.svg": {
+        "status": 200,
+        "sha256": "e829feefa336152c4d00c6b0640c5d8cbcba483acfa3be98d8f3938c89b908bd",
+        "bytes": 13595,
+        "headers": {
+          "Cache-Control": null,
+          "ETag": null,
+          "Last-Modified": "Sat, 07 Nov 2026 16:35:36 GMT",
+          "Age": null
+        }
+      },
+      "fdroid/repo/entry.jar": {
+        "status": 200,
+        "sha256": "f5867132b1f94a6f60381db1e8d7c566f50983e717c5b60e85be71ce1d6bd276",
+        "bytes": 2377,
+        "headers": {
+          "Cache-Control": null,
+          "ETag": null,
+          "Last-Modified": "Sat, 07 Nov 2026 16:35:36 GMT",
+          "Age": null
+        }
+      },
+      "fdroid/repo/entry.json": {
+        "status": 200,
+        "sha256": "918383eb2e6696a62f9b264e23599c49ea7ced3ff021e255b0cc5d70d466a899",
+        "bytes": 237,
+        "headers": {
+          "Cache-Control": null,
+          "ETag": null,
+          "Last-Modified": "Sat, 07 Nov 2026 16:35:36 GMT",
+          "Age": null
+        }
+      },
+      "fdroid/repo/icons/icon.png": {
+        "status": 200,
+        "sha256": "86b6888dcd5acbd455ca48b63ee5b4cc3ea7a093985e01067b4242f9aa415078",
+        "bytes": 718,
+        "headers": {
+          "Cache-Control": null,
+          "ETag": null,
+          "Last-Modified": "Sat, 07 Nov 2026 16:35:36 GMT",
+          "Age": null
+        }
+      },
+      "fdroid/repo/im.collie.app_177702.apk": {
+        "status": 200,
+        "sha256": "5fbd0fe817bc6711c56fbc39b8479cc0a68a7d7fe921a7d9c9fab59333fda9ee",
+        "bytes": 97054341,
+        "headers": {
+          "Cache-Control": null,
+          "ETag": null,
+          "Last-Modified": "Sat, 07 Nov 2026 16:35:36 GMT",
+          "Age": null
+        }
+      },
+      "fdroid/repo/index-v1.jar": {
+        "status": 200,
+        "sha256": "78273cd87d6c837f6d955b5549b1e453c7ee2143930a606731e188b635fa5d95",
+        "bytes": 4221,
+        "headers": {
+          "Cache-Control": null,
+          "ETag": null,
+          "Last-Modified": "Sat, 07 Nov 2026 16:35:36 GMT",
+          "Age": null
+        }
+      },
+      "fdroid/repo/index-v1.json": {
+        "status": 200,
+        "sha256": "294d022d2f2bc4daefae1b71b0dc13c9ec3e15527dd3587ade3abc87c135d7c0",
+        "bytes": 9273,
+        "headers": {
+          "Cache-Control": null,
+          "ETag": null,
+          "Last-Modified": "Sat, 07 Nov 2026 16:35:36 GMT",
+          "Age": null
+        }
+      },
+      "fdroid/repo/index-v2.json": {
+        "status": 200,
+        "sha256": "7f52be651137438873daa77f8dc0dc7d77932ab2bd28eb210773fd18df24e832",
+        "bytes": 10003,
+        "headers": {
+          "Cache-Control": null,
+          "ETag": null,
+          "Last-Modified": "Sat, 07 Nov 2026 16:35:36 GMT",
+          "Age": null
+        }
+      },
+      "fdroid/repo/index.css": {
+        "status": 200,
+        "sha256": "c72361a11887eb0a9a0bfebdeb035800b344c7e490b1b672aa4fdf0e27b9f5f5",
+        "bytes": 5220,
+        "headers": {
+          "Cache-Control": null,
+          "ETag": null,
+          "Last-Modified": "Sat, 07 Nov 2026 16:35:36 GMT",
+          "Age": null
+        }
+      },
+      "fdroid/repo/index.html": {
+        "status": 200,
+        "sha256": "57463177517125f69f8ef9b6fadd97748f43e7287d016ac1f9d2db378fb879d5",
+        "bytes": 2262,
+        "headers": {
+          "Cache-Control": null,
+          "ETag": null,
+          "Last-Modified": "Sat, 07 Nov 2026 16:35:36 GMT",
+          "Age": null
+        }
+      },
+      "fdroid/repo/index.jar": {
+        "status": 200,
+        "sha256": "35e02368b1237f7091e301ab7f11596e65e497500910a4906aeb07211fb1bea3",
+        "bytes": 5441,
+        "headers": {
+          "Cache-Control": null,
+          "ETag": null,
+          "Last-Modified": "Sat, 07 Nov 2026 16:35:36 GMT",
+          "Age": null
+        }
+      },
+      "fdroid/repo/index.png": {
+        "status": 200,
+        "sha256": "8c77b1d5e010c648178c584e6178f16ceeab5a068438175b0270d3e7c07c09b3",
+        "bytes": 1122,
+        "headers": {
+          "Cache-Control": null,
+          "ETag": null,
+          "Last-Modified": "Sat, 07 Nov 2026 16:35:36 GMT",
+          "Age": null
+        }
+      },
+      "fdroid/repo/index.xml": {
+        "status": 200,
+        "sha256": "dcc1a6ac5bab56bd0c422e2ee97f9328c985af79c02840d9952a0ca73398850b",
+        "bytes": 5951,
+        "headers": {
+          "Cache-Control": null,
+          "ETag": null,
+          "Last-Modified": "Sat, 07 Nov 2026 16:35:36 GMT",
+          "Age": null
+        }
+      },
+      "index.html": {
+        "status": 200,
+        "sha256": "435375acdea196dc429e1c558e60b5d1abe58f3bb6d60e5fd9ce71d380ad27f8",
+        "bytes": 1522,
+        "headers": {
+          "Cache-Control": null,
+          "ETag": null,
+          "Last-Modified": "Sat, 07 Nov 2026 16:35:36 GMT",
+          "Age": null
+        }
+      },
+      "site-manifest.json": {
+        "status": 200,
+        "sha256": "c7ca485e3846e363ead29a38abdb99da4f907b308209898172d6b17102675e4b",
+        "bytes": 3818,
+        "headers": {
+          "Cache-Control": null,
+          "ETag": null,
+          "Last-Modified": "Sat, 07 Nov 2026 16:35:36 GMT",
+          "Age": null
+        }
+      }
+    }
+  },
+  "previous_readback": {
+    "site-manifest.json": {
+      "status": 404,
+      "headers": {}
+    },
+    "fdroid/repo/entry.jar": {
+      "status": 404,
+      "headers": {}
+    }
+  }
+}

@@ -1,0 +1,150 @@
+name: Manually deploy approved Pages snapshots
+on:
+  workflow_dispatch:
+    inputs:
+      trusted_policy_revision:
+        description: Exact reviewed main commit containing this verifier/workflow
+        type: string
+        required: true
+      bundle_asset_id:
+        description: Explicit public engineering release-asset ID (approved data only)
+        type: string
+        required: true
+      bundle_sha256:
+        description: Independently approved SHA256 of the complete input bundle
+        type: string
+        required: true
+permissions:
+  contents: read
+concurrency:
+  group: collie-pages-production
+  cancel-in-progress: false
+jobs:
+  prepare:
+    # Disabled until separately approved Pages/environment provisioning. PRs and
+    # non-main dispatches have no path to these jobs; no pull_request_target.
+    if: github.ref == 'refs/heads/main' && vars.COLLIE_PAGES_PRODUCTION_ENABLED == 'true'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Require the independently approved policy commit
+        env:
+          APPROVED_POLICY: ${{ inputs.trusted_policy_revision }}
+          RUN_POLICY: ${{ github.sha }}
+        run: test "$APPROVED_POLICY" = "$RUN_POLICY"
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: '3.12.14'
+      - name: Install pinned verification tools without signing/deployment credentials
+        run: python -m pip install --require-hashes -r distribution/requirements.txt
+      - name: Fetch only the approved data asset and unpack regular files
+        env:
+          ASSET_ID: ${{ inputs.bundle_asset_id }}
+          EXPECTED_SHA256: ${{ inputs.bundle_sha256 }}
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          python distribution/download_pages_input.py --asset-id "$ASSET_ID" --sha256 "$EXPECTED_SHA256" --output "$RUNNER_TEMP/input.tar"
+          python distribution/pages.py unpack "$RUNNER_TEMP/input.tar" "$RUNNER_TEMP/inputs"
+      - name: Prepare both complete snapshots with the trusted policy
+        env:
+          APPROVED_POLICY: ${{ inputs.trusted_policy_revision }}
+        run: |
+          python distribution/pages.py prepare "$RUNNER_TEMP/inputs" "$RUNNER_TEMP/pages" --policy "$APPROVED_POLICY"
+          python distribution/pages.py preflight "$RUNNER_TEMP/pages/plan.json" "$RUNNER_TEMP/pages/journal.json"
+          mkdir "$RUNNER_TEMP/control"
+          cp "$RUNNER_TEMP/pages/plan.json" "$RUNNER_TEMP/pages/journal.json" "$RUNNER_TEMP/control/"
+      # Direct official artifact action pin avoids upload-pages-artifact's nested
+      # floating action ref. artifact.tar is checked for links, hashes and size.
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: collie-pages-phase1
+          path: ${{ runner.temp }}/pages/phase1/artifact.tar
+          if-no-files-found: error
+          retention-days: 30
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: collie-pages-phase2
+          path: ${{ runner.temp }}/pages/phase2/artifact.tar
+          if-no-files-found: error
+          retention-days: 30
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: collie-pages-control
+          path: ${{ runner.temp }}/control/
+          if-no-files-found: error
+          retention-days: 90
+  phase1:
+    needs: prepare
+    runs-on: ubuntu-24.04
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e # v4
+        id: deploy
+        with:
+          artifact_name: collie-pages-phase1
+  phase1-readback:
+    needs: phase1
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: '3.12.14'
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: collie-pages-control
+          path: ${{ runner.temp }}/control/
+      - run: python distribution/pages.py readback "$RUNNER_TEMP/control/plan.json" "$RUNNER_TEMP/control/journal.json" --phase phase1
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: collie-pages-after-phase1
+          path: ${{ runner.temp }}/control/
+          if-no-files-found: error
+          retention-days: 90
+  phase2:
+    needs: phase1-readback
+    runs-on: ubuntu-24.04
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e # v4
+        id: deploy
+        with:
+          artifact_name: collie-pages-phase2
+  final-readback:
+    needs: phase2
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: '3.12.14'
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: collie-pages-after-phase1
+          path: ${{ runner.temp }}/control/
+      - run: python distribution/pages.py readback "$RUNNER_TEMP/control/plan.json" "$RUNNER_TEMP/control/journal.json" --phase phase2
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: collie-pages-completed-receipt
+          path: ${{ runner.temp }}/control/
+          if-no-files-found: error
+          retention-days: 90

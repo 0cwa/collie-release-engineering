@@ -1,0 +1,7 @@
+repo_url: https://repo.collie.im/fdroid/repo
+repo_name: Collie
+repo_description: Canonical signed Collie APKs; custom binary repository.
+archive_older: 0
+make_current_version_link: false
+# Private signing configuration belongs outside the checkout and public origin.
+# Staging must override repo_url and use a disposable repository test key.
