@@ -119,7 +119,7 @@ def prepare(bundle,output,expected_policy):
         text=(landing/'index.html').read_text()
         if 'data-repository-state="preview"' in text:raise ValueError('test preview cannot be a production landing')
         prior_active=(old/'index.html').is_file() and site_page.has_add_link((old/'index.html').read_text(),ORIGIN)
-        new_qr_assets=({'add-repository.png','add-repository.svg'} & set(landing_files))-set(old_files)
+        new_qr_assets={name for name in {'add-repository.png','add-repository.svg'} & set(landing_files) if landing_files[name]!=old_files.get(name)}
         if new_qr_assets and not prior_active:raise ValueError('new repository QR requires completed production activation evidence')
         if site_page.has_add_link(text,ORIGIN) and not (old/'index.html').is_file():raise ValueError('first repository link requires completed production activation evidence')
         if site_page.has_add_link(text,ORIGIN) and not site_page.has_add_link((old/'index.html').read_text(),ORIGIN):raise ValueError('first repository link requires completed production activation evidence')

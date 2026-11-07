@@ -75,3 +75,9 @@ class ActivationTest(unittest.TestCase):
         (self.bundle/'landing/index.html').write_text(original);(self.bundle/'landing/add-repository.png').write_bytes(b'opaque stale fixture QR')
         self.approval['landing_sha256']=p.digest(p.inventory(self.bundle/'landing'));b.atomic_json(self.bundle/'approval.json',self.approval)
         with patch('binary_repo.verify_indexes',return_value=self.data),self.assertRaisesRegex(ValueError,'new repository QR'):p.prepare(self.bundle,self.root/'forbidden-stale','c'*40)
+
+        # Changed bytes at an existing inactive QR URL are new QR content too.
+        previous=self.bundle/'previous';(previous/'add-repository.png').write_bytes(b'old unactivated placeholder')
+        b.atomic_json(previous/'site-manifest.json',dict(schema=1,kind='collie-pages-public-inventory',origin=p.ORIGIN,files={k:v for k,v in p.inventory(previous).items() if k!='site-manifest.json'}))
+        self.approval.update(previous_site_sha256=p.digest(p.inventory(previous)),previous_manifest_sha256=b.sha(previous/'site-manifest.json'));b.atomic_json(self.bundle/'approval.json',self.approval)
+        with patch('binary_repo.verify_indexes',return_value=self.data),self.assertRaisesRegex(ValueError,'new repository QR'):p.prepare(self.bundle,self.root/'forbidden-replaced-qr','c'*40)
