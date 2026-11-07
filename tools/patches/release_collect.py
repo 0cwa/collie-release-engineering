@@ -9,6 +9,8 @@ import subprocess
 import sys
 
 import release_artifacts as a
+import runtime_receipts as runtime
+import migration_receipts as receipts
 
 
 def main():
@@ -24,8 +26,10 @@ def main():
     p.add_argument('--version-code', type=int, required=True)
     p.add_argument('--certificate-sha256', required=True)
     p.add_argument('--single-collie', action='store_true', help='one Collie APK supplies all five compatibility filenames')
+    runtime.arguments(p)
     args = p.parse_args()
     try:
+        context=runtime.plan(args)
         config = json.loads(args.config.read_text())
         if args.build_tools.name != config['android']['build_tools']:
             raise ValueError('build-tools directory does not match the build pin')
@@ -52,7 +56,13 @@ def main():
                 a.check_unsigned(path)
                 a.check_metadata(args.build_tools / 'aapt2', path, args.version_code, args.version_name)
                 manifest['apks'].append({'profile': profile, 'file': file, 'sha256': a.sha256(path)})
-        a.validate_manifest(manifest, args.commit, args.run_id, args.certificate_sha256)
+        if context[0]['mode']=='new-source':
+            if not args.single_collie:raise ValueError('new-source collection requires one canonical Collie input')
+            manifest.update(schema=2,**runtime.identities(context))
+            source,build=runtime.collect(args,context,manifest['apks'][0]['sha256'])
+            manifest.update(release_mode='new-source',release_plan_sha256=context[1],source_receipt_sha256=receipts.digest(source),build_receipt_sha256=receipts.digest(build))
+            runtime.write(args.directory/'build-receipt.json',build)
+        a.validate_manifest(manifest, args.commit, args.run_id, args.certificate_sha256,runtime.identities(context))
         if not re.fullmatch(r'[0-9a-f]{40}', args.workflow_revision):
             raise ValueError('invalid workflow revision')
         (args.directory / 'manifest.json').write_text(json.dumps(manifest, indent=2) + '\n')

@@ -1,0 +1,252 @@
+diff --git a/BUILD.md b/BUILD.md
+index 0f573a86832abfafae790a836dada94868453d60..98e7efeed6cb0bde656bb82e8aa35755905d48ad 100644
+--- a/BUILD.md
++++ b/BUILD.md
+@@ -14,9 +14,7 @@ and clean-checkout build acceptance are reviewed. This draft is not releasable.
+ 
+ The retained local operator route is in collie-release-engineering and still
+ requires its explicit trusted-local native acceptance. That is not independent
+-native reproduction. Obtain the three locked artifacts and POMs from approved
+-public immutable URLs, verify all hashes, materialize their exclusive repository
+-and verification entries in source, then run a fresh controlled Gradle build.
++native reproduction. The three locked binaries and transformed POMs now have tracked exclusive repository, catalog, substitutions and strict verification entries. The proposed origin in build-inputs/native-artifacts.json is NOT PUBLISHED. Obtain operator publication approval, independently read back all six exact files, review a separate acceptance/gate layer, then run a fresh controlled Gradle build. No native init script, local Maven lookup or external native source includeBuild is part of this direct-source recipe.
+ After reviewed gate removal, releaseVersionCode and releaseVersionName are normal source-defined Gradle properties. Final values must come from serialized external reservation and be recorded in the build receipt. The expected canonical task is `./gradlew --dependency-verification=strict
+ :app:assembleProdWebsiteRelease`; it is currently BLOCKED as described above.
+ 
+@@ -26,3 +24,5 @@ reuses its existing signed bytes/code. No build has been performed from this G.
+ No parity with historical APK bytes is claimed after changing build metadata.
+ Instrumentation remains opt-in. Physical-device/account/attachment/database
+ upgrade acceptance and independently reproduced native outputs are NOT RUN.
++
++Native JVM regression readiness is separate: build-inputs/host-test-inputs.json records the historical Linux testing-JNI candidate and immutable staging-guard recipe. No public host-test input or complete host build recipe is supplied; those tests are NOT RUN, not skipped/passed. Do not package test JNI in a release or treat the six production Maven files as all-test readiness.
+diff --git a/build-inputs/host-test-inputs.json b/build-inputs/host-test-inputs.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..7356ba5501f454eeaad3f5ff219dfb1625df1b8b
+--- /dev/null
++++ b/build-inputs/host-test-inputs.json
+@@ -0,0 +1,20 @@
++{
++  "schema": 1,
++  "status": "NOT RUN",
++  "test_only": true,
++  "never_package_in_apk": true,
++  "platform": "Linux x86-64",
++  "resource": "libsignal_jni_testing_amd64.so",
++  "public_url": null,
++  "complete_host_build_recipe": null,
++  "historical_local_candidate_sha256": "b3f94489c68433abfb00883c9a4579565cfd6db820fcbd006b1ca581beaf9d8e",
++  "historical_receipt_lock_sha256": "9866196dec36f096d2757bbf9e9d774c7147548542dd2a041e6438f79dbd73e4",
++  "prepared_libsignal_tree": "de930179286b4fe68875475c1b0678615e180908",
++  "staging_guard": {
++    "origin": "https://github.com/0cwa/collie-release-engineering.git",
++    "revision": "808ee6357a9227f780faa605eddad48b44136c70",
++    "path": "tools/native/host_jni_guard.py",
++    "sha256": "038f9553916d93baf2a6919d19c9146f6486ccfec1dacf8eee78b64d595db538"
++  },
++  "limitation": "Historical local test input uses an older lock. Not current accepted host-test evidence; no public host binary or complete build recipe. Six production Maven files do not establish native JVM regression readiness."
++}
+diff --git a/build-inputs/native-artifacts.json b/build-inputs/native-artifacts.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..599392c0429b4de59c123930d16f99155ba57783
+--- /dev/null
++++ b/build-inputs/native-artifacts.json
+@@ -0,0 +1,49 @@
++{
++  "schema": 1,
++  "kind": "native-publication-plan",
++  "status": "NOT PUBLISHED",
++  "operator_approval": "REQUIRED",
++  "trust": "accepted trusted-local binary inputs; independent native reproduction NOT RUN",
++  "repository": "https://repo.collie.im/native-inputs/v1/maven/",
++  "lock_sha256": "557e20c3f8c1d6290af3007bb8eba5469e5a77f569b8efc7dc2edc1e68ba7856",
++  "stage_receipt_sha256": "4ee680e6a7139b0a87c877369b68a63d5d3d33a9a6d7c9a3242f50edb1744f24",
++  "verification_sha256": "687fb1544cc1600748129ced52932b8ff8867f0e11bc70f008690a94854f5401",
++  "files": [
++    {
++      "path": "im/collie/native/libsignal-android/0.106.1-collie.1/libsignal-android-0.106.1-collie.1.aar",
++      "url": "https://repo.collie.im/native-inputs/v1/maven/im/collie/native/libsignal-android/0.106.1-collie.1/libsignal-android-0.106.1-collie.1.aar",
++      "bytes": 215587114,
++      "sha256": "4247031a753f73f12753d04f14d9316436bbf07af2097c1b897feedd360dbd9a"
++    },
++    {
++      "path": "im/collie/native/libsignal-android/0.106.1-collie.1/libsignal-android-0.106.1-collie.1.pom",
++      "url": "https://repo.collie.im/native-inputs/v1/maven/im/collie/native/libsignal-android/0.106.1-collie.1/libsignal-android-0.106.1-collie.1.pom",
++      "bytes": 1718,
++      "sha256": "94432b6fefcb0eeaae4622dc3d381b4ed1ae7c2a453967db6f416a636c25ad87"
++    },
++    {
++      "path": "im/collie/native/libsignal-client/0.106.1-collie.1/libsignal-client-0.106.1-collie.1.jar",
++      "url": "https://repo.collie.im/native-inputs/v1/maven/im/collie/native/libsignal-client/0.106.1-collie.1/libsignal-client-0.106.1-collie.1.jar",
++      "bytes": 1003356,
++      "sha256": "c361b8e905c770b838535fdac5a0bdf0f995f8ed6ce0a6837cb4c7360e8c5a79"
++    },
++    {
++      "path": "im/collie/native/libsignal-client/0.106.1-collie.1/libsignal-client-0.106.1-collie.1.pom",
++      "url": "https://repo.collie.im/native-inputs/v1/maven/im/collie/native/libsignal-client/0.106.1-collie.1/libsignal-client-0.106.1-collie.1.pom",
++      "bytes": 1693,
++      "sha256": "cb706c8229ba35967c285a4f28e0049769e904b9cc9fbbb6c97d37596690cd23"
++    },
++    {
++      "path": "im/collie/native/ringrtc-android/2.74.0-collie.1/ringrtc-android-2.74.0-collie.1.aar",
++      "url": "https://repo.collie.im/native-inputs/v1/maven/im/collie/native/ringrtc-android/2.74.0-collie.1/ringrtc-android-2.74.0-collie.1.aar",
++      "bytes": 94240994,
++      "sha256": "51f1f9b1f2335ba1b6557b5f0810227ac66a54ec8cbf0f2c789091b0ab5d245b"
++    },
++    {
++      "path": "im/collie/native/ringrtc-android/2.74.0-collie.1/ringrtc-android-2.74.0-collie.1.pom",
++      "url": "https://repo.collie.im/native-inputs/v1/maven/im/collie/native/ringrtc-android/2.74.0-collie.1/ringrtc-android-2.74.0-collie.1.pom",
++      "bytes": 1572,
++      "sha256": "ab10045f321d1023e3c810625a209c0c8e007db7622fa4a0fdfcf1156e115b8b"
++    }
++  ]
++}
+diff --git a/build-inputs/native-publication.json b/build-inputs/native-publication.json
+index ec03ee86456afab3a88a000f753ae56922d9ffb9..9dbd211cb63a088213f8b2348090fd23ca95a4eb 100644
+--- a/build-inputs/native-publication.json
++++ b/build-inputs/native-publication.json
+@@ -1,8 +1,9 @@
+ {
+   "schema": 1,
+   "status": "BLOCKED",
+-  "repository": null,
+-  "reason": "Accepted trusted-local native artifacts have locked hashes but no verified public immutable origin. Release assembly remains blocked.",
++  "repository": "https://repo.collie.im/native-inputs/v1/maven/",
++  "reason": "Tracked native coordinates/repository/substitutions/strict verification are materialized. Exact public bytes and direct Android acceptance remain unverified; gate stays unconditional.",
+   "lock": "native-lock.json",
+-  "production_version_floor": 177702
++  "production_version_floor": 177702,
++  "publication_status": "NOT PUBLISHED"
+ }
+diff --git a/build.gradle.kts b/build.gradle.kts
+index 9cd194bda1243aae61224469045259ab89fe47ab..fd9a08696516b88dedc3dd1e066a01b3363f405d 100644
+--- a/build.gradle.kts
++++ b/build.gradle.kts
+@@ -85,3 +85,17 @@ allprojects {
+ tasks.register("clean", Delete::class) {
+   delete(rootProject.layout.buildDirectory)
+ }
++
++// Collie native substitutions: ordinary tracked project configuration.
++allprojects {
++  configurations.configureEach {
++    resolutionStrategy.dependencySubstitution {
++        substitute(module("im.molly:libsignal-android")).using(module("im.collie.native:libsignal-android:0.106.1-collie.1"))
++        substitute(module("im.molly:libsignal-client")).using(module("im.collie.native:libsignal-client:0.106.1-collie.1"))
++        substitute(module("im.molly:ringrtc-android")).using(module("im.collie.native:ringrtc-android:2.74.0-collie.1"))
++        substitute(module("org.signal:libsignal-android")).using(module("im.collie.native:libsignal-android:0.106.1-collie.1"))
++        substitute(module("org.signal:libsignal-client")).using(module("im.collie.native:libsignal-client:0.106.1-collie.1"))
++        substitute(module("org.signal:ringrtc-android")).using(module("im.collie.native:ringrtc-android:2.74.0-collie.1"))
++    }
++  }
++}
+diff --git a/gradle.properties b/gradle.properties
+index 88b33e8739966d8a5585b802bd9b97c67676d3bd..e15dc21c597f646caae5a25de9689811cffef63d 100644
+--- a/gradle.properties
++++ b/gradle.properties
+@@ -26,9 +26,6 @@ android.experimental.enableTestFixturesKotlinSupport=true
+ # source sets for Wire 5.x, which AGP 9.0's built-in Kotlin doesn't create automatically.
+ android.disallowKotlinSourceSets=false
+ 
+-# Uncomment these to build libsignal from source.
+-# libsignalClientPath=../libsignal
+-# org.gradle.dependency.verification=lenient
+ 
+ # Canonical Collie identity: no legacy product matrix.
+ mollyFirebaseFree=false
+diff --git a/gradle/verification-metadata.xml b/gradle/verification-metadata.xml
+index dfecb29f56dfbb49fc070d29206da87403822664..f81ee8675b5441da5689245a566f457395b26ccb 100644
+--- a/gradle/verification-metadata.xml
++++ b/gradle/verification-metadata.xml
+@@ -6,7 +6,7 @@
+       <trusted-artifacts>
+          <trust file=".*-javadoc[.]jar" regex="true"/>
+          <trust file=".*-sources[.]jar" regex="true"/>
+-         <trust file=".*[.]pom" regex="true"/>
++         <trust group="(?!im[.]collie[.]native$).*" file=".*[.]pom" regex="true"/>
+       </trusted-artifacts>
+    </configuration>
+    <components>
+@@ -10434,5 +10434,29 @@
+             <sha256 value="0341395a481bb887803957145a6a37879853dd625e9244c2ea2509d9bb7531b9" origin="Generated by Gradle"/>
+          </artifact>
+       </component>
++      <component group="im.collie.native" name="libsignal-android" version="0.106.1-collie.1">
++         <artifact name="libsignal-android-0.106.1-collie.1.aar">
++            <sha256 value="4247031a753f73f12753d04f14d9316436bbf07af2097c1b897feedd360dbd9a" origin="Pinned local native artifact; not independent reproducibility proof"/>
++         </artifact>
++         <artifact name="libsignal-android-0.106.1-collie.1.pom">
++            <sha256 value="94432b6fefcb0eeaae4622dc3d381b4ed1ae7c2a453967db6f416a636c25ad87" origin="Pinned local native artifact; not independent reproducibility proof"/>
++         </artifact>
++      </component>
++      <component group="im.collie.native" name="libsignal-client" version="0.106.1-collie.1">
++         <artifact name="libsignal-client-0.106.1-collie.1.jar">
++            <sha256 value="c361b8e905c770b838535fdac5a0bdf0f995f8ed6ce0a6837cb4c7360e8c5a79" origin="Pinned local native artifact; not independent reproducibility proof"/>
++         </artifact>
++         <artifact name="libsignal-client-0.106.1-collie.1.pom">
++            <sha256 value="cb706c8229ba35967c285a4f28e0049769e904b9cc9fbbb6c97d37596690cd23" origin="Pinned local native artifact; not independent reproducibility proof"/>
++         </artifact>
++      </component>
++      <component group="im.collie.native" name="ringrtc-android" version="2.74.0-collie.1">
++         <artifact name="ringrtc-android-2.74.0-collie.1.aar">
++            <sha256 value="51f1f9b1f2335ba1b6557b5f0810227ac66a54ec8cbf0f2c789091b0ab5d245b" origin="Pinned local native artifact; not independent reproducibility proof"/>
++         </artifact>
++         <artifact name="ringrtc-android-2.74.0-collie.1.pom">
++            <sha256 value="ab10045f321d1023e3c810625a209c0c8e007db7622fa4a0fdfcf1156e115b8b" origin="Pinned local native artifact; not independent reproducibility proof"/>
++         </artifact>
++      </component>
+    </components>
+ </verification-metadata>
+diff --git a/settings.gradle.kts b/settings.gradle.kts
+index 4d9dbd2a118da3245a0aa8b25c47a194d6b019ed..7dbd2f32169296d23b9e03cf50aa249d6f45b4a3 100644
+--- a/settings.gradle.kts
++++ b/settings.gradle.kts
+@@ -12,15 +12,24 @@ pluginManagement {
+ dependencyResolutionManagement {
+   repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+   repositories {
+-    google {
+-      content {
+-        includeGroupByRegex("(com\\.(android|google)|androidx?)(\\..*)?")
++    // Collie native repository: reviewed source input, NOT PUBLISHED.
++    exclusiveContent {
++      forRepository {
++        maven {
++          name = "CollieNativeInputs"
++          url = uri("https://repo.collie.im/native-inputs/v1/maven/")
++          metadataSources { mavenPom(); ignoreGradleMetadataRedirection() }
++        }
++      }
++      filter {
++        includeModule("im.collie.native", "libsignal-android")
++        includeModule("im.collie.native", "libsignal-client")
++        includeModule("im.collie.native", "ringrtc-android")
+       }
+     }
+-    mavenLocal {
++    google {
+       content {
+-        includeGroup("im.molly")
+-        includeGroup("org.signal")
++        includeGroupByRegex("(com\\.(android|google)|androidx?)(\\..*)?")
+       }
+     }
+     maven {
+@@ -61,17 +70,7 @@ dependencyResolutionManagement {
+   }
+ }
+ 
+-// To build libsignal from source, set the libsignalClientPath property in gradle.properties.
+-val libsignalClientPath = if (extra.has("libsignalClientPath")) extra.get("libsignalClientPath") else null
+-if (libsignalClientPath is String) {
+-  includeBuild(rootDir.resolve(libsignalClientPath + "/java")) {
+-    name = "libsignal-client"
+-    dependencySubstitution {
+-      substitute(module("im.molly:libsignal-client")).using(project(":client"))
+-      substitute(module("im.molly:libsignal-android")).using(project(":android"))
+-    }
+-  }
+-}
++// Native inputs use the pinned public repository; no external source includeBuild.
+ 
+ // Main app
+ include(":app")

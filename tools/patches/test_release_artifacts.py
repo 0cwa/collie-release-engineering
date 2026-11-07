@@ -11,6 +11,7 @@ import zipfile
 from unittest.mock import patch
 
 import release_artifacts as a
+from test_release_plan_support import legacy_args
 import release_collect
 import release_publish
 import release_sign
@@ -93,7 +94,7 @@ class ReleaseArtifactsTests(unittest.TestCase):
                 '--approved-commit', self.commit, '--approved-run', '123', '--certificate-sha256', self.cert,
                 '--apks', str(self.root), '--output', str(self.root / 'out'), '--build-tools', str(self.root),
                 '--scratch', str(self.root), '--instrumentation-checklist', str(self.root / 'unused.json')]
-        with patch('sys.argv', args), patch.object(release_sign, 'run') as run:
+        with patch('sys.argv', legacy_args(args,self.root)), patch.object(release_sign, 'run') as run:
             self.assertEqual(release_sign.main(), 1)
             run.assert_not_called()
 
@@ -105,7 +106,7 @@ class ReleaseArtifactsTests(unittest.TestCase):
             args=['release_sign','--manifest',str(manifest),'--manifest-sha256',a.sha256(manifest),
                   '--approved-commit',self.commit,'--approved-run','123','--certificate-sha256',self.cert,
                   '--apks',str(self.root),'--output',str(self.root/'out'),'--build-tools',str(self.root),'--scratch',str(self.root)]
-            with patch('sys.argv',args), patch.object(release_sign,'run') as run, patch.object(release_sign.getpass,'getpass') as prompt:
+            with patch('sys.argv',legacy_args(args,self.root)), patch.object(release_sign,'run') as run, patch.object(release_sign.getpass,'getpass') as prompt:
                 self.assertEqual(release_sign.main(),1)
                 run.assert_not_called();prompt.assert_not_called()
 
@@ -115,7 +116,7 @@ class ReleaseArtifactsTests(unittest.TestCase):
         args=['release_publish','draft','--repo','0cwa/collieim-android','--tag','vnext','--approved-commit',self.commit,
               '--final-manifest',str(final),'--final-manifest-sha256',a.sha256(final),'--provenance',str(self.root/'unused'),
               '--notes',str(self.root/'unused'),'--scratch',str(self.root)]
-        with patch('sys.argv',args),patch.object(release_publish,'command') as command:
+        with patch('sys.argv',legacy_args(args,self.root)),patch.object(release_publish,'command') as command:
             self.assertEqual(release_publish.main(),1)
             command.assert_not_called()
 
@@ -173,7 +174,7 @@ class ReleaseArtifactsTests(unittest.TestCase):
             return 'test'
         environment = {'MOLLY_KEYSTORE': '/offline/key', 'MOLLY_KEY_ALIAS': 'release',
                        'COLLIE_INSTRUMENTATION_CHECKLIST': str(self.root / 'missing-checklist.json')}
-        with redirect_stdout(console), patch('sys.argv', args), patch.dict('os.environ', environment, clear=True), \
+        with redirect_stdout(console), patch('sys.argv', legacy_args(args,self.root)), patch.dict('os.environ', environment, clear=True), \
              patch.object(release_sign, 'run', side_effect=fake_run), \
              patch.object(release_sign.getpass, 'getpass', side_effect=fake_prompt) as prompt, \
              patch.object(a, 'snapshot', side_effect=replace_after_snapshot), \
@@ -194,7 +195,7 @@ class ReleaseArtifactsTests(unittest.TestCase):
                 '--config', str(config), '--commit', self.commit, '--workflow-revision', self.commit,
                 '--run-id', '123', '--run-attempt', '1', '--version-name', '1.2.3',
                 '--version-code', '42', '--certificate-sha256', self.cert]
-        with patch('sys.argv', args), patch.object(release_collect.subprocess, 'run') as run:
+        with patch('sys.argv', legacy_args(args,self.root)), patch.object(release_collect.subprocess, 'run') as run:
             self.assertEqual(release_collect.main(), 1)
             run.assert_not_called()
 
@@ -205,7 +206,7 @@ class ReleaseArtifactsTests(unittest.TestCase):
                 '--approved-commit', self.commit, '--final-manifest', str(final),
                 '--final-manifest-sha256', a.sha256(final), '--provenance', str(final), '--notes', str(final),
                 '--scratch', str(self.root)]
-        with patch('sys.argv', args), patch.object(release_publish, 'command') as command:
+        with patch('sys.argv', legacy_args(args,self.root)), patch.object(release_publish, 'command') as command:
             self.assertEqual(release_publish.main(), 1)
             command.assert_not_called()
 
@@ -216,7 +217,7 @@ class ReleaseArtifactsTests(unittest.TestCase):
                 '--approved-commit', self.commit, '--final-manifest', str(final),
                 '--final-manifest-sha256', a.sha256(final), '--provenance', str(final), '--notes', str(final),
                 '--scratch', str(self.root)]
-        with patch('sys.argv', args), patch.object(release_publish, 'command') as command:
+        with patch('sys.argv', legacy_args(args,self.root)), patch.object(release_publish, 'command') as command:
             self.assertEqual(release_publish.main(), 1)
             command.assert_not_called()
 
@@ -251,7 +252,7 @@ class ReleaseArtifactsTests(unittest.TestCase):
                             '--final-manifest-sha256', a.sha256(final), '--provenance', str(provenance),
                             '--notes', str(final), '--scratch', str(self.root), '--dry-run', '--signing-key', '/key',
                             '--tagger-name', 'Signer', '--tagger-email', 'signer@example.invalid']
-                    with patch('sys.argv', args), patch.object(release_publish, 'command') as command:
+                    with patch('sys.argv', legacy_args(args,self.root)), patch.object(release_publish, 'command') as command:
                         self.assertEqual(release_publish.main(), 0 if accepted else 1)
                         if not accepted:
                             command.assert_not_called()
@@ -273,7 +274,7 @@ class ReleaseArtifactsTests(unittest.TestCase):
                 '--final-manifest-sha256', a.sha256(final), '--provenance', str(provenance), '--notes', str(final),
                 '--scratch', str(self.root), '--dry-run', '--signing-key', '/key',
                 '--tagger-name', 'Signer', '--tagger-email', 'signer@example.invalid']
-        with patch('sys.argv', args), patch.object(release_publish.subprocess, 'run') as run:
+        with patch('sys.argv', legacy_args(args,self.root)), patch.object(release_publish.subprocess, 'run') as run:
             self.assertEqual(release_publish.main(), 0)
             run.assert_not_called()
 
@@ -340,7 +341,7 @@ class ReleaseArtifactsTests(unittest.TestCase):
                             (dest / entries[0]['file']).write_bytes(b'replaced')
                     return types.SimpleNamespace(stdout='')
 
-                with patch('sys.argv', args), patch.object(release_publish, 'command', side_effect=gh), \
+                with patch('sys.argv', legacy_args(args,self.root)), patch.object(release_publish, 'command', side_effect=gh), \
                      patch.object(release_publish, 'create_signed_tag'), \
                      patch.object(release_publish, 'verify_remote_tag',
                                   side_effect=ValueError('wrong tag') if failure == 'tag' else None):

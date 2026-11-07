@@ -11,6 +11,7 @@ import os
 from pathlib import Path
 import re
 import subprocess
+import commit_messages
 
 SHA = re.compile(r'[0-9a-f]{40}\Z')
 
@@ -104,37 +105,45 @@ def validate_plan(plan):
     return plan
 
 
-def publish(repo, path, approved_digest, expected_main):
+def publish(repo, path, approved_digest, expected_main, *, messages=None, approved_messages_sha256=None, historical_messages=False):
     plain(repo)
     raw = path.read_bytes()
     if hashlib.sha256(raw).hexdigest() != approved_digest:
         raise ValueError('publication plan differs from external approval')
     plan = load_plan(raw)
+    wording = None
+    if messages is None:
+        if not historical_messages:raise ValueError('reviewed message input required; historical rendering must be explicit')
+    else:
+        message_raw=messages.read_bytes()
+        if hashlib.sha256(message_raw).hexdigest()!=approved_messages_sha256:raise ValueError('message input differs from external approval')
+        wording=commit_messages.validate(json.loads(message_raw,object_pairs_hook=unique_object),plan,approved_digest)
     if oid(expected_main) != plan['old_main']:
         raise ValueError('current base differs from approved base')
     if tree(repo, plan['signal']) != plan['layers'][0]['before_tree']:
         raise ValueError('first layer does not start at exact Signal tree')
     parent = plan['signal']
     outputs = []
-    for layer in plan['layers']:
+    for index,layer in enumerate(plan['layers']):
         if tree(repo, parent) != layer['before_tree']:
             raise ValueError('parent complete tree differs')
         if git(repo, 'cat-file', '-t', layer['after_tree']).strip() != b'tree':
             raise ValueError('checkpoint is not a complete Git tree')
         message = (layer['name'] + '\n\nComposite/generated publication layer. Original authorship and decisions:\n'
                    + layer['provenance'] + '\n')
+        if wording is not None:message=commit_messages.message({k:wording['layers'][index][k] for k in ('subject','body')})
         parent = commit(repo, layer['after_tree'], [parent], message)
         outputs.append(parent)
     generated = parent
     integration = commit(repo, plan['final_tree'], [plan['old_main'], generated],
-                         'Integrate reviewed Collie published source tree\n')
-    verify(repo, plan, generated, integration, expected_main)
+                         commit_messages.message(wording['integration']) if wording is not None else 'Integrate reviewed Collie published source tree\n')
+    verify(repo, plan, generated, integration, expected_main, messages=wording)
     return {'source_commit': generated, 'source_tree': plan['final_tree'],
             'integration_commit': integration, 'old_main': plan['old_main'],
-            'layer_commits': outputs, 'plan_sha256': approved_digest}
+            'layer_commits': outputs, 'plan_sha256': approved_digest, 'messages_sha256':approved_messages_sha256}
 
 
-def verify(repo, plan, generated, integration, expected_main):
+def verify(repo, plan, generated, integration, expected_main, *, messages=None):
     plain(repo)
     validate_plan(plan)
     if expected_main != plan['old_main']:
@@ -144,8 +153,17 @@ def verify(repo, plan, generated, integration, expected_main):
     parents = git(repo, 'show', '-s', '--format=%P', oid(integration)).decode().split()
     if parents != [plan['old_main'], generated]:
         raise ValueError('integration parents differ')
+    if messages is not None:
+        commit_messages.validate(messages,plan,messages['publication_plan_sha256'])
+        actual=git(repo,'cat-file','commit',integration).split(b'\n\n',1)[1]
+        if actual!=commit_messages.message(messages['integration']).encode():raise ValueError('integration wording differs')
     cursor = generated
-    for layer in reversed(plan['layers']):
+    for index in reversed(range(len(plan['layers']))):
+        layer=plan['layers'][index]
+        if messages is not None:
+            actual=git(repo,'cat-file','commit',cursor).split(b'\n\n',1)[1]
+            expected=commit_messages.message({k:messages['layers'][index][k] for k in ('subject','body')}).encode()
+            if actual!=expected:raise ValueError('layer wording differs')
         if tree(repo, cursor) != layer['after_tree']:
             raise ValueError('published intermediate checkpoint differs')
         parents = git(repo, 'show', '-s', '--format=%P', cursor).decode().split()
@@ -178,5 +196,9 @@ if __name__ == '__main__':
     parser.add_argument('--plan', type=Path, required=True)
     parser.add_argument('--approved-plan-sha256', required=True)
     parser.add_argument('--current-main', required=True)
+    selection=parser.add_mutually_exclusive_group(required=True)
+    selection.add_argument('--messages',type=Path)
+    selection.add_argument('--historical-messages',action='store_true',help='reproduce already-published historical candidate wording only')
+    parser.add_argument('--approved-messages-sha256')
     args = parser.parse_args()
-    print(json.dumps(publish(args.repo, args.plan, args.approved_plan_sha256, args.current_main), indent=2))
+    print(json.dumps(publish(args.repo, args.plan, args.approved_plan_sha256, args.current_main, messages=args.messages, approved_messages_sha256=args.approved_messages_sha256, historical_messages=args.historical_messages), indent=2))

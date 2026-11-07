@@ -1,0 +1,52 @@
+{
+  "scope": "Actual accepted binary/POM bytes; production origin replaced with fixture-local file URI only; no init script/Android compilation/public readback",
+  "checks": [
+    {
+      "check": "exact-six-files-direct-and-transitive",
+      "status": "PASS",
+      "scope": "isolated dependency resolver; no Android/gate activation"
+    },
+    {
+      "check": "missing-approved-module-does-not-fallback",
+      "status": "PASS",
+      "scope": "isolated dependency resolver; no Android/gate activation"
+    },
+    {
+      "check": "missing-pom-with-binary-present-rejected",
+      "status": "PASS",
+      "scope": "isolated dependency resolver; no Android/gate activation"
+    },
+    {
+      "check": "gradle-module-without-required-pom-rejected",
+      "status": "PASS",
+      "scope": "isolated dependency resolver; no Android/gate activation"
+    },
+    {
+      "check": "pom-marker-cannot-redirect-to-gradle-module",
+      "status": "PASS",
+      "scope": "isolated dependency resolver; no Android/gate activation"
+    },
+    {
+      "check": "wrong-pom-rejected",
+      "status": "PASS",
+      "scope": "isolated dependency resolver; no Android/gate activation"
+    },
+    {
+      "check": "wrong-binary-rejected",
+      "status": "PASS",
+      "scope": "isolated dependency resolver; no Android/gate activation"
+    }
+  ],
+  "production_metadata_sha256": "687fb1544cc1600748129ced52932b8ff8867f0e11bc70f008690a94854f5401",
+  "schema": 1,
+  "kind": "independent-native-source-review",
+  "engineering_implementation": "79badedf5a881803b72cdc6318478ab6b8a39b1e",
+  "source_commit": "6301e215418c69c8ccab2012fbcc05a76d7081eb",
+  "integration_commit": "8b119e357d1c9c6863eff31756660bc07d6cfb8b",
+  "source_tree": "b5fbed355186be1e728d556a48718e7158e7ab8f",
+  "plan_sha256": "b81dcc44ccd52bcc3b0e3c7d344cf1244021da68b96969220c02c83aa3368d03",
+  "production_native_publication": "NOT PUBLISHED",
+  "direct_android_build": "NOT RUN",
+  "host_native_jvm_tests": "NOT RUN",
+  "independent_native_reproduction": "NOT RUN"
+}

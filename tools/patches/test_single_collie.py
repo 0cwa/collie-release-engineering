@@ -10,6 +10,7 @@ import unittest
 from unittest.mock import patch
 
 import release_artifacts as a
+from test_release_plan_support import legacy_args
 import release_collect
 import release_sign
 import release_publish
@@ -32,9 +33,9 @@ class SingleCollieTest(unittest.TestCase):
     def collect(self):
         args = ['release_collect', '--directory', str(self.root), '--build-tools', str(self.tools),
                 '--config', str(self.config), '--commit', self.commit, '--workflow-revision', self.commit,
-                '--run-id', '1', '--run-attempt', '1', '--version-name', '8.35.1-rc', '--version-code', '177701',
+                '--run-id', '1', '--run-attempt', '1', '--version-name', '8.35.1-rc', '--version-code', '177703',
                 '--certificate-sha256', self.cert, '--single-collie']
-        with patch('sys.argv', args), patch.object(a, 'check_unsigned'), patch.object(a, 'check_metadata'), \
+        with patch('sys.argv', legacy_args(args,self.root)), patch.object(a, 'check_unsigned'), patch.object(a, 'check_metadata'), \
              patch.object(release_collect.subprocess, 'run', return_value=types.SimpleNamespace(stderr='test java')):
             self.assertEqual(release_collect.main(), 0)
         return json.loads((self.root / 'manifest.json').read_text())
@@ -58,6 +59,8 @@ class SingleCollieTest(unittest.TestCase):
                 '--approved-commit', self.commit, '--approved-run', '1', '--certificate-sha256', self.cert,
                 '--apks', str(self.root), '--output', str(out), '--build-tools', str(self.tools),
                 '--scratch', str(self.root), '--instrumentation-checklist', str(self.checklist)]
+        inventory=self.root/'inventory.json';inventory.write_text(json.dumps([{'release':'fixture-old','code':177702,'sha256':'a'*64}]))
+        args += ['--version-ledger',str(self.root/'versions.json'),'--published-inventory',str(inventory),'--published-inventory-sha256',a.sha256(inventory)]
         calls = []
         def run(command, **kwargs):
             calls.append(command)
@@ -70,7 +73,7 @@ class SingleCollieTest(unittest.TestCase):
                                                  'Signer #1 certificate SHA-256 digest: ' + self.cert + '\n'))
         env = {'MOLLY_KEYSTORE': '/fixture/key', 'MOLLY_KEY_ALIAS': 'key',
                'MOLLY_KEYSTORE_PASSWORD': 'fixture', 'MOLLY_KEY_PASSWORD': 'fixture'}
-        with patch('sys.argv', args), patch.dict(os.environ, env, clear=True), patch.object(release_sign, 'run', side_effect=run), \
+        with patch('sys.argv', legacy_args(args,self.root)), patch.dict(os.environ, env, clear=True), patch.object(release_sign, 'run', side_effect=run), \
              patch.object(a, 'check_unsigned'), patch.object(a, 'check_metadata'):
             self.assertEqual(release_sign.main(), 0)
         final = json.loads((out / 'final-manifest.json').read_text())
@@ -107,7 +110,7 @@ class SingleCollieTest(unittest.TestCase):
                     '--final-manifest', str(path), '--final-manifest-sha256', a.sha256(path), '--provenance', str(provenance),
                     '--notes', str(notes), '--scratch', str(self.root), '--dry-run', '--signing-key', '/key',
                     '--tagger-name', 'Signer', '--tagger-email', 'signer@example.invalid']
-            with patch('sys.argv', args), patch.object(release_publish.subprocess, 'run') as command:
+            with patch('sys.argv', legacy_args(args,self.root)), patch.object(release_publish.subprocess, 'run') as command:
                 result = release_publish.main()
                 return result, command.call_count
         self.assertEqual(call(), (0, 0))

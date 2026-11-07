@@ -52,13 +52,18 @@ native.init.gradle, operator paths/config or private workspace. Index signing
 and APK signing are unrelated. A provider with an existing object must compare
 hashes and refuse a different body. Keep the plan digest and provider readback.
 
-After approval and actual publication, independently download every plan URL
-and hash all six bytes. Pin the approved recipe revision, exact repository URL,
-module versions, transformed POM hashes and strict Gradle verification bytes as
-a reviewed application publication layer. Replace legacy native init injections
-with ordinary settings/project declarations; exclude upstream fallback. Remove
-mavenLocal from the production recipe. Construction ends before compilation.
-Only then remove the all-task native build block, execute clean direct builds,
-inspect packaged ABI libraries and run upgrade/regression acceptance. Do not
-remove the block merely because the six local bytes match. The independent
-native reproduction follow-up remains separately required before claiming it.
+The reviewed native source layer is now implemented in
+source/layers/native_repository.py and native-repository.patch; source candidate
+G3 contains the exact exclusive repository, six ordinary project substitutions,
+strict stage XML and typed catalog pins. mavenLocal/external native includeBuild
+and temporary native init/verification injection are absent from this direct
+source path. See NATIVE-SOURCE-LAYER.md for code and executed resolver checks.
+
+After approval and actual publication, independently download every plan URL and
+hash all six bodies, approve final immutable recipe/dependency pins and a separate
+acceptance/gate layer, then run a clean controlled direct Android build. The
+repository configuration/metadata implementation is already present; no private
+init setup remains to be invented. Do not remove the unconditional Android block
+merely because six local hashes match. Host native JVM testing JNI is a separate
+NOT RUN input/recipe follow-up and must never enter release APKs. Independent
+native reproduction remains separately required before claiming it.

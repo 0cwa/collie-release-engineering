@@ -2,11 +2,13 @@ import hashlib
 import importlib.util
 import json
 import os
+import sys
 from pathlib import Path
 import tempfile
 import unittest
 from unittest.mock import patch
 
+sys.path.insert(0,str(Path(__file__).parents[1]/'source'))
 spec = importlib.util.spec_from_file_location('publish', Path(__file__).parents[1] / 'source/publish.py')
 m = importlib.util.module_from_spec(spec); spec.loader.exec_module(m)
 
@@ -32,7 +34,7 @@ class PublicationTests(unittest.TestCase):
 
     def generate(self):
         self.path.write_text(json.dumps(self.plan))
-        return m.publish(self.repo, self.path, hashlib.sha256(self.path.read_bytes()).hexdigest(), self.old)
+        return m.publish(self.repo, self.path, hashlib.sha256(self.path.read_bytes()).hexdigest(), self.old, historical_messages=True)
 
     def test_deterministic_binary_mode_symlink_and_histories(self):
         a, b = self.generate(), self.generate()
@@ -43,7 +45,7 @@ class PublicationTests(unittest.TestCase):
     def test_tampered_plan(self):
         self.path.write_text(json.dumps(self.plan))
         with self.assertRaisesRegex(ValueError, 'external approval'):
-            m.publish(self.repo, self.path, '0'*64, self.old)
+            m.publish(self.repo, self.path, '0'*64, self.old, historical_messages=True)
 
     def test_stale_main_wrong_parent(self):
         a = self.generate()
