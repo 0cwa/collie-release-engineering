@@ -1,0 +1,80 @@
+name: Engineering CodeQL
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+  schedule:
+    - cron: '37 4 * * 1'
+permissions:
+  contents: read
+cache-mode: read
+concurrency:
+  group: engineering-codeql-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+jobs:
+  tooling-tests:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - run: python3 -m unittest discover -s tools/codeql -p 'test_*.py'
+      - run: python3 -m unittest discover -s tools/screenshots -p 'test_*.py'
+  analyze:
+    name: Analyze engineering (${{ matrix.language }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      security-events: write
+    strategy:
+      fail-fast: false
+      matrix:
+        language: [actions, python]
+    env:
+      CODEQL_ACTION_DIFF_INFORMED_QUERIES: 'false'
+      CODEQL_OVERLAY_DATABASE_MODE: 'none'
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+          lfs: false
+      - name: Record exact source and scope
+        run: |
+          git rev-parse HEAD HEAD^{tree}
+          printf '%s\n' 'Engineering Python/Actions coverage only; application Java/Kotlin and native source: NOT RUN by this workflow.' >> "$GITHUB_STEP_SUMMARY"
+      - uses: github/codeql-action/init@33d7b85da1a04171e211befe2c739303b9a4c066 # v4.39.3
+        with:
+          tools: linked
+          languages: ${{ matrix.language }}
+          build-mode: none
+          config-file: ./.github/codeql/codeql-config.yml
+          trap-caching: false
+          dependency-caching: false
+      - uses: github/codeql-action/analyze@33d7b85da1a04171e211befe2c739303b9a4c066 # v4.39.3
+        with:
+          category: /language:${{ matrix.language }}
+          output: ${{ runner.temp }}/codeql-sarif
+          upload: ${{ vars.CODEQL_ADVANCED_UPLOAD == 'true' && 'always' || 'never' }}
+          upload-database: false
+      - name: Apply the reviewed finding and extraction gate
+        if: always() && !cancelled()
+        env:
+          ANALYSIS_LANGUAGE: ${{ matrix.language }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/codeql-evidence"
+          python3 tools/codeql/report.py "$RUNNER_TEMP/codeql-sarif" \
+            --language "$ANALYSIS_LANGUAGE" --reviews .github/codeql/reviewed-findings.json \
+            --source-root . --output "$RUNNER_TEMP/codeql-evidence/audit.json" \
+            --summary "$RUNNER_TEMP/codeql-evidence/audit.md"
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        if: always() && !cancelled()
+        with:
+          name: engineering-codeql-${{ matrix.language }}
+          path: |
+            ${{ runner.temp }}/codeql-sarif
+            ${{ runner.temp }}/codeql-evidence
+          if-no-files-found: error
+          retention-days: 14

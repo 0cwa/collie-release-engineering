@@ -1,0 +1,72 @@
+name: Published workflow CodeQL
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+cache-mode: read
+jobs:
+  workflow-analysis:
+    name: Analyze GitHub Actions only
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      security-events: write
+    env:
+      CODEQL_ACTION_DIFF_INFORMED_QUERIES: 'false'
+      CODEQL_OVERLAY_DATABASE_MODE: 'none'
+    steps:
+      - name: Check out exact source under analysis
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          path: source
+          persist-credentials: false
+          lfs: false
+      - name: Load the independently reviewed engineering policy
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: 0cwa/collie-release-engineering
+          ref: __ENGINEERING_POLICY_REVISION__
+          path: policy
+          sparse-checkout: tools/codeql
+          persist-credentials: false
+      - name: State the exact analyzed source and coverage limit
+        run: |
+          git -C source rev-parse HEAD HEAD^{tree}
+          printf '%s\n' 'Actions workflow analysis only. Java/Kotlin and native-dependency source analysis: NOT RUN; a reviewed traced Android build with verified public native inputs is required before activation.' >> "$GITHUB_STEP_SUMMARY"
+      - uses: github/codeql-action/init@33d7b85da1a04171e211befe2c739303b9a4c066 # v4.39.3
+        with:
+          tools: linked
+          languages: actions
+          build-mode: none
+          source-root: source
+          config-file: ./source/.github/codeql/codeql-config.yml
+          trap-caching: false
+          dependency-caching: false
+      - uses: github/codeql-action/analyze@33d7b85da1a04171e211befe2c739303b9a4c066 # v4.39.3
+        with:
+          category: /language:actions
+          output: ${{ runner.temp }}/codeql-sarif
+          upload: ${{ vars.CODEQL_ADVANCED_UPLOAD == 'true' && 'always' || 'never' }}
+          upload-database: false
+      - name: Apply the pinned findings and extraction gate
+        if: always() && !cancelled()
+        run: |
+          mkdir -p "$RUNNER_TEMP/codeql-evidence"
+          python3 policy/tools/codeql/report.py "$RUNNER_TEMP/codeql-sarif" \
+            --language actions --reviews source/.github/codeql/reviewed-findings.json \
+            --source-root source --output "$RUNNER_TEMP/codeql-evidence/audit.json" \
+            --summary "$RUNNER_TEMP/codeql-evidence/audit.md"
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        if: always() && !cancelled()
+        with:
+          name: codeql-published-workflows
+          path: |
+            ${{ runner.temp }}/codeql-sarif
+            ${{ runner.temp }}/codeql-evidence
+          if-no-files-found: error
+          retention-days: 14
