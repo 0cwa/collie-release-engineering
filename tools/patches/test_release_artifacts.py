@@ -327,7 +327,7 @@ class ReleaseArtifactsTests(unittest.TestCase):
                         names = [p.name for p in inputs.iterdir()]
                         if failure == 'missing': names.pop()
                         if failure == 'extra': names.append('extra.apk')
-                        return types.SimpleNamespace(stdout=json.dumps({'isDraft': failure != 'non-draft',
+                        return types.SimpleNamespace(stdout=json.dumps({'isDraft': failure != 'non-draft' and not any(c[1:3] == ['release', 'edit'] for c in commands),
                                                                          'isPrerelease': (not prerelease if failure == 'wrong-prerelease' else prerelease),
                                                                          'assets': [{'name': n} for n in names]}))
                     if command[2] == 'download':
@@ -344,7 +344,7 @@ class ReleaseArtifactsTests(unittest.TestCase):
                      patch.object(release_publish, 'create_signed_tag'), \
                      patch.object(release_publish, 'verify_remote_tag',
                                   side_effect=ValueError('wrong tag') if failure == 'tag' else None):
-                    self.assertEqual(release_publish.main(), 0 if failure == 'none' else 1)
+                    self.assertEqual(release_publish.main(), 0 if failure in ('none', 'non-draft') else 1)
                 self.assertEqual(any(len(c) > 2 and c[1:3] == ['release', 'edit'] for c in commands),
                                  action == 'publish' and failure == 'none')
 

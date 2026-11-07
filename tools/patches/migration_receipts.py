@@ -7,8 +7,8 @@ import re
 FIELDS = {
  'source': {'upstream_commit':'git','engineering_revision':'git','generator_revision':'git','verifier_revision':'git','layers':'digests','reconstructed_tree':'git','overlays':'digests','published_commit':'git','published_tree':'git'},
  'build': {'source_receipt_sha256':'sha','source_commit':'git','source_tree':'git','recipe_revision':'git','toolchain_sha256':'sha','dependencies_sha256':'sha','native_inputs_sha256':'sha','unsigned_apk_sha256':'sha','trust_level':'text'},
- 'release': {'source_receipt_sha256':'sha','build_receipt_sha256':'sha','source_commit':'git','engineering_revision':'git','workflow_revision':'git','package':'package','version_code':'code','version_name':'text','apk_sha256':'sha','apk_certificate_sha256':'sha','aliases':'aliases'},
- 'repository': {'release_manifest_sha256':'sha','apk_sha256':'sha','apk_certificate_sha256':'sha','repository_certificate_sha256':'sha','fdroidserver_revision':'text','metadata_revision':'git','indexes':'indexes','generation':'text'},
+ 'release': {'release_manifest_sha256':'sha','source_receipt_sha256':'sha','build_receipt_sha256':'sha','source_commit':'git','engineering_revision':'git','workflow_revision':'git','package':'package','version_code':'code','version_name':'text','apk_sha256':'sha','apk_certificate_sha256':'sha','aliases':'aliases'},
+ 'repository': {'release_manifest_sha256':'sha','release_receipt_sha256':'nullable_sha','apk_sha256':'sha','apk_certificate_sha256':'sha','repository_certificate_sha256':'sha','fdroidserver_revision':'text','metadata_revision':'git','indexes':'indexes','generation':'text'},
 }
 ALIASES = sorted(x+'.apk' for x in ('collie','collie-foss','molly-continued','molly-foss-continued','molly-minimal'))
 
@@ -19,7 +19,9 @@ def exact(value, fields):
 
 
 def check(value, kind):
-    if kind in ('sha','git'):
+    if kind == 'nullable_sha':
+        if value is not None: check(value,'sha')
+    elif kind in ('sha','git'):
         if not isinstance(value,str) or not re.fullmatch('[0-9a-f]{'+('64' if kind=='sha' else '40')+'}',value):
             raise ValueError('invalid '+kind+' identity')
     elif kind == 'text':
@@ -87,36 +89,48 @@ def import_legacy(final, provenance):
             'instrumentation':final.get('instrumentation_checklist',{'status':'unknown'})}
 
 
-def verify_graph(source, build, release, repository, approved, *, promotion=False):
-    """Bind supplied receipts to external digest approvals and each other.
-
-    PASS claims are not attestations: an operator still authenticates evidence and
-    signer authorization separately. Historical UNKNOWN evidence cannot promote.
-    """
-    documents=dict(source=source,build=build,release=release,repository=repository)
-    exact(approved,documents)
+def verify_release_inputs(source, build, release, approved, *, raw_manifest_sha256, promotion=True):
+    """Verify independently approved source/build/release before binary ingestion."""
+    documents=dict(source=source,build=build,release=release)
+    exact(approved,documents); check(raw_manifest_sha256,'sha')
     for kind,document in documents.items():
         validate(document,kind); check(approved[kind],'sha')
-        if digest(document) != approved[kind]:
-            raise ValueError('unapproved '+kind+' receipt')
+        if digest(document)!=approved[kind]: raise ValueError('unapproved '+kind+' receipt')
         if promotion and (not document['evidence'] or any(e['status']!='PASS' for e in document['evidence'])):
             raise ValueError('promotion requires passed evidence for '+kind)
-    s,b,r,p=(documents[k]['payload'] for k in ('source','build','release','repository'))
-    links=(
-        (b['source_receipt_sha256'],digest(source),'build source receipt'),
-        (r['source_receipt_sha256'],digest(source),'release source receipt'),
-        (r['build_receipt_sha256'],digest(build),'release build receipt'),
-        (p['release_manifest_sha256'],digest(release),'repository release receipt'),
-        (b['source_commit'],s['published_commit'],'build source commit'),
-        (b['source_tree'],s['published_tree'],'build source tree'),
-        (r['source_commit'],s['published_commit'],'release source commit'),
-        (r['engineering_revision'],s['engineering_revision'],'release engineering revision'),
-        (p['apk_sha256'],r['apk_sha256'],'repository APK'),
-        (p['apk_certificate_sha256'],r['apk_certificate_sha256'],'repository APK signer'),
-    )
+    s,b,r=(documents[k]['payload'] for k in ('source','build','release'))
+    links=((b['source_receipt_sha256'],digest(source),'build source receipt'),
+           (r['source_receipt_sha256'],digest(source),'release source receipt'),
+           (r['build_receipt_sha256'],digest(build),'release build receipt'),
+           (r['release_manifest_sha256'],raw_manifest_sha256,'raw final manifest'),
+           (b['source_commit'],s['published_commit'],'build source commit'),
+           (b['source_tree'],s['published_tree'],'build source tree'),
+           (r['source_commit'],s['published_commit'],'release source commit'),
+           (r['engineering_revision'],s['engineering_revision'],'release engineering revision'))
     for actual,expected,label in links:
-        if actual != expected: raise ValueError(label+' differs')
+        if actual!=expected:raise ValueError(label+' differs')
     return {kind:digest(document) for kind,document in documents.items()}
+
+
+def verify_graph(source, build, release, repository, approved, *, promotion=False):
+    """Bind raw final-manifest bytes and canonical release-receipt identity separately.
+
+    A legacy repository receipt may parse with null release_receipt_sha256, but
+    cannot pass this complete-graph verifier or promote as new source evidence.
+    """
+    exact(approved,('source','build','release','repository'))
+    validate(repository,'repository');check(approved['repository'],'sha')
+    if digest(repository)!=approved['repository']:raise ValueError('unapproved repository receipt')
+    if promotion and (not repository['evidence'] or any(e['status']!='PASS' for e in repository['evidence'])):
+        raise ValueError('promotion requires passed evidence for repository')
+    p=repository['payload'];r=release['payload']
+    result=verify_release_inputs(source,build,release,{k:approved[k] for k in ('source','build','release')},raw_manifest_sha256=p['release_manifest_sha256'],promotion=promotion)
+    for actual,expected,label in ((p['release_receipt_sha256'],digest(release),'repository canonical release receipt'),
+                                  (p['apk_sha256'],r['apk_sha256'],'repository APK'),
+                                  (p['apk_certificate_sha256'],r['apk_certificate_sha256'],'repository APK signer')):
+        if actual!=expected:raise ValueError(label+' differs')
+    result['repository']=digest(repository)
+    return result
 
 
 def main():

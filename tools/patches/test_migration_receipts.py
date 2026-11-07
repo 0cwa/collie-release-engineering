@@ -9,7 +9,7 @@ import version_policy
 
 class Receipts(unittest.TestCase):
     def example(self,kind):
-        values={'git':'a'*40,'sha':'b'*64,'text':'explicit trusted-local; not reproduced','code':177703,'package':'im.collie.app','digests':[], 'aliases':receipts.ALIASES,'indexes':[{'file':'index-v2.json','sha256':'c'*64}]}
+        values={'git':'a'*40,'sha':'b'*64,'nullable_sha':'b'*64,'text':'explicit trusted-local; not reproduced','code':177703,'package':'im.collie.app','digests':[], 'aliases':receipts.ALIASES,'indexes':[{'file':'index-v2.json','sha256':'c'*64}]}
         return {'schema':2,'kind':kind,'payload':{k:copy.deepcopy(values[t]) for k,t in receipts.FIELDS[kind].items()},'evidence':[{'status':'UNKNOWN','description':'independent reproduction unexecuted','sha256':None}]}
 
     def test_all_and_tampering(self):
@@ -73,9 +73,22 @@ class Receipts(unittest.TestCase):
         # Recompute every digest link after evidence change.
         docs['build']['payload']['source_receipt_sha256']=receipts.digest(docs['source'])
         docs['release']['payload'].update(source_receipt_sha256=receipts.digest(docs['source']),build_receipt_sha256=receipts.digest(docs['build']))
-        docs['repository']['payload']['release_manifest_sha256']=receipts.digest(docs['release'])
+        docs['repository']['payload']['release_receipt_sha256']=receipts.digest(docs['release'])
         current={k:receipts.digest(v) for k,v in docs.items()}
         receipts.verify_graph(**docs,approved=current,promotion=True)
+
+    def test_raw_manifest_and_canonical_release_receipt_are_distinct(self):
+        root=Path(__file__).resolve().parents[2]/'docs/migration/fixtures'
+        docs={k:receipts.load(root/(k+'-v2.json'),k) for k in receipts.FIELDS}
+        approvals={k:receipts.digest(v) for k,v in docs.items()}
+        source_approvals={k:approvals[k] for k in ('source','build','release')}
+        receipts.verify_release_inputs(docs['source'],docs['build'],docs['release'],source_approvals,raw_manifest_sha256='e'*64,promotion=False)
+        with self.assertRaisesRegex(ValueError,'raw final manifest'):
+            receipts.verify_release_inputs(docs['source'],docs['build'],docs['release'],source_approvals,raw_manifest_sha256=receipts.digest(docs['release']),promotion=False)
+        legacy=copy.deepcopy(docs['repository']);legacy['payload']['release_receipt_sha256']=None
+        receipts.validate(legacy,'repository')
+        with self.assertRaisesRegex(ValueError,'canonical'):
+            receipts.verify_graph(docs['source'],docs['build'],docs['release'],legacy,{**approvals,'repository':receipts.digest(legacy)})
 
     def test_current_policy_preserves_legacy_parser(self):
         import release_artifacts as a

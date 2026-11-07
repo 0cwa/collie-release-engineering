@@ -14,8 +14,8 @@ from pathlib import Path
 import re
 
 HASH=re.compile(r'[0-9a-f]{64}\Z')
-PLAN={'schema','release_id','tag','release_manifest_sha256','apk_sha256','apk_certificate_sha256','package','version_code','repository_generation_sha256'}
-BINDINGS=('release_manifest_sha256','apk_sha256','apk_certificate_sha256','package','version_code')
+PLAN={'schema','release_id','tag','release_manifest_sha256','release_receipt_sha256','apk_sha256','apk_certificate_sha256','package','version_code','repository_generation_sha256'}
+BINDINGS=('release_manifest_sha256','release_receipt_sha256','apk_sha256','apk_certificate_sha256','package','version_code')
 
 
 def unique(pairs):
@@ -36,6 +36,7 @@ def validate_plan(plan):
     if set(plan)!=PLAN or type(plan['schema']) is not int or plan['schema']!=1:raise ValueError('promotion plan fields/schema')
     for k in ('release_manifest_sha256','apk_sha256','apk_certificate_sha256','repository_generation_sha256'):
         if not isinstance(plan[k],str) or not HASH.fullmatch(plan[k]):raise ValueError('promotion identity')
+    if plan['release_receipt_sha256'] is not None and (not isinstance(plan['release_receipt_sha256'],str) or not HASH.fullmatch(plan['release_receipt_sha256'])):raise ValueError('canonical release receipt identity')
     if plan['package']!='im.collie.app' or type(plan['version_code']) is not int or type(plan['release_id']) is not int or plan['version_code']<1 or plan['release_id']<1:raise ValueError('package/version/release identity')
     if not isinstance(plan['tag'],str) or not re.fullmatch(r'[A-Za-z0-9._+-]+',plan['tag']):raise ValueError('release tag')
     return plan

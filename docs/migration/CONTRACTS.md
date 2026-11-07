@@ -74,3 +74,17 @@ Current non-rehearsal signing requires explicit single-collie mode before any
 key access. Own-repository publishing requires the same mode before any GitHub
 mutation, including dry-run validation. Historical five-profile parsing and
 rehearsal remain available for verification; production cannot select them.
+
+## Distinct raw and canonical release bindings
+
+`release.payload.release_manifest_sha256` and
+`repository.payload.release_manifest_sha256` both mean SHA256 of exact raw
+final-manifest.json bytes. `repository.payload.release_receipt_sha256` means
+canonical `migration_receipts.digest(release-v2)` and is separately bound. Never
+interpret a raw-file digest as a canonical receipt identity. A legacy repository
+receipt explicitly uses null canonical receipt identity, parses as legacy-only
+evidence, and cannot pass full graph promotion. `verify_release_inputs` consumes
+externally approved source/build/release receipt digests plus the raw manifest
+digest before new-schema binary ingestion. Historical RC1 schema1 remains readable
+without manufacturing source/build evidence. Draft-v2 schema fixtures were
+amended before production use; no old signed release is changed.

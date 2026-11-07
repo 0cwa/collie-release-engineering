@@ -2,11 +2,16 @@
 
 The existing local GitHub publisher and repository generation publisher each
 validate bytes, but their original independent journals do not make a single
-cross-endpoint transaction. In particular, the legacy GitHub publish command
-expects a draft and cannot simply be repeated after the release is published.
+cross-endpoint transaction. The updated GitHub publisher now verifies and resumes identical existing drafts
+or published releases, including interrupted asset uploads without replacement.
+It verifies all signed-tag/channel/asset identities, reads back bytes again after
+publishing and skips the mutation for an already-published exact release.
 Use one durable `coordinated_promotion.py` operator record to bind both endpoints
 to the same approved final-manifest digest, APK hash/certificate/package/code,
-release ID/tag and signed repository generation. Never rebuild on retry.
+release ID/tag and signed repository generation. Bind the canonical schema2
+release_receipt_sha256 separately from raw release_manifest_sha256; explicit
+null canonical identity means legacy-only redistribution, never a complete new
+source graph. New-source promotion requires the separately approved full graph. Never rebuild on retry.
 
 1. Prepare/sign once using the approved source/build/release graph and dynamic
    serialized version reservation. Approve the immutable promotion plan digest.
@@ -16,14 +21,15 @@ release ID/tag and signed repository generation. Never rebuild on retry.
    Manual production approval remains separate. After publication, independently
    read back release ID/tag, final manifest and all five downloaded alias hashes,
    certificate/package/code; produce a passing schema1 `github` readback report.
-   Its fields are schema,endpoint,status,release_id,tag,release_manifest_sha256,
+   Its fields are schema,endpoint,status,release_id,tag,release_manifest_sha256,release_receipt_sha256,
    apk_sha256,apk_certificate_sha256,package,version_code,published:true,aliases
    (five filename→exact digest entries). Approve report SHA256 independently.
 3. `coordinated_promotion.py --state durable-promotion.json --plan PLAN
    --approved-plan-sha256 DIGEST --endpoint github --report READBACK
    --approved-report-sha256 REPORT_DIGEST` commits the GitHub verified phase with
    file lock/fsync. If interrupted after GitHub publication, obtain readback of
-   that same release; do not rerun its draft-only publication path.
+   that same release; the updated publish action performs an idempotent readback
+   without re-editing an already-published release. Never downgrade it to draft.
 4. Ingest the same approved manifest/APK into the standard fdroidserver path.
    Approve signed generation digest and repository receipt, use existing local
    generation journal/provider plan to upload immutable content before mutable

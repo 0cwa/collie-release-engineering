@@ -18,7 +18,8 @@
       "molly-continued.apk",
       "molly-foss-continued.apk",
       "molly-minimal.apk"
-    ]
+    ],
+    "release_manifest_sha256": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
   },
   "evidence": [
     {

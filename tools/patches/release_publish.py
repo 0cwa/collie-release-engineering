@@ -47,7 +47,7 @@ def create_signed_tag(repo, tag, commit, key, name, email, askpass, dry):
 
 def verify_remote_tag(repo, tag, commit):
     ref = command(['gh', 'api', f'repos/{repo}/git/ref/tags/{tag}'],
-                  stdout=subprocess.PIPE, text=True)
+                  stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
     obj = json.loads(ref.stdout)['object']
     if obj.get('type') != 'tag' or not re.fullmatch(r'[0-9a-f]{40}', obj.get('sha', '')):
         raise ValueError('remote release tag is not a signed annotated tag')
@@ -58,6 +58,66 @@ def verify_remote_tag(repo, tag, commit):
             or signed.get('object', {}).get('sha') != commit
             or signed.get('verification', {}).get('verified') is not True):
         raise ValueError('remote tag signature or approved commit verification failed')
+
+def missing_remote(error):
+    message = str(error.stderr or '').strip()
+    return error.returncode == 1 and (message == 'release not found' or 'HTTP 404' in message)
+
+
+def find_release(repo, tag):
+    try:
+        info = command(['gh', 'release', 'view', tag, '--repo', repo, '--json', 'isDraft,isPrerelease,assets'],
+                       stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    except subprocess.CalledProcessError as error:
+        if missing_remote(error):
+            return None
+        raise
+    return json.loads(info.stdout)
+
+
+def ensure_signed_tag(args):
+    try:
+        verify_remote_tag(args.repo, args.tag, args.approved_commit)
+    except subprocess.CalledProcessError as error:
+        if not missing_remote(error):
+            raise
+        create_signed_tag(args.repo, args.tag, args.approved_commit, args.signing_key,
+                          args.tagger_name, args.tagger_email, args.ssh_askpass, False)
+        verify_remote_tag(args.repo, args.tag, args.approved_commit)
+
+
+def resume_draft_assets(args, assets, expected, downloads):
+    """Complete interrupted uploads without replacing any existing asset."""
+    verify_remote_tag(args.repo,args.tag,args.approved_commit)
+    release=find_release(args.repo,args.tag)
+    if release is None or release.get('isDraft') is not True or release.get('isPrerelease') is not args.prerelease:
+        raise ValueError('draft resume requires same draft/channel')
+    names=[x['name'] for x in release.get('assets',[])]
+    desired={p.name:p for p in assets}
+    if len(names)!=len(set(names)) or set(names)-desired.keys():raise ValueError('unexpected draft asset set')
+    if names:
+        downloads.mkdir()
+        command(['gh','release','download',args.tag,'--repo',args.repo,'--dir',downloads])
+        for name in names:
+            if a.sha256(downloads/name)!=expected[name]:raise ValueError('existing draft asset differs: '+name)
+    missing=[desired[name] for name in desired if name not in names]
+    if missing:
+        command(['gh','release','upload',args.tag,'--repo',args.repo,*missing])
+
+def readback(args, assets, expected, downloads):
+    verify_remote_tag(args.repo, args.tag, args.approved_commit)
+    release = find_release(args.repo, args.tag)
+    if (release is None or type(release.get('isDraft')) is not bool
+            or (args.action == 'draft' and not release['isDraft'])
+            or release.get('isPrerelease') is not args.prerelease
+            or {x['name'] for x in release.get('assets', [])} != {x.name for x in assets}):
+        raise ValueError('release state, prerelease setting or exact asset list differs')
+    downloads.mkdir()
+    command(['gh', 'release', 'download', args.tag, '--repo', args.repo, '--dir', downloads])
+    for path in assets:
+        if a.sha256(downloads / path.name) != expected[path.name]:
+            raise ValueError('downloaded asset hash differs: ' + path.name)
+    return release
 
 def main():
     p = argparse.ArgumentParser(description=__doc__)
@@ -154,32 +214,35 @@ def main():
             sums.chmod(0o600)
             expected[sums.name] = a.sha256(sums)
             assets.append(sums)
-            if args.action == 'draft':
-                create_signed_tag(args.repo, args.tag, args.approved_commit, args.signing_key,
-                                  args.tagger_name, args.tagger_email, args.ssh_askpass, args.dry_run)
-                if not args.dry_run:
-                    verify_remote_tag(args.repo, args.tag, args.approved_commit)
-                command(['gh', 'release', 'create', args.tag, '--repo', args.repo, '--verify-tag', '--draft',
-                         '--title', args.tag, '--notes-file', notes,
-                         *(['--prerelease', '--latest=false'] if args.prerelease else []), *assets], args.dry_run)
-            # Re-download and check on both commands, including immediately before publishing.
-            if not args.dry_run:
-                verify_remote_tag(args.repo, args.tag, args.approved_commit)
-                info = command(['gh', 'release', 'view', args.tag, '--repo', args.repo, '--json', 'isDraft,isPrerelease,assets'],
-                               stdout=subprocess.PIPE, text=True)
-                release = json.loads(info.stdout)
-                if (not release['isDraft'] or release['isPrerelease'] is not args.prerelease
-                        or {x['name'] for x in release['assets']} != {x.name for x in assets}):
-                    raise ValueError('draft state, prerelease setting or exact asset list differs')
-            downloads = tmp / 'downloaded'
-            downloads.mkdir()
-            command(['gh', 'release', 'download', args.tag, '--repo', args.repo, '--dir', downloads], args.dry_run)
-            if not args.dry_run:
-                for path in assets:
-                    if a.sha256(downloads / path.name) != expected[path.name]:
-                        raise ValueError('downloaded asset hash differs: ' + path.name)
-            if args.action == 'publish':
-                command(['gh', 'release', 'edit', args.tag, '--repo', args.repo, '--draft=false'], args.dry_run)
+            existing = None if args.dry_run else find_release(args.repo, args.tag)
+            if args.action == 'draft' and existing is None:
+                if args.dry_run:
+                    create_signed_tag(args.repo, args.tag, args.approved_commit, args.signing_key,
+                                      args.tagger_name, args.tagger_email, args.ssh_askpass, True)
+                else:
+                    ensure_signed_tag(args)
+                try:
+                    command(['gh', 'release', 'create', args.tag, '--repo', args.repo, '--verify-tag', '--draft',
+                             '--title', args.tag, '--notes-file', notes,
+                             *(['--prerelease', '--latest=false'] if args.prerelease else []), *assets], args.dry_run)
+                except subprocess.CalledProcessError:
+                    # A successful create followed by lost response is safe to
+                    # resume only after the same complete release is read back.
+                    if find_release(args.repo, args.tag) is None:
+                        raise
+            if not args.dry_run and args.action == 'draft':
+                resume_draft_assets(args, assets, expected, tmp / 'downloaded-existing')
+            if args.dry_run:
+                command(['gh', 'release', 'download', args.tag, '--repo', args.repo, '--dir', tmp / 'downloaded'], True)
+                if args.action == 'publish':
+                    command(['gh', 'release', 'edit', args.tag, '--repo', args.repo, '--draft=false'], True)
+            else:
+                release = readback(args, assets, expected, tmp / 'downloaded')
+                if args.action == 'publish' and release['isDraft']:
+                    command(['gh', 'release', 'edit', args.tag, '--repo', args.repo, '--draft=false'])
+                    published = readback(args, assets, expected, tmp / 'downloaded-published')
+                    if published['isDraft']:
+                        raise ValueError('publication did not become visible after readback')
     except (ValueError, KeyError, OSError, subprocess.CalledProcessError, json.JSONDecodeError) as exc:
         print('release publishing failed:', exc, file=sys.stderr)
         return 1
