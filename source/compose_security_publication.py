@@ -299,6 +299,8 @@ def compose(repo, checkpoint_repo, stage, engineering, plan_path,
            f'Ran source/layers/publication.py from exact committed engineering revision {engineering_revision} with recipe pin {publication.RECIPE_REVISION} and explicit application_base={current_main}. The producer copies README/LICENSE/NOTICE/assets from that exact commit, replaces legacy workflows with the reviewed source-only gate, and regenerates BUILD.md, VERIFY.md, build-input metadata, release version properties, and the unconditional direct-build gate. The ordinary pull-request workflow remains usable; release assembly remains blocked.')
     verify_release_metadata(repo, tree)
     verify_ordinary_pr_policy(repo, tree, stage)
+    publication_tree = tree
+    verify_publication_preimage(repo, publication_tree, security_manifest)
 
     native_patch_path = ROOT / 'source/layers/native-repository.patch'
     native_layer = plan['layers'][-1]
@@ -319,8 +321,8 @@ def compose(repo, checkpoint_repo, stage, engineering, plan_path,
     record('feature', molly['subject'], before, tree,
            f'Original reviewed MollySocket feature commit {molly["source_commit"]}; source parent {molly["source_parent"]}; original author {molly["author"]["name"]} <{molly["author"]["email"]}>. Complete binary/mode patch SHA-256 {molly_hash}.')
 
-    publication_tree = tree
-    verify_publication_preimage(repo, publication_tree, security_manifest)
+    security_preimage_tree = tree
+    verify_publication_preimage(repo, security_preimage_tree, security_manifest)
     before = tree
     security_hash, security_paths = apply_patch(
         stage, security_patch_path, security_manifest['patch_sha256'], security_manifest['paths'])
@@ -357,7 +359,8 @@ def compose(repo, checkpoint_repo, stage, engineering, plan_path,
             'current_main': current_main, 'prior_generated': prior_generated,
             'prior_integration': prior_integration,
             'reconstructed_tree': plan['reconstructed_tree'],
-            'publication_tree': publication_tree, 'final_tree': tree,
+            'publication_tree': publication_tree,
+            'security_preimage_tree': security_preimage_tree, 'final_tree': tree,
             'layers_added': records, 'messages': str(output_messages),
             'markdown': str(output_markdown), 'status': 'DRAFT; no G/I commits generated'}
 
