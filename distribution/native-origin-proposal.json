@@ -1,0 +1,77 @@
+{
+  "schema": 1,
+  "kind": "native-storage-proposal",
+  "status": "OPERATOR DECISION AND PROVISIONING REQUIRED; NOTHING UPLOADED",
+  "selected_feed_host": "GitHub Pages: https://repo.collie.im/fdroid/repo/",
+  "proposed_native_origin": "https://native.collie.im/maven/v1/",
+  "current_unpublished_origin": "https://repo.collie.im/native-inputs/v1/maven/",
+  "source_plan_sha256": "c5fd606dab4cbf6022bdf1e2de9d5d9d10d25e7b5f4ec7e5ea4bc3749ce404c9",
+  "native_trust": "accepted trusted-local binary inputs; independent native reproduction NOT RUN",
+  "files": [
+    {
+      "path": "im/collie/native/libsignal-android/0.106.1-collie.1/libsignal-android-0.106.1-collie.1.aar",
+      "bytes": 215587114,
+      "sha256": "4247031a753f73f12753d04f14d9316436bbf07af2097c1b897feedd360dbd9a",
+      "object_key": "maven/v1/im/collie/native/libsignal-android/0.106.1-collie.1/libsignal-android-0.106.1-collie.1.aar",
+      "proposed_url": "https://native.collie.im/maven/v1/im/collie/native/libsignal-android/0.106.1-collie.1/libsignal-android-0.106.1-collie.1.aar"
+    },
+    {
+      "path": "im/collie/native/libsignal-android/0.106.1-collie.1/libsignal-android-0.106.1-collie.1.pom",
+      "bytes": 1718,
+      "sha256": "94432b6fefcb0eeaae4622dc3d381b4ed1ae7c2a453967db6f416a636c25ad87",
+      "object_key": "maven/v1/im/collie/native/libsignal-android/0.106.1-collie.1/libsignal-android-0.106.1-collie.1.pom",
+      "proposed_url": "https://native.collie.im/maven/v1/im/collie/native/libsignal-android/0.106.1-collie.1/libsignal-android-0.106.1-collie.1.pom"
+    },
+    {
+      "path": "im/collie/native/libsignal-client/0.106.1-collie.1/libsignal-client-0.106.1-collie.1.jar",
+      "bytes": 1003356,
+      "sha256": "c361b8e905c770b838535fdac5a0bdf0f995f8ed6ce0a6837cb4c7360e8c5a79",
+      "object_key": "maven/v1/im/collie/native/libsignal-client/0.106.1-collie.1/libsignal-client-0.106.1-collie.1.jar",
+      "proposed_url": "https://native.collie.im/maven/v1/im/collie/native/libsignal-client/0.106.1-collie.1/libsignal-client-0.106.1-collie.1.jar"
+    },
+    {
+      "path": "im/collie/native/libsignal-client/0.106.1-collie.1/libsignal-client-0.106.1-collie.1.pom",
+      "bytes": 1693,
+      "sha256": "cb706c8229ba35967c285a4f28e0049769e904b9cc9fbbb6c97d37596690cd23",
+      "object_key": "maven/v1/im/collie/native/libsignal-client/0.106.1-collie.1/libsignal-client-0.106.1-collie.1.pom",
+      "proposed_url": "https://native.collie.im/maven/v1/im/collie/native/libsignal-client/0.106.1-collie.1/libsignal-client-0.106.1-collie.1.pom"
+    },
+    {
+      "path": "im/collie/native/ringrtc-android/2.74.0-collie.1/ringrtc-android-2.74.0-collie.1.aar",
+      "bytes": 94240994,
+      "sha256": "51f1f9b1f2335ba1b6557b5f0810227ac66a54ec8cbf0f2c789091b0ab5d245b",
+      "object_key": "maven/v1/im/collie/native/ringrtc-android/2.74.0-collie.1/ringrtc-android-2.74.0-collie.1.aar",
+      "proposed_url": "https://native.collie.im/maven/v1/im/collie/native/ringrtc-android/2.74.0-collie.1/ringrtc-android-2.74.0-collie.1.aar"
+    },
+    {
+      "path": "im/collie/native/ringrtc-android/2.74.0-collie.1/ringrtc-android-2.74.0-collie.1.pom",
+      "bytes": 1572,
+      "sha256": "ab10045f321d1023e3c810625a209c0c8e007db7622fa4a0fdfcf1156e115b8b",
+      "object_key": "maven/v1/im/collie/native/ringrtc-android/2.74.0-collie.1/ringrtc-android-2.74.0-collie.1.pom",
+      "proposed_url": "https://native.collie.im/maven/v1/im/collie/native/ringrtc-android/2.74.0-collie.1/ringrtc-android-2.74.0-collie.1.pom"
+    }
+  ],
+  "capacity": {
+    "native_generation_bytes": 310836447,
+    "canonical_rc1_apk_bytes": 97054341,
+    "initial_shared_native_plus_one_apk_bytes": 407890788,
+    "pages_limit_conservative_decimal_bytes": 1000000000,
+    "operational_margin_bytes": 50000000,
+    "shared_one_native_plus_six_apks_bytes": 893162493,
+    "shared_one_native_plus_seven_apks_bytes": 990216834,
+    "shared_two_native_plus_four_apks_bytes": 1009890258,
+    "pages_feed_only_nine_apks_bytes": 873489069,
+    "native_bytes_excluded_from_selected_pages_feed": 310836447,
+    "soft_monthly_bytes": 100000000000,
+    "approx_full_rc1_downloads_at_soft_monthly_limit": 1030
+  },
+  "retention": "Every published immutable native generation remains reachable; no deleting old native inputs or overwriting coordinates to fit Pages. Feed retention/archive separately approved.",
+  "operator_actions": [
+    "Approve proposed origin before changing source locks/URL layer; current old URLs stay NOT PUBLISHED",
+    "Select/confirm R2 account, bucket, billing/limits, DNS zone/domain availability and separate HTTPS custom domain; credentials/access uninspected",
+    "Provision bucket/custom hostname/TLS only after explicit production approval; do not assume native path routes to R2 via Pages",
+    "Upload six immutable objects with conditional no-overwrite or compare-existing SHA256/size; no ACL/DNS changes performed by this proposal",
+    "Read every canonical public HTTPS URL back, compare exact size/SHA256 and observe TLS/cache headers; sign/persist receipt",
+    "Review updated immutable native URL/lock layer and regenerate final source only after approved public readback"
+  ]
+}

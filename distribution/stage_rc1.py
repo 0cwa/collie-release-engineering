@@ -9,7 +9,8 @@ import subprocess
 import sys
 import binary_repo as b
 
-p=argparse.ArgumentParser();p.add_argument('--approval',type=Path,required=True);p.add_argument('--manifest',type=Path,required=True);p.add_argument('--apk',type=Path,required=True);p.add_argument('--workspace',type=Path,required=True);p.add_argument('--sdk',type=Path,required=True);a=p.parse_args()
+p=argparse.ArgumentParser();p.add_argument('--approval',type=Path,required=True);p.add_argument('--manifest',type=Path,required=True);p.add_argument('--apk',type=Path,required=True);p.add_argument('--workspace',type=Path,required=True);p.add_argument('--sdk',type=Path,required=True);p.add_argument('--repository-url',default='http://127.0.0.1:8765/fdroid/repo');a=p.parse_args()
+if a.repository_url not in ('http://127.0.0.1:8765/fdroid/repo','https://repo.collie.im/fdroid/repo'):raise ValueError('approved staging repository URL')
 if importlib.metadata.version('fdroidserver')!=b.SERVER_VERSION: raise ValueError('fdroidserver pin mismatch')
 w=a.workspace;w.mkdir(parents=True,exist_ok=True);os.chmod(w,0o700)
 b.ingest(a.approval,a.manifest,a.apk,w,str(a.sdk/'aapt'),str(a.sdk/'apksigner'))
@@ -20,7 +21,7 @@ public=subprocess.check_output(['keytool','-exportcert','-keystore',str(key),'-s
 import hashlib
 fp=hashlib.sha256(public).hexdigest()
 # Fixed localhost staging identity, never production endpoint.
-(w/'config.yml').write_text(f'''repo_url: http://127.0.0.1:8765/fdroid/repo
+(w/'config.yml').write_text(f'''repo_url: {a.repository_url}
 repo_name: Collie disposable staging
 repo_description: Local test only, not a production repository.
 archive_older: 0
@@ -35,5 +36,7 @@ keypass: staging-test-only
 ''')
 os.chmod(w/'config.yml',0o600)
 subprocess.run([str(Path(sys.executable).parent/'fdroid'),'update','--pretty'],cwd=w,check=True)
+# Unsigned fdroid status files disclose local tool paths; retain diagnostics privately.
+if (w/'repo/status').exists():shutil.rmtree(w/'repo/status')
 b.verify_indexes(w/'repo',fp)
 print(json.dumps({'fdroidserver':b.SERVER_VERSION,'repository_certificate_sha256':fp,'apk_sha256':b.sha(a.apk),'indexes':{p.name:b.sha(p) for p in (w/'repo').glob('*') if p.suffix in ('.jar','.json') }},indent=2))

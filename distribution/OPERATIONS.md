@@ -1,5 +1,9 @@
 # Collie binary repository
 
+Current selected hosting adapter: GitHub Pages, documented in PAGES.md. Older
+R2 feed preparation below is historical/inactive for this rollout. The separate
+native-origin proposal is in NATIVE-STORAGE.md; no provider is activated here.
+
 This is a custom binary feed, not an application build or official F-Droid catalogue
 submission. One `im.collie.app_<versionCode>.apk` is indexed for each approved release.
 The GitHub filenames containing `foss` do not select another product. Do not run
