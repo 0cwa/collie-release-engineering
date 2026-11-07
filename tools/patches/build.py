@@ -47,6 +47,27 @@ def relative_file(repo: Path, value: str, label: str) -> Path:
     return path.resolve()
 
 
+def native_artifact_lock(repo,config):
+    """Identify the existing locked-artifact route without constructing a build."""
+    value = config.get('native')
+    if value is None:
+        if config.get('signal', {}).get('commit') == BLOCKED_SIGNAL_PORT:
+            raise BuildError('Signal 8.35.1 requires the pinned native dependency lock')
+        return None
+    path = relative_file(repo, value, 'native dependency lock')
+    lock = json.loads(path.read_text())
+    if not isinstance(lock, dict):
+        raise BuildError('native dependency lock must be an object')
+    multi = (config.get('signal', {}).get('commit') == BLOCKED_SIGNAL_PORT or
+             value == 'tools/native/native-lock.json' or bool({'source_provenance', 'modules'} & lock.keys()))
+    if multi and (not isinstance(lock.get('source_provenance'), dict) or not lock['source_provenance'] or
+                  not isinstance(lock.get('modules'), list) or not lock['modules']):
+        raise BuildError('multi-artifact native dependency lock is malformed')
+    if config.get('signal', {}).get('commit') == BLOCKED_SIGNAL_PORT and hashlib.sha256(path.read_bytes()).hexdigest() != PINNED_NATIVE_LOCK_SHA256:
+        raise BuildError('Signal 8.35.1 native dependency lock differs from its pin')
+    return path if multi else None
+
+
 def gradle_tasks(value, label: str, *, tests: bool = False) -> list[str]:
     if isinstance(value, str):
         value = [value]
@@ -158,23 +179,7 @@ class Build:
 
     def artifact_native_lock(self):
         """Select the multi-artifact gate without changing historical hotfix behavior."""
-        value = self.config.get('native')
-        if value is None:
-            if self.config.get('signal', {}).get('commit') == BLOCKED_SIGNAL_PORT:
-                raise BuildError('Signal 8.35.1 requires the pinned native dependency lock')
-            return None
-        path = relative_file(self.repo, value, 'native dependency lock')
-        lock = json.loads(path.read_text())
-        if not isinstance(lock, dict):
-            raise BuildError('native dependency lock must be an object')
-        multi = (self.config.get('signal', {}).get('commit') == BLOCKED_SIGNAL_PORT or
-                 value == 'tools/native/native-lock.json' or bool({'source_provenance', 'modules'} & lock.keys()))
-        if multi and (not isinstance(lock.get('source_provenance'), dict) or not lock['source_provenance'] or
-                      not isinstance(lock.get('modules'), list) or not lock['modules']):
-            raise BuildError('multi-artifact native dependency lock is malformed')
-        if self.config.get('signal', {}).get('commit') == BLOCKED_SIGNAL_PORT and hashlib.sha256(path.read_bytes()).hexdigest() != PINNED_NATIVE_LOCK_SHA256:
-            raise BuildError('Signal 8.35.1 native dependency lock differs from its pin')
-        return path if multi else None
+        return native_artifact_lock(self.repo,self.config)
 
     def artifact_native_driver(self):
         path = relative_file(self.repo, 'tools/native/native_driver.py', 'native artifact driver')
