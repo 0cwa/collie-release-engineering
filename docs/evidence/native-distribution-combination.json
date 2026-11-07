@@ -1,0 +1,10 @@
+{
+  "schema": 1,
+  "scope": "Clean exported Git merge-tree of reviewed source layer and distribution code; no branch mutation, deployment, Android compilation or production input publication",
+  "engineering_code": "79badedf5a881803b72cdc6318478ab6b8a39b1e",
+  "distribution_code": "e3e3182e0bee0ba8f71891e83d3e9995d87bc89f",
+  "combined_tree": "759ed74a4ee0fde42b2fb56835925ae7c79f6f4c",
+  "tests": 24,
+  "status": "PASS",
+  "command": "agent-heavy -- python3 -m unittest discover -s EXPORTED_TREE/distribution -p test_*.py -v"
+}

@@ -1,0 +1,45 @@
+diff --git a/BUILD.md b/BUILD.md
+index 2d2b79e09b024efe2ebea4660fa1c141e3db9290..0f573a86832abfafae790a836dada94868453d60 100644
+--- a/BUILD.md
++++ b/BUILD.md
+@@ -9,7 +9,7 @@ Collie backup names and optional FCM; legacy filename aliases are one product.
+ accepted native bytes. Their public immutable repository has not been supplied
+ or independently downloaded. `native-publication.json` records this gap. Do not
+ substitute upstream native libraries or disable strict dependency verification.
+-A direct release task deliberately fails until the required publication layer
++Every direct Android Gradle configuration deliberately fails until the required publication layer
+ and clean-checkout build acceptance are reviewed. This draft is not releasable.
+ 
+ The retained local operator route is in collie-release-engineering and still
+@@ -17,7 +17,7 @@ requires its explicit trusted-local native acceptance. That is not independent
+ native reproduction. Obtain the three locked artifacts and POMs from approved
+ public immutable URLs, verify all hashes, materialize their exclusive repository
+ and verification entries in source, then run a fresh controlled Gradle build.
+-The expected canonical task is `./gradlew --dependency-verification=strict
++After reviewed gate removal, releaseVersionCode and releaseVersionName are normal source-defined Gradle properties. Final values must come from serialized external reservation and be recorded in the build receipt. The expected canonical task is `./gradlew --dependency-verification=strict
+ :app:assembleProdWebsiteRelease`; it is currently BLOCKED as described above.
+ 
+ Release versions must be externally reserved above 177702 and all later published
+diff --git a/app/build.gradle.kts b/app/build.gradle.kts
+index c7d5ad88724379d290ad1271032c54f63fb35f37..98851fe08b7e497f91a31256a05c3f2ceb502a14 100644
+--- a/app/build.gradle.kts
++++ b/app/build.gradle.kts
+@@ -176,8 +176,8 @@ android {
+   defaultConfig {
+     val sourceVersionNameWithRevision = "${canonicalVersionName}-${mollyRevision}-port-unvalidated"
+ 
+-    versionCode = (canonicalVersionCode * maxHotfixVersions) + mollyRevision + currentHotfixVersion
+-    versionName = if (ciEnabled) requireCommitTag() else sourceVersionNameWithRevision
++    versionCode = providers.gradleProperty("releaseVersionCode").orNull?.toInt()?.also { require(it > 177702) { "Release versionCode must exceed published RC1 and all later reservations" } } ?: ((canonicalVersionCode * maxHotfixVersions) + mollyRevision + currentHotfixVersion)
++    versionName = providers.gradleProperty("releaseVersionName").orNull ?: (if (ciEnabled) requireCommitTag() else sourceVersionNameWithRevision)
+ 
+     minSdk = libs.versions.minSdk.get().toInt()
+     targetSdk = libs.versions.targetSdk.get().toInt()
+@@ -642,6 +642,4 @@ fun requireCommitTag(): String = providers.gradleProperty("releaseVersionName").
+ 
+ // Publication migration gate: remove only with reviewed public native inputs and
+ // direct-source acceptance. The legacy operator route is retained in engineering.
+-if (gradle.startParameter.taskNames.any { it.contains("Release", ignoreCase = true) }) {
+-  throw GradleException("Direct release build BLOCKED: publish and verify locked native inputs first; see BUILD.md")
+-}
++throw GradleException("Direct Android builds BLOCKED: publish and verify locked native inputs first; see BUILD.md")

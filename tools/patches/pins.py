@@ -25,6 +25,7 @@ UNSIGNED_WORKFLOW = '.github/workflows/molly-unsigned-release.yml'
 
 # (value, meaning, upstream whose new release changes it, files that contain it)
 PINS = [
+    ('f6f68cdee08fb8d9acb6a866b1673deb10525f20', 'accepted PR38 raw main maintenance projection', 'none', [SCOPE]),
     ('b06a83f6e4584f27811c3f406579b7db296f4b59', 'audited clean integration entries manifest', 'none', [SCOPE]),
     ('7f0eb01a0ab472deeef3b528e7f508425044fa6a', 'audited historical release base for clean main', 'none', [SCOPE, RELEASE_WORKFLOW]),
     ('7d486880ddc991af0d36f1e4709030255ef4dbad', 'reviewed fork base for Signal 8.35.1', 'none', [SCOPE]),

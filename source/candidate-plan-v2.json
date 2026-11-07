@@ -1,0 +1,345 @@
+{
+  "schema": 1,
+  "signal": "a74583b01e260944f699c4da03ba4e8ce04de32b",
+  "old_main": "f6f68cdee08fb8d9acb6a866b1673deb10525f20",
+  "reconstructed_tree": "da5c03ff20ae2a672329eb8257bc33949845b268",
+  "layers": [
+    {
+      "name": "Mechanical Molly/Signal compatibility merge",
+      "kind": "mechanical",
+      "before_tree": "d279e5af2131fbf49bd5404a9fae3e99067b8b4a",
+      "after_tree": "d1b1951155a3e600a1c9af606e440ed25fc4b11d",
+      "provenance": "Original Molly 8.19.2-4 authors; exact deterministic merge with Signal 8.35.1. Composite output; conflicts resolved by subsequent layers. patches/ports/signal-8.35.1/provenance.json"
+    },
+    {
+      "name": "Retain the Molly updater and update preferences on the updated Signal application structure.",
+      "kind": "compatibility",
+      "before_tree": "d1b1951155a3e600a1c9af606e440ed25fc4b11d",
+      "after_tree": "a2f355c4118fbb2952c4478fa633515cdd32f890",
+      "provenance": "patches/ports/signal-8.35.1/provenance.json layer initial/app-updates; original source f2a6b716b37cf8816223f392dc127dde319be968; composite/generated compatibility work, including recorded AI assistance."
+    },
+    {
+      "name": "Resolve dynamic colors, themes and moved UI APIs while retaining Molly appearance behavior.",
+      "kind": "compatibility",
+      "before_tree": "a2f355c4118fbb2952c4478fa633515cdd32f890",
+      "after_tree": "2a68905cc8c5ddee65c9085eb685ccbe3d6db961",
+      "provenance": "patches/ports/signal-8.35.1/provenance.json layer initial/appearance; original source f2a6b716b37cf8816223f392dc127dde319be968; composite/generated compatibility work, including recorded AI assistance."
+    },
+    {
+      "name": "Resolve backup and restore API changes while retaining Molly backup preferences and serialization behavior.",
+      "kind": "compatibility",
+      "before_tree": "2a68905cc8c5ddee65c9085eb685ccbe3d6db961",
+      "after_tree": "685386d0964a94ab69abe486bc87b38b6a0d715e",
+      "provenance": "patches/ports/signal-8.35.1/provenance.json layer initial/backup-and-restore; original source f2a6b716b37cf8816223f392dc127dde319be968; composite/generated compatibility work, including recorded AI assistance."
+    },
+    {
+      "name": "Retain the Molly map implementation and compatibility layer in the upgraded tree.",
+      "kind": "compatibility",
+      "before_tree": "685386d0964a94ab69abe486bc87b38b6a0d715e",
+      "after_tree": "8985dc4b25301d0b7db916687fae7b11692c97d7",
+      "provenance": "patches/ports/signal-8.35.1/provenance.json layer initial/maps; original source f2a6b716b37cf8816223f392dc127dde319be968; composite/generated compatibility work, including recorded AI assistance."
+    },
+    {
+      "name": "Resolve modify/delete conflicts for modules Molly removes and remove new upstream files added beneath those excluded modules.",
+      "kind": "compatibility",
+      "before_tree": "8985dc4b25301d0b7db916687fae7b11692c97d7",
+      "after_tree": "8580d7a8d44ff7595c3849268f767e21da7b7ae6",
+      "provenance": "patches/ports/signal-8.35.1/provenance.json layer initial/module-pruning; original source f2a6b716b37cf8816223f392dc127dde319be968; composite/generated compatibility work, including recorded AI assistance."
+    },
+    {
+      "name": "Carry Molly SOCKS, Tor, DNS and transport choices through the updated Signal networking interfaces and NetCipher integration.",
+      "kind": "compatibility",
+      "before_tree": "8580d7a8d44ff7595c3849268f767e21da7b7ae6",
+      "after_tree": "0aff911a7cb3b61ccd4e2e9224d2093ae736c844",
+      "provenance": "patches/ports/signal-8.35.1/provenance.json layer initial/networking-and-proxies; original source f2a6b716b37cf8816223f392dc127dde319be968; composite/generated compatibility work, including recorded AI assistance."
+    },
+    {
+      "name": "Retain MollySocket, UnifiedPush and push-selection behavior while resolving notification and delivery API changes.",
+      "kind": "compatibility",
+      "before_tree": "0aff911a7cb3b61ccd4e2e9224d2093ae736c844",
+      "after_tree": "b3deb448792d1236873d29344da74e6ac988791b",
+      "provenance": "patches/ports/signal-8.35.1/provenance.json layer initial/notifications-and-unifiedpush; original source f2a6b716b37cf8816223f392dc127dde319be968; composite/generated compatibility work, including recorded AI assistance."
+    },
+    {
+      "name": "Keep MobileCoin and Google billing excluded while adapting the remaining donation and migration code.",
+      "kind": "compatibility",
+      "before_tree": "b3deb448792d1236873d29344da74e6ac988791b",
+      "after_tree": "46ff57ecc7b5875c68775f49b8ae048ba5beed36",
+      "provenance": "patches/ports/signal-8.35.1/provenance.json layer initial/payments-and-donations; original source f2a6b716b37cf8816223f392dc127dde319be968; composite/generated compatibility work, including recorded AI assistance."
+    },
+    {
+      "name": "Retain Molly privacy policies for calls, unknown contacts and logging in the updated upstream code.",
+      "kind": "compatibility",
+      "before_tree": "46ff57ecc7b5875c68775f49b8ae048ba5beed36",
+      "after_tree": "71c65adef9ef49a2cfd3b3f5af5870d5b1da82b1",
+      "provenance": "patches/ports/signal-8.35.1/provenance.json layer initial/privacy-controls; original source f2a6b716b37cf8816223f392dc127dde319be968; composite/generated compatibility work, including recorded AI assistance."
+    },
+    {
+      "name": "Adapt Molly registration and Android linked-device policies to the new Signal registration architecture.",
+      "kind": "compatibility",
+      "before_tree": "71c65adef9ef49a2cfd3b3f5af5870d5b1da82b1",
+      "after_tree": "88d1b1e8019164380396ff6e21843f3fae6f123d",
+      "provenance": "patches/ports/signal-8.35.1/provenance.json layer initial/registration-and-linking; original source f2a6b716b37cf8816223f392dc127dde319be968; composite/generated compatibility work, including recorded AI assistance."
+    },
+    {
+      "name": "Resolve shared resource conflicts and relocated resources, retaining the port source's Molly branding and translations.",
+      "kind": "compatibility",
+      "before_tree": "88d1b1e8019164380396ff6e21843f3fae6f123d",
+      "after_tree": "6be2997051822acce96b194bc53c81b6d4234706",
+      "provenance": "patches/ports/signal-8.35.1/provenance.json layer initial/resources-and-branding; original source f2a6b716b37cf8816223f392dc127dde319be968; composite/generated compatibility work, including recorded AI assistance."
+    },
+    {
+      "name": "Integrate encrypted preferences, secret handling and lock-aware application behavior with the updated Signal classes.",
+      "kind": "compatibility",
+      "before_tree": "6be2997051822acce96b194bc53c81b6d4234706",
+      "after_tree": "b66630d25c382c819e5863a46a9140803a1bcc06",
+      "provenance": "patches/ports/signal-8.35.1/provenance.json layer initial/security-and-locking; original source f2a6b716b37cf8816223f392dc127dde319be968; composite/generated compatibility work, including recorded AI assistance."
+    },
+    {
+      "name": "Resolve shared application, account, service and core integration files whose APIs or feature boundaries changed upstream.",
+      "kind": "compatibility",
+      "before_tree": "b66630d25c382c819e5863a46a9140803a1bcc06",
+      "after_tree": "3fe67afe5cace7eb384a986dec2dccae6ca56fc8",
+      "provenance": "patches/ports/signal-8.35.1/provenance.json layer initial/integration; original source f2a6b716b37cf8816223f392dc127dde319be968; composite/generated compatibility work, including recorded AI assistance."
+    },
+    {
+      "name": "Integrate the new Signal build layout and toolchain with Molly dependency, native-fork and release policies.",
+      "kind": "compatibility",
+      "before_tree": "3fe67afe5cace7eb384a986dec2dccae6ca56fc8",
+      "after_tree": "48b4508257e5637779cf7dab802657ecdd63050a",
+      "provenance": "patches/ports/signal-8.35.1/provenance.json layer initial/build-and-release; original source f2a6b716b37cf8816223f392dc127dde319be968; composite/generated compatibility work, including recorded AI assistance."
+    },
+    {
+      "name": "Restore the Molly preference import in ported megaphones\n\nAI-assisted compatibility changes: restore imports across source checkpoints.\n\nAI-assisted compatibility changes: use a seven-day duration in the existing backup exporter test.\n\nAI-assisted compatibility changes: restore Molly logger collection.",
+      "kind": "compatibility",
+      "before_tree": "48b4508257e5637779cf7dab802657ecdd63050a",
+      "after_tree": "d19db83899a629d97e77270f8f5e4698b306ff36",
+      "provenance": "patches/ports/signal-8.35.1/provenance.json layer followups/restore-preference-import; original source bb5f0a637794e05d7d2eb2f64a22cf6bbf576b25; composite/generated compatibility work, including recorded AI assistance."
+    },
+    {
+      "name": "Use the typed SDK DSL for Molly's NetCipher module\n\nAGP 9.4 rejects the numeric SDK catalog string passed to compileSdkVersion.\nMatch Signal's compileSdk release DSL while retaining the pinned SDK version\nand strict dependency verification.\n\nAI-assisted compatibility changes: restore imports across source checkpoints.\n\nAI-assisted compatibility changes: use a seven-day duration in the existing backup exporter test.\n\nAI-assisted compatibility changes: restore Molly logger collection.",
+      "kind": "compatibility",
+      "before_tree": "d19db83899a629d97e77270f8f5e4698b306ff36",
+      "after_tree": "7ec19c63b53bf2d4c25c0235f904872faaaa48e0",
+      "provenance": "patches/ports/signal-8.35.1/provenance.json layer followups/netcipher-sdk-dsl; original source 4d7ad29a05f435e4472ccb0202cd6ab59e625cae; composite/generated compatibility work, including recorded AI assistance."
+    },
+    {
+      "name": "Adapt Molly integrations and tests to Signal 8.33.2\n\nUpdate linked-device provisioning and FCM cleanup for the current service APIs while preserving proxy configuration, error types, user-selected delivery and retry credentials. Move remaining event producers and lifecycle-bound subscribers to Signal's event bus.\n\nRepair lock-aware receivers, encrypted backup preference imports, retained donation completion, dynamic theme resources and moved branding references. Keep Molly's excluded profile-badge and payment-wallet features excluded, and adapt inherited test fixtures accordingly.\n\nAdd transport and cleanup regressions for MollySocket, UnifiedPush and FCM.\n\nAI-assisted compatibility changes: restore imports across source checkpoints.\n\nAI-assisted compatibility changes: use a seven-day duration in the existing backup exporter test.\n\nAI-assisted compatibility changes: restore Molly logger collection.",
+      "kind": "compatibility",
+      "before_tree": "7ec19c63b53bf2d4c25c0235f904872faaaa48e0",
+      "after_tree": "07a5468e8397ae2fc216d364a00e1f247c9c71db",
+      "provenance": "patches/ports/signal-8.35.1/provenance.json layer followups/integration-and-regression-tests; original source 136d74118681bcfb1778425cf886b189d46b00d5; composite/generated compatibility work, including recorded AI assistance."
+    },
+    {
+      "name": "Fix CDN test configuration for Molly network transport\n\nAI-assisted compatibility changes: restore imports across source checkpoints.\n\nAI-assisted compatibility changes: use a seven-day duration in the existing backup exporter test.\n\nAI-assisted compatibility changes: restore Molly logger collection.",
+      "kind": "compatibility",
+      "before_tree": "07a5468e8397ae2fc216d364a00e1f247c9c71db",
+      "after_tree": "1eb649821bad9c21590e1cbfc6951a8a90ef62e0",
+      "provenance": "patches/ports/signal-8.35.1/provenance.json layer followups/cdn-transport-test-fixture; original source 95df6968f0d213effee35813cae89f4eaff20be3; composite/generated compatibility work, including recorded AI assistance."
+    },
+    {
+      "name": "Fix unit tests that did not match Molly behavior in the Signal 8.33.2 port\n\nApply remote config overrides in internal builds. Molly derives internalUser\nfrom the build type, not from the service, so loading overrides must ask\ninternalUser instead of the service's android.internalUser value, which Molly\ndoes not read. Overrides were never applied before.\n\nAdapt the Signal 8.33.2 tests to intended Molly differences:\n\n- IndividualSettingsViewModelTest stubs getLinkedDeviceCount, which Molly\n  adds to the contact details. Molly has no profile badges and no donations,\n  so badge and donate clicks produce no action.\n- RemoteConfigOverrideTest runs as an internal debug build instead of faking\n  the service's internalUser flag.\n- NotificationProfileDetailsScreenTest builds the expected schedule text with\n  formatHours, since Molly formats times with the locale's best pattern.\n- StoryContextMenuTest sets up app dependencies itself rather than relying on\n  another test having initialized PartAuthority.\n- The app-settings, registration, media-viewer and media-send tests expect\n  Molly's music-labelled waves icon, Molly name in the notification warning,\n  version row click event, always-shown link device button, a Material 3 theme\n  for the Molly video player layout, and Molly's minimum SDK (27).",
+      "kind": "compatibility",
+      "before_tree": "1eb649821bad9c21590e1cbfc6951a8a90ef62e0",
+      "after_tree": "f55b0e96f40fc0668027e0957d6a85726da0357c",
+      "provenance": "patches/ports/signal-8.35.1/provenance.json layer followups/molly-behavior-unit-tests; original source 77766e8ec8d3a0eeadf0c948473002afa1e379cc; composite/generated compatibility work, including recorded AI assistance."
+    },
+    {
+      "name": "Fix lint errors in the Signal 8.33.2 port\n\n- RegistrationNavigation: log through the file's TAG constant (LogTagInlined).\n- values-night/dark_colors.xml: comment out five quote_view colors that the merge\n  restored from Signal. Molly reads these colors from theme attributes and keeps the\n  color entries commented out in both color files; the live night-only entries had no\n  default (MissingDefaultResource).",
+      "kind": "compatibility",
+      "before_tree": "f55b0e96f40fc0668027e0957d6a85726da0357c",
+      "after_tree": "12366bc6cc50f15e7e26498da97b18793e72a365",
+      "provenance": "patches/ports/signal-8.35.1/provenance.json layer followups/signal-port-lint; original source 316b16bf38514723fedcd71a2aa7a4a5a30f6081; composite/generated compatibility work, including recorded AI assistance."
+    },
+    {
+      "name": "Restore linked-device reminder after re-registration\n\nMark existing-account registration explicitly and restore the Molly reminder after successful primary-device multi-device re-registration. Add focused coverage for the entry-point marker and reminder policy.\n\nAI-assisted compatibility changes: restore imports across source checkpoints.\n\nAI-assisted compatibility changes: use a seven-day duration in the existing backup exporter test.\n\nAI-assisted compatibility changes: restore Molly logger collection.",
+      "kind": "compatibility",
+      "before_tree": "12366bc6cc50f15e7e26498da97b18793e72a365",
+      "after_tree": "31ced05f90b52d1ade74c20196a2b5c9bb7495e5",
+      "provenance": "patches/ports/signal-8.35.1/provenance.json layer followups/reregistration-linked-devices-reminder; original source e69bee5975c6b405e1cfaa190db4dbf849deef0e; composite/generated compatibility work, including recorded AI assistance."
+    },
+    {
+      "name": "Restore migrated settings with backup frame precedence\n\nMap Molly shared-preference frames to their migrated SignalStore keys synchronously as the importer reads them. Later KeyValue frames then replace preference-only values or duplicate older values, matching the legacy exporter order.\n\nDrain queued SignalStore writes before opening the restore transaction and remove the post-restore preference re-read that could replace newer KeyValue data. Add focused coverage for preference-only language/privacy/media settings and notification-privacy KeyValue precedence through importer storage writes.\n\nAI-Generated: true\n\nBased-On-Source-Commit: 1127028dddb1ae2ee3b37b213a9449bd4c9f5930\n\nAI-assisted compatibility changes: restore imports across source checkpoints.\n\nAI-assisted compatibility changes: use a seven-day duration in the existing backup exporter test.\n\nAI-assisted compatibility changes: restore Molly logger collection.",
+      "kind": "compatibility",
+      "before_tree": "31ced05f90b52d1ade74c20196a2b5c9bb7495e5",
+      "after_tree": "e98b3dddbab07144ff9335a93410349bd20977a7",
+      "provenance": "patches/ports/signal-8.35.1/provenance.json layer followups/legacy-backup-precedence; original source 7086fd79c220797595ced70b0522a1c968492d72; composite/generated compatibility work, including recorded AI assistance."
+    },
+    {
+      "name": "Restore donation completion acknowledgement\n\nDisplay the earned badge after immediate donations and restore the eligible first-Boost monthly sustainer link without exposing profile-badge controls. Use existing thank-you copy that does not promise unsupported profile display.\n\nFor long-running donations, stop showing the loading indicator after the badge loads when Molly disables the profile-badge toggle. Keep loading visible while the badge is unavailable, and cover both states with focused Compose UI tests.\n\nAI-Generated: true\n\nBased-On-Source-Commit: 5aa465941ac4e4f1d8f126db9521e5043c36cb29\n\nAI-assisted compatibility changes: restore imports across source checkpoints.\n\nAI-assisted compatibility changes: use a seven-day duration in the existing backup exporter test.\n\nAI-assisted compatibility changes: restore Molly logger collection.",
+      "kind": "compatibility",
+      "before_tree": "e98b3dddbab07144ff9335a93410349bd20977a7",
+      "after_tree": "dcf52fe6beaf05cb132b66234f98f7105bbd056d",
+      "provenance": "patches/ports/signal-8.35.1/provenance.json layer followups/donation-completion; original source 5ec757eabe4b320f50638e9f907ce9a781c1d4e2; composite/generated compatibility work, including recorded AI assistance."
+    },
+    {
+      "name": "Clean up legacy backup notifications after upgrade\n\nKeep the collision-free Signal IDs for new backup alerts, and remove old Molly alerts only when the active notification matches the backup channel. This avoids deleting old conversation notifications that shared the previous numeric range.\n\nAI-Generated: true\n\nBased-On-Source-Commit: e6194d5b335b7066c80297ba0b334bd975e55e56\n\nAI-assisted compatibility changes: restore imports across source checkpoints.\n\nAI-assisted compatibility changes: use a seven-day duration in the existing backup exporter test.\n\nAI-assisted compatibility changes: restore Molly logger collection.",
+      "kind": "compatibility",
+      "before_tree": "dcf52fe6beaf05cb132b66234f98f7105bbd056d",
+      "after_tree": "3c49cc5d6f7e64b404bdd58ba3dba548ae986a0d",
+      "provenance": "patches/ports/signal-8.35.1/provenance.json layer followups/backup-notification-id-upgrade; original source 86ff58b3b5524ffe801f45063e96963ad6239dc5; composite/generated compatibility work, including recorded AI assistance."
+    },
+    {
+      "name": "Keep the passphrase timeout when foreground promotion is refused\n\nAI-assisted compatibility changes. The port caught Android's refusal to\npromote KeyCachingService to the foreground and continued, where Molly let\nthe exception propagate. If the service was then destroyed while the process\nsurvived, a later screen-off could miss scheduling the passphrase timeout.\nSchedule the configured timeout when promotion is refused and keep it until\npromotion succeeds with the screen on and unlocked.\n\nAI-Generated: true\n\nBased-On-Source-Commit: 27347983e6669e4c7689213e1c9447e43694f0d2",
+      "kind": "compatibility",
+      "before_tree": "3c49cc5d6f7e64b404bdd58ba3dba548ae986a0d",
+      "after_tree": "88bd8bc458b0211534c0137c1aa177c6a5f33f14",
+      "provenance": "patches/ports/signal-8.35.1/provenance.json layer followups/passphrase-timeout-fallback; original source d2c0552609f00220cd5f2dbc4c6bdb53ed6bf8d4; composite/generated compatibility work, including recorded AI assistance."
+    },
+    {
+      "name": "Apply Molly's backup timer rule to the latest message revision\n\nAI-assisted compatibility changes. The port excluded a message from backups\nwhen any earlier revision had a started disappearing timer, and dropped\nmessages whose revision chain contained a cycle. Walk revisions as Signal\ndoes, stopping at a cycle, and apply Molly's started-timer exclusion to the\nrevision the walk ends on.\n\nAI-Generated: true\n\nBased-On-Source-Commit: 53bb4511abbfd5339db82305f1da8cb1f0655516",
+      "kind": "compatibility",
+      "before_tree": "88bd8bc458b0211534c0137c1aa177c6a5f33f14",
+      "after_tree": "427d5fcf4d3667ef12996bf6dfb2c734012fa1f9",
+      "provenance": "patches/ports/signal-8.35.1/provenance.json layer followups/backup-revision-walk; original source 681e51c1cf02250226c8616de0bf928421fa9eb1; composite/generated compatibility work, including recorded AI assistance."
+    },
+    {
+      "name": "Restore Molly's badges, locked debug log details and dynamic colors\n\nAI-assisted compatibility changes. The port lost three Molly 8.19.2-4\nbehaviors that a later fix on another branch restored but that never\nreached this release: contact settings show the recipient's badges again,\nwith their names for accessibility; the debug log's system information no\nlonger reads the locked SignalStore for the first installed version; and\ndynamic-color themes use Molly's light extended-color base again.\n\nAI-Generated: true\n\nBased-On-Source-Commit: 538be6ced48eae839052e17e30a24bae380c54f9",
+      "kind": "compatibility",
+      "before_tree": "427d5fcf4d3667ef12996bf6dfb2c734012fa1f9",
+      "after_tree": "e9e00058f8a022fe7bfca3c7316ab855f0d7391d",
+      "provenance": "patches/ports/signal-8.35.1/provenance.json layer followups/restore-badges-log-theme; original source c9b1814e1d4692c5d4ca0e3abc80008faa2a1db3; composite/generated compatibility work, including recorded AI assistance."
+    },
+    {
+      "name": "Enable linked-device history transfer on clean registration\n\nAI-assisted compatibility changes. Match Signal 8.33 so a newly linked phone advertises history transfer while retaining the existing clean-start guard.\n\nBased-On-Source-Commit: e106c757dca5904f9adce9e332b9f69d11bd4223",
+      "kind": "compatibility",
+      "before_tree": "e9e00058f8a022fe7bfca3c7316ab855f0d7391d",
+      "after_tree": "74ace990be7617ed3a1c5bfc46b5d48291dbbd4e",
+      "provenance": "patches/ports/signal-8.35.1/provenance.json layer followups/enable-linked-history-transfer; original source 8dfe064698e005c02abf1eeb62bddc7c50972e91; composite/generated compatibility work, including recorded AI assistance."
+    },
+    {
+      "name": "Restore shared Android instrumentation compatibility",
+      "kind": "compatibility",
+      "before_tree": "74ace990be7617ed3a1c5bfc46b5d48291dbbd4e",
+      "after_tree": "6eeafa6649d988ebce40a6429a89a0cde4f7917b",
+      "provenance": "patches/ports/signal-8.35.1/provenance.json layer followups/android-instrumentation-compatibility; original source 48ad76d2ad9c34acbeaaa9cdb4c0e4793ea0f28e; composite/generated compatibility work, including recorded AI assistance."
+    },
+    {
+      "name": "Avoid circular network initialization during first-run unlock\n\nAI-assisted compatibility changes. Defer socket creation until the network module is initialized, preventing first-run stack overflow while preserving connection behavior.\n\nAI-Generated: true\nBased-On-Source-Commit: dd1e0f78eda6ce4c9a16e0415c47eb684553cf83",
+      "kind": "compatibility",
+      "before_tree": "6eeafa6649d988ebce40a6429a89a0cde4f7917b",
+      "after_tree": "f029eb889858e8ee7e232d36dd71131a5ce0cde6",
+      "provenance": "patches/ports/signal-8.35.1/provenance.json layer followups/network-initialization-cycle; original source 9e2ab1699be02aa663b2eca79702a30ce1e740b8; composite/generated compatibility work, including recorded AI assistance."
+    },
+    {
+      "name": "Defer notification restoration until the database unlocks",
+      "kind": "compatibility",
+      "before_tree": "f029eb889858e8ee7e232d36dd71131a5ce0cde6",
+      "after_tree": "da0cf264d00463bf08b96552b4d85395675f0cfe",
+      "provenance": "patches/ports/signal-8.35.1/provenance.json layer followups/locked-startup-notification-restore; original source 575cbca26d012b1f6dd0f29a89b0ae023a003cf7; composite/generated compatibility work, including recorded AI assistance."
+    },
+    {
+      "name": "Show Molly donation label in the moved settings screen",
+      "kind": "compatibility",
+      "before_tree": "da0cf264d00463bf08b96552b4d85395675f0cfe",
+      "after_tree": "ca52da754aabacec66616c13da3b939bbd6dd289",
+      "provenance": "patches/ports/signal-8.35.1/provenance.json layer followups/molly-donation-label; original source 550bb27397b4c4a347bab263c5e22ee3d3de0acc; composite/generated compatibility work, including recorded AI assistance."
+    },
+    {
+      "name": "Correct Arabic Molly donation label",
+      "kind": "compatibility",
+      "before_tree": "ca52da754aabacec66616c13da3b939bbd6dd289",
+      "after_tree": "8d80a1ae197b154444f6dea1e3ae97ea82f0198c",
+      "provenance": "patches/ports/signal-8.35.1/provenance.json layer followups/arabic-molly-donation; original source 05c7e9399d44aa27e6df8bef2e0cff7700364a7d; composite/generated compatibility work, including recorded AI assistance."
+    },
+    {
+      "name": "Correct Persian Molly donation label",
+      "kind": "compatibility",
+      "before_tree": "8d80a1ae197b154444f6dea1e3ae97ea82f0198c",
+      "after_tree": "f43551918053e983218c98beb64ecd67b6cb99a7",
+      "provenance": "patches/ports/signal-8.35.1/provenance.json layer followups/persian-molly-donation; original source 485f32894fb895caac6d7ef3f37f0865698e949a; composite/generated compatibility work, including recorded AI assistance."
+    },
+    {
+      "name": "Require Collie native artifact coordinates for all products",
+      "kind": "compatibility",
+      "before_tree": "f43551918053e983218c98beb64ecd67b6cb99a7",
+      "after_tree": "525617a7f0b04b31edffb6d7629a16c2fd2c2419",
+      "provenance": "patches/ports/signal-8.35.1/provenance.json layer followups/native-catalog; original source d6a8c624baf607229468820896e3e994c6827afe; composite/generated compatibility work, including recorded AI assistance."
+    },
+    {
+      "name": "Add access to Network settings during registration.",
+      "kind": "compatibility",
+      "before_tree": "525617a7f0b04b31edffb6d7629a16c2fd2c2419",
+      "after_tree": "225965e51840a4dbb4973df437d1dc7a60579bd1",
+      "provenance": "patches/ports/signal-8.35.1/provenance.json layer followups/registration-network-settings; original source 65e4a2a7ecc0e99ba3d591b6ee0564402004f2e1; composite/generated compatibility work, including recorded AI assistance."
+    },
+    {
+      "name": "Add donation completion copy.",
+      "kind": "compatibility",
+      "before_tree": "225965e51840a4dbb4973df437d1dc7a60579bd1",
+      "after_tree": "9dbb6f5caf238599d8d4f92acfa3dd457c0e4e99",
+      "provenance": "patches/ports/signal-8.35.1/provenance.json layer followups/donation-completion-copy; original source 8a988a4260f8949c327fbee4e283852f13ad6f13; composite/generated compatibility work, including recorded AI assistance."
+    },
+    {
+      "name": "Recover from a failed UnifiedPush registration visibly and boundedly\n\nAI-assisted compatibility changes. A failed distributor registration only\nshowed a notification and never retried, so UnifiedPush could stay broken\nsilently. Now the failure shows in UnifiedPush settings with a Retry\nregistration action, and one automatic UnifiedPushRefreshJob runs per failure\nepisode (network constraint, three attempts, six-hour lifespan) instead of an\nendless background retry. Choosing a distributor, or a successful endpoint\ncallback, clears the failure. Nothing touches the encrypted store while the\napp is locked.\n\nAI-Generated: true\n\nBased-On-Source-Commit: 15f7295a60711b116e83fda111b120018412f7be",
+      "kind": "compatibility",
+      "before_tree": "9dbb6f5caf238599d8d4f92acfa3dd457c0e4e99",
+      "after_tree": "f851dcd6ce9f4a22e0e0f4efa75bc8e8e8ef4aa1",
+      "provenance": "patches/ports/signal-8.35.1/provenance.json layer followups/unifiedpush-registration-retry; original source ecfe29cfdfdcc265fd2b2e99c410bb2f3dcc343e; composite/generated compatibility work, including recorded AI assistance."
+    },
+    {
+      "name": "Guard linked-device view-once attachment deletion. AI-assisted compatibility fix.",
+      "kind": "compatibility",
+      "before_tree": "f851dcd6ce9f4a22e0e0f4efa75bc8e8e8ef4aa1",
+      "after_tree": "706f9f75285b19373f60220995a6981ff329b180",
+      "provenance": "patches/ports/signal-8.35.1/provenance.json layer followups/view-once-open-guard; original source 6269897101cd0c4605c1eaac62f57e5ac94dbd44; composite/generated compatibility work, including recorded AI assistance."
+    },
+    {
+      "name": "firebase free build",
+      "kind": "feature",
+      "before_tree": "706f9f75285b19373f60220995a6981ff329b180",
+      "after_tree": "01ead7756d3c172b532b62e571b6906470355bce",
+      "provenance": "patches/forks/signal-foss/provenance.json; original source 49bda76d57e78957dfc7bed00cd11f4b17584b08; author 0cwa <0@none.org>; upstream credit inspired. Composite published layer; inspect original patch attribution."
+    },
+    {
+      "name": "collie icon",
+      "kind": "feature",
+      "before_tree": "01ead7756d3c172b532b62e571b6906470355bce",
+      "after_tree": "7df75b5d24c60a4cdd0d152ae89152590a6db6b9",
+      "provenance": "patches/forks/signal-foss/provenance.json; original source 562028d1579005bb16d653f4e2ac97f5fe9fe1ce; author 0cwa <0@none.org>; upstream credit ours. Composite published layer; inspect original patch attribution."
+    },
+    {
+      "name": "collie branding",
+      "kind": "feature",
+      "before_tree": "7df75b5d24c60a4cdd0d152ae89152590a6db6b9",
+      "after_tree": "edaa397dd2ebf3fcc0dc129b76ad9f5cd2e04f35",
+      "provenance": "patches/forks/signal-foss/provenance.json; original source 75de5d3336f3f4ff1b4dab6caaf10fabe5758d88; author 0cwa <0@none.org>; upstream credit ours. Composite published layer; inspect original patch attribution."
+    },
+    {
+      "name": "collie visuals",
+      "kind": "feature",
+      "before_tree": "edaa397dd2ebf3fcc0dc129b76ad9f5cd2e04f35",
+      "after_tree": "70de6cd0d5614f4fe931fe229594dc1549ddbefa",
+      "provenance": "patches/forks/signal-foss/provenance.json; original source 945944c54f3a1ce24f20c1cd9854f841cc11a98a; author 0cwa <0@none.org>; upstream credit ours. Composite published layer; inspect original patch attribution."
+    },
+    {
+      "name": "restore picker",
+      "kind": "feature",
+      "before_tree": "70de6cd0d5614f4fe931fe229594dc1549ddbefa",
+      "after_tree": "a7b938ed486fb84bd37d078960c049a70fe72311",
+      "provenance": "patches/forks/signal-foss/provenance.json; original source e4a00a4cd9a45cf5406e85a022565dadaf1ebf65; author 0cwa <0@none.org>; upstream credit ours. Composite published layer; inspect original patch attribution."
+    },
+    {
+      "name": "notification default",
+      "kind": "feature",
+      "before_tree": "a7b938ed486fb84bd37d078960c049a70fe72311",
+      "after_tree": "da5c03ff20ae2a672329eb8257bc33949845b268",
+      "provenance": "patches/forks/signal-foss/provenance.json; original source 5c765dd6af11ca4bbe384cca3bcde944b5890a79; author 0cwa <0@none.org>; upstream credit ours. Composite published layer; inspect original patch attribution."
+    },
+    {
+      "name": "Declare standalone build metadata and publish application repository layout (release blocked)",
+      "kind": "publication",
+      "before_tree": "da5c03ff20ae2a672329eb8257bc33949845b268",
+      "after_tree": "dbf001d0964b9a0a86d4fa7660622093b7b6ac84",
+      "provenance": "source/layers/publication.py and publication.patch; preserve approved README/assets. Build metadata is explicitly declared, not byte parity. Public native inputs and direct build remain BLOCKED."
+    },
+    {
+      "name": "Materialize release version metadata and close aggregate native-build gate bypass",
+      "kind": "publication",
+      "before_tree": "dbf001d0964b9a0a86d4fa7660622093b7b6ac84",
+      "after_tree": "50f5c32b8dd11cac12520bcacb9e7dbb5e2ea74d",
+      "provenance": "Reviewed S1: source/layers/release-metadata.patch; actual defaultConfig releaseVersionCode/name now source properties; all direct Android configuration blocked until reviewed public native inputs. No app Java/Kotlin/resource changes."
+    }
+  ],
+  "final_tree": "50f5c32b8dd11cac12520bcacb9e7dbb5e2ea74d"
+}

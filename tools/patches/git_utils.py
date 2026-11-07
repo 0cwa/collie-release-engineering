@@ -4,6 +4,7 @@ Extracted from PR #7's replay helper. Repository and index selection is explicit
 the historical pilot's evidence and validation policy are not imported here.
 """
 import subprocess
+import sys
 
 from forest import clean_git_env
 
@@ -18,10 +19,12 @@ def git(repo, *args, check=True, env=None, binary=False, index_file=None):
     run_env = clean_git_env(env)
     if index_file is not None:
         run_env['GIT_INDEX_FILE'] = str(index_file)
-    result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+    result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                             env=run_env)
+    if result.stderr:
+        sys.stderr.buffer.write(result.stderr)
     if check and result.returncode:
-        detail = result.stdout.decode(errors='replace')
+        detail = (result.stdout + result.stderr).decode(errors='replace')
         raise GitError(f"Command failed ({result.returncode}): {' '.join(cmd)}\n{detail}")
     if not binary:
         result.stdout = result.stdout.decode(errors='replace')

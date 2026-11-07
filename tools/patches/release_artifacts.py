@@ -70,12 +70,22 @@ def check_unsigned(apk):
                 raise ValueError('APK contains a signing block')
 
 
-def validate_manifest(m, commit, run, cert):
-    if m.get('schema') != 1 or m.get('commit') != commit or str(m.get('run_id')) != str(run):
+def validate_manifest(m, commit, run, cert, identities=None):
+    schema=m.get('schema')
+    if schema not in (1,2) or m.get('commit') != commit or str(m.get('run_id')) != str(run):
         raise ValueError('manifest does not match approved commit and run')
     if not re.fullmatch(r'[0-9a-f]{40}', commit):
         raise ValueError('approved commit must be a full lowercase SHA-1')
-    if m.get('workflow_revision') != commit or m.get('package') != PACKAGE:
+    if schema == 2:
+        expected={'source_commit','engineering_revision','workflow_revision'}
+        if not isinstance(identities,dict) or set(identities)!=expected:
+            raise ValueError('schema2 requires independent source/engineering/workflow approval')
+        for field in expected:
+            if not re.fullmatch(r'[0-9a-f]{40}', str(identities[field])) or m.get(field)!=identities[field]:
+                raise ValueError('unapproved '+field)
+        if m['source_commit'] != commit:
+            raise ValueError('source commit differs from approved commit')
+    if (schema == 1 and m.get('workflow_revision') != commit) or m.get('package') != PACKAGE:
         raise ValueError('workflow revision or package does not match approved release')
     if not re.fullmatch(r'[1-9][0-9]*', str(m.get('run_attempt', ''))):
         raise ValueError('invalid workflow run attempt')
@@ -101,9 +111,9 @@ def validate_manifest(m, commit, run, cert):
     return entries
 
 
-def validate_alias_provenance(final, unsigned, commit):
+def validate_alias_provenance(final, unsigned, commit, identities=None):
     """Bind single-build signed aliases to the authenticated unsigned manifest."""
-    entries = validate_manifest(unsigned, commit, final['run_id'], final['certificate_sha256'])
+    entries = validate_manifest(unsigned, commit, final['run_id'], final['certificate_sha256'], identities)
     if unsigned.get('artifact_mode') != 'single-collie' or final.get('artifact_mode') != 'single-collie':
         raise ValueError('signed and unsigned artifact modes differ')
     if final.get('source_profile') != 'collie':
@@ -119,3 +129,9 @@ def validate_alias_provenance(final, unsigned, commit):
     if any(item['unsigned_sha256'] != unsigned_hash or
            item['certificate_sha256'] != final['certificate_sha256'] for item in signed):
         raise ValueError('compatibility aliases do not match unsigned provenance and certificate')
+
+
+def require_canonical_release(manifest):
+    """Current production policy; historical parsers remain profile-aware."""
+    if manifest.get('artifact_mode') != 'single-collie' or manifest.get('source_profile') != 'collie':
+        raise ValueError('current production requires single-collie artifact mode')
