@@ -94,13 +94,13 @@ fun getGitHash(): String = providers.gradleProperty("collieBuildRevision").get()
 
 fun requireCommitTag(): String = providers.gradleProperty("releaseVersionName").getOrElse("8.35.1-1-port-unvalidated")
 '''
+    text = text.replace('versionCode = (canonicalVersionCode * maxHotfixVersions) + mollyRevision + currentHotfixVersion', 'versionCode = providers.gradleProperty("releaseVersionCode").orNull?.toInt()?.also { require(it > 177702) { "Release versionCode must exceed published RC1 and all later reservations" } } ?: ((canonicalVersionCode * maxHotfixVersions) + mollyRevision + currentHotfixVersion)')
+    text = text.replace('versionName = if (ciEnabled) requireCommitTag() else sourceVersionNameWithRevision', 'versionName = providers.gradleProperty("releaseVersionName").orNull ?: (if (ciEnabled) requireCommitTag() else sourceVersionNameWithRevision)')
     # A release cannot accidentally use the old unvalidated source default version.
     text += '''
 // Publication migration gate: remove only with reviewed public native inputs and
 // direct-source acceptance. The legacy operator route is retained in engineering.
-if (gradle.startParameter.taskNames.any { it.contains("Release", ignoreCase = true) }) {
-  throw GradleException("Direct release build BLOCKED: publish and verify locked native inputs first; see BUILD.md")
-}
+throw GradleException("Direct Android builds BLOCKED: publish and verify locked native inputs first; see BUILD.md")
 '''
     gradle.write_text(text)
     (app/'BUILD.md').write_text('''# Building Collie
@@ -114,7 +114,7 @@ Collie backup names and optional FCM; legacy filename aliases are one product.
 accepted native bytes. Their public immutable repository has not been supplied
 or independently downloaded. `native-publication.json` records this gap. Do not
 substitute upstream native libraries or disable strict dependency verification.
-A direct release task deliberately fails until the required publication layer
+Every direct Android Gradle configuration deliberately fails until the required publication layer
 and clean-checkout build acceptance are reviewed. This draft is not releasable.
 
 The retained local operator route is in collie-release-engineering and still
@@ -122,7 +122,7 @@ requires its explicit trusted-local native acceptance. That is not independent
 native reproduction. Obtain the three locked artifacts and POMs from approved
 public immutable URLs, verify all hashes, materialize their exclusive repository
 and verification entries in source, then run a fresh controlled Gradle build.
-The expected canonical task is `./gradlew --dependency-verification=strict
+After that reviewed gate removal, releaseVersionCode and releaseVersionName are normal tracked-source Gradle properties; their final values must come from the serialized external version reservation and be recorded in the build receipt. The expected canonical task is `./gradlew --dependency-verification=strict
 :app:assembleProdWebsiteRelease`; it is currently BLOCKED as described above.
 
 Release versions must be externally reserved above 177702 and all later published
