@@ -10,6 +10,14 @@ RECIPE_REVISION = '36779887ffc0bb1ecff55a87c350740662570039'
 RECONSTRUCTED_TREE = 'da5c03ff20ae2a672329eb8257bc33949845b268'
 
 
+def git_environment():
+    import os
+    env = {key: value for key, value in os.environ.items() if not key.startswith('GIT_')}
+    env.update(GIT_CONFIG_NOSYSTEM='1', GIT_CONFIG_GLOBAL=os.devnull,
+               GIT_NO_REPLACE_OBJECTS='1', GIT_NO_LAZY_FETCH='1', LC_ALL='C')
+    return env
+
+
 def preserve_user_files(app, previous_application, application_base, publication_plan):
     """Copy only the explicitly pinned user-facing base; approval is external."""
     if not isinstance(application_base,str) or not re.fullmatch('[0-9a-f]{40}',application_base):
@@ -17,12 +25,12 @@ def preserve_user_files(app, previous_application, application_base, publication
     if not isinstance(publication_plan,dict) or publication_plan.get('old_main')!=application_base:
         raise ValueError('application base differs from publication plan old_main')
     app, previous_application = map(Path,(app,previous_application))
-    resolved=subprocess.check_output(['git','-C',str(previous_application),'rev-parse','--verify',application_base+'^{commit}'],text=True).strip()
+    resolved=subprocess.check_output(['git','-C',str(previous_application),'rev-parse','--verify',application_base+'^{commit}'],text=True,env=git_environment()).strip()
     if resolved!=application_base:raise ValueError('application base must name the exact commit')
     # The final publisher independently compares these complete owner-file
     # blobs/modes with plan.old_main, in addition to checking the entire tree.
     for name in ('README.md','LICENSE','NOTICE','assets'):
-        data=subprocess.check_output(['git','-C',str(previous_application),'archive',application_base,name])
+        data=subprocess.check_output(['git','-C',str(previous_application),'archive',application_base,name],env=git_environment())
         target=app/name
         if target.is_symlink() or target.is_file():target.unlink()
         elif target.exists():shutil.rmtree(target)
@@ -62,6 +70,18 @@ def apply(app, engineering, previous_application, *, application_base, publicati
         raise ValueError('publication layer requires exact merged-main reconstruction')
     if subprocess.check_output(['git','-C',str(app),'status','--porcelain'], text=True).strip():
         raise ValueError('publication layer requires a clean reconstructed checkout')
+    apply_outputs(app, engineering, previous_application,
+                  application_base=application_base, publication_plan=publication_plan)
+
+
+def apply_outputs(app, engineering, previous_application, *, application_base, publication_plan):
+    """Apply current publication outputs after the caller verified the source tree.
+
+    The tree-only draft composer verifies its private index is at
+    RECONSTRUCTED_TREE before calling this helper. Normal callers should use
+    apply(), which also enforces HEAD and clean-worktree checks.
+    """
+    app, engineering, previous_application = map(Path, (app, engineering, previous_application))
     preserve_user_files(app, previous_application, application_base, publication_plan)
     replace_application_workflows(app)
     (app / 'build-inputs').mkdir(exist_ok=True)
