@@ -34,6 +34,8 @@ class RuntimePlanTests(unittest.TestCase):
             with self.assertRaises(ValueError):r.import_legacy({**self.manifest,**change},'c'*40,'production')
         plan=r.import_legacy(self.manifest,'c'*40,'fixture');plan['source_receipt_sha256']='a'*64
         with self.assertRaises(ValueError):r.plan(self.args(plan))
+        plan=r.import_legacy(self.manifest,'c'*40,'fixture');plan['required_test_reports']=['must-not-be-ignored']
+        with self.assertRaisesRegex(ValueError,'unchecked required reports'):r.plan(self.args(plan))
     def test_new_source_requires_complete_stable_inputs_and_named_reports(self):
         plan={**r.import_legacy(self.manifest,'c'*40,'fixture'),'mode':'new-source','workflow_revision':'d'*40,'source_receipt_sha256':'e'*64,'build_inputs_sha256':'f'*64,'required_test_reports':['actual-report']}
         self.assertEqual(r.plan(self.args(plan))[0],plan)

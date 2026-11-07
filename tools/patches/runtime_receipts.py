@@ -52,6 +52,7 @@ def plan(args,*,historical_rehearsal=False):
     for key in ('source_receipt_sha256','build_inputs_sha256'):
         if data['mode']=='new-source':receipts.check(data[key],'sha')
         elif data[key] is not None:raise ValueError('legacy plan must explicitly omit new-source receipts')
+    if data['mode']=='legacy' and data['required_test_reports']:raise ValueError('legacy plan cannot declare unchecked required reports')
     if data['mode']=='legacy' and data['workflow_revision']!=data['source_commit']:raise ValueError('legacy workflow identity must match historical commit')
     if data['mode']=='new-source' and not data['required_test_reports']:raise ValueError('new-source plan requires actual test report evidence')
     for attr,key in [('commit','source_commit'),('approved_commit','source_commit'),('workflow_revision','workflow_revision'),('engineering_revision','engineering_revision'),('version_code','version_code'),('version_name','version_name'),('certificate_sha256','certificate_sha256')]:
