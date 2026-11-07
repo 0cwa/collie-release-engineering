@@ -1,12 +1,12 @@
 {
   "schema": 1,
   "status": "LOCAL PREPARATION ONLY; NO DEPLOYMENT AUTHORIZATION",
-  "policy_revision": "cd6dad456a82f06f11cc724df9969b0e4ac2c383",
+  "policy_revision": "001c2c93b94baf9946512e4acd184e235c0b8a97",
   "native_manifest_sha256": "637e69803bdec6aa117c9f3b85d966ef055041a2c066e4cb28447ecd29296838",
-  "input_approval_sha256": "5530a3935fe7596ae77143389c6f3421fd6e1d035438a4e1853477ce82b11541",
-  "input_bundle_sha256": "99b8560ecd6bc620a1f07fba3fa97c7696efde3485d938448a5782bea027a3fe",
+  "input_approval_sha256": "eb7d390cfbfe49ee8c7073421501dce65966caba34eaf1aa6b3d4a1e9ec7aa0a",
+  "input_bundle_sha256": "ca0b672cd2282411133dfd92fa5d939592d50d933f4d9140ae507af343801f8d",
   "input_bundle_bytes": 310855680,
-  "plan_sha256": "ab32e253877b83368d6d0b12e12ba15a45509a362f405c7e23c6153a28c40538",
+  "plan_sha256": "a9c824e0ea45ffbc46ced6c358f734004e11e769c7d4f62fc63813d069343ac0",
   "native_files": {
     "native-inputs/v1/maven/im/collie/native/libsignal-android/0.106.1-collie.1/libsignal-android-0.106.1-collie.1.aar": {
       "sha256": "4247031a753f73f12753d04f14d9316436bbf07af2097c1b897feedd360dbd9a",
@@ -36,17 +36,17 @@
   "native_bytes": 310836447,
   "artifacts": {
     "phase1": {
-      "sha256": "60d34af2ffa58d3468315ca9ae53281d519d09fd492c0255b456727bfd18a029",
+      "sha256": "38aa1feae9b6aad9e6690f9b25f4e610e34752b51ef8dd1460fc366e186fa5d4",
       "bytes": 310855680
     },
     "phase2": {
-      "sha256": "60d34af2ffa58d3468315ca9ae53281d519d09fd492c0255b456727bfd18a029",
+      "sha256": "38aa1feae9b6aad9e6690f9b25f4e610e34752b51ef8dd1460fc366e186fa5d4",
       "bytes": 310855680
     }
   },
   "snapshot_bytes": {
-    "phase1": 310838299,
-    "phase2": 310838299
+    "phase1": 310838280,
+    "phase2": 310838280
   },
   "checks": {
     "cached_six_input_hashes_sizes": "PASS",
@@ -58,15 +58,14 @@
     "independent_native_reproduction": "NOT RUN"
   },
   "transport": "Injected loopback HTTP for local acceptance only; not canonical HTTPS attestation",
-  "recreate": "agent-heavy -- python3 prepare-native-pages-package.py with reviewed policy and existing six native inputs",
+  "recreate": "Prepare the documented native-only approval bundle from the exact six public-policy inputs, then use pages.py unpack/prepare/preflight/readback with the reviewed immutable policy; local acceptance injected loopback HTTP only.",
+  "tests": {
+    "distribution_unittest": "51 PASS"
+  },
   "executed_commands": [
     "PYTHONDONTWRITEBYTECODE=1 TMPDIR=SCRATCH/test-tmp agent-heavy -- python3 -m unittest discover -s distribution -p test_*.py",
     "python distribution/pages.py unpack APPROVED_INPUT.tar NEW_BUNDLE",
-    "python distribution/pages.py prepare NEW_BUNDLE OUTPUT --policy cd6dad456a82f06f11cc724df9969b0e4ac2c383",
-    "python distribution/pages.py preflight OUTPUT/plan.json OUTPUT/journal.json (production canonical HTTPS NOT RUN; local test injected loopback fetch)",
-    "python distribution/pages.py readback OUTPUT/plan.json OUTPUT/journal.json --phase phase1; repeat for phase2 (local loopback injection)"
-  ],
-  "tests": {
-    "distribution_unittest": "49 PASS"
-  }
+    "python distribution/pages.py prepare NEW_BUNDLE OUTPUT --policy 001c2c93b94baf9946512e4acd184e235c0b8a97",
+    "pages.preflight(plan,journal,fetch=loopback_fetch); pages.readback(plan,journal,phase1,fetch=loopback_fetch); phase2 and retry"
+  ]
 }

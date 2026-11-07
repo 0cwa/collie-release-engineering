@@ -232,16 +232,23 @@ apply. Initial native URL conflicts fail preflight. A later separately signed
 feed bundle retains native-v1 forever; all bytes count toward950MB. No production
 settings, uploads, live feed, index key or new source build are authorized here.
 
-Native-only actual package acceptance: policycd6dad456a82f06f11cc724df9969b0e4ac2c383,
+Native-only actual package acceptance: policy001c2c93b94baf9946512e4acd184e235c0b8a97,
 manifest SHA256637e69803bdec6aa117c9f3b85d966ef055041a2c066e4cb28447ecd29296838.
 Both tar artifacts are310,855,680bytes SHA256
-60d34af2ffa58d3468315ca9ae53281d519d09fd492c0255b456727bfd18a029;
+38aa1feae9b6aad9e6690f9b25f4e610e34752b51ef8dd1460fc366e186fa5d4;
 the actual six cached inputs total310,836,447bytes and each complete site is
-310,838,299bytes. The input archive was extracted with the production data-only
+310,838,280bytes. The input archive was extracted with the production data-only
 parser; both snapshots contain exactly the six native files, preparation page
 and public inventory, with no APK/index/add link/key. Actual loopback HTTP full
-readback and retry passed. Forty-nine distribution tests pass. Evidence is
+readback and retry passed. Fifty-one distribution tests pass. Evidence is
 NATIVE-PAGES-PREPARATION.json plus native-pages-plan/journal under evidence/.
 Canonical public HTTPS/Pages/CDN and independent native reproduction remain
 NOT RUN. These preparation hashes authorize no production operation; freeze and
 approve the final merged policy/bundle before any operator deployment.
+
+New native URLs are checked absent-or-identical even when an existing feed
+predates native hosting; complete prior native inventories are verified as part
+of the retained site. The native-only placeholder names native inputs and the
+inactive feed without claiming signed indexes. Ingestion also keeps the externally
+approved APK digest pinned after signer/metadata inspection, rejecting mutation
+before the target URL is staged. Both integrity regressions pass.
