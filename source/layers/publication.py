@@ -56,6 +56,36 @@ jobs:
     text=text.replace('val basePackageId = getCiEnv("CI_PACKAGE_ID") ?: properties["basePackageId"] as String','val basePackageId = "im.collie.app"')
     # Git history is publication metadata, not an undeclared build input.
     start=text.index('fun getLastCommitTimestamp(): String {')
+    expected_tail = '''fun getLastCommitTimestamp(): String {
+  return try {
+    git("log", "-1", "--pretty=format:%ct000")
+  } catch (e: Exception) {
+    logger.warn("Failed to get Git commit timestamp: ${e.message}. Using mtime of current build script.")
+    buildFile.lastModified().toString()
+  }
+}
+
+fun getGitHash(): String {
+  return try {
+    git("rev-parse", "--short=12", "HEAD")
+  } catch (e: Exception) {
+    logger.warn("Failed to get Git commit hash: ${e.message}. Using default value.")
+    "abc123def456"
+  }
+}
+
+fun requireCommitTag(): String {
+  val tag = git("describe", "--tags", "--exact-match")
+  return tag.takeIf { it.isNotEmpty() } ?: "untagged"
+}
+
+private fun git(vararg args: String): String =
+  providers.exec {
+    commandLine("git", *args)
+  }.standardOutput.asText.get().trim()
+'''
+    if text[start:] != expected_tail:
+        raise ValueError('metadata tail changed; refusing to truncate unrelated build logic')
     text=text[:start]+'''fun getLastCommitTimestamp(): String = providers.gradleProperty("collieBuildTimestamp").get() + "000"
 
 fun getGitHash(): String = providers.gradleProperty("collieBuildRevision").get()

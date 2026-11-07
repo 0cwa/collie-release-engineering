@@ -60,3 +60,25 @@ for review. If a later source cutover needs reversal, create a reviewed ordinary
 revert/integration commit preserving ancestry; never reset protected history.
 Released binaries, tags and signing keys are unaffected. A defective binary is
 fixed through a higher version, never by replacing published bytes.
+
+## Candidate verification command (read-only)
+
+Obtain the trusted verifier commit through the engineering review process, check
+out that exact immutable revision in a separate clean directory, and independently
+approve the full plan digest. Re-read `git ls-remote --refs
+https://github.com/0cwa/collieim-android.git refs/heads/main` immediately before the
+following command. Pass the actual remote value, not a candidate-controlled value:
+
+```
+python3 source/verify_candidate.py --repo REPLAY --plan PLAN \
+  --expected-plan-sha256 EXTERNALLY_REVIEWED_DIGEST \
+  --current-main ACTUAL_REMOTE_MAIN --expected-source APPROVED_G \
+  --expected-integration APPROVED_I
+```
+
+This checks the intended immutable G/I and current base, never the synthetic PR
+merge. Layout CI in the application candidate is explicitly not this approval.
+This verifier is credential-free; manually approving it is separate from APK
+signing, index signing and production publication. A candidate cannot select its
+own trusted verifier. Required-check/ruleset administration remains an operator
+item; no policy protection is claimed merely because this command exists.
