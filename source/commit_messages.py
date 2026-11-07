@@ -5,10 +5,13 @@ The JSON is a versioned publication input; Markdown is its human review view.
 No Git objects, refs, commits, or remote state are changed by this command.
 """
 import argparse
+import contextlib
 import hashlib
 import json
+import os
 from pathlib import Path
 import re
+import stat
 
 
 def subject(text):
@@ -74,10 +77,30 @@ def markdown(data):
     return '\n'.join(rows)
 
 
+def write_preview(json_path,markdown_path,data):
+    """Reserve both draft names exclusively before writing either preview."""
+    outputs=[(json_path,json.dumps(data,indent=2)+'\n'),(markdown_path,markdown(data))]
+    with contextlib.ExitStack() as opened:
+        created=[]
+        try:
+            for path,text in outputs:
+                stream=opened.enter_context(path.open('x',encoding='utf-8'))
+                created.append((path,stream,os.fstat(stream.fileno()),text))
+        except BaseException:
+            # Remove only our still-empty, untouched reservation. Keep handles
+            # open during this check, and preserve replacements or owner edits.
+            for path,stream,initial,text in reversed(created):
+                try:current=path.lstat()
+                except FileNotFoundError:continue
+                fields=('st_dev','st_ino','st_size','st_mtime_ns','st_ctime_ns')
+                if stat.S_ISREG(current.st_mode) and all(getattr(current,k)==getattr(initial,k) for k in fields):
+                    path.unlink()
+            raise
+        for path,stream,initial,text in created:stream.write(text)
+
+
 if __name__=='__main__':
     p=argparse.ArgumentParser(description=__doc__);p.add_argument('--plan',type=Path,required=True)
     p.add_argument('--json',type=Path,required=True);p.add_argument('--markdown',type=Path,required=True)
     a=p.parse_args();raw=a.plan.read_bytes();data=preview(json.loads(raw),hashlib.sha256(raw).hexdigest());validate(data,json.loads(raw),hashlib.sha256(raw).hexdigest())
-    for path,text in [(a.json,json.dumps(data,indent=2)+'\n'),(a.markdown,markdown(data))]:
-        if path.exists():raise ValueError('refusing to overwrite owner-editable message review: '+str(path))
-        path.write_text(text)
+    write_preview(a.json,a.markdown,data)

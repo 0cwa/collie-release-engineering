@@ -41,3 +41,65 @@ class CommitMessageInputs(unittest.TestCase):
         self.assertNotIn('AI-Generated:',data['layers'][0]['body']);self.assertIn('LLM-Assisted: true',data['layers'][0]['body'])
         data['layers'][0]['body']='Removed provenance\nLLM-Assisted: true'
         with self.assertRaisesRegex(ValueError,'provenance'):messages.validate(data,original,'1'*64)
+
+
+class CommitPreviewWriting(unittest.TestCase):
+    def setUp(self):
+        import tempfile
+        self.tmp=tempfile.TemporaryDirectory();self.addCleanup(self.tmp.cleanup);self.root=Path(self.tmp.name)
+        self.json=self.root/'messages.json';self.markdown=self.root/'messages.md'
+        self.data={'schema':1,'publication_plan_sha256':'1'*64,'layers':[],
+                   'integration':{'subject':'Integrate the reviewed source','body':'LLM-Assisted: true'},
+                   'merge':{'subject':'Publish the reviewed source','body':'LLM-Assisted: true'},'pr_title':'Publish Collie source'}
+    def write(self):messages.write_preview(self.json,self.markdown,self.data)
+    def test_new_previews_preserve_exact_json_and_rendered_markdown(self):
+        self.write();self.assertEqual(json.loads(self.json.read_text()),self.data)
+        self.assertEqual(self.markdown.read_text(),messages.markdown(self.data))
+    def test_existing_files_and_dangling_links_are_never_overwritten(self):
+        for destination in (self.json,self.markdown):
+            for kind in ('file','dangling-link'):
+                with self.subTest(destination=destination.name,kind=kind):
+                    if kind=='file':destination.write_bytes(b'owner draft')
+                    else:destination.symlink_to('missing-owner-target')
+                    try:
+                        with self.assertRaises(FileExistsError):self.write()
+                        if kind=='file':self.assertEqual(destination.read_bytes(),b'owner draft')
+                        else:self.assertTrue(destination.is_symlink());self.assertFalse((self.root/'missing-owner-target').exists())
+                        other=self.markdown if destination==self.json else self.json
+                        self.assertFalse(other.exists(),'left a partial preview reservation')
+                    finally:destination.unlink()
+    def test_raced_creation_of_either_output_preserves_owner_bytes(self):
+        from unittest.mock import patch
+        original=Path.open
+        for destination in (self.json,self.markdown):
+            with self.subTest(destination=destination.name):
+                def opening(path,mode='r',*args,**kwargs):
+                    if path==destination and mode=='x':
+                        with original(path,'w',encoding='utf-8') as owner:owner.write('raced owner draft')
+                    return original(path,mode,*args,**kwargs)
+                try:
+                    with patch.object(Path,'open',opening):
+                        with self.assertRaises(FileExistsError):self.write()
+                    self.assertEqual(destination.read_text(),'raced owner draft')
+                    other=self.markdown if destination==self.json else self.json
+                    self.assertFalse(other.exists())
+                finally:destination.unlink()
+    def test_cleanup_preserves_a_replacement_of_our_first_reservation(self):
+        from unittest.mock import patch
+        original=Path.open;self.markdown.write_text('existing owner Markdown')
+        def opening(path,mode='r',*args,**kwargs):
+            if path==self.markdown and mode=='x':
+                self.json.unlink();self.json.write_text('replacement owner JSON')
+            return original(path,mode,*args,**kwargs)
+        with patch.object(Path,'open',opening):
+            with self.assertRaises(FileExistsError):self.write()
+        self.assertEqual(self.json.read_text(),'replacement owner JSON');self.assertEqual(self.markdown.read_text(),'existing owner Markdown')
+    def test_cleanup_preserves_owner_edits_to_the_first_reservation(self):
+        from unittest.mock import patch
+        original=Path.open;self.markdown.write_text('existing owner Markdown')
+        def opening(path,mode='r',*args,**kwargs):
+            if path==self.markdown and mode=='x':self.json.write_text('edited owner JSON')
+            return original(path,mode,*args,**kwargs)
+        with patch.object(Path,'open',opening):
+            with self.assertRaises(FileExistsError):self.write()
+        self.assertEqual(self.json.read_text(),'edited owner JSON');self.assertEqual(self.markdown.read_text(),'existing owner Markdown')
