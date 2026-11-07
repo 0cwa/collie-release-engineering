@@ -29,19 +29,31 @@ class BinaryRepositoryTest(unittest.TestCase):
             raise OSError('interrupted')
         with patch('binary_repo.verify_indexes'),patch('binary_repo.immutable_copy',side_effect=stop):
             with self.assertRaises(OSError):b.publish_local(g,o,'f'*64)
-        self.assertIsNotNone(b.load(o/'.promotion.json')['active'])
+        self.assertIsNotNone(b.load(o.parent/(o.name+'.control')/'promotion.json')['active'])
         with patch('binary_repo.verify_indexes'): first=b.publish_local(g,o,'f'*64);second=b.publish_local(g,o,'f'*64)
         self.assertEqual(first,second);self.assertEqual(b.sha(g/'a.apk'),b.sha(o/'a.apk'))
     def test_changed_generation_cannot_replace_interrupted(self):
         g=self.root/'g';g.mkdir();o=self.root/'o';o.mkdir()
         for f in ['a.apk','entry.jar','index-v1.jar','index-v2.json']:(g/f).write_bytes(b'x')
-        (o/'.promotion.json').write_text(json.dumps({'active':'other','completed':[]}))
+        (o.parent/(o.name+'.control')).mkdir();(o.parent/(o.name+'.control')/'promotion.json').write_text(json.dumps({'active':'other','completed':[]}))
         with patch('binary_repo.verify_indexes'):
             with self.assertRaisesRegex(ValueError,'resume'):b.publish_local(g,o,'f'*64)
     def test_symlink_not_exported(self):
         g=self.root/'g';g.mkdir();(g/'evil.apk').symlink_to('/etc/passwd')
         with patch('binary_repo.verify_indexes'):
             with self.assertRaisesRegex(ValueError,'symlink'):b.publish_local(g,self.root/'o','f'*64)
+    def test_r2_plan_only_emits_reviewable_commands(self):
+        import runpy,sys,io
+        from contextlib import redirect_stdout
+        g=self.root/'g';g.mkdir();(g/'a.apk').write_bytes(b'canonical');(g/'entry.jar').write_bytes(b'signed')
+        output=io.StringIO()
+        with patch.object(sys,'argv',['r2_plan.py',str(g),'--fingerprint','f'*64,'--bucket','test-bucket','--account','testaccount']),patch('binary_repo.verify_indexes'),redirect_stdout(output):
+            runpy.run_path(str(Path(b.__file__).with_name('r2_plan.py')),run_name='__main__')
+        commands=output.getvalue()
+        self.assertIn('max-age=31536000,immutable',commands)
+        self.assertIn('no-cache,max-age=0,must-revalidate',commands)
+        self.assertLess(commands.index('/a.apk'),commands.index('/entry.jar'))
+        self.assertIn('existing object SHA256 must equal',commands)
     def test_unapproved_unknown_field(self):
         p=self.root/'approval';p.write_text(json.dumps({'schema':1,'unexpected':True}))
         with self.assertRaisesRegex(ValueError,'fields'):b.approval(p)

@@ -102,6 +102,15 @@ def verify_indexes(generation, fingerprint):
     if {p['packageName'] for p in v1['apps']}!={APP}: raise ValueError('v1 package mismatch')
     return data
 
+def atomic_json(path,data):
+    temporary=path.with_name(path.name+'.partial')
+    with open(temporary,'w') as stream:
+        json.dump(data,stream,indent=2);stream.write('\n');stream.flush();os.fsync(stream.fileno())
+    os.replace(temporary,path)
+    directory=os.open(path.parent,os.O_RDONLY)
+    try:os.fsync(directory)
+    finally:os.close(directory)
+
 def publish_local(generation,origin,fingerprint):
     """Publish a signed generation; entry.jar last. Readers verify referenced hashes.
 
@@ -117,12 +126,14 @@ def publish_local(generation,origin,fingerprint):
     allowed={'.apk','.jar','.json','.xml','.png','.jpg','.webp','.svg','.css','.html'}
     if any(p.suffix not in allowed or p.name in {'config.json','approved-release.json'} for p in files): raise ValueError('unexpected public file')
     generation_id=hashlib.sha256(json.dumps({str(p.relative_to(generation)):sha(p) for p in sorted(files)},sort_keys=True).encode()).hexdigest()
-    with locked(origin):
-        state=origin/'.promotion.json'
+    control=origin.parent/(origin.name+'.control')
+    origin.mkdir(parents=True,exist_ok=True)
+    with locked(control):
+        state=control/'promotion.json'
         journal=load(state) if state.exists() else {'schema':1,'completed':[],'active':None}
         if journal['active'] not in (None,generation_id): raise ValueError('resume active generation first')
         journal['active']=generation_id
-        state.write_text(json.dumps(journal))
+        atomic_json(state,journal)
         # Immutable content first; mutable index entry points last. No stale negative caching.
         ordered=sorted(files,key=lambda p:(p.name in {'index.xml','index.jar','index-v1.json','index-v1.jar','index-v2.json','entry.json','entry.jar'},p.name=='entry.jar',str(p)))
         for p in ordered:
@@ -132,8 +143,9 @@ def publish_local(generation,origin,fingerprint):
                 dest.parent.mkdir(parents=True,exist_ok=True)
                 tmp=dest.with_name(dest.name+'.partial');shutil.copyfile(p,tmp);os.replace(tmp,dest)
             if sha(p)!=sha(dest): raise ValueError('readback mismatch')
-        journal['completed'].append(generation_id);journal['active']=None
-        state.write_text(json.dumps(journal,indent=2)+'\n')
+        if generation_id not in journal['completed']:journal['completed'].append(generation_id)
+        journal['active']=None
+        atomic_json(state,journal)
     return generation_id
 
 def landing(output,repo_url,repo_cert,apk_cert,download):

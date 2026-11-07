@@ -25,10 +25,10 @@ fingerprint and modified v2 JSON (including crossed entry/index generations), th
 published/read back locally twice with identical generation
 `048cfd211689218f665f62bcf7af4ab1d2fc32d23e31552c7b0c953590e40457`.
 
-PASS: `python -m unittest discover -s distribution -p 'test_*.py'`: 7 tests,
+PASS: `python -m unittest discover -s distribution -p 'test_*.py'`: 8 tests,
 covering immutable APK conflicts, duplicate approvals, signer verifier failure,
-interrupted promotion/resume, changed-generation rejection, symlinks and unknown
-approval fields. `python -m py_compile distribution/*.py` passed.
+interrupted promotion/resume, changed-generation rejection, symlinks unknown
+approval fields and R2 plan ordering/cache/preflight command generation. `python -m py_compile distribution/*.py` passed.
 
 NOT RUN: official F-Droid and compatible Android client add/refresh/install/update;
 actual production repository signing/deployment, provider cache behavior, key
@@ -43,3 +43,8 @@ Generated indexes/APKs/test key are disposable staging artifacts kept out of Git
 these commands recreate them from the fixture and original approved bytes. Test
 key, private configuration, temporary browser profiles and APK copies are removed
 at handoff; only text receipts/hashes remain.
+
+NOT RUN: rendered landing-page acceptance. The installed trivalent launcher strips
+headless flags; direct binary inside agent-headless failed allocator initialization.
+No desktop interaction or personal profiles were used. Generated HTML/QR only
+passed static checks; no screenshot or rendered layout claim.
