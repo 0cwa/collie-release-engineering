@@ -1,0 +1,286 @@
+{
+  "scope": "retained gclient snapshot, not independently authenticated DEPS closure",
+  "snapshot_sha256": "cf14c5992a5c9f9c3657df5776a945ea399ff62493694a33194e4ea501083ad1",
+  "repositories": [
+    {
+      "path": "src/build",
+      "commit": "8a8d38839a9cfa81823701f32d67d66343d70876"
+    },
+    {
+      "path": "src/buildtools",
+      "commit": "4277578aa9c45906e51ad33cac1a5a7ad5288010"
+    },
+    {
+      "path": "src/examples/androidtests/third_party/gradle",
+      "commit": "f2d1fb54a951d8b11d25748e4711bec8d128d7e3"
+    },
+    {
+      "path": "src/ringrtc/oboe/src",
+      "commit": "b15f5e39c01a7ada306d959e5129620b145fb8b4"
+    },
+    {
+      "path": "src/ringrtc/opus/src",
+      "commit": "212d66c20944d0a0db91132f826a27dd0d5edd5d"
+    },
+    {
+      "path": "src/testing",
+      "commit": "b96dbc743d8b46742aed1bedf3e015eaeb9b2b09"
+    },
+    {
+      "path": "src/third_party",
+      "commit": "8f1da83155caaa0d454042bffcbcdb7f1fcae844"
+    },
+    {
+      "path": "src/third_party/boringssl/src",
+      "commit": "d9cace2c916914c437a10bf987017ba7792c0d57"
+    },
+    {
+      "path": "src/third_party/breakpad/breakpad",
+      "commit": "418aacd617897c19d960ec3e649f42ea95a6363a"
+    },
+    {
+      "path": "src/third_party/catapult",
+      "commit": "1d18f6e11082de030c45fd55b556d15e3aa628a8"
+    },
+    {
+      "path": "src/third_party/ced/src",
+      "commit": "d127078cedef9c6642cbe592dacdd2292b50bb19"
+    },
+    {
+      "path": "src/third_party/clang-format/script",
+      "commit": "70510081984cfcdb14a15b3e08dfe9776dc7ed37"
+    },
+    {
+      "path": "src/third_party/colorama/src",
+      "commit": "3de9f013df4b470069d03d250224062e8cf15c49"
+    },
+    {
+      "path": "src/third_party/compiler-rt/src",
+      "commit": "66e09cd4803d25d7325727daca3d35fa199a5823"
+    },
+    {
+      "path": "src/third_party/cpu_features/src",
+      "commit": "81d13c49649f0714dd41fb56bb246398b6584085"
+    },
+    {
+      "path": "src/third_party/cpuinfo/src",
+      "commit": "66ee79c038d70dad9f08705b2c9b3e58f6d8f512"
+    },
+    {
+      "path": "src/third_party/crc32c/src",
+      "commit": "2bbb3be42e20a0e6c0f7b39dc07dc863d9ffbc07"
+    },
+    {
+      "path": "src/third_party/dav1d/libdav1d",
+      "commit": "52b9d3d3ec525f5a20849145fa0e879d585f4911"
+    },
+    {
+      "path": "src/third_party/depot_tools",
+      "commit": "ce5a30784f7323ee224f3a6e7d4ae208dd6d17fe"
+    },
+    {
+      "path": "src/third_party/eigen3/src",
+      "commit": "7c8275ef88304b552a66aa105bed631dfb90bb02"
+    },
+    {
+      "path": "src/third_party/farmhash/src",
+      "commit": "816a4ae622e964763ca0862d9dbd19324a1eaf45"
+    },
+    {
+      "path": "src/third_party/ffmpeg",
+      "commit": "53fa34a23be9054d25ac2500dbdae9a0e570bb5c"
+    },
+    {
+      "path": "src/third_party/flatbuffers/src",
+      "commit": "a86afae9399bbe631d1ea0783f8816e780e236cc"
+    },
+    {
+      "path": "src/third_party/fontconfig/src",
+      "commit": "b707078e6e8bb6fd115e2080e69b3194c05e4f1c"
+    },
+    {
+      "path": "src/third_party/fp16/src",
+      "commit": "782eea126dc5c755827be751a099eb01826175cf"
+    },
+    {
+      "path": "src/third_party/freetype/src",
+      "commit": "9e9d3b73f31367dbb4261f93c727a277f6632c77"
+    },
+    {
+      "path": "src/third_party/fuzztest/src",
+      "commit": "d579aa9e1494341ba2bba308bc8a9a93274826df"
+    },
+    {
+      "path": "src/third_party/fxdiv/src",
+      "commit": "63058eff77e11aa15bf531df5dd34395ec3017c8"
+    },
+    {
+      "path": "src/third_party/gemmlowp/src",
+      "commit": "16e8662c34917be0065110bfcd9cc27d30f52fdf"
+    },
+    {
+      "path": "src/third_party/google-truth/src",
+      "commit": "2b95613636f4d612006f4b5811f7971d5c13b489"
+    },
+    {
+      "path": "src/third_party/google_benchmark/src",
+      "commit": "8abf1e701fbd88c8170f48fe0558247e2e5f8e7d"
+    },
+    {
+      "path": "src/third_party/googletest/src",
+      "commit": "4fe3307fb2d9f86d19777c7eb0e4809e9694dde7"
+    },
+    {
+      "path": "src/third_party/grpc/src",
+      "commit": "c6b6da1dd029e0b9a164f6150c359205f7b24b5f"
+    },
+    {
+      "path": "src/third_party/gtest-parallel",
+      "commit": "cd488bdedc1d2cffb98201a17afc1b298b0b90f1"
+    },
+    {
+      "path": "src/third_party/harfbuzz/src",
+      "commit": "886fc1e645388080b72f6d9b06347533a0018045"
+    },
+    {
+      "path": "src/third_party/icu",
+      "commit": "8cc91d9b6ab9991802fd208ee03a69714fd0251c"
+    },
+    {
+      "path": "src/third_party/instrumented_libs",
+      "commit": "d15c278eed5d38d9acf2d8054cf37baba93cef8e"
+    },
+    {
+      "path": "src/third_party/jsoncpp/source",
+      "commit": "60de77f915ab08499032d6e5a63e05e974f85d01"
+    },
+    {
+      "path": "src/third_party/junit/src",
+      "commit": "300468b1efd48d76fac2f7bd6d576846dcbbf5ed"
+    },
+    {
+      "path": "src/third_party/libFuzzer/src",
+      "commit": "5811dc57603eac1fa0e76addedb77f72f62bfa2d"
+    },
+    {
+      "path": "src/third_party/libaom/source/libaom",
+      "commit": "7a210280be0986d63abae0661b71d0c342560b9d"
+    },
+    {
+      "path": "src/third_party/libc++/src",
+      "commit": "97b436da4c33663581d394f4ee0a5977fc38c2f4"
+    },
+    {
+      "path": "src/third_party/libc++abi/src",
+      "commit": "fc1897a2c12aa27e703c3ed48b62eba8abf4ce19"
+    },
+    {
+      "path": "src/third_party/libgav1/src",
+      "commit": "c1deec657b32b911920c78e078cfd089faa77200"
+    },
+    {
+      "path": "src/third_party/libjpeg_turbo",
+      "commit": "640f254ad0fa03f6b1f29f89b7dd9366f2f6e533"
+    },
+    {
+      "path": "src/third_party/libpfm4/src",
+      "commit": "6870a9f00412830ceaa7e4384bb92ee323e2a28f"
+    },
+    {
+      "path": "src/third_party/libprotobuf-mutator/src",
+      "commit": "c1c950eae0440c3808f2b8bd7c57d0c6a42c1a90"
+    },
+    {
+      "path": "src/third_party/libsrtp",
+      "commit": "cd5d177bf1fde755ddb4c7f0d9ff7693f8b49e5e"
+    },
+    {
+      "path": "src/third_party/libunwind/src",
+      "commit": "0790de42df7835816d95ce62c598f9fef5ef4e6c"
+    },
+    {
+      "path": "src/third_party/libunwindstack",
+      "commit": "333fcafb91bd3830c5ef814c071ff73df9cdc976"
+    },
+    {
+      "path": "src/third_party/libvpx/source/libvpx",
+      "commit": "5ae5478f99abbe42101906d955458b3c98b587dd"
+    },
+    {
+      "path": "src/third_party/libyuv",
+      "commit": "26e56be0f984af3dae4d0c0ab7a0bac8ac20e1b0"
+    },
+    {
+      "path": "src/third_party/llvm-libc/src",
+      "commit": "4cd0847bb093ecf30ef7f80814d7e83376b343d8"
+    },
+    {
+      "path": "src/third_party/lss",
+      "commit": "29164a80da4d41134950d76d55199ea33fbb9613"
+    },
+    {
+      "path": "src/third_party/mockito/src",
+      "commit": "04a2a289a4222f80ad20717c25144981210d2eac"
+    },
+    {
+      "path": "src/third_party/nasm",
+      "commit": "525a09a813be0f75b646ee93fc2a31c27b87d722"
+    },
+    {
+      "path": "src/third_party/neon_2_sse/src",
+      "commit": "183fc88bcb90dbfaefba33a292eae8a5ce94bd67"
+    },
+    {
+      "path": "src/third_party/openh264/src",
+      "commit": "fca40fc19f5fb854609d297ae4bde71df72787c9"
+    },
+    {
+      "path": "src/third_party/perfetto",
+      "commit": "de794788d545dcf05aacece46a7fb5385b52ac77"
+    },
+    {
+      "path": "src/third_party/pipewire/src",
+      "commit": "b741e0c74f5436f0c925f7741140db0efd32cf4e"
+    },
+    {
+      "path": "src/third_party/protobuf-javascript/src",
+      "commit": "e6d763860001ba1a76a63adcff5efb12b1c96024"
+    },
+    {
+      "path": "src/third_party/pthreadpool/src",
+      "commit": "02460584c6092e527c8b89f7df4de143d70e801f"
+    },
+    {
+      "path": "src/third_party/re2/src",
+      "commit": "972a15cedd008d846f1a39b2e88ce48d7f166cbd"
+    },
+    {
+      "path": "src/third_party/requests/src",
+      "commit": "c7e0fc087ceeadb8b4c84a0953a422c474093d6d"
+    },
+    {
+      "path": "src/third_party/ruy/src",
+      "commit": "2264753777198e4393fb83c44c693462d57a2be1"
+    },
+    {
+      "path": "src/third_party/sframe/src",
+      "commit": "b14090904433bed0d4ec3f875b9b39f3e0555930"
+    },
+    {
+      "path": "src/third_party/tflite/src",
+      "commit": "a387c0a471a69c0c9068334e73d184e1e0ce579f"
+    },
+    {
+      "path": "src/third_party/xnnpack/src",
+      "commit": "eccfcfe85b347d8f48015ecdf9fa7db1a9ef61cb"
+    },
+    {
+      "path": "src/third_party/zstd/src",
+      "commit": "5c7b7bad26808e6b40ac3b3d0075466e27738a9d"
+    },
+    {
+      "path": "src/tools",
+      "commit": "b4235c8a2ce2b9daf74657dbd3b869d23235e87a"
+    }
+  ]
+}

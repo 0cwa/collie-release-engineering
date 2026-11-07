@@ -1,0 +1,22 @@
+[
+  {
+    "release": "8.33.2-1-rc3",
+    "code": 177203,
+    "sha256": "189b0bf0056945bd6dde9a9e9f5a9e664f8aa5e294de3ade77d2850ce7d3a313"
+  },
+  {
+    "release": "8.33.2-1-rc2",
+    "code": 177202,
+    "sha256": "1105fb90a7f963ebe85e365e1d7ca7cfc185c8447a5c4baa10f98cf4683c1439"
+  },
+  {
+    "release": "8.33.2-1-rc1",
+    "code": 177201,
+    "sha256": "9748ae89caf809274d234d5c2a22f60c1303fea3d895c2452cf1051933d2ecbd"
+  },
+  {
+    "release": "8.35.1-1-rc1",
+    "code": 177702,
+    "sha256": "5fbd0fe817bc6711c56fbc39b8479cc0a68a7d7fe921a7d9c9fab59333fda9ee"
+  }
+]

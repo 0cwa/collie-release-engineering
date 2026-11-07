@@ -1,0 +1,31 @@
+{
+  "schema": 2,
+  "kind": "release",
+  "payload": {
+    "source_receipt_sha256": "6ef0ea4663df9bad36d57740024b737d9b10ee8806773fb761cf2e8b72f5a512",
+    "build_receipt_sha256": "b4fbde16ecb7bfb97dbe33c633c383b4ac7cbbf9058c2970289ba60ffe6ab6a5",
+    "source_commit": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "engineering_revision": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "workflow_revision": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "package": "im.collie.app",
+    "version_code": 177703,
+    "version_name": "fixture trusted-local; not independently reproduced",
+    "apk_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "apk_certificate_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "aliases": [
+      "collie-foss.apk",
+      "collie.apk",
+      "molly-continued.apk",
+      "molly-foss-continued.apk",
+      "molly-minimal.apk"
+    ],
+    "release_manifest_sha256": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+  },
+  "evidence": [
+    {
+      "status": "UNKNOWN",
+      "description": "synthetic fixture; not release evidence",
+      "sha256": null
+    }
+  ]
+}

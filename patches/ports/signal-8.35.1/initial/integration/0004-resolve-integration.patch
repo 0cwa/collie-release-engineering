@@ -1,0 +1,2221 @@
+From 0779abe2c65cc277aae25e812b4072e9403a4173 Mon Sep 17 00:00:00 2001
+From: Molly Patch Reconstruction <molly-patch-reconstruction@example.invalid>
+Date: Fri, 6 Nov 2026 10:40:24 +0100
+Subject: [PATCH] Port integration to Signal 8.35.1, part 4
+
+Resolve shared application, account, service and core integration files whose APIs or feature boundaries changed upstream.
+
+These are AI-assisted compatibility changes from the recorded
+source checkpoint, exported after Git has performed its deterministic
+three-way merge of the unchanged official Molly 8.19.2-4 snapshot
+with Signal 8.35.1. The original Molly mailboxes remain unchanged.
+Offset-only movement and conflict-free automatic merges are already
+in the parent tree and are not re-exported as patch rewrites.
+
+This batch owns 46 whole-file changes. It records AI-assisted
+compatibility changes in the pinned source tree.
+The source commit records a derived candidate, not an official
+Molly release or a claim of upstream authorship.
+
+Source-Commit: f2a6b716b37cf8816223f392dc127dde319be968
+Origin-Base: c47a74ba0961903eeaeda6d22347a990056c3e83
+Origin-Target: 0e202dda90785771ff8c87526eaaf30c655f54f3
+Signal-Base: a74583b01e260944f699c4da03ba4e8ce04de32b
+Mechanical-Merge-Tree: d1b1951155a3e600a1c9af606e440ed25fc4b11d
+AI-Generated: true
+
+diff --git a/app/src/test/java/org/thoughtcrime/securesms/jobs/FcmRefreshJobTest.kt b/app/src/test/java/org/thoughtcrime/securesms/jobs/FcmRefreshJobTest.kt
+index 78e3f06affe0563b22c424685a0d0004debf68ca..c081b43a0f7db8962335e0c671fe122eee781ecf 100644
+--- a/app/src/test/java/org/thoughtcrime/securesms/jobs/FcmRefreshJobTest.kt
++++ b/app/src/test/java/org/thoughtcrime/securesms/jobs/FcmRefreshJobTest.kt
+@@ -5,25 +5,15 @@
+ 
+ package org.thoughtcrime.securesms.jobs
+ 
+-import android.app.Application
+ import io.mockk.every
+-import io.mockk.just
+-import io.mockk.mockk
+-import io.mockk.mockkStatic
+-import io.mockk.runs
+-import io.mockk.unmockkStatic
+ import io.mockk.verify
+-import org.junit.After
+ import org.junit.Before
+ import org.junit.Rule
+ import org.junit.Test
+-import org.signal.core.util.PlayServicesUtil
+ import org.signal.core.util.logging.Log
+-import org.thoughtcrime.securesms.dependencies.AppDependencies
+-import org.thoughtcrime.securesms.keyvalue.SettingsValues.ForceWebsocketMode
++import org.thoughtcrime.securesms.keyvalue.SettingsValues.NotificationDeliveryMethod
+ import org.thoughtcrime.securesms.testutil.MockSignalStoreRule
+ import org.thoughtcrime.securesms.testutil.SystemOutLogger
+-import kotlin.time.Duration.Companion.days
+ 
+ class FcmRefreshJobTest {
+ 
+@@ -33,44 +23,15 @@ class FcmRefreshJobTest {
+   @Before
+   fun setUp() {
+     Log.initialize(SystemOutLogger())
+-
+-    mockkStatic(PlayServicesUtil::class)
+-    every { PlayServicesUtil.getPlayServicesStatus(any()) } returns PlayServicesUtil.PlayServicesStatus.SUCCESS
+-
+-    mockkStatic(AppDependencies::class)
+-    every { AppDependencies.resetNetwork() } just runs
+-    every { AppDependencies.startNetwork() } just runs
+-
+-    every { signalStore.account.fcmTokenLastSetTime } returns System.currentTimeMillis() - 4.days.inWholeMilliseconds
+-  }
+-
+-  @After
+-  fun tearDown() {
+-    unmockkStatic(PlayServicesUtil::class)
+-    unmockkStatic(AppDependencies::class)
+-  }
+-
+-  @Test
+-  fun `given fcm has failed for days and the mode is disabled automatically, when the job fails, then forced websocket mode is enabled automatically`() {
+-    every { signalStore.settings.forceWebsocketMode } returns ForceWebsocketMode.DISABLED_AUTOMATICALLY
+-
+-    createJob().onFailure()
+-
+-    verify { signalStore.settings.forceWebsocketMode = ForceWebsocketMode.ENABLED_AUTOMATICALLY }
+-    verify { AppDependencies.startNetwork() }
+   }
+ 
+   @Test
+-  fun `given fcm has failed for days and the user disabled the mode, when the job fails, then forced websocket mode is left alone`() {
+-    every { signalStore.settings.forceWebsocketMode } returns ForceWebsocketMode.DISABLED_BY_USER
++  fun `exhausted FCM retries do not replace the selected delivery method or enable background mode`() {
++    every { signalStore.settings.preferredNotificationMethod } returns NotificationDeliveryMethod.UNIFIEDPUSH
+ 
+-    createJob().onFailure()
++    FcmRefreshJob().onFailure()
+ 
++    verify(exactly = 0) { signalStore.settings.preferredNotificationMethod = any() }
+     verify(exactly = 0) { signalStore.settings.forceWebsocketMode = any() }
+-    verify(exactly = 0) { AppDependencies.startNetwork() }
+-  }
+-
+-  private fun createJob(): FcmRefreshJob {
+-    return FcmRefreshJob().apply { setContext(mockk<Application>(relaxed = true)) }
+   }
+ }
+diff --git a/app/src/test/java/org/thoughtcrime/securesms/keyvalue/MollySettingsMigrationTest.kt b/app/src/test/java/org/thoughtcrime/securesms/keyvalue/MollySettingsMigrationTest.kt
+new file mode 100644
+index 0000000000000000000000000000000000000000..ceb26428667a6034c0209d6825aadac351122813
+--- /dev/null
++++ b/app/src/test/java/org/thoughtcrime/securesms/keyvalue/MollySettingsMigrationTest.kt
+@@ -0,0 +1,160 @@
++/*
++ * SPDX-License-Identifier: AGPL-3.0-only
++ */
++
++package org.thoughtcrime.securesms.keyvalue
++
++import android.app.Application
++import android.content.Context
++import android.content.SharedPreferences
++import androidx.preference.PreferenceManager
++import androidx.test.core.app.ApplicationProvider
++import io.mockk.every
++import io.mockk.mockkStatic
++import io.mockk.unmockkStatic
++import org.junit.After
++import org.junit.Assert.assertEquals
++import org.junit.Assert.assertFalse
++import org.junit.Assert.assertTrue
++import org.junit.Before
++import org.junit.Test
++import org.junit.runner.RunWith
++import org.robolectric.RobolectricTestRunner
++import org.robolectric.annotation.Config
++import org.signal.core.util.logging.Log
++import org.signal.storage.keyvalue.PlainTextKeyValueStore
++import org.signal.storage.keyvalue.KeyValueStore
++import org.signal.storage.keyvalue.KeyValueDataSet
++import org.signal.storage.keyvalue.MockKeyValuePersistentStorage
++import org.thoughtcrime.securesms.BuildConfig
++import org.thoughtcrime.securesms.testutil.DirectExecutor
++import org.thoughtcrime.securesms.testutil.EmptyLogger
++import org.thoughtcrime.securesms.util.Environment
++import org.thoughtcrime.securesms.util.SecurePreferenceManager
++
++@RunWith(RobolectricTestRunner::class)
++@Config(manifest = Config.NONE, application = Application::class)
++class MollySettingsMigrationTest {
++  private lateinit var context: Application
++  private lateinit var mollyPreferences: SharedPreferences
++  private lateinit var store: KeyValueStore
++  private var originalInstrumentation = false
++
++  @Before
++  fun setUp() {
++    Log.initialize(EmptyLogger())
++    context = ApplicationProvider.getApplicationContext()
++    mollyPreferences = context.getSharedPreferences("molly-preferences-test", Context.MODE_PRIVATE)
++    mollyPreferences.edit().clear().commit()
++    PreferenceManager.getDefaultSharedPreferences(context).edit().clear().commit()
++    mockkStatic(SecurePreferenceManager::class)
++    every { SecurePreferenceManager.getSecurePreferences(context) } returns mollyPreferences
++    PlainTextKeyValueStore.init(mollyPreferences, BuildConfig.VERSION_CODE)
++    store = KeyValueStore(MockKeyValuePersistentStorage.withDataSet(KeyValueDataSet()), DirectExecutor())
++    originalInstrumentation = Environment.IS_INSTRUMENTATION
++    Environment.IS_INSTRUMENTATION = false
++  }
++
++  @After
++  fun tearDown() {
++    Environment.IS_INSTRUMENTATION = originalInstrumentation
++    unmockkStatic(SecurePreferenceManager::class)
++  }
++
++  @Test
++  fun `migration reads existing Molly preferences instead of the unrelated default file`() {
++    mollyPreferences.edit()
++      .putBoolean("pref_screen_security", true)
++      .putBoolean("pref_incognito_keyboard", true)
++      .putBoolean("pref_read_receipts", false)
++      .putBoolean("pref_typing_indicators", false)
++      .putString("pref_notification_privacy", "none")
++      .putString("pref_language", "de")
++      .commit()
++    PreferenceManager.getDefaultSharedPreferences(context).edit()
++      .putBoolean("pref_screen_security", false)
++      .putBoolean("pref_incognito_keyboard", false)
++      .putBoolean("pref_read_receipts", true)
++      .putBoolean("pref_typing_indicators", true)
++      .putString("pref_notification_privacy", "all")
++      .putString("pref_language", "en")
++      .commit()
++
++    val settings = SettingsValues(store, context)
++
++    assertTrue(settings.isScreenSecurityEnabled)
++    assertTrue(settings.isIncognitoKeyboardEnabled)
++    assertFalse(settings.isReadReceiptsEnabled)
++    assertFalse(settings.isTypingIndicatorsEnabled)
++    assertEquals("none", settings.messageNotificationsPrivacy.toString())
++    assertEquals("de", settings.language)
++  }
++
++  @Test
++  fun `existing chosen language survives migration and first launch`() {
++    mollyPreferences.edit().putString("pref_language", "de").commit()
++    PreferenceManager.getDefaultSharedPreferences(context).edit().putString("pref_language", "en").commit()
++
++    val settings = SettingsValues(store, context)
++    assertEquals("de", settings.language)
++
++    settings.onFirstEverAppLaunch()
++    assertEquals("de", settings.language)
++  }
++
++  @Test
++  fun `changed language is visible through the settings reader`() {
++    mollyPreferences.edit().putString("pref_language", "de").commit()
++    val settings = SettingsValues(store, context)
++    assertEquals("de", settings.language)
++
++    settings.language = "fr"
++
++    assertEquals("fr", settings.language)
++  }
++
++  @Test
++  fun `new installs retain Molly privacy defaults`() {
++    val settings = SettingsValues(store, context)
++
++    assertTrue(settings.isScreenSecurityEnabled)
++    assertTrue(settings.isIncognitoKeyboardEnabled)
++    assertTrue(settings.isReadReceiptsEnabled)
++    assertTrue(settings.isTypingIndicatorsEnabled)
++    assertEquals("none", settings.messageNotificationsPrivacy.toString())
++  }
++
++  @Test
++  fun `locked UI settings and explicit UnifiedPush choice survive store reconstruction`() {
++    val settings = SettingsValues(store, context)
++    settings.setTheme(SettingsValues.Theme.DARK, true)
++    settings.isPreferSystemEmoji = true
++    settings.language = "fr"
++    settings.preferredNotificationMethod = SettingsValues.NotificationDeliveryMethod.UNIFIEDPUSH
++
++    val restored = SettingsValues(store, context)
++    assertEquals(SettingsValues.Theme.DARK, restored.theme)
++    assertTrue(restored.isDynamicColorsEnabled)
++    assertTrue(restored.isPreferSystemEmoji)
++    assertEquals("fr", restored.language)
++    assertEquals(SettingsValues.NotificationDeliveryMethod.UNIFIEDPUSH, restored.preferredNotificationMethod)
++    assertEquals("dark", mollyPreferences.getString("pref_theme", null))
++    assertEquals("fr", mollyPreferences.getString("pref_language", null))
++    assertTrue(mollyPreferences.getBoolean("pref_system_emoji", false))
++    assertTrue(PreferenceManager.getDefaultSharedPreferences(context).all.isEmpty())
++  }
++
++  @Test
++  fun `moved secret and migration store preserves the Molly preference source`() {
++    mollyPreferences.edit()
++      .putString("pref_database_encrypted_secret", "existing-secret")
++      .putInt("pref_app_migration_version", 123)
++      .commit()
++
++    assertEquals("existing-secret", PlainTextKeyValueStore.databaseEncryptedSecret)
++    assertEquals(123, PlainTextKeyValueStore.appMigrationVersion)
++    PlainTextKeyValueStore.databaseEncryptedSecret = "replacement-secret"
++    assertEquals("replacement-secret", mollyPreferences.getString("pref_database_encrypted_secret", null))
++    assertTrue(PreferenceManager.getDefaultSharedPreferences(context).all.isEmpty())
++  }
++}
+diff --git a/app/src/test/java/org/thoughtcrime/securesms/messages/IncomingMessageObserverConnectivityTest.kt b/app/src/test/java/org/thoughtcrime/securesms/messages/IncomingMessageObserverConnectivityTest.kt
+new file mode 100644
+index 0000000000000000000000000000000000000000..66b25893315c73728b86b764ffbb6724c655286f
+--- /dev/null
++++ b/app/src/test/java/org/thoughtcrime/securesms/messages/IncomingMessageObserverConnectivityTest.kt
+@@ -0,0 +1,94 @@
++/*
++ * Copyright 2026 Molly Project
++ * SPDX-License-Identifier: AGPL-3.0-only
++ */
++package org.thoughtcrime.securesms.messages
++
++import android.app.Application
++import androidx.test.core.app.ApplicationProvider
++import io.mockk.*
++import io.reactivex.rxjava3.core.Observable
++import org.junit.*
++import org.junit.runner.RunWith
++import org.robolectric.RobolectricTestRunner
++import org.robolectric.annotation.Config
++import org.signal.core.util.AppForegroundObserver
++import org.signal.core.util.logging.Log
++import org.thoughtcrime.securesms.testutil.SystemOutLogger
++import org.thoughtcrime.securesms.dependencies.AppDependencies
++import org.signal.storage.protos.RestoreDecisionState
++import org.thoughtcrime.securesms.keyvalue.SettingsValues
++import org.thoughtcrime.securesms.net.ConnectivityState
++import org.thoughtcrime.securesms.net.InternetConnectivityMonitor
++import org.thoughtcrime.securesms.testutil.MockSignalStoreRule
++import org.whispersystems.signalservice.api.websocket.SignalWebSocket
++import org.whispersystems.signalservice.api.websocket.WebSocketConnectionState
++import java.util.concurrent.CountDownLatch
++import java.util.concurrent.TimeUnit
++
++@RunWith(RobolectricTestRunner::class)
++@Config(manifest = Config.NONE, application = Application::class)
++class IncomingMessageObserverConnectivityTest {
++  @get:Rule val store = MockSignalStoreRule()
++  private val auth = mockk<SignalWebSocket.AuthenticatedWebSocket>(relaxed = true)
++  private val unauth = mockk<SignalWebSocket.UnauthenticatedWebSocket>(relaxed = true)
++  private lateinit var observer: IncomingMessageObserver
++  private lateinit var update: (ConnectivityState) -> Unit
++  private val connected = CountDownLatch(1)
++
++  @Before fun setup() {
++    Log.initialize(SystemOutLogger())
++    every { store.account.isRegistered } returns true
++    every { store.account.isUnauthorizedReceived } returns false
++    every { store.account.pushAvailable } returns true
++    every { store.settings.forceWebsocketMode } returns SettingsValues.ForceWebsocketMode.DISABLED_BY_USER
++    every { store.registration.restoreDecisionState } returns RestoreDecisionState(RestoreDecisionState.State.START)
++    every { auth.state } returns Observable.never()
++    every { auth.stateSnapshot } returns WebSocketConnectionState.DISCONNECTED
++    every { auth.shouldSendKeepAlives() } returns false
++    every { auth.connect() } answers { connected.countDown() }
++    mockkStatic(AppDependencies::class, AppForegroundObserver::class, MessageContentProcessor::class)
++    mockkObject(AppForegroundObserver, MessageContentProcessor.Companion)
++    every { AppDependencies.signalServiceNetworkAccess } returns mockk(relaxed = true)
++    every { AppDependencies.networkManager } returns mockk(relaxed = true)
++    every { AppDependencies.libsignalNetwork } returns mockk(relaxed = true)
++    every { MessageContentProcessor.create(any()) } returns mockk(relaxed = true)
++    every { AppForegroundObserver.addListener(any()) } just Runs
++    every { AppForegroundObserver.removeListener(any()) } just Runs
++    mockkConstructor(InternetConnectivityMonitor::class)
++    every { anyConstructed<InternetConnectivityMonitor>().register() } just Runs
++    every { anyConstructed<InternetConnectivityMonitor>().unregister() } just Runs
++    observer = IncomingMessageObserver(ApplicationProvider.getApplicationContext(), auth, unauth)
++    val monitorField = IncomingMessageObserver::class.java.getDeclaredField("internetConnectivityMonitor").apply { isAccessible = true }
++    val monitor = monitorField.get(observer)
++    val callbackField = InternetConnectivityMonitor::class.java.getDeclaredField("onConnectivityUpdated").apply { isAccessible = true }
++    @Suppress("UNCHECKED_CAST")
++    update = callbackField.get(monitor) as (ConnectivityState) -> Unit
++  }
++
++  @After fun cleanup() {
++    if (::observer.isInitialized) observer.terminate()
++    unmockkConstructor(InternetConnectivityMonitor::class)
++    unmockkObject(AppForegroundObserver, MessageContentProcessor.Companion)
++    unmockkStatic(AppDependencies::class, AppForegroundObserver::class, MessageContentProcessor::class)
++  }
++
++  @Test fun `startup and unavailable or unvalidated states do not connect but online does`() {
++    Assert.assertFalse("startup connected before a connectivity report", connected.await(500, TimeUnit.MILLISECONDS))
++    update(ConnectivityState.MONITORING_UNAVAILABLE)
++    Assert.assertFalse("monitor failure connected", connected.await(500, TimeUnit.MILLISECONDS))
++    update(ConnectivityState.CONNECTED_UNVALIDATED)
++    Assert.assertFalse("unvalidated network connected", connected.await(500, TimeUnit.MILLISECONDS))
++    update(ConnectivityState.ONLINE)
++    Assert.assertTrue("validated network did not connect", connected.await(2, TimeUnit.SECONDS))
++  }
++
++  @Test fun `losing validation disconnects both websockets`() {
++    update(ConnectivityState.ONLINE)
++    Assert.assertTrue(connected.await(2, TimeUnit.SECONDS))
++    clearMocks(auth, unauth, answers = false, recordedCalls = true)
++    update(ConnectivityState.CONNECTED_UNVALIDATED)
++    verify(atLeast = 1) { auth.disconnect() }
++    verify(exactly = 1) { unauth.disconnect() }
++  }
++}
+diff --git a/app/src/test/java/org/thoughtcrime/securesms/testutil/MockAppDependenciesRule.kt b/app/src/test/java/org/thoughtcrime/securesms/testutil/MockAppDependenciesRule.kt
+index 3fae14ff1ab7782caafa6f9755290c57dca383af..9a04a0e680cf4a3e2feb1cb0b0916897ad54b1fa 100644
+--- a/app/src/test/java/org/thoughtcrime/securesms/testutil/MockAppDependenciesRule.kt
++++ b/app/src/test/java/org/thoughtcrime/securesms/testutil/MockAppDependenciesRule.kt
+@@ -40,12 +40,9 @@ class MockAppDependenciesRule : ExternalResource() {
+     .filterNot { skipList.contains(it.name) }
+ 
+   override fun before() {
+-<<<<<<< MOLLY
+     ApplicationInstance.setForTests(ApplicationProvider.getApplicationContext())
+-=======
+     PartAuthorityUris.init(BuildConfig.APPLICATION_ID)
+ 
+->>>>>>> SIGNAL
+     if (!AppDependencies.isInitialized) {
+       AppDependencies.init(MockApplicationDependencyProvider())
+     }
+diff --git a/app/src/test/java/org/thoughtcrime/securesms/util/RemoteConfigOverrideTest.kt b/app/src/test/java/org/thoughtcrime/securesms/util/RemoteConfigOverrideTest.kt
+index a3f839c646420c74f58d8dbfbfc3e3b9ef23fc3a..735ec82cd85664a39d3e327c4217584f03b76d6d 100644
+--- a/app/src/test/java/org/thoughtcrime/securesms/util/RemoteConfigOverrideTest.kt
++++ b/app/src/test/java/org/thoughtcrime/securesms/util/RemoteConfigOverrideTest.kt
+@@ -6,6 +6,11 @@
+ package org.thoughtcrime.securesms.util
+ 
+ import android.app.Application
++import android.content.Context
++import androidx.test.core.app.ApplicationProvider
++import io.mockk.every
++import io.mockk.mockkStatic
++import io.mockk.unmockkStatic
+ import assertk.assertThat
+ import assertk.assertions.isEmpty
+ import assertk.assertions.isEqualTo
+@@ -15,12 +20,16 @@ import org.json.JSONObject
+ import org.junit.After
+ import org.junit.Before
+ import org.junit.Rule
++import org.junit.rules.ExternalResource
++import org.junit.rules.RuleChain
+ import org.junit.Test
+ import org.junit.runner.RunWith
+ import org.robolectric.RobolectricTestRunner
+ import org.robolectric.annotation.Config
+ import org.signal.core.util.logging.Log
+ import org.signal.remoteconfig.RemoteConfig
++import org.signal.storage.keyvalue.PlainTextKeyValueStore
++import org.thoughtcrime.securesms.BuildConfig
+ import org.thoughtcrime.securesms.keyvalue.SignalStore
+ import org.thoughtcrime.securesms.testutil.LogRecorder
+ import org.thoughtcrime.securesms.testutil.SignalStoreRule
+@@ -35,8 +44,23 @@ class RemoteConfigOverrideTest {
+     private const val INT_FLAG = "global.pinnedChatLimit"
+   }
+ 
++  private val preferences = object : ExternalResource() {
++    override fun before() {
++      val context = ApplicationProvider.getApplicationContext<Application>()
++      val sharedPreferences = context.getSharedPreferences("remote-config-test", Context.MODE_PRIVATE)
++      sharedPreferences.edit().clear().commit()
++      mockkStatic(SecurePreferenceManager::class)
++      every { SecurePreferenceManager.getSecurePreferences(any()) } returns sharedPreferences
++      PlainTextKeyValueStore.init(sharedPreferences, BuildConfig.VERSION_CODE)
++    }
++
++    override fun after() {
++      unmockkStatic(SecurePreferenceManager::class)
++    }
++  }
++
+   @get:Rule
+-  val signalStore = SignalStoreRule()
++  val rules: RuleChain = RuleChain.outerRule(preferences).around(SignalStoreRule())
+ 
+   @Before
+   fun setup() {
+diff --git a/core/network/src/main/java/org/signal/network/config/LibSignalNetworkExtensions.kt b/core/network/src/main/java/org/signal/network/config/LibSignalNetworkExtensions.kt
+index 60b3d02503a9fe730c068601ca3582cf3ae3f5a3..f1ce1102b36967fa2a8cdbe7829e065ccd4e3383 100644
+--- a/core/network/src/main/java/org/signal/network/config/LibSignalNetworkExtensions.kt
++++ b/core/network/src/main/java/org/signal/network/config/LibSignalNetworkExtensions.kt
+@@ -22,7 +22,7 @@ fun Network.applyConfiguration(config: SignalServiceConfiguration) {
+ /**
+  * Configures the [Network] instance with the given proxy settings.
+  *
+- * TLS Proxies: configuration errors mark the proxy as invalid, causing future connections to
++ * User-configured proxies: configuration errors mark the proxy as invalid, causing future connections to
+  * fail until the proxy setting is changed. These are explicitly configured by the user in the app
+  * and must be respected.
+  *
+@@ -42,18 +42,18 @@ fun Network.configureProxy(config: ProxyConfig) {
+         when (config.scheme) {
+           ProxyConfig.ProxyScheme.TLS -> setProxy(config.host, config.port)
+           ProxyConfig.ProxyScheme.HTTP,
+-          ProxyConfig.ProxyScheme.SOCKS -> setProxy(config.scheme.value, config.host, config.port, null, null)
++          ProxyConfig.ProxyScheme.SOCKS,
++          ProxyConfig.ProxyScheme.SOCKS_REMOTE_DNS -> setProxy(config.scheme.value, config.host, config.port, null, null)
+         }
+         Log.i(TAG, "Proxy configured: ${config.scheme}/${config.port}")
+       } catch (e: IOException) {
+-        when (config.scheme) {
+-          ProxyConfig.ProxyScheme.TLS -> {
+-            Log.e(TAG, "Invalid Signal TLS proxy config! Failing connections until changed.", e)
++        when (config.source) {
++          ProxyConfig.ProxySource.USER -> {
++            Log.e(TAG, "Invalid ${config.scheme} proxy config! Failing connections until changed.", e)
+             setInvalidProxy()
+           }
+ 
+-          ProxyConfig.ProxyScheme.HTTP,
+-          ProxyConfig.ProxyScheme.SOCKS -> {
++          ProxyConfig.ProxySource.SYSTEM -> {
+             Log.w(TAG, "Failed to configure ${config.scheme} proxy, falling back to direct connection.", e)
+             clearProxy()
+           }
+diff --git a/core/network/src/main/java/org/signal/network/config/SignalServiceConfiguration.kt b/core/network/src/main/java/org/signal/network/config/SignalServiceConfiguration.kt
+index c267a4f4bdcdf916f0f86e71522ce55168c7c179..1b3a79d46731f28e6f3911d4f7deea88ec1ab616 100644
+--- a/core/network/src/main/java/org/signal/network/config/SignalServiceConfiguration.kt
++++ b/core/network/src/main/java/org/signal/network/config/SignalServiceConfiguration.kt
+@@ -3,7 +3,6 @@ package org.signal.network.config
+ import okhttp3.Dns
+ import okhttp3.Interceptor
+ import java.net.ProxySelector
+-import java.util.Optional
+ import javax.net.SocketFactory
+ 
+ /**
+@@ -17,14 +16,9 @@ data class SignalServiceConfiguration(
+   val signalCdsiUrls: Array<SignalCdsiUrl>,
+   val signalSvr2Urls: Array<SignalSvr2Url>,
+   val networkInterceptors: List<Interceptor>,
+-<<<<<<< MOLLY:lib/libsignal-service/src/main/java/org/whispersystems/signalservice/internal/configuration/SignalServiceConfiguration.kt
+   val socketFactory: SocketFactory,
+   val proxySelector: ProxySelector,
+   val dns: Dns,
+-=======
+-  val dns: Optional<Dns>,
+-  val signalProxy: Optional<SignalProxy>,
+->>>>>>> SIGNAL:core/network/src/main/java/org/signal/network/config/SignalServiceConfiguration.kt
+   val zkGroupServerPublicParams: ByteArray,
+   val genericServerPublicParams: ByteArray,
+   val backupServerPublicParams: ByteArray,
+diff --git a/core/util-jvm/src/main/java/org/signal/core/util/FlowExtensions.kt b/core/util-jvm/src/main/java/org/signal/core/util/FlowExtensions.kt
+index c359d887fbf42535c362e605b7b8615bc582480b..e456828ae95ada3ac69fae747da0ffb2ec1b2a3a 100644
+--- a/core/util-jvm/src/main/java/org/signal/core/util/FlowExtensions.kt
++++ b/core/util-jvm/src/main/java/org/signal/core/util/FlowExtensions.kt
+@@ -10,16 +10,8 @@ import kotlinx.coroutines.channels.Channel
+ import kotlinx.coroutines.coroutineScope
+ import kotlinx.coroutines.delay
+ import kotlinx.coroutines.flow.Flow
+-<<<<<<< MOLLY
+-import kotlinx.coroutines.flow.channelFlow
+-import kotlinx.coroutines.flow.conflate
+-import kotlinx.coroutines.flow.filterNot
+-import kotlinx.coroutines.flow.flow
+-import kotlinx.coroutines.flow.onEach
+-=======
+ import kotlinx.coroutines.flow.flow
+ import kotlinx.coroutines.launch
+->>>>>>> SIGNAL
+ import kotlin.time.Duration
+ 
+ /**
+diff --git a/core/util-jvm/src/main/java/org/signal/core/util/JavaTimeExtensions.kt b/core/util-jvm/src/main/java/org/signal/core/util/JavaTimeExtensions.kt
+index d98b0db9c96e90e7755d3abaad4be37301a6e42a..a184d01a679f19bef92a639de33b511a600ecda7 100644
+--- a/core/util-jvm/src/main/java/org/signal/core/util/JavaTimeExtensions.kt
++++ b/core/util-jvm/src/main/java/org/signal/core/util/JavaTimeExtensions.kt
+@@ -1,9 +1,5 @@
+ package org.signal.core.util
+ 
+-<<<<<<< MOLLY:app/src/main/java/org/thoughtcrime/securesms/util/JavaTimeExtensions.kt
+-import android.content.Context
+-=======
+->>>>>>> SIGNAL:core/util-jvm/src/main/java/org/signal/core/util/JavaTimeExtensions.kt
+ import java.time.DayOfWeek
+ import java.time.Instant
+ import java.time.LocalDate
+@@ -90,16 +86,6 @@ fun Long.toLocalTime(zoneId: ZoneId = ZoneId.systemDefault()): LocalTime {
+ }
+ 
+ /**
+-<<<<<<< MOLLY:app/src/main/java/org/thoughtcrime/securesms/util/JavaTimeExtensions.kt
+- * Formats [LocalTime] as localized time. For example, "1:45 PM" or "13:45"
+- */
+-fun LocalTime.formatHours(context: Context): String {
+-  return DateUtils.getOnlyTimeString(context, localTime = this)
+-}
+-
+-/**
+-=======
+->>>>>>> SIGNAL:core/util-jvm/src/main/java/org/signal/core/util/JavaTimeExtensions.kt
+  * Get the days of the week in order based on [Locale].
+  */
+ fun Locale.orderOfDaysInWeek(): List<DayOfWeek> {
+diff --git a/feature/app-settings/src/main/java/org/signal/appsettings/appearance/AppearanceSettingsAction.kt b/feature/app-settings/src/main/java/org/signal/appsettings/appearance/AppearanceSettingsAction.kt
+index eabaab50b4123b96f0127ef4fece03c0c3fa7fac..03808c96b25c64afec9d0053f1cb8758d55d8c4c 100644
+--- a/feature/app-settings/src/main/java/org/signal/appsettings/appearance/AppearanceSettingsAction.kt
++++ b/feature/app-settings/src/main/java/org/signal/appsettings/appearance/AppearanceSettingsAction.kt
+@@ -14,5 +14,5 @@ package org.signal.appsettings.appearance
+ sealed interface AppearanceSettingsAction {
+ 
+   /** The theme changed, so the activity's splash screen theme has to follow it. */
+-  data class ApplySplashScreenTheme(val theme: AppearanceSettingsState.Theme) : AppearanceSettingsAction
++  data class ApplySplashScreenTheme(val theme: AppearanceSettingsState.Theme, val dynamicColors: Boolean = false) : AppearanceSettingsAction
+ }
+diff --git a/feature/app-settings/src/main/java/org/signal/appsettings/appearance/AppearanceSettingsEvent.kt b/feature/app-settings/src/main/java/org/signal/appsettings/appearance/AppearanceSettingsEvent.kt
+index 4d61a086ada4d9a7fbe29506952db11ea6ab5c11..5827b846d3d4a5fbd6305272657e89f49d52be9d 100644
+--- a/feature/app-settings/src/main/java/org/signal/appsettings/appearance/AppearanceSettingsEvent.kt
++++ b/feature/app-settings/src/main/java/org/signal/appsettings/appearance/AppearanceSettingsEvent.kt
+@@ -22,6 +22,9 @@ sealed interface AppearanceSettingsEvent {
+   /** The user picked a theme from the theme list. */
+   data class ThemeSelected(val theme: AppearanceSettingsState.Theme) : AppearanceSettingsEvent
+ 
++  /** The user enabled or disabled the system color palette. */
++  data class DynamicColorsChanged(val enabled: Boolean) : AppearanceSettingsEvent
++
+   /** The user tapped the chat color and wallpaper row. */
+   data object ChatColorAndWallpaperClicked : AppearanceSettingsEvent
+ 
+diff --git a/feature/app-settings/src/main/java/org/signal/appsettings/appearance/AppearanceSettingsScreen.kt b/feature/app-settings/src/main/java/org/signal/appsettings/appearance/AppearanceSettingsScreen.kt
+index d3b9a2650cff6b6aef1c0eb8e8b29ebaa47b61e0..ad770b2395a79c3ece1026b8f6a95b29d6195329 100644
+--- a/feature/app-settings/src/main/java/org/signal/appsettings/appearance/AppearanceSettingsScreen.kt
++++ b/feature/app-settings/src/main/java/org/signal/appsettings/appearance/AppearanceSettingsScreen.kt
+@@ -43,6 +43,7 @@ import org.signal.core.ui.compose.Rows
+ import org.signal.core.ui.compose.Scaffolds
+ import org.signal.core.ui.compose.SignalIcons
+ import org.signal.core.ui.compose.SignalPreviewWrapper
++import org.signal.core.ui.compose.Texts
+ import org.signal.core.ui.compose.horizontalGutters
+ import org.signal.core.ui.compose.theme.SignalTheme
+ 
+@@ -104,6 +105,17 @@ fun AppearanceSettingsScreen(
+         )
+       }
+ 
++      if (state.isDynamicColorsAvailable) {
++        item {
++          Rows.ToggleRow(
++            text = stringResource(R.string.preferences_appearance__dynamic_colors),
++            label = stringResource(R.string.preferences_appearance__use_system_colors_for_the_app_theme),
++            checked = state.dynamicColors,
++            onCheckChanged = { onEvent(AppearanceSettingsEvent.DynamicColorsChanged(it)) }
++          )
++        }
++      }
++
+       item {
+         Rows.TextRow(
+           text = stringResource(R.string.preferences__chat_color_and_wallpaper),
+@@ -134,6 +146,10 @@ fun AppearanceSettingsScreen(
+       }
+ 
+       item {
++        Texts.SectionHeader(stringResource(R.string.preferences_appearance__navigation_bar))
++      }
++
++      item {
+         val label = if (state.isCompactNavigationBar) {
+           R.string.preferences_compact
+         } else {
+diff --git a/feature/app-settings/src/main/java/org/signal/appsettings/appearance/AppearanceSettingsState.kt b/feature/app-settings/src/main/java/org/signal/appsettings/appearance/AppearanceSettingsState.kt
+index ce257e568538b64b1703f79f76862731a193f40c..aae258e8ae7552fde77fc58fad8ddb49df426296 100644
+--- a/feature/app-settings/src/main/java/org/signal/appsettings/appearance/AppearanceSettingsState.kt
++++ b/feature/app-settings/src/main/java/org/signal/appsettings/appearance/AppearanceSettingsState.kt
+@@ -11,6 +11,8 @@ package org.signal.appsettings.appearance
+ data class AppearanceSettingsState(
+   val language: String = "zz",
+   val theme: Theme = Theme.SYSTEM,
++  val dynamicColors: Boolean = false,
++  val isDynamicColorsAvailable: Boolean = false,
+   val messageFontSize: Int = 16,
+   val isCompactNavigationBar: Boolean = false,
+   val isSystemThemeAvailable: Boolean = true,
+diff --git a/feature/app-settings/src/main/java/org/signal/appsettings/appicon/AppIconPreset.kt b/feature/app-settings/src/main/java/org/signal/appsettings/appicon/AppIconPreset.kt
+index 8d44c3622d0346c112c16af7a8e9361ef1b180be..0b3155c845d261968b473e2ec76810e1e2d5d723 100644
+--- a/feature/app-settings/src/main/java/org/signal/appsettings/appicon/AppIconPreset.kt
++++ b/feature/app-settings/src/main/java/org/signal/appsettings/appicon/AppIconPreset.kt
+@@ -7,45 +7,36 @@ package org.signal.appsettings.appicon
+ 
+ import android.content.ComponentName
+ import android.content.Context
+-import androidx.annotation.DrawableRes
++import android.content.pm.PackageManager
++import android.graphics.drawable.Drawable
+ import androidx.annotation.StringRes
+ import org.signal.appsettings.R
+ 
+-<<<<<<< MOLLY:app/src/main/java/org/thoughtcrime/securesms/components/settings/app/appearance/appicon/util/AppIconPreset.kt
+-enum class AppIconPreset(private val componentName: String, @DrawableRes val iconPreviewResId: Int, @StringRes val labelResId: Int) {
+-  DEFAULT(".RoutingActivity", R.mipmap.ic_launcher, R.string.app_name),
+-  LIGHT(".RoutingActivityAltWhite", R.mipmap.ic_launcher_alt_light, R.string.app_name),
+-  SIGNAL(".RoutingActivityAltColor", R.mipmap.ic_launcher_alt_signal, R.string.app_name),
+-  COLORFUL(".RoutingActivityAltDark", R.mipmap.ic_launcher_alt_colorful, R.string.app_name),
+-  GOLD(".RoutingActivityAltDarkVariant", R.mipmap.ic_launcher_alt_gold, R.string.app_name),
+-  NEON(".RoutingActivityAltChat", R.mipmap.ic_launcher_alt_neon, R.string.app_name),
+-  CHRISTMAS(".RoutingActivityAltBubbles", R.mipmap.ic_launcher_alt_xmas, R.string.app_name),
+-  HEART(".RoutingActivityAltYellow", R.mipmap.ic_launcher_alt_heart, R.string.app_name),
+-  ZEN(".RoutingActivityAltNews", R.mipmap.ic_launcher_alt_zen, R.string.app_icon_label_zen),
+-  NOTES(".RoutingActivityAltNotes", R.mipmap.ic_launcher_alt_notes, R.string.app_icon_label_notes),
+-  MOON(".RoutingActivityAltWeather", R.mipmap.ic_launcher_alt_moon, R.string.app_icon_label_moon),
+-  MUSIC(".RoutingActivityAltWaves", R.mipmap.ic_launcher_alt_music, R.string.app_icon_label_music);
+-=======
+-/**
+- * @param labelResId The launcher label shown with this icon, or null to use the app's own name.
+- */
+-enum class AppIconPreset(private val componentName: String, @DrawableRes val iconPreviewResId: Int, @StringRes val labelResId: Int?) {
+-  DEFAULT(".RoutingActivity", R.drawable.ic_app_icon_default_top_preview, null),
+-  WHITE(".RoutingActivityAltWhite", R.drawable.ic_app_icon_signal_white_top_preview, null),
+-  COLOR(".RoutingActivityAltColor", R.drawable.ic_app_icon_signal_color_top_preview, null),
+-  DARK(".RoutingActivityAltDark", R.drawable.ic_app_icon_signal_dark_top_preview, null),
+-  DARK_VARIANT(".RoutingActivityAltDarkVariant", R.drawable.ic_app_icon_signal_dark_variant_top_preview, null),
+-  CHAT(".RoutingActivityAltChat", R.drawable.ic_app_icon_chat_top_preview, null),
+-  BUBBLES(".RoutingActivityAltBubbles", R.drawable.ic_app_icon_bubbles_top_preview, null),
+-  YELLOW(".RoutingActivityAltYellow", R.drawable.ic_app_icon_yellow_top_preview, null),
+-  NEWS(".RoutingActivityAltNews", R.drawable.ic_app_icon_news_top_preview, R.string.app_icon_label_news),
+-  NOTES(".RoutingActivityAltNotes", R.drawable.ic_app_icon_notes_top_preview, R.string.app_icon_label_notes),
+-  WEATHER(".RoutingActivityAltWeather", R.drawable.ic_app_icon_weather_top_preview, R.string.app_icon_label_weather),
+-  WAVES(".RoutingActivityAltWaves", R.drawable.ic_app_icon_waves_top_preview, R.string.app_icon_label_waves);
+->>>>>>> SIGNAL:feature/app-settings/src/main/java/org/signal/appsettings/appicon/AppIconPreset.kt
++/** Launcher aliases are stable; their artwork and labels come from Molly's application manifest. */
++enum class AppIconPreset(private val componentName: String, @StringRes val labelResId: Int?) {
++  DEFAULT(".RoutingActivity", null),
++  WHITE(".RoutingActivityAltWhite", null),
++  COLOR(".RoutingActivityAltColor", null),
++  DARK(".RoutingActivityAltDark", null),
++  DARK_VARIANT(".RoutingActivityAltDarkVariant", null),
++  CHAT(".RoutingActivityAltChat", null),
++  BUBBLES(".RoutingActivityAltBubbles", null),
++  YELLOW(".RoutingActivityAltYellow", null),
++  NEWS(".RoutingActivityAltNews", R.string.app_icon_label_zen),
++  NOTES(".RoutingActivityAltNotes", R.string.app_icon_label_notes),
++  WEATHER(".RoutingActivityAltWeather", R.string.app_icon_label_moon),
++  WAVES(".RoutingActivityAltWaves", R.string.app_icon_label_music);
+ 
+   fun getComponentName(context: Context): ComponentName {
+-    val applicationContext = context.applicationContext
+-    return ComponentName(applicationContext, "org.thoughtcrime.securesms" + componentName)
++    return ComponentName(context.applicationContext, "org.thoughtcrime.securesms" + componentName)
++  }
++
++  fun loadIcon(context: Context): Drawable {
++    val packageManager = context.packageManager
++    return try {
++      packageManager.getActivityInfo(getComponentName(context), PackageManager.MATCH_DISABLED_COMPONENTS).loadIcon(packageManager)
++    } catch (_: PackageManager.NameNotFoundException) {
++      packageManager.defaultActivityIcon
++    }
+   }
+ }
+diff --git a/feature/app-settings/src/main/java/org/signal/appsettings/appicon/AppIconSelectionScreen.kt b/feature/app-settings/src/main/java/org/signal/appsettings/appicon/AppIconSelectionScreen.kt
+index faa7696f479cc7bf8dc7f3036f744b4157124c29..dfd33d952580a0e4841d8ffe835caf192b582eba 100644
+--- a/feature/app-settings/src/main/java/org/signal/appsettings/appicon/AppIconSelectionScreen.kt
++++ b/feature/app-settings/src/main/java/org/signal/appsettings/appicon/AppIconSelectionScreen.kt
+@@ -33,11 +33,13 @@ import androidx.compose.runtime.remember
+ import androidx.compose.ui.Alignment
+ import androidx.compose.ui.Modifier
+ import androidx.compose.ui.graphics.graphicsLayer
++import androidx.compose.ui.graphics.asImageBitmap
++import androidx.compose.ui.graphics.painter.BitmapPainter
++import androidx.core.graphics.drawable.toBitmap
+ import androidx.compose.ui.platform.LocalContext
+ import androidx.compose.ui.platform.LocalDensity
+ import androidx.compose.ui.platform.LocalInspectionMode
+ import androidx.compose.ui.platform.testTag
+-import androidx.compose.ui.res.painterResource
+ import androidx.compose.ui.res.stringResource
+ import androidx.compose.ui.text.SpanStyle
+ import androidx.compose.ui.text.buildAnnotatedString
+@@ -261,8 +263,10 @@ private fun AppIcon(preset: AppIconPreset, isSelected: Boolean, onClick: () -> U
+     animationSpec = tween(durationMillis = 150, easing = CubicBezierEasing(0.17f, 0.17f, 0f, 1f))
+   )
+ 
++  val context = LocalContext.current
++  val icon = remember(context, preset) { preset.loadIcon(context).toBitmap().asImageBitmap() }
+   Image(
+-    painter = painterResource(preset.iconPreviewResId),
++    painter = BitmapPainter(icon),
+     contentDescription = presetLabel(preset),
+     modifier = modifier
+       .size(bitmapSize.dp)
+diff --git a/feature/app-settings/src/main/java/org/signal/appsettings/dataandstorage/DataAndStorageSettingsScreen.kt b/feature/app-settings/src/main/java/org/signal/appsettings/dataandstorage/DataAndStorageSettingsScreen.kt
+index 0ccc55c4231cc7930bfb84f9389b5fc7bf1505e6..3478d05d897b5402e202594cd057c889f946881b 100644
+--- a/feature/app-settings/src/main/java/org/signal/appsettings/dataandstorage/DataAndStorageSettingsScreen.kt
++++ b/feature/app-settings/src/main/java/org/signal/appsettings/dataandstorage/DataAndStorageSettingsScreen.kt
+@@ -145,9 +145,10 @@ fun DataAndStorageSettingsScreen(
+         Description(stringResource(R.string.preference_data_and_storage__using_less_data_may_improve_calls_on_bad_networks))
+       }
+ 
+-      item {
+-        Dividers.Default()
+-      }
++      if (state.showNetworkSettings) {
++        item {
++          Dividers.Default()
++        }
+ 
+       item {
+         Rows.ToggleRow(
+@@ -167,13 +168,14 @@ fun DataAndStorageSettingsScreen(
+         Texts.SectionHeader(stringResource(R.string.preferences_proxy))
+       }
+ 
+-      item {
+-        Rows.TextRow(
+-          text = stringResource(R.string.preferences_use_proxy),
+-          label = stringResource(if (state.isProxyEnabled) CoreUiR.string.preferences_on else CoreUiR.string.preferences_off),
+-          onClick = { onEvent(DataAndStorageSettingsEvent.UseProxyClicked) },
+-          modifier = Modifier.testTag(DataAndStorageSettingsTestTags.ROW_USE_PROXY)
+-        )
++        item {
++          Rows.TextRow(
++            text = stringResource(R.string.preferences_use_proxy),
++            label = stringResource(if (state.isProxyEnabled) CoreUiR.string.preferences_on else CoreUiR.string.preferences_off),
++            onClick = { onEvent(DataAndStorageSettingsEvent.UseProxyClicked) },
++            modifier = Modifier.testTag(DataAndStorageSettingsTestTags.ROW_USE_PROXY)
++          )
++        }
+       }
+     }
+ 
+diff --git a/feature/app-settings/src/main/java/org/signal/appsettings/dataandstorage/DataAndStorageSettingsState.kt b/feature/app-settings/src/main/java/org/signal/appsettings/dataandstorage/DataAndStorageSettingsState.kt
+index db7b97365097b92e07a8f622ad58784e27f87943..36fb213e52c04837dd08f398100ae7eb185ae2dc 100644
+--- a/feature/app-settings/src/main/java/org/signal/appsettings/dataandstorage/DataAndStorageSettingsState.kt
++++ b/feature/app-settings/src/main/java/org/signal/appsettings/dataandstorage/DataAndStorageSettingsState.kt
+@@ -17,6 +17,7 @@ data class DataAndStorageSettingsState(
+   val alwaysAutoDownloadedBytes: Long = 0,
+   val sentMediaQuality: SentMediaQuality = SentMediaQuality.STANDARD,
+   val callDataMode: CallDataMode = CallDataMode.HIGH_ALWAYS,
++  val showNetworkSettings: Boolean = true,
+   val forceWebsocketMode: Boolean = false,
+   val playServicesAvailable: Boolean = true,
+   val isProxyEnabled: Boolean = false,
+diff --git a/feature/app-settings/src/main/java/org/signal/appsettings/editprofile/EditProfileScreen.kt b/feature/app-settings/src/main/java/org/signal/appsettings/editprofile/EditProfileScreen.kt
+index 7a99d1e5f23572af1d4186f5e09fa9ec0d51da6f..1c4d45434075fb3cb2d36c2460caefa24234909d 100644
+--- a/feature/app-settings/src/main/java/org/signal/appsettings/editprofile/EditProfileScreen.kt
++++ b/feature/app-settings/src/main/java/org/signal/appsettings/editprofile/EditProfileScreen.kt
+@@ -151,16 +151,6 @@ fun EditProfileScreen(
+         )
+       }
+ 
+-      item(key = "badges") {
+-        ProfileRow(
+-          text = stringResource(R.string.EditProfileScreen__badges),
+-          icon = { RowIcon { Icon(imageVector = SignalIcons.BadgeMulti.imageVector, contentDescription = null) } },
+-          canEdit = state.canEdit,
+-          onClick = { onEvent(EditProfileEvent.BadgesClicked) },
+-          modifier = Modifier.testTag(EditProfileTestTags.ROW_BADGES)
+-        )
+-      }
+-
+       item(key = "profile-footer") {
+         Footer(text = stringResource(R.string.CreateProfileActivity_signal_profiles_are_end_to_end_encrypted))
+       }
+diff --git a/feature/app-settings/src/main/java/org/signal/appsettings/help/HelpSettingsAction.kt b/feature/app-settings/src/main/java/org/signal/appsettings/help/HelpSettingsAction.kt
+index 73022ba3b58d601cd25a52aa299423c876df4819..35a39bb5cfbc9ff8a50afee5ac8c7ec0bc4c5c90 100644
+--- a/feature/app-settings/src/main/java/org/signal/appsettings/help/HelpSettingsAction.kt
++++ b/feature/app-settings/src/main/java/org/signal/appsettings/help/HelpSettingsAction.kt
+@@ -13,6 +13,10 @@ package org.signal.appsettings.help
+  */
+ sealed interface HelpSettingsAction {
+ 
++  data object OpenWebsite : HelpSettingsAction
++  data object NavigateToAppUpdates : HelpSettingsAction
++  data class SetLogEnabled(val enabled: Boolean) : HelpSettingsAction
++
+   /** Leave the screen. */
+   data object NavigateBack : HelpSettingsAction
+ 
+diff --git a/feature/app-settings/src/main/java/org/signal/appsettings/help/HelpSettingsEvent.kt b/feature/app-settings/src/main/java/org/signal/appsettings/help/HelpSettingsEvent.kt
+index a502a838c029dedf1599042f4319f3ec786fabbd..f18a88e64313bc52dc217e62a654e14deb3124e6 100644
+--- a/feature/app-settings/src/main/java/org/signal/appsettings/help/HelpSettingsEvent.kt
++++ b/feature/app-settings/src/main/java/org/signal/appsettings/help/HelpSettingsEvent.kt
+@@ -10,6 +10,11 @@ package org.signal.appsettings.help
+  */
+ sealed interface HelpSettingsEvent {
+ 
++  data object WebsiteClicked : HelpSettingsEvent
++  data object VersionClicked : HelpSettingsEvent
++  data class LogEnabledChanged(val enabled: Boolean) : HelpSettingsEvent
++  data class LogEnabledSaved(val enabled: Boolean) : HelpSettingsEvent
++
+   /** The user tapped the navigation (back) icon. */
+   data object NavigateBackClicked : HelpSettingsEvent
+ 
+diff --git a/feature/app-settings/src/main/java/org/signal/appsettings/help/HelpSettingsScreen.kt b/feature/app-settings/src/main/java/org/signal/appsettings/help/HelpSettingsScreen.kt
+index 835fac4a18e3d907990a004e26e3a012d334c1c4..c8a4c4486e829f55878a62f3486c4f49275fa2b0 100644
+--- a/feature/app-settings/src/main/java/org/signal/appsettings/help/HelpSettingsScreen.kt
++++ b/feature/app-settings/src/main/java/org/signal/appsettings/help/HelpSettingsScreen.kt
+@@ -63,6 +63,14 @@ fun HelpSettingsScreen(
+     ) {
+       item {
+         Rows.LinkRow(
++          text = stringResource(R.string.HelpSettingsFragment__molly_im_website),
++          icon = ImageVector.vectorResource(CoreUiR.drawable.symbol_open_20),
++          onClick = { onEvent(HelpSettingsEvent.WebsiteClicked) }
++        )
++      }
++
++      item {
++        Rows.LinkRow(
+           text = stringResource(R.string.HelpSettingsFragment__support_center),
+           icon = ImageVector.vectorResource(CoreUiR.drawable.symbol_open_20),
+           onClick = { onEvent(HelpSettingsEvent.SupportCenterClicked) },
+@@ -86,13 +94,23 @@ fun HelpSettingsScreen(
+         Rows.TextRow(
+           text = stringResource(R.string.HelpSettingsFragment__version),
+           label = state.versionName,
++          onClick = { onEvent(HelpSettingsEvent.VersionClicked) },
+           onLongClick = { onEvent(HelpSettingsEvent.VersionLongClicked) },
+           modifier = Modifier.testTag(HelpSettingsTestTags.ROW_VERSION)
+         )
+       }
+ 
+       item {
++        Rows.ToggleRow(
++          checked = state.logEnabled,
++          text = stringResource(R.string.preferences__enable_debug_log),
++          onCheckChanged = { onEvent(HelpSettingsEvent.LogEnabledChanged(it)) }
++        )
++      }
++
++      item {
+         Rows.TextRow(
++          enabled = state.logEnabled,
+           text = stringResource(R.string.HelpSettingsFragment__debug_log),
+           onClick = { onEvent(HelpSettingsEvent.DebugLogClicked) },
+           modifier = Modifier.testTag(HelpSettingsTestTags.ROW_DEBUG_LOG)
+diff --git a/feature/app-settings/src/main/java/org/signal/appsettings/help/HelpSettingsState.kt b/feature/app-settings/src/main/java/org/signal/appsettings/help/HelpSettingsState.kt
+index a9d888771b49644b330f9f5c53c7b9603ea72500..4d16643991e9a807b2c3996656f91f926c4ffbea 100644
+--- a/feature/app-settings/src/main/java/org/signal/appsettings/help/HelpSettingsState.kt
++++ b/feature/app-settings/src/main/java/org/signal/appsettings/help/HelpSettingsState.kt
+@@ -12,5 +12,6 @@ package org.signal.appsettings.help
+  */
+ data class HelpSettingsState(
+   /** The installed app version, shown on the version row and copied when it is long-pressed. */
+-  val versionName: String = ""
++  val versionName: String = "",
++  val logEnabled: Boolean = true
+ )
+diff --git a/feature/app-settings/src/main/java/org/signal/appsettings/help/HelpSettingsViewModel.kt b/feature/app-settings/src/main/java/org/signal/appsettings/help/HelpSettingsViewModel.kt
+index 98477eca366587ad35194b1b064d7c5d946fd2e6..4366628577591d0a69f30aa0137796b34299f9e1 100644
+--- a/feature/app-settings/src/main/java/org/signal/appsettings/help/HelpSettingsViewModel.kt
++++ b/feature/app-settings/src/main/java/org/signal/appsettings/help/HelpSettingsViewModel.kt
+@@ -11,6 +11,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
+ import kotlinx.coroutines.flow.StateFlow
+ import kotlinx.coroutines.flow.asStateFlow
+ import kotlinx.coroutines.flow.receiveAsFlow
++import kotlinx.coroutines.flow.update
+ import org.signal.core.ui.compose.EventDrivenViewModel
+ import org.signal.core.util.logging.Log
+ 
+@@ -18,14 +19,15 @@ import org.signal.core.util.logging.Log
+  * Drives [HelpSettingsScreen].
+  */
+ class HelpSettingsViewModel(
+-  versionName: String
++  versionName: String,
++  logEnabled: Boolean = true
+ ) : EventDrivenViewModel<HelpSettingsEvent>(TAG) {
+ 
+   companion object {
+     private val TAG = Log.tag(HelpSettingsViewModel::class)
+   }
+ 
+-  private val _state = MutableStateFlow(HelpSettingsState(versionName = versionName))
++  private val _state = MutableStateFlow(HelpSettingsState(versionName = versionName, logEnabled = logEnabled))
+   private val _actions = Channel<HelpSettingsAction>(Channel.BUFFERED)
+ 
+   val state: StateFlow<HelpSettingsState> = _state.asStateFlow()
+@@ -33,11 +35,15 @@ class HelpSettingsViewModel(
+ 
+   override suspend fun processEvent(event: HelpSettingsEvent) {
+     when (event) {
++      HelpSettingsEvent.WebsiteClicked -> _actions.send(HelpSettingsAction.OpenWebsite)
++      HelpSettingsEvent.VersionClicked -> _actions.send(HelpSettingsAction.NavigateToAppUpdates)
++      is HelpSettingsEvent.LogEnabledChanged -> _actions.send(HelpSettingsAction.SetLogEnabled(event.enabled))
++      is HelpSettingsEvent.LogEnabledSaved -> _state.update { it.copy(logEnabled = event.enabled) }
+       HelpSettingsEvent.NavigateBackClicked -> _actions.send(HelpSettingsAction.NavigateBack)
+       HelpSettingsEvent.SupportCenterClicked -> _actions.send(HelpSettingsAction.OpenSupportCenter)
+       HelpSettingsEvent.ContactUsClicked -> _actions.send(HelpSettingsAction.NavigateToContactUs)
+       HelpSettingsEvent.VersionLongClicked -> _actions.send(HelpSettingsAction.CopyVersionToClipboard(_state.value.versionName))
+-      HelpSettingsEvent.DebugLogClicked -> _actions.send(HelpSettingsAction.NavigateToDebugLog)
++      HelpSettingsEvent.DebugLogClicked -> if (_state.value.logEnabled) _actions.send(HelpSettingsAction.NavigateToDebugLog)
+       HelpSettingsEvent.LicensesClicked -> _actions.send(HelpSettingsAction.NavigateToLicenses)
+       HelpSettingsEvent.TermsAndPrivacyPolicyClicked -> _actions.send(HelpSettingsAction.OpenTermsAndPrivacyPolicy)
+     }
+diff --git a/feature/app-settings/src/main/java/org/signal/appsettings/home/AppSettingsEvent.kt b/feature/app-settings/src/main/java/org/signal/appsettings/home/AppSettingsEvent.kt
+index 20d57e12d78d89b884651558b6b230736172c174..378b8d9266e2dc1f46b058b33c8fa13f66a51aa9 100644
+--- a/feature/app-settings/src/main/java/org/signal/appsettings/home/AppSettingsEvent.kt
++++ b/feature/app-settings/src/main/java/org/signal/appsettings/home/AppSettingsEvent.kt
+@@ -59,6 +59,8 @@ sealed interface AppSettingsEvent {
+   data object BackupsLongClicked : AppSettingsEvent
+ 
+   /** The user tapped the data and storage row. */
++  data object NetworkClicked : AppSettingsEvent
++
+   data object DataAndStorageClicked : AppSettingsEvent
+ 
+   /** The user tapped the app updates row. */
+diff --git a/feature/app-settings/src/main/java/org/signal/appsettings/home/AppSettingsScreen.kt b/feature/app-settings/src/main/java/org/signal/appsettings/home/AppSettingsScreen.kt
+index 77db09c030d5fa68401f2eb6466f50fc7d1275b8..91d084d7a884fd82d7af095a1432c8f809c9f83b 100644
+--- a/feature/app-settings/src/main/java/org/signal/appsettings/home/AppSettingsScreen.kt
++++ b/feature/app-settings/src/main/java/org/signal/appsettings/home/AppSettingsScreen.kt
+@@ -29,6 +29,7 @@ import androidx.compose.ui.graphics.takeOrElse
+ import androidx.compose.ui.platform.testTag
+ import androidx.compose.ui.res.colorResource
+ import androidx.compose.ui.res.painterResource
++import androidx.compose.ui.graphics.painter.Painter
+ import androidx.compose.ui.res.stringResource
+ import androidx.compose.ui.text.TextStyle
+ import androidx.compose.ui.text.style.TextAlign
+@@ -73,6 +74,7 @@ object AppSettingsTestTags {
+   const val ROW_NOTIFICATIONS = "row-notifications"
+   const val ROW_PRIVACY = "row-privacy"
+   const val ROW_BACKUPS = "row-backups"
++  const val ROW_NETWORK = "row-network"
+   const val ROW_DATA_AND_STORAGE = "row-data-and-storage"
+   const val ROW_APP_UPDATES = "row-app-updates"
+   const val ROW_PAYMENTS = "row-payments"
+@@ -97,6 +99,8 @@ fun AppSettingsScreen(
+   containerColor: Color = if (rememberIsSplitPaneSettings()) SignalTheme.colors.colorSurface4 else MaterialTheme.colorScheme.background,
+   contentColor: Color = MaterialTheme.colorScheme.contentColorFor(containerColor).takeOrElse { MaterialTheme.colorScheme.onSurface },
+   selectedRoute: AppSettingsRoute? = null,
++  networkLabel: String? = null,
++  networkIcon: Painter? = null,
+   avatar: @Composable () -> Unit = {},
+   banner: @Composable () -> Unit = {}
+ ) {
+@@ -287,13 +291,26 @@ fun AppSettingsScreen(
+           )
+         }
+ 
++        if (networkLabel != null) {
++          item {
++            Rows.TextRow(
++              text = networkLabel,
++              icon = networkIcon,
++              onClick = { onEvent(AppSettingsEvent.NetworkClicked) },
++              modifier = Modifier
++                .selectionHighlight(selectedRoute == AppSettingsRoute.DataAndStorageRoute.Proxy)
++                .testTag(AppSettingsTestTags.ROW_NETWORK)
++            )
++          }
++        }
++
+         item {
+           Rows.TextRow(
+             text = stringResource(R.string.preferences__data_and_storage),
+             icon = SignalIcons.Data.painter,
+             onClick = { onEvent(AppSettingsEvent.DataAndStorageClicked) },
+             modifier = Modifier
+-              .selectionHighlight(selectedRoute is AppSettingsRoute.DataAndStorageRoute)
++              .selectionHighlight(selectedRoute == AppSettingsRoute.DataAndStorageRoute.DataAndStorage)
+               .testTag(AppSettingsTestTags.ROW_DATA_AND_STORAGE)
+           )
+         }
+@@ -340,17 +357,6 @@ fun AppSettingsScreen(
+           )
+         }
+ 
+-        item {
+-          Rows.TextRow(
+-            text = stringResource(R.string.AppSettingsFragment__invite_your_friends),
+-            icon = SignalIcons.Invite.painter,
+-            onClick = { onEvent(AppSettingsEvent.InviteClicked) },
+-            modifier = Modifier
+-              .selectionHighlight(selectedRoute == AppSettingsRoute.Invite)
+-              .testTag(AppSettingsTestTags.ROW_INVITE)
+-          )
+-        }
+-
+         if (state.showInternalPreferences) {
+           item {
+             Dividers.Default()
+diff --git a/feature/app-settings/src/main/java/org/signal/appsettings/routes/AppSettingsRoute.kt b/feature/app-settings/src/main/java/org/signal/appsettings/routes/AppSettingsRoute.kt
+index 31b7527d599da92aef42f9242c38ed7e22480e2c..74252b7c22bf5c21a13e31be0b37c9390aa63f71 100644
+--- a/feature/app-settings/src/main/java/org/signal/appsettings/routes/AppSettingsRoute.kt
++++ b/feature/app-settings/src/main/java/org/signal/appsettings/routes/AppSettingsRoute.kt
+@@ -74,13 +74,10 @@ sealed interface AppSettingsRoute : Parcelable, DetailNavKey {
+     data class Username(val mode: UsernameEditMode = UsernameEditMode.NORMAL) : AccountRoute
+   }
+ 
+-<<<<<<< MOLLY:app/src/main/java/org/thoughtcrime/securesms/components/settings/app/routes/AppSettingsRoute.kt
+-=======
+   @Serializable
+   data object Payments : AppSettingsRoute
+ 
+   @Serializable
+->>>>>>> SIGNAL:feature/app-settings/src/main/java/org/signal/appsettings/routes/AppSettingsRoute.kt
+   data object Invite : AppSettingsRoute
+ 
+   @Serializable
+@@ -163,13 +160,13 @@ sealed interface AppSettingsRoute : Parcelable, DetailNavKey {
+ 
+     @Serializable
+     data object NotificationProfiles : NotificationsRoute
+-<<<<<<< MOLLY:app/src/main/java/org/thoughtcrime/securesms/components/settings/app/routes/AppSettingsRoute.kt
++    @Serializable
+     data object UnifiedPushSettings : NotificationsRoute
++
++    @Serializable
+     data class PlayServicesProblem(val errorCode: Int) : NotificationsRoute
+-=======
+ 
+     @Serializable
+->>>>>>> SIGNAL:feature/app-settings/src/main/java/org/signal/appsettings/routes/AppSettingsRoute.kt
+     data class EditProfile(val profileId: Long = -1L) : NotificationsRoute
+ 
+     @Serializable
+diff --git a/feature/app-settings/src/main/java/org/signal/appsettings/updates/AppUpdatesSettingsEvent.kt b/feature/app-settings/src/main/java/org/signal/appsettings/updates/AppUpdatesSettingsEvent.kt
+index 43609218c213b9f15e82d06a46630e0a67db31c7..e31c01d7184f22c74322188ebb016fc6d36c4a53 100644
+--- a/feature/app-settings/src/main/java/org/signal/appsettings/updates/AppUpdatesSettingsEvent.kt
++++ b/feature/app-settings/src/main/java/org/signal/appsettings/updates/AppUpdatesSettingsEvent.kt
+@@ -16,9 +16,12 @@ sealed interface AppUpdatesSettingsEvent {
+   /** The user tapped the navigation (back) icon. */
+   data object NavigateBackClicked : AppUpdatesSettingsEvent
+ 
+-  /** The user flipped the automatic updates toggle. */
++  /** The user flipped the periodic update checks toggle. */
+   data class AutoUpdateToggled(val enabled: Boolean) : AppUpdatesSettingsEvent
+ 
++  /** The user changed whether beta releases are included. */
++  data class IncludeBetaToggled(val enabled: Boolean) : AppUpdatesSettingsEvent
++
+   /** The user tapped the row to check for updates. */
+   data object CheckForUpdatesClicked : AppUpdatesSettingsEvent
+ }
+diff --git a/feature/app-settings/src/main/java/org/signal/appsettings/updates/AppUpdatesSettingsScreen.kt b/feature/app-settings/src/main/java/org/signal/appsettings/updates/AppUpdatesSettingsScreen.kt
+index 1e93f03d4917fb4d1f7fe702f876949fcd4360e7..b4756b5ce4f5d2c039f15ade7f2d3983f83743f3 100644
+--- a/feature/app-settings/src/main/java/org/signal/appsettings/updates/AppUpdatesSettingsScreen.kt
++++ b/feature/app-settings/src/main/java/org/signal/appsettings/updates/AppUpdatesSettingsScreen.kt
+@@ -5,10 +5,14 @@
+ 
+ package org.signal.appsettings.updates
+ 
++import android.text.format.DateUtils
+ import androidx.annotation.VisibleForTesting
++import androidx.compose.material3.MaterialTheme
++import androidx.compose.material3.Text
+ import androidx.compose.runtime.Composable
+ import androidx.compose.runtime.remember
+ import androidx.compose.ui.Modifier
++import androidx.compose.ui.platform.LocalContext
+ import androidx.compose.ui.platform.testTag
+ import androidx.compose.ui.res.stringResource
+ import androidx.compose.ui.tooling.preview.PreviewWrapper
+@@ -20,9 +24,6 @@ import org.signal.core.ui.compose.Rows
+ import org.signal.core.ui.compose.Scaffolds
+ import org.signal.core.ui.compose.SignalIcons
+ import org.signal.core.ui.compose.SignalPreviewWrapper
+-import java.text.SimpleDateFormat
+-import java.util.Date
+-import java.util.Locale
+ import kotlin.time.Duration
+ import kotlin.time.Duration.Companion.milliseconds
+ 
+@@ -31,11 +32,10 @@ object AppUpdatesSettingsTestTags {
+   const val SCROLLER = "scroller"
+   const val ROW_AUTO_UPDATE = "row-auto-update"
+   const val ROW_CHECK_FOR_UPDATES = "row-check-for-updates"
++  const val ROW_INCLUDE_BETA = "row-include-beta"
+ }
+ 
+-/**
+- * Settings around app updates. Only shown for builds that manage their own app updates.
+- */
++/** Settings for Molly updates, or app-store guidance for externally managed builds. */
+ @Composable
+ fun AppUpdatesSettingsScreen(
+   state: AppUpdatesSettingsState,
+@@ -58,25 +58,57 @@ fun AppUpdatesSettingsScreen(
+       scaffoldPadding = paddingValues,
+       modifier = Modifier.testTag(AppUpdatesSettingsTestTags.SCROLLER)
+     ) {
++      if (!state.isAutoUpdateSupported) {
++        item {
++          Rows.TextRow(
++            text = {
++              Text(
++                text = stringResource(R.string.HelpSettingsFragment_for_updates_please_check_your_app_store),
++                style = MaterialTheme.typography.bodyMedium,
++                color = MaterialTheme.colorScheme.onSurfaceVariant
++              )
++            }
++          )
++        }
++      }
++
++      item {
++        Rows.TextRow(
++          text = stringResource(R.string.HelpSettingsFragment__version),
++          label = state.versionName
++        )
++      }
++
+       if (state.isAutoUpdateSupported) {
+         item {
+           Rows.ToggleRow(
+             checked = state.autoUpdateEnabled,
+-            text = "Automatic updates",
+-            label = "Automatically download and install app updates",
++            text = stringResource(R.string.preferences__autoupdate_molly),
++            label = stringResource(R.string.preferences__periodically_check_for_new_releases_and_ask_to_install_them),
+             onCheckChanged = { onEvent(AppUpdatesSettingsEvent.AutoUpdateToggled(it)) },
+             modifier = Modifier.testTag(AppUpdatesSettingsTestTags.ROW_AUTO_UPDATE)
+           )
+         }
+-      }
+ 
+-      item {
+-        Rows.TextRow(
+-          text = "Check for updates",
+-          label = "Last checked on: ${rememberLastSuccessfulUpdateString(state.lastCheckedTime)}",
+-          onClick = { onEvent(AppUpdatesSettingsEvent.CheckForUpdatesClicked) },
+-          modifier = Modifier.testTag(AppUpdatesSettingsTestTags.ROW_CHECK_FOR_UPDATES)
+-        )
++        item {
++          Rows.ToggleRow(
++            checked = state.includeBetaEnabled,
++            text = stringResource(R.string.preferences__include_beta_updates),
++            label = stringResource(R.string.preferences__beta_versions_are_intended_for_testing_purposes_and_may_contain_bugs),
++            onCheckChanged = { onEvent(AppUpdatesSettingsEvent.IncludeBetaToggled(it)) },
++            modifier = Modifier.testTag(AppUpdatesSettingsTestTags.ROW_INCLUDE_BETA)
++          )
++        }
++
++        item {
++          Rows.TextRow(
++            text = stringResource(R.string.EnableAppUpdatesMegaphone_check_for_updates),
++            label = stringResource(R.string.AppUpdatesSettingsFragment__last_checked_s, rememberLastSuccessfulUpdateString(state.lastCheckedTime)),
++            enabled = state.autoUpdateEnabled,
++            onClick = { onEvent(AppUpdatesSettingsEvent.CheckForUpdatesClicked) },
++            modifier = Modifier.testTag(AppUpdatesSettingsTestTags.ROW_CHECK_FOR_UPDATES)
++          )
++        }
+       }
+     }
+   }
+@@ -84,12 +116,13 @@ fun AppUpdatesSettingsScreen(
+ 
+ @Composable
+ private fun rememberLastSuccessfulUpdateString(lastUpdateTime: Duration): String {
+-  return remember(lastUpdateTime) {
++  val context = LocalContext.current
++  val never = stringResource(R.string.preferences__never)
++  return remember(context, lastUpdateTime, never) {
+     if (lastUpdateTime > Duration.ZERO) {
+-      val dateFormat = SimpleDateFormat("MMMM dd, yyyy 'at' h:mma", Locale.US)
+-      dateFormat.format(Date(lastUpdateTime.inWholeMilliseconds))
++      DateUtils.getRelativeDateTimeString(context, lastUpdateTime.inWholeMilliseconds, DateUtils.MINUTE_IN_MILLIS, DateUtils.WEEK_IN_MILLIS, 0).toString()
+     } else {
+-      "Never"
++      never
+     }
+   }
+ }
+@@ -102,7 +135,9 @@ private fun AppUpdatesSettingsScreenPreview() {
+     state = AppUpdatesSettingsState(
+       lastCheckedTime = System.currentTimeMillis().milliseconds,
+       autoUpdateEnabled = true,
+-      isAutoUpdateSupported = true
++      isAutoUpdateSupported = true,
++      includeBetaEnabled = true,
++      versionName = "8.33.2"
+     ),
+     onEvent = {}
+   )
+@@ -111,9 +146,9 @@ private fun AppUpdatesSettingsScreenPreview() {
+ @PreviewWrapper(SignalPreviewWrapper::class)
+ @DayNightPreviews
+ @Composable
+-private fun AppUpdatesSettingsScreenNeverCheckedPreview() {
++private fun AppUpdatesSettingsScreenExternallyManagedPreview() {
+   AppUpdatesSettingsScreen(
+-    state = AppUpdatesSettingsState(),
++    state = AppUpdatesSettingsState(versionName = "8.33.2"),
+     onEvent = {}
+   )
+ }
+diff --git a/feature/app-settings/src/main/java/org/signal/appsettings/updates/AppUpdatesSettingsState.kt b/feature/app-settings/src/main/java/org/signal/appsettings/updates/AppUpdatesSettingsState.kt
+index b1c5caeac2214592edfa8e8e531c01847858d875..09788c8fdc6dad363d84a3937006bea739c3fbdb 100644
+--- a/feature/app-settings/src/main/java/org/signal/appsettings/updates/AppUpdatesSettingsState.kt
++++ b/feature/app-settings/src/main/java/org/signal/appsettings/updates/AppUpdatesSettingsState.kt
+@@ -15,8 +15,10 @@ import kotlin.time.Duration
+ data class AppUpdatesSettingsState(
+   /** When we last successfully checked for an update, or [Duration.ZERO] if we never have. */
+   val lastCheckedTime: Duration = Duration.ZERO,
+-  /** Whether updates are downloaded and installed without asking. */
++  /** Whether Molly periodically checks for updates and asks before installing. */
+   val autoUpdateEnabled: Boolean = false,
+-  /** Whether this device can install updates without user interaction, which is what makes automatic updates possible. */
+-  val isAutoUpdateSupported: Boolean = false
++  /** Whether this build manages its own updates instead of relying on an app store. */
++  val isAutoUpdateSupported: Boolean = false,
++  val includeBetaEnabled: Boolean = false,
++  val versionName: String = ""
+ )
+diff --git a/feature/app-settings/src/main/java/org/signal/appsettings/usernamelinks/UsernameLinkSettingsScreen.kt b/feature/app-settings/src/main/java/org/signal/appsettings/usernamelinks/UsernameLinkSettingsScreen.kt
+index 39564f81deb746e37a9acfe10fccb4d37c3e1679..aedf9cee0cc789b5d787e3860030b8fd7a79a876 100644
+--- a/feature/app-settings/src/main/java/org/signal/appsettings/usernamelinks/UsernameLinkSettingsScreen.kt
++++ b/feature/app-settings/src/main/java/org/signal/appsettings/usernamelinks/UsernameLinkSettingsScreen.kt
+@@ -53,7 +53,6 @@ import org.signal.core.ui.compose.QrCodeData
+ import org.signal.core.ui.compose.SignalIcons
+ import org.signal.core.ui.compose.SignalPreviewWrapper
+ import org.signal.core.ui.compose.Snackbars
+-import org.signal.core.ui.compose.theme.SignalTheme
+ 
+ @VisibleForTesting
+ object UsernameLinkSettingsTestTags {
+@@ -189,10 +188,10 @@ private fun TopBar(
+ @Composable
+ private fun TabButton(label: String, active: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
+   val colors = if (active) {
+-    ButtonDefaults.filledTonalButtonColors()
++    ButtonDefaults.buttonColors()
+   } else {
+     ButtonDefaults.buttonColors(
+-      containerColor = SignalTheme.colors.colorSurface2,
++      containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+       contentColor = MaterialTheme.colorScheme.onSurface
+     )
+   }
+@@ -274,6 +273,7 @@ private fun CodeTab(
+     )
+ 
+     Buttons.Small(
++      tonal = true,
+       onClick = { onEvent(UsernameLinkSettingsEvent.ResetClicked) },
+       modifier = Modifier
+         .padding(bottom = 24.dp)
+diff --git a/feature/app-settings/src/test/java/org/signal/appsettings/editprofile/EditProfileScreenTest.kt b/feature/app-settings/src/test/java/org/signal/appsettings/editprofile/EditProfileScreenTest.kt
+index 18cd78b4cd0af7966f55e60dd2e5cd335696e96a..da5da7082680da385eea7e173b4b767aa5f248e0 100644
+--- a/feature/app-settings/src/test/java/org/signal/appsettings/editprofile/EditProfileScreenTest.kt
++++ b/feature/app-settings/src/test/java/org/signal/appsettings/editprofile/EditProfileScreenTest.kt
+@@ -59,8 +59,6 @@ class EditProfileScreenTest {
+     composeTestRule.onNodeWithTag(EditProfileTestTags.BUTTON_EDIT_PHOTO).performClick()
+     composeTestRule.onNodeWithTag(EditProfileTestTags.ROW_NAME).performClick()
+     composeTestRule.onNodeWithTag(EditProfileTestTags.ROW_ABOUT).performClick()
+-    scrollTo(EditProfileTestTags.ROW_BADGES)
+-    composeTestRule.onNodeWithTag(EditProfileTestTags.ROW_BADGES).performClick()
+     scrollTo(EditProfileTestTags.ROW_USERNAME)
+     composeTestRule.onNodeWithTag(EditProfileTestTags.ROW_USERNAME).performClick()
+     scrollTo(EditProfileTestTags.ROW_USERNAME_LINK)
+@@ -71,7 +69,6 @@ class EditProfileScreenTest {
+       EditProfileEvent.EditPhotoClicked,
+       EditProfileEvent.NameClicked,
+       EditProfileEvent.AboutClicked,
+-      EditProfileEvent.BadgesClicked,
+       EditProfileEvent.UsernameClicked,
+       EditProfileEvent.UsernameLinkClicked
+     )
+diff --git a/feature/app-settings/src/test/java/org/signal/appsettings/home/AppSettingsScreenTest.kt b/feature/app-settings/src/test/java/org/signal/appsettings/home/AppSettingsScreenTest.kt
+index 5a9f53990e0a68398dade6b1fb91ce3ddf28387e..e7900b405680d378c1e1fd1487c6719b1c81834f 100644
+--- a/feature/app-settings/src/test/java/org/signal/appsettings/home/AppSettingsScreenTest.kt
++++ b/feature/app-settings/src/test/java/org/signal/appsettings/home/AppSettingsScreenTest.kt
+@@ -111,11 +111,11 @@ class AppSettingsScreenTest {
+       AppSettingsTestTags.ROW_NOTIFICATIONS to AppSettingsEvent.NotificationsClicked,
+       AppSettingsTestTags.ROW_PRIVACY to AppSettingsEvent.PrivacyClicked,
+       AppSettingsTestTags.ROW_BACKUPS to AppSettingsEvent.BackupsClicked,
++      AppSettingsTestTags.ROW_NETWORK to AppSettingsEvent.NetworkClicked,
+       AppSettingsTestTags.ROW_DATA_AND_STORAGE to AppSettingsEvent.DataAndStorageClicked,
+       AppSettingsTestTags.ROW_APP_UPDATES to AppSettingsEvent.AppUpdatesClicked,
+       AppSettingsTestTags.ROW_PAYMENTS to AppSettingsEvent.PaymentsClicked,
+       AppSettingsTestTags.ROW_HELP to AppSettingsEvent.HelpClicked,
+-      AppSettingsTestTags.ROW_INVITE to AppSettingsEvent.InviteClicked,
+       AppSettingsTestTags.ROW_LABS to AppSettingsEvent.LabsClicked,
+       AppSettingsTestTags.ROW_INTERNAL to AppSettingsEvent.InternalClicked
+     )
+@@ -254,7 +254,8 @@ class AppSettingsScreenTest {
+       AppSettingsScreen(
+         state = state,
+         onEvent = { events += it },
+-        selectedRoute = selectedRoute
++        selectedRoute = selectedRoute,
++        networkLabel = "Network"
+       )
+     }
+   }
+diff --git a/feature/app-settings/src/test/java/org/signal/appsettings/updates/AppUpdatesSettingsScreenTest.kt b/feature/app-settings/src/test/java/org/signal/appsettings/updates/AppUpdatesSettingsScreenTest.kt
+index c6c86183aaf962a6ef221a18a057377cefa7520e..770917faf00827320a5bc470fea24e61a8d4e114 100644
+--- a/feature/app-settings/src/test/java/org/signal/appsettings/updates/AppUpdatesSettingsScreenTest.kt
++++ b/feature/app-settings/src/test/java/org/signal/appsettings/updates/AppUpdatesSettingsScreenTest.kt
+@@ -7,6 +7,7 @@ package org.signal.appsettings.updates
+ 
+ import android.app.Application
+ import androidx.compose.ui.test.assertIsDisplayed
++import androidx.compose.ui.test.assertIsNotEnabled
+ import androidx.compose.ui.test.junit4.createComposeRule
+ import androidx.compose.ui.test.onNodeWithTag
+ import androidx.compose.ui.test.onNodeWithText
+@@ -32,18 +33,18 @@ class AppUpdatesSettingsScreenTest {
+   private val events = mutableListOf<AppUpdatesSettingsEvent>()
+ 
+   @Test
+-  fun `auto update row is shown when the device supports it`() {
++  fun `periodic update row is shown for a managed build`() {
+     setContent(createState(isAutoUpdateSupported = true))
+ 
+     composeTestRule.onNodeWithTag(AppUpdatesSettingsTestTags.ROW_AUTO_UPDATE).assertIsDisplayed()
+   }
+ 
+   @Test
+-  fun `auto update row is hidden when the device does not support it`() {
++  fun `update actions are hidden for an externally managed build`() {
+     setContent(createState(isAutoUpdateSupported = false))
+ 
+     composeTestRule.onNodeWithTag(AppUpdatesSettingsTestTags.ROW_AUTO_UPDATE).assertDoesNotExist()
+-    composeTestRule.onNodeWithTag(AppUpdatesSettingsTestTags.ROW_CHECK_FOR_UPDATES).assertIsDisplayed()
++    composeTestRule.onNodeWithTag(AppUpdatesSettingsTestTags.ROW_CHECK_FOR_UPDATES).assertDoesNotExist()
+   }
+ 
+   @Test
+@@ -66,7 +67,7 @@ class AppUpdatesSettingsScreenTest {
+ 
+   @Test
+   fun `clicking check for updates emits CheckForUpdatesClicked`() {
+-    setContent(createState())
++    setContent(createState(autoUpdateEnabled = true))
+ 
+     composeTestRule.onNodeWithTag(AppUpdatesSettingsTestTags.ROW_CHECK_FOR_UPDATES).performClick()
+ 
+@@ -77,15 +78,31 @@ class AppUpdatesSettingsScreenTest {
+   fun `check for updates says never when no check has succeeded`() {
+     setContent(createState(lastCheckedTime = Duration.ZERO))
+ 
+-    composeTestRule.onNodeWithText("Last checked on: Never").assertIsDisplayed()
++    composeTestRule.onNodeWithText("Last checked: Never").assertIsDisplayed()
+   }
+ 
+   @Test
+   fun `check for updates shows when the last check succeeded`() {
+     setContent(createState(lastCheckedTime = 1_700_000_000_000L.milliseconds))
+ 
+-    composeTestRule.onNodeWithText("Last checked on: Never").assertDoesNotExist()
+-    composeTestRule.onNodeWithText("Last checked on: November", substring = true).assertIsDisplayed()
++    composeTestRule.onNodeWithText("Last checked: Never").assertDoesNotExist()
++    composeTestRule.onNodeWithText("2023", substring = true).assertIsDisplayed()
++  }
++
++  @Test
++  fun `manual check is disabled when periodic update checks are off`() {
++    setContent(createState(autoUpdateEnabled = false))
++
++    composeTestRule.onNodeWithTag(AppUpdatesSettingsTestTags.ROW_CHECK_FOR_UPDATES).assertIsNotEnabled()
++  }
++
++  @Test
++  fun `clicking beta updates emits the selected channel`() {
++    setContent(createState())
++
++    composeTestRule.onNodeWithTag(AppUpdatesSettingsTestTags.ROW_INCLUDE_BETA).performClick()
++
++    assertThat(events).contains(AppUpdatesSettingsEvent.IncludeBetaToggled(true))
+   }
+ 
+   @Test
+diff --git a/feature/camera/src/main/java/org/signal/camera/hud/StandardCameraHud.kt b/feature/camera/src/main/java/org/signal/camera/hud/StandardCameraHud.kt
+index 34486ce7334ef9f5e5453b997ba011884dca11ea..2fc3f0f71aab32b9a91daa52b7561c7f5295c380 100644
+--- a/feature/camera/src/main/java/org/signal/camera/hud/StandardCameraHud.kt
++++ b/feature/camera/src/main/java/org/signal/camera/hud/StandardCameraHud.kt
+@@ -964,74 +964,7 @@ private fun FlashToggleButtonIcon(
+   )
+ }
+ 
+-<<<<<<< MOLLY
+-/** Signal ultramarine blue color for the count badge */
+-private val UltramarineBlue = Color(0xFF7152FF)
+-
+-/**
+- * Media count indicator that shows the number of selected media items.
+- * Displays a pill-shaped button with the count in a blue badge and a chevron icon.
+- */
+-@Composable
+-private fun MediaCountIndicator(
+-  count: Int,
+-  onClick: () -> Unit,
+-  stringResources: StringResources,
+-  modifier: Modifier = Modifier
+-) {
+-  val contentDescription = if (stringResources.send != 0) {
+-    stringResource(stringResources.send)
+-  } else {
+-    null
+-  }
+-
+-  Row(
+-    modifier = modifier
+-      .height(44.dp)
+-      .background(
+-        color = MaterialTheme.colorScheme.surfaceVariant,
+-        shape = RoundedCornerShape(32.dp)
+-      )
+-      .clip(RoundedCornerShape(32.dp))
+-      .clickable(onClick = onClick)
+-      .padding(horizontal = 12.dp),
+-    verticalAlignment = Alignment.CenterVertically
+-  ) {
+-    val size = with(LocalDensity.current) {
+-      22.sp.toDp()
+-    }
+-    Box(
+-      modifier = Modifier
+-        .background(
+-          color = UltramarineBlue,
+-          shape = CircleShape
+-        )
+-        .size(size),
+-      contentAlignment = Alignment.Center
+-    ) {
+-      Text(
+-        text = if (count > 99) "99+" else count.toString(),
+-        color = Color.White,
+-        fontSize = 13.sp,
+-        fontWeight = FontWeight.Medium
+-      )
+-    }
+-
+-    Icon(
+-      painter = SignalIcons.ChevronRight.painter,
+-      contentDescription = contentDescription,
+-      tint = MaterialTheme.colorScheme.onSurface,
+-      modifier = Modifier
+-        .padding(start = 3.dp)
+-        .size(24.dp)
+-    )
+-  }
+-}
+-
+-@Preview(name = "Default", showBackground = true, backgroundColor = 0xFF444444, widthDp = 360, heightDp = 640)
+-=======
+ @AllNightPreviews
+->>>>>>> SIGNAL
+ @Composable
+ private fun StandardCameraHudPreview() {
+   Box(modifier = Modifier.fillMaxSize()) {
+diff --git a/lib/libsignal-service/src/main/java/org/whispersystems/signalservice/api/SignalUrlExtensions.kt b/lib/libsignal-service/src/main/java/org/whispersystems/signalservice/api/SignalUrlExtensions.kt
+index c48380eba15753b0f256ca6b5ae0c61a591ee680..53d38ec128d36a40e447d92f01138a0a9e3418ce 100644
+--- a/lib/libsignal-service/src/main/java/org/whispersystems/signalservice/api/SignalUrlExtensions.kt
++++ b/lib/libsignal-service/src/main/java/org/whispersystems/signalservice/api/SignalUrlExtensions.kt
+@@ -7,18 +7,10 @@ package org.whispersystems.signalservice.api
+ 
+ import okhttp3.ConnectionSpec
+ import okhttp3.OkHttpClient
+-<<<<<<< MOLLY
+-import org.whispersystems.signalservice.api.push.TrustStore
+-import org.whispersystems.signalservice.api.util.Tls12SocketFactory
+-import org.whispersystems.signalservice.internal.configuration.SignalServiceConfiguration
+-import org.whispersystems.signalservice.internal.configuration.SignalUrl
+-=======
+ import org.signal.network.config.SignalServiceConfiguration
+ import org.signal.network.config.SignalUrl
+ import org.signal.network.config.TrustStore
+ import org.signal.network.util.Tls12SocketFactory
+-import org.signal.network.util.TlsProxySocketFactory
+->>>>>>> SIGNAL
+ import org.whispersystems.signalservice.internal.util.BlacklistingTrustManager
+ import org.whispersystems.signalservice.internal.util.Util
+ import java.security.KeyManagementException
+diff --git a/lib/libsignal-service/src/main/java/org/whispersystems/signalservice/internal/push/PushServiceSocket.java b/lib/libsignal-service/src/main/java/org/whispersystems/signalservice/internal/push/PushServiceSocket.java
+index f3db7e48dc091df4812fe675d6db31aa2e5840bc..d02a0a5b0ffe340bdcb0043133ae857f77411715 100644
+--- a/lib/libsignal-service/src/main/java/org/whispersystems/signalservice/internal/push/PushServiceSocket.java
++++ b/lib/libsignal-service/src/main/java/org/whispersystems/signalservice/internal/push/PushServiceSocket.java
+@@ -64,22 +64,12 @@ import org.whispersystems.signalservice.api.push.exceptions.SubmitVerificationCo
+ import org.whispersystems.signalservice.api.push.exceptions.TokenNotAcceptedException;
+ import org.whispersystems.signalservice.api.push.exceptions.UnregisteredUserException;
+ import org.whispersystems.signalservice.api.registration.RestoreMethodBody;
+-import org.whispersystems.signalservice.api.svr.Svr3Credentials;
+ import org.whispersystems.signalservice.api.util.CredentialsProvider;
+-<<<<<<< MOLLY
+-import org.whispersystems.signalservice.api.util.Tls12SocketFactory;
+-import org.whispersystems.signalservice.internal.configuration.SignalCdnUrl;
+-import org.whispersystems.signalservice.internal.configuration.SignalServiceConfiguration;
+-import org.whispersystems.signalservice.internal.configuration.SignalUrl;
+-=======
+ import org.signal.network.util.Tls12SocketFactory;
+-import org.signal.network.util.TlsProxySocketFactory;
+ import org.signal.network.config.SignalCdnUrl;
+-import org.signal.network.config.SignalProxy;
+ import org.signal.network.config.SignalServiceConfiguration;
+ import org.signal.network.config.SignalUrl;
+ import org.signal.network.crypto.SealedSenderAccess;
+->>>>>>> SIGNAL
+ import org.whispersystems.signalservice.internal.crypto.AttachmentDigest;
+ import org.whispersystems.signalservice.internal.push.exceptions.ForbiddenException;
+ import org.whispersystems.signalservice.internal.push.exceptions.GroupExistsException;
+@@ -87,7 +77,6 @@ import org.whispersystems.signalservice.internal.push.exceptions.GroupNotFoundEx
+ import org.whispersystems.signalservice.internal.push.exceptions.GroupPatchNotAcceptedException;
+ import org.whispersystems.signalservice.internal.push.exceptions.GroupTerminatedException;
+ import org.whispersystems.signalservice.internal.push.exceptions.MismatchedDevicesException;
+-import org.whispersystems.signalservice.internal.push.exceptions.MissingCapabilitiesException;
+ import org.whispersystems.signalservice.internal.push.exceptions.NotInGroupException;
+ import org.whispersystems.signalservice.internal.push.exceptions.StaleDevicesException;
+ import org.whispersystems.signalservice.internal.push.http.CancelationSignal;
+@@ -241,19 +230,13 @@ public class PushServiceSocket {
+     this.credentialsProvider       = credentialsProvider;
+     this.signalAgent               = signalAgent;
+     this.automaticNetworkRetry     = automaticNetworkRetry;
+-<<<<<<< MOLLY
+     this.serviceClients            = createServiceConnectionHolders(configuration.getSignalServiceUrls(), configuration.getNetworkInterceptors(), configuration.getSocketFactory(), configuration.getProxySelector(), configuration.getDns());
+     this.cdnClientsMap             = createCdnClientsMap(configuration.getSignalCdnUrlMap(), configuration.getNetworkInterceptors(), configuration.getSocketFactory(), configuration.getProxySelector(), configuration.getDns());
+     this.storageClients            = createConnectionHolders(configuration.getSignalStorageUrls(), configuration.getNetworkInterceptors(), configuration.getSocketFactory(), configuration.getProxySelector(), configuration.getDns());
+-=======
+-    this.serviceClients            = createServiceConnectionHolders(configuration.getSignalServiceUrls(), configuration.getNetworkInterceptors(), configuration.getDns(), configuration.getSignalProxy());
+-    this.cdnClientsMap             = createCdnClientsMap(configuration.getSignalCdnUrlMap(), configuration.getNetworkInterceptors(), configuration.getDns(), configuration.getSignalProxy());
+-    this.storageClients            = createConnectionHolders(configuration.getSignalStorageUrls(), configuration.getNetworkInterceptors(), configuration.getDns(), configuration.getSignalProxy());
+-    // Share the existing holders when there is no separate uncensored configuration, rather than building a second set.
+-    this.directCdnClientsMap       = uncensoredConfiguration != configuration ? createCdnClientsMap(uncensoredConfiguration.getSignalCdnUrlMap(), uncensoredConfiguration.getNetworkInterceptors(), uncensoredConfiguration.getDns(), uncensoredConfiguration.getSignalProxy()) : this.cdnClientsMap;
+-    this.directStorageClients      = uncensoredConfiguration != configuration ? createConnectionHolders(uncensoredConfiguration.getSignalStorageUrls(), uncensoredConfiguration.getNetworkInterceptors(), uncensoredConfiguration.getDns(), uncensoredConfiguration.getSignalProxy()) : this.storageClients;
++    // Both route sets still honor the user's explicit socket/proxy/DNS configuration.
++    this.directCdnClientsMap       = uncensoredConfiguration != configuration ? createCdnClientsMap(uncensoredConfiguration.getSignalCdnUrlMap(), uncensoredConfiguration.getNetworkInterceptors(), uncensoredConfiguration.getSocketFactory(), uncensoredConfiguration.getProxySelector(), uncensoredConfiguration.getDns()) : this.cdnClientsMap;
++    this.directStorageClients      = uncensoredConfiguration != configuration ? createConnectionHolders(uncensoredConfiguration.getSignalStorageUrls(), uncensoredConfiguration.getNetworkInterceptors(), uncensoredConfiguration.getSocketFactory(), uncensoredConfiguration.getProxySelector(), uncensoredConfiguration.getDns()) : this.storageClients;
+     this.preferDirectRoute         = preferDirectRoute;
+->>>>>>> SIGNAL
+     this.random                    = new SecureRandom();
+   }
+ 
+@@ -379,182 +362,6 @@ public class PushServiceSocket {
+     return JsonUtil.fromJson(response, VerifyAccountResponse.class);
+   }
+ 
+-<<<<<<< MOLLY
+-  public int finishNewDeviceRegistration(String provisioningCode,
+-                                         AccountAttributes attributes,
+-                                         PreKeyCollection aciPreKeys, PreKeyCollection pniPreKeys,
+-                                         @Nullable String fcmToken)
+-      throws IOException, InvalidKeyException
+-  {
+-    GcmRegistrationId gcmRegistrationId;
+-    if (attributes.getFetchesMessages()) {
+-      gcmRegistrationId = null;
+-    } else {
+-      gcmRegistrationId = new GcmRegistrationId(fcmToken, true);
+-    }
+-
+-    final SignedPreKeyEntity aciSignedPreKey = new SignedPreKeyEntity(Objects.requireNonNull(aciPreKeys.getSignedPreKey()).getId(),
+-                                                                      aciPreKeys.getSignedPreKey().getKeyPair().getPublicKey(),
+-                                                                      aciPreKeys.getSignedPreKey().getSignature());
+-    final SignedPreKeyEntity pniSignedPreKey = new SignedPreKeyEntity(Objects.requireNonNull(pniPreKeys.getSignedPreKey()).getId(),
+-                                                                      pniPreKeys.getSignedPreKey().getKeyPair().getPublicKey(),
+-                                                                      pniPreKeys.getSignedPreKey().getSignature());
+-    final KyberPreKeyEntity aciLastResortKyberPreKey = new KyberPreKeyEntity(Objects.requireNonNull(aciPreKeys.getLastResortKyberPreKey()).getId(),
+-                                                                             aciPreKeys.getLastResortKyberPreKey().getKeyPair().getPublicKey(),
+-                                                                             aciPreKeys.getLastResortKyberPreKey().getSignature());
+-    final KyberPreKeyEntity pniLastResortKyberPreKey = new KyberPreKeyEntity(Objects.requireNonNull(pniPreKeys.getLastResortKyberPreKey()).getId(),
+-                                                                             pniPreKeys.getLastResortKyberPreKey().getKeyPair().getPublicKey(),
+-                                                                             pniPreKeys.getLastResortKyberPreKey().getSignature());
+-
+-    LinkDeviceRequest linkDeviceRequest = new LinkDeviceRequest(
+-        provisioningCode, attributes,
+-        aciSignedPreKey, pniSignedPreKey, aciLastResortKyberPreKey, pniLastResortKyberPreKey,
+-        gcmRegistrationId
+-    );
+-    String   json         = JsonUtil.toJson(linkDeviceRequest);
+-    String   responseText = makeServiceRequest(DEVICE_LINK_PATH, "PUT", json, NO_HEADERS, NEW_DEVICE_PUT_RESPONSE_HANDLER, SealedSenderAccess.NONE);
+-    DeviceId response     = JsonUtil.fromJson(responseText, DeviceId.class);
+-    return response.getDeviceId();
+-  }
+-
+-  private static final ResponseCodeHandler NEW_DEVICE_PUT_RESPONSE_HANDLER = (responseCode, body, getHeader) -> {
+-    if (responseCode == 409) throw new MissingCapabilitiesException();
+-  };
+-
+-  /**
+-   * V2 API: Creates a verification session and returns the raw Response for manual handling.
+-   * Caller is responsible for closing the response.
+-   */
+-  public Response createVerificationSessionV2(@Nonnull String e164, @Nullable String pushToken, @Nullable String mcc, @Nullable String mnc) throws IOException {
+-    final String jsonBody = JsonUtil.toJson(new VerificationSessionMetadataRequestBody(e164, pushToken, mcc, mnc));
+-    return makeServiceRequestWithoutValidation(VERIFICATION_SESSION_PATH, "POST", jsonRequestBody(jsonBody), NO_HEADERS, SealedSenderAccess.NONE, false);
+-  }
+-
+-  /**
+-   * V2 API: Gets session status and returns the raw Response for manual handling.
+-   * Caller is responsible for closing the response.
+-   */
+-  public Response getSessionStatusV2(String sessionId) throws IOException {
+-    String path = VERIFICATION_SESSION_PATH + "/" + sessionId;
+-    return makeServiceRequestWithoutValidation(path, "GET", jsonRequestBody(null), NO_HEADERS, SealedSenderAccess.NONE, false);
+-  }
+-
+-  /**
+-   * V2 API: Patches verification session and returns the raw Response for manual handling.
+-   * Caller is responsible for closing the response.
+-   */
+-  public Response patchVerificationSessionV2(String sessionId, @Nullable String pushToken, @Nullable String mcc, @Nullable String mnc, @Nullable String captchaToken, @Nullable String pushChallengeToken) throws IOException {
+-    String path = VERIFICATION_SESSION_PATH + "/" + sessionId;
+-    final UpdateVerificationSessionRequestBody requestBody = new UpdateVerificationSessionRequestBody(captchaToken, pushToken, pushChallengeToken, mcc, mnc);
+-    return makeServiceRequestWithoutValidation(path, "PATCH", jsonRequestBody(JsonUtil.toJson(requestBody)), NO_HEADERS, SealedSenderAccess.NONE, false);
+-  }
+-
+-  /**
+-   * V2 API: Requests verification code and returns the raw Response for manual handling.
+-   * Caller is responsible for closing the response.
+-   */
+-  public Response requestVerificationCodeV2(String sessionId, Locale locale, boolean androidSmsRetriever, VerificationCodeTransport transport) throws IOException {
+-    String path = String.format(VERIFICATION_CODE_PATH, sessionId);
+-    Map<String, String> headers = locale != null ? Collections.singletonMap("Accept-Language", locale.getLanguage() + "-" + locale.getCountry()) : NO_HEADERS;
+-    Map<String, String> body    = new HashMap<>();
+-
+-    switch (transport) {
+-      case SMS:
+-        body.put("transport", "sms");
+-        break;
+-      case VOICE:
+-        body.put("transport", "voice");
+-        break;
+-    }
+-
+-    body.put("client", androidSmsRetriever ? "android-2021-03" : "android");
+-
+-    return makeServiceRequestWithoutValidation(path, "POST", jsonRequestBody(JsonUtil.toJson(body)), headers, SealedSenderAccess.NONE, false);
+-  }
+-
+-  /**
+-   * V2 API: Submits verification code and returns the raw Response for manual handling.
+-   * Caller is responsible for closing the response.
+-   */
+-  public Response submitVerificationCodeV2(String sessionId, String verificationCode) throws IOException {
+-    String path = String.format(VERIFICATION_CODE_PATH, sessionId);
+-    Map<String, String> body = new HashMap<>();
+-    body.put("code", verificationCode);
+-    return makeServiceRequestWithoutValidation(path, "PUT", jsonRequestBody(JsonUtil.toJson(body)), NO_HEADERS, SealedSenderAccess.NONE, false);
+-  }
+-
+-  /**
+-   * V2 API: Checks SVR2 auth credentials and returns the raw Response for manual handling.
+-   * Caller is responsible for closing the response.
+-   */
+-  public Response checkSvr2AuthCredentialsV2(@Nullable String number, @Nonnull List<String> passwords) throws IOException {
+-    String jsonBody = JsonUtil.toJson(new BackupAuthCheckRequest(number, passwords));
+-    return makeServiceRequestWithoutValidation(BACKUP_AUTH_CHECK_V2, "POST", jsonRequestBody(jsonBody), NO_HEADERS, SealedSenderAccess.NONE, false);
+-  }
+-
+-  /**
+-   * V2 API: Submits registration request with explicit credentials and returns the raw Response for manual handling.
+-   * Caller is responsible for closing the response.
+-   *
+-   * @param e164 The phone number in E.164 format (used as username for basic auth)
+-   * @param password The password for basic auth
+-   */
+-  public Response submitRegistrationRequestV2(@Nonnull String e164, @Nonnull String password, @Nullable String sessionId, @Nullable String recoveryPassword, AccountAttributes attributes, PreKeyCollection aciPreKeys, PreKeyCollection pniPreKeys, @Nullable String fcmToken, boolean skipDeviceTransfer) throws IOException {
+-    String path = REGISTRATION_PATH;
+-    if (sessionId == null && recoveryPassword == null) {
+-      throw new IllegalArgumentException("Neither Session ID nor Recovery Password provided.");
+-    }
+-
+-    if (sessionId != null && recoveryPassword != null) {
+-      throw new IllegalArgumentException("You must supply one and only one of either: Session ID, or Recovery Password.");
+-    }
+-
+-    GcmRegistrationId gcmRegistrationId;
+-    if (attributes.getFetchesMessages()) {
+-      gcmRegistrationId = null;
+-    } else {
+-      gcmRegistrationId = new GcmRegistrationId(fcmToken, true);
+-    }
+-
+-    RegistrationSessionRequestBody body;
+-    try {
+-      final SignedPreKeyEntity aciSignedPreKey = new SignedPreKeyEntity(Objects.requireNonNull(aciPreKeys.getSignedPreKey()).getId(),
+-                                                                        aciPreKeys.getSignedPreKey().getKeyPair().getPublicKey(),
+-                                                                        aciPreKeys.getSignedPreKey().getSignature());
+-      final SignedPreKeyEntity pniSignedPreKey = new SignedPreKeyEntity(Objects.requireNonNull(pniPreKeys.getSignedPreKey()).getId(),
+-                                                                        pniPreKeys.getSignedPreKey().getKeyPair().getPublicKey(),
+-                                                                        pniPreKeys.getSignedPreKey().getSignature());
+-      final KyberPreKeyEntity aciLastResortKyberPreKey = new KyberPreKeyEntity(Objects.requireNonNull(aciPreKeys.getLastResortKyberPreKey()).getId(),
+-                                                                               aciPreKeys.getLastResortKyberPreKey().getKeyPair().getPublicKey(),
+-                                                                               aciPreKeys.getLastResortKyberPreKey().getSignature());
+-      final KyberPreKeyEntity pniLastResortKyberPreKey = new KyberPreKeyEntity(Objects.requireNonNull(pniPreKeys.getLastResortKyberPreKey()).getId(),
+-                                                                               pniPreKeys.getLastResortKyberPreKey().getKeyPair().getPublicKey(),
+-                                                                               pniPreKeys.getLastResortKyberPreKey().getSignature());
+-
+-      body = new RegistrationSessionRequestBody(sessionId,
+-                                                recoveryPassword,
+-                                                attributes,
+-                                                Base64.encodeWithoutPadding(aciPreKeys.getIdentityKey().serialize()),
+-                                                Base64.encodeWithoutPadding(pniPreKeys.getIdentityKey().serialize()),
+-                                                aciSignedPreKey,
+-                                                pniSignedPreKey,
+-                                                aciLastResortKyberPreKey,
+-                                                pniLastResortKyberPreKey,
+-                                                gcmRegistrationId,
+-                                                skipDeviceTransfer,
+-                                                true);
+-    } catch (InvalidKeyException e) {
+-      throw new AssertionError("unexpected invalid key", e);
+-    }
+-
+-    String authHeader = "Basic " + Base64.encodeWithPadding((e164 + ":" + password).getBytes("UTF-8"));
+-    Map<String, String> headers = Collections.singletonMap("Authorization", authHeader);
+-
+-    return makeServiceRequestWithoutValidation(path, "POST", jsonRequestBody(JsonUtil.toJson(body)), headers, SealedSenderAccess.NONE, false);
+-  }
+-
+-=======
+->>>>>>> SIGNAL
+   public void setRestoreMethodChosen(@Nonnull String token, @Nonnull RestoreMethodBody request) throws IOException {
+     String body = JsonUtil.toJson(request);
+     makeServiceRequest(String.format(Locale.US, SET_RESTORE_METHOD_PATH, urlEncode(token)), "PUT", body, NO_HEADERS, UNOPINIONATED_HANDLER, SealedSenderAccess.NONE);
+diff --git a/lib/password-manager/src/main/java/org/signal/passwordmanager/SignalCredentialManager.kt b/lib/password-manager/src/main/java/org/signal/passwordmanager/SignalCredentialManager.kt
+index 0af8fe6044f1ec3013cc1611a815cf582a870e63..f0fd6e624d343631a1f1f796eafd04fc8ee6cab9 100644
+--- a/lib/password-manager/src/main/java/org/signal/passwordmanager/SignalCredentialManager.kt
++++ b/lib/password-manager/src/main/java/org/signal/passwordmanager/SignalCredentialManager.kt
+@@ -5,17 +5,13 @@
+ 
+ package org.signal.passwordmanager
+ 
+-import android.Manifest
+-import android.accounts.AccountManager
+ import android.content.Context
+ import android.content.Intent
+-import android.content.pm.PackageManager
+ import android.net.Uri
+ import android.os.Build
+ import android.provider.Settings
+ import android.view.autofill.AutofillManager
+ import androidx.annotation.UiContext
+-import androidx.core.content.ContextCompat
+ import androidx.core.content.getSystemService
+ import androidx.credentials.CreatePasswordRequest
+ import androidx.credentials.CredentialManager
+@@ -28,7 +24,6 @@ import androidx.credentials.exceptions.CreateCredentialNoCreateOptionException
+ import androidx.credentials.exceptions.CreateCredentialProviderConfigurationException
+ import androidx.credentials.exceptions.CreateCredentialUnknownException
+ import androidx.credentials.exceptions.GetCredentialException
+-import org.signal.core.util.PlayServicesUtil
+ import org.signal.core.util.censor
+ import org.signal.core.util.logging.Log
+ 
+@@ -46,50 +41,15 @@ object SignalCredentialManager {
+ 
+   private const val GOOGLE_PLAY_SERVICES_PACKAGE = "com.google.android.gms"
+   private const val GOOGLE_PASSWORD_MANAGER_PACKAGE = "com.google.android.apps.credentialmanager"
+-  private const val GOOGLE_ACCOUNT_TYPE = "com.google"
+ 
+-  /**
+-   * Whether a password manager / credential provider may be available.
+-   *
+-   * On API 34+ Credential Manager can route to any provider, and there's no API to tell if one is set, so we assume
+-   * true. Before that it can only save through Play Services into a Google account, regardless of the autofill service.
+-   */
++  /** Platform credential providers and the selected autofill service do not require Google Play Services. */
+   fun isSupported(context: Context): Boolean {
+-    if (Build.VERSION.SDK_INT >= 34) {
+-      return true
+-    }
+-
+-    if (PlayServicesUtil.getPlayServicesStatus(context) != PlayServicesUtil.PlayServicesStatus.SUCCESS) {
+-      return false
+-    }
+-
+-    return !hasNoGoogleAccount(context)
++    return Build.VERSION.SDK_INT >= 34 || context.getSystemService<AutofillManager>()?.isEnabled == true
+   }
+ 
+-  /**
+-   * Whether credentials we save are likely to end up in Google Password Manager. Before API 34 that is the only place
+-   * they can go. On API 34+, choosing a preferred credential provider also sets the autofill service, so that is what
+-   * we check.
+-   */
++  /** Identifies the selected provider without assuming every device uses Google Password Manager. */
+   fun isGooglePasswordManagerDefault(context: Context): Boolean {
+-    if (Build.VERSION.SDK_INT < 34) {
+-      return true
+-    }
+-
+-    return context.getSystemService<AutofillManager>()?.autofillServiceComponentName?.packageName == GOOGLE_PLAY_SERVICES_PACKAGE
+-  }
+-
+-  /**
+-   * True only when we can see the device's accounts and none of them are Google accounts. Google accounts are only
+-   * visible to us with the contacts permission (or GET_ACCOUNTS before API 26), so without it we can't rule one out.
+-   */
+-  private fun hasNoGoogleAccount(context: Context): Boolean {
+-    val accountsPermission = if (Build.VERSION.SDK_INT >= 26) Manifest.permission.READ_CONTACTS else Manifest.permission.GET_ACCOUNTS
+-    if (ContextCompat.checkSelfPermission(context, accountsPermission) != PackageManager.PERMISSION_GRANTED) {
+-      return false
+-    }
+-
+-    return AccountManager.get(context).getAccountsByType(GOOGLE_ACCOUNT_TYPE).isEmpty()
++    return Build.VERSION.SDK_INT >= 28 && context.getSystemService<AutofillManager>()?.autofillServiceComponentName?.packageName == GOOGLE_PLAY_SERVICES_PACKAGE
+   }
+ 
+   /**
+diff --git a/lib/password-manager/src/main/java/org/signal/passwordmanager/SignalPasskeyManager.kt b/lib/password-manager/src/main/java/org/signal/passwordmanager/SignalPasskeyManager.kt
+index ad6a021ad703af45a260a2d3b614e2bc56e11859..6bd376beb239297ecda95cc98b7379ce09d7b13b 100644
+--- a/lib/password-manager/src/main/java/org/signal/passwordmanager/SignalPasskeyManager.kt
++++ b/lib/password-manager/src/main/java/org/signal/passwordmanager/SignalPasskeyManager.kt
+@@ -25,7 +25,6 @@ import androidx.credentials.exceptions.publickeycredential.CreatePublicKeyCreden
+ import androidx.credentials.exceptions.publickeycredential.GetPublicKeyCredentialDomException
+ import kotlinx.serialization.SerializationException
+ import org.signal.core.util.Base64
+-import org.signal.core.util.PlayServicesUtil
+ import org.signal.core.util.logging.Log
+ import org.signal.core.util.serialization.SignalJson
+ import java.io.IOException
+@@ -72,23 +71,10 @@ object SignalPasskeyManager {
+   private val random = SecureRandom()
+ 
+   /**
+-   * Whether this device can run a passkey ceremony at all.
+-   *
+-   * From API 34 the platform has its own credential provider. Below that the ceremony runs through Play services, which
+-   * only speaks passkeys from API 28. There's no API for telling whether the user has actually set a provider up, so a
+-   * capable device is assumed willing and only finds out otherwise once a ceremony comes back empty.
++   * Molly uses the platform's passkey providers, available from API 34. It does not bundle the Play Services
++   * credential bridge used on older Android versions. A capable device may still need its provider configured.
+    */
+-  fun isSupported(context: Context): Boolean {
+-    if (Build.VERSION.SDK_INT >= 34) {
+-      return true
+-    }
+-
+-    if (Build.VERSION.SDK_INT < 28) {
+-      return false
+-    }
+-
+-    return PlayServicesUtil.getPlayServicesStatus(context) == PlayServicesUtil.PlayServicesStatus.SUCCESS
+-  }
++  fun isSupported(context: Context): Boolean = Build.VERSION.SDK_INT >= 34
+ 
+   /**
+    * Asks the user's passkey provider to create a credential for the account, returning the two pieces the service needs
+diff --git a/lib/remote-config/src/main/java/org/signal/remoteconfig/RemoteConfig.kt b/lib/remote-config/src/main/java/org/signal/remoteconfig/RemoteConfig.kt
+index d6b0ff43a7b6b6c8fefdf75f589abb7d4769ace0..e066129f830e9004cdc166ea153baca4c8f4c663 100644
+--- a/lib/remote-config/src/main/java/org/signal/remoteconfig/RemoteConfig.kt
++++ b/lib/remote-config/src/main/java/org/signal/remoteconfig/RemoteConfig.kt
+@@ -736,24 +736,12 @@ object RemoteConfig {
+   /** Whether or not the user is an 'internal' one, which activates certain developer tools. */
+   @JvmStatic
+   @get:JvmName("internalUser")
+-<<<<<<< MOLLY:app/src/main/java/org/thoughtcrime/securesms/util/RemoteConfig.kt
+   val internalUser: Boolean
+     get() = when {
+       internalUserDisabled -> false
+       underTest -> false
+-      Environment.isInternal() -> true
+-      else -> false
+-=======
+-  val internalUser: Boolean by remoteValue(
+-    key = INTERNAL_USER_KEY,
+-    hotSwappable = true
+-  ) { value ->
+-    when {
+-      internalUserDisabled -> false
+-      underTest -> value.asBoolean(false)
+       dependencies.isInternalBuild -> true
+-      else -> value.asBoolean(false)
+->>>>>>> SIGNAL:lib/remote-config/src/main/java/org/signal/remoteconfig/RemoteConfig.kt
++      else -> false
+     }
+ 
+ 
+diff --git a/lib/remote-config/src/test/java/org/signal/remoteconfig/RemoteConfigTest.java b/lib/remote-config/src/test/java/org/signal/remoteconfig/RemoteConfigTest.java
+index 61f65bf6e293998d05f3bee1b9273e82af4b4af8..e4e35d53465bdd47114d3eab81f807deec73e0d3 100644
+--- a/lib/remote-config/src/test/java/org/signal/remoteconfig/RemoteConfigTest.java
++++ b/lib/remote-config/src/test/java/org/signal/remoteconfig/RemoteConfigTest.java
+@@ -8,7 +8,6 @@ import java.util.HashMap;
+ import java.util.Map;
+ import java.util.Set;
+ 
+-import static org.junit.Assert.assertTrue;
+ import static org.junit.Assert.assertEquals;
+ import static org.junit.Assert.assertFalse;
+ import static org.junit.Assert.assertTrue;
+diff --git a/lib/storage/src/main/java/org/signal/storage/keyvalue/CallQualityValues.kt b/lib/storage/src/main/java/org/signal/storage/keyvalue/CallQualityValues.kt
+deleted file mode 100644
+index 4cd989dfa4e9a29d9e8659ec813174939fdef653..0000000000000000000000000000000000000000
+--- a/lib/storage/src/main/java/org/signal/storage/keyvalue/CallQualityValues.kt
++++ /dev/null
+@@ -1,29 +0,0 @@
+-/*
+- * Copyright 2025 Signal Messenger, LLC
+- * SPDX-License-Identifier: AGPL-3.0-only
+- */
+-
+-package org.signal.storage.keyvalue
+-
+-import org.signal.storage.protos.CallQualitySurveyRequest
+-import kotlin.time.Duration
+-
+-class CallQualityValues(store: KeyValueStore) : SignalStoreValues(store) {
+-
+-  companion object {
+-    const val SURVEY_REQUEST = "callQualityValues.survey_request"
+-    const val IS_CALL_QUALITY_SURVEY_ENABLED = "callQualityValues.is_call_quality_survey_enabled"
+-    const val LAST_FAILURE_REPORT_TIME = "callQualityValues.last_failure_report_time"
+-    const val LAST_SURVEY_PROMPT_TIME = "callQualityValues.last_survey_prompt_time"
+-  }
+-
+-  var surveyRequest: CallQualitySurveyRequest? by protoValue(SURVEY_REQUEST, CallQualitySurveyRequest.ADAPTER)
+-  var isQualitySurveyEnabled: Boolean by booleanValue(IS_CALL_QUALITY_SURVEY_ENABLED, true)
+-  var lastFailureReportTime: Duration? by durationValue(LAST_FAILURE_REPORT_TIME, null)
+-  var lastSurveyPromptTime: Duration? by durationValue(LAST_SURVEY_PROMPT_TIME, null)
+-
+-  public override fun onFirstEverAppLaunch() = Unit
+-
+-  override val keysToIncludeInBackup: List<String>
+-    get() = emptyList()
+-}
+diff --git a/lib/storage/src/main/java/org/signal/storage/keyvalue/LegacySharedPrefs.kt b/lib/storage/src/main/java/org/signal/storage/keyvalue/LegacySharedPrefs.kt
+index d7aeb6e0bddb2f814081092e80680b1da12bf9ce..0bfaeac84a15101a3a3d4bfd4313b9b6ba97aa8a 100644
+--- a/lib/storage/src/main/java/org/signal/storage/keyvalue/LegacySharedPrefs.kt
++++ b/lib/storage/src/main/java/org/signal/storage/keyvalue/LegacySharedPrefs.kt
+@@ -6,11 +6,11 @@
+ package org.signal.storage.keyvalue
+ 
+ import android.content.Context
++import android.content.SharedPreferences
+ import android.net.Uri
+-import androidx.preference.PreferenceManager
+ 
+ /**
+- * Read-only access to the app's default [android.content.SharedPreferences] for the purpose of easing migration to [KeyValueStore].
++ * Read-only access to Molly's injected preferences for migration to [KeyValueStore].
+  */
+ object LegacySharedPrefs {
+ 
+@@ -68,5 +68,6 @@ object LegacySharedPrefs {
+     }
+   }
+ 
+-  private fun prefs(context: Context) = PreferenceManager.getDefaultSharedPreferences(context)
++  @Suppress("UNUSED_PARAMETER")
++  private fun prefs(context: Context): SharedPreferences = PlainTextKeyValueStore.legacyPreferences
+ }
+diff --git a/lib/storage/src/main/java/org/signal/storage/keyvalue/OnboardingValues.kt b/lib/storage/src/main/java/org/signal/storage/keyvalue/OnboardingValues.kt
+index 2c99c48b565c11253da97725d21a23b58c14c95c..161fda57b677aee9fd91a888f7e76db2da191d32 100644
+--- a/lib/storage/src/main/java/org/signal/storage/keyvalue/OnboardingValues.kt
++++ b/lib/storage/src/main/java/org/signal/storage/keyvalue/OnboardingValues.kt
+@@ -3,16 +3,14 @@ package org.signal.storage.keyvalue
+ class OnboardingValues(store: KeyValueStore) : SignalStoreValues(store) {
+ 
+   companion object {
+-    private const val SHOW_NEW_GROUP = "onboarding.new_group"
+-    private const val SHOW_INVITE_FRIENDS = "onboarding.invite_friends"
++    private const val SHOW_STORIES = "onboarding.stories_molly"
+     private const val SHOW_APPEARANCE = "onboarding.appearance"
+     private const val SHOW_ADD_PHOTO = "onboarding.add_photo"
+     private const val SHOW_SET_UP_USERNAME = "onboarding.set_up_username"
+   }
+ 
+   public override fun onFirstEverAppLaunch() {
+-    putBoolean(SHOW_NEW_GROUP, true)
+-    putBoolean(SHOW_INVITE_FRIENDS, true)
++    putBoolean(SHOW_STORIES, true)
+     putBoolean(SHOW_APPEARANCE, true)
+     putBoolean(SHOW_ADD_PHOTO, true)
+     putBoolean(SHOW_SET_UP_USERNAME, true)
+@@ -22,35 +20,25 @@ class OnboardingValues(store: KeyValueStore) : SignalStoreValues(store) {
+     get() = emptyList()
+ 
+   fun clearAll() {
+-    setShowNewGroup(false)
+-    setShowInviteFriends(false)
++    setShowStories(false)
+     setShowAppearance(false)
+     setShowAddPhoto(false)
+     setShowSetUpUsername(false)
+   }
+ 
+   fun hasOnboarding(): Boolean {
+-    return shouldShowNewGroup() ||
+-      shouldShowInviteFriends() ||
++    return shouldShowStories() ||
+       shouldShowAppearance() ||
+       shouldShowAddPhoto() ||
+       shouldShowSetUpUsername()
+   }
+ 
+-  fun setShowNewGroup(value: Boolean) {
+-    putBoolean(SHOW_NEW_GROUP, value)
++  fun setShowStories(value: Boolean) {
++    putBoolean(SHOW_STORIES, value)
+   }
+ 
+-  fun shouldShowNewGroup(): Boolean {
+-    return getBoolean(SHOW_NEW_GROUP, false)
+-  }
+-
+-  fun setShowInviteFriends(value: Boolean) {
+-    putBoolean(SHOW_INVITE_FRIENDS, value)
+-  }
+-
+-  fun shouldShowInviteFriends(): Boolean {
+-    return getBoolean(SHOW_INVITE_FRIENDS, false)
++  fun shouldShowStories(): Boolean {
++    return getBoolean(SHOW_STORIES, false)
+   }
+ 
+   fun setShowAppearance(value: Boolean) {
+diff --git a/lib/storage/src/main/java/org/signal/storage/keyvalue/PlainTextKeyValueStore.kt b/lib/storage/src/main/java/org/signal/storage/keyvalue/PlainTextKeyValueStore.kt
+index 2d4e31fd3927b5f422d3df4758da060c1aaacbe0..9b7c9d97ef1f403ecc5bdd171d8737ad19e037f3 100644
+--- a/lib/storage/src/main/java/org/signal/storage/keyvalue/PlainTextKeyValueStore.kt
++++ b/lib/storage/src/main/java/org/signal/storage/keyvalue/PlainTextKeyValueStore.kt
+@@ -1,15 +1,13 @@
+ package org.signal.storage.keyvalue
+ 
+-import android.content.Context
+ import android.content.SharedPreferences
+ import androidx.core.content.edit
+-import androidx.preference.PreferenceManager
+ 
+ /**
+  * There are some values that you can't store in the normal encrypted [KeyValueStore].
+  * Usually, it's because the value you're storing is needed to *open* the database that backs the store,
+- * or is otherwise related to the state of the database itself. Regardless, this is just a normal
+- * shared-prefs-backed class.
++ * or is otherwise related to the state of the database itself. Molly supplies its preferences
++ * with the existing plaintext filter for values needed before unlock.
+  */
+ object PlainTextKeyValueStore {
+ 
+@@ -26,13 +24,16 @@ object PlainTextKeyValueStore {
+   private lateinit var sharedPrefs: SharedPreferences
+   private var currentVersionCode: Int = 0
+ 
++  internal val legacyPreferences: SharedPreferences
++    get() = sharedPrefs
++
+   /**
+    * Must be called from [android.app.Application.attachBaseContext] before anything else has a chance to read from
+    * this store.
+    */
+   @JvmStatic
+-  fun init(context: Context, currentVersionCode: Int) {
+-    sharedPrefs = PreferenceManager.getDefaultSharedPreferences(context)
++  fun init(preferences: SharedPreferences, currentVersionCode: Int) {
++    sharedPrefs = preferences
+     this.currentVersionCode = currentVersionCode
+   }
+ 
+diff --git a/lib/storage/src/main/java/org/signal/storage/keyvalue/UiHintValues.kt b/lib/storage/src/main/java/org/signal/storage/keyvalue/UiHintValues.kt
+index 0e2b069e10141cb541f0cc29204550aa02f6fe2d..e2ba4dddb5cfe852de36d4b3d54d7c1872630e93 100644
+--- a/lib/storage/src/main/java/org/signal/storage/keyvalue/UiHintValues.kt
++++ b/lib/storage/src/main/java/org/signal/storage/keyvalue/UiHintValues.kt
+@@ -17,11 +17,8 @@ class UiHintValues(store: KeyValueStore, context: Context) : SignalStoreValues(s
+     private const val NEVER_DISPLAY_PULL_TO_FILTER_TIP = "uihints.never_display_pull_to_filter_tip"
+     private const val HAS_SEEN_SCHEDULED_MESSAGES_INFO_ONCE = "uihints.has_seen_scheduled_messages_info_once"
+     private const val HAS_SEEN_SAFETY_NUMBER_NUX = "uihints.has_seen_safety_number_nux"
+-    private const val DECLINED_NOTIFICATION_LOGS_PROMPT = "uihints.declined_notification_logs"
+-    private const val LAST_NOTIFICATION_LOGS_PROMPT_TIME = "uihints.last_notification_logs_prompt"
+     private const val DISMISSED_BATTERY_SAVER_PROMPT = "uihints.declined_battery_saver_prompt"
+     private const val LAST_BATTERY_SAVER_PROMPT = "uihints.last_battery_saver_prompt"
+-    private const val LAST_CRASH_PROMPT = "uihints.last_crash_prompt"
+     private const val HAS_COMPLETED_USERNAME_ONBOARDING = "uihints.has_completed_username_onboarding"
+     private const val HAS_SEEN_DOUBLE_TAP_EDIT_EDUCATION_SHEET = "uihints.has_seen_double_tap_edit_education_sheet"
+     private const val DISMISSED_CONTACTS_PERMISSION_BANNER = "uihints.dismissed_contacts_permission_banner"
+@@ -143,16 +140,6 @@ class UiHintValues(store: KeyValueStore, context: Context) : SignalStoreValues(s
+     putBoolean(HAS_SEEN_SAFETY_NUMBER_NUX, true)
+   }
+ 
+-  var lastNotificationLogsPrompt: Long by longValue(LAST_NOTIFICATION_LOGS_PROMPT_TIME, 0)
+-
+-  fun markDeclinedShareNotificationLogs() {
+-    putBoolean(DECLINED_NOTIFICATION_LOGS_PROMPT, true)
+-  }
+-
+-  fun hasDeclinedToShareNotificationLogs(): Boolean {
+-    return getBoolean(DECLINED_NOTIFICATION_LOGS_PROMPT, false)
+-  }
+-
+   fun markDismissedBatterySaverPrompt() {
+     putBoolean(DISMISSED_BATTERY_SAVER_PROMPT, true)
+   }
+@@ -163,7 +150,6 @@ class UiHintValues(store: KeyValueStore, context: Context) : SignalStoreValues(s
+ 
+   var lastBatterySaverPrompt: Long by longValue(LAST_BATTERY_SAVER_PROMPT, 0)
+ 
+-  var lastCrashPrompt: Long by longValue(LAST_CRASH_PROMPT, 0)
+ 
+   var hasSeenDoubleTapEditEducationSheet: Boolean by booleanValue(HAS_SEEN_DOUBLE_TAP_EDIT_EDUCATION_SHEET, false)
+ 
+diff --git a/lib/storage/src/test/java/org/signal/storage/database/DatabaseSecretLockedPreferencesTest.kt b/lib/storage/src/test/java/org/signal/storage/database/DatabaseSecretLockedPreferencesTest.kt
+new file mode 100644
+index 0000000000000000000000000000000000000000..5b0652ae93879c5879c73334b25af4dc77ec79aa
+--- /dev/null
++++ b/lib/storage/src/test/java/org/signal/storage/database/DatabaseSecretLockedPreferencesTest.kt
+@@ -0,0 +1,72 @@
++package org.signal.storage.database
++
++import android.app.Application
++import android.content.SharedPreferences
++import androidx.test.core.app.ApplicationProvider
++import org.junit.Assert.assertEquals
++import org.junit.Assert.assertThrows
++import org.junit.Test
++import org.junit.runner.RunWith
++import org.robolectric.RobolectricTestRunner
++import org.robolectric.annotation.Config
++import org.signal.storage.keyvalue.PlainTextKeyValueStore
++import java.lang.reflect.Proxy
++
++@RunWith(RobolectricTestRunner::class)
++@Config(manifest = Config.NONE, application = Application::class)
++class DatabaseSecretLockedPreferencesTest {
++  @Test
++  fun `corrupt sealed database secret fails without replacing it`() {
++    val context = ApplicationProvider.getApplicationContext<Application>()
++    val prefs = context.getSharedPreferences("corrupt-database-secret-test", 0)
++    val key = "pref_database_encrypted_secret"
++    prefs.edit().clear().putString(key, "not valid JSON").commit()
++    val instanceField = DatabaseSecretProvider::class.java.getDeclaredField("instance").apply { isAccessible = true }
++    val previousInstance = instanceField.get(null)
++    val prefsField = PlainTextKeyValueStore::class.java.getDeclaredField("sharedPrefs").apply { isAccessible = true }
++    val previousPrefs = prefsField.get(null) as SharedPreferences?
++    val versionField = PlainTextKeyValueStore::class.java.getDeclaredField("currentVersionCode").apply { isAccessible = true }
++    val previousVersion = versionField.getInt(null)
++    try {
++      instanceField.set(null, null)
++      PlainTextKeyValueStore.init(prefs, 123)
++      assertThrows(AssertionError::class.java) { DatabaseSecretProvider.getOrCreateDatabaseSecret(context) }
++      assertEquals("not valid JSON", prefs.getString(key, null))
++    } finally {
++      instanceField.set(null, previousInstance)
++      prefsField.set(null, previousPrefs)
++      versionField.setInt(null, previousVersion)
++      prefs.edit().clear().commit()
++    }
++  }
++
++  @Test
++  fun `locked preferences cannot cause a replacement database secret to be stored`() {
++    val context = ApplicationProvider.getApplicationContext<Application>()
++    val instanceField = DatabaseSecretProvider::class.java.getDeclaredField("instance").apply { isAccessible = true }
++    val previousInstance = instanceField.get(null)
++    val prefsField = PlainTextKeyValueStore::class.java.getDeclaredField("sharedPrefs").apply { isAccessible = true }
++    val previousPrefs = prefsField.get(null) as SharedPreferences?
++    val versionField = PlainTextKeyValueStore::class.java.getDeclaredField("currentVersionCode").apply { isAccessible = true }
++    val previousVersion = versionField.getInt(null)
++    var writes = 0
++    val lockedPrefs = Proxy.newProxyInstance(SharedPreferences::class.java.classLoader, arrayOf(SharedPreferences::class.java)) { _, method, _ ->
++      when (method.name) {
++        "getString" -> throw IllegalStateException("locked")
++        "edit" -> { writes++; throw AssertionError("locked preferences must not be written") }
++        else -> throw AssertionError("unexpected preference access: ${method.name}")
++      }
++    } as SharedPreferences
++
++    try {
++      instanceField.set(null, null)
++      PlainTextKeyValueStore.init(lockedPrefs, 123)
++      assertThrows(IllegalStateException::class.java) { DatabaseSecretProvider.getOrCreateDatabaseSecret(context) }
++      assertEquals(0, writes)
++    } finally {
++      instanceField.set(null, previousInstance)
++      prefsField.set(null, previousPrefs)
++      versionField.setInt(null, previousVersion)
++    }
++  }
++}

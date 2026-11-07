@@ -1,0 +1,26 @@
+From c6aca3fc928a0744f93383ec72d11dad1ef1fcab Mon Sep 17 00:00:00 2001
+From: 0cwa <0@none.org>
+Date: Fri, 6 Nov 2026 10:31:56 +0100
+Subject: [PATCH] Correct Persian Molly donation label
+
+Carry this AI-assisted source change as its own
+reviewable patch, preserving the original source author and diff.
+The official Molly snapshot and earlier resolution patches do
+not receive regenerated provenance headers.
+
+Source-Commit: 485f32894fb895caac6d7ef3f37f0865698e949a
+AI-Generated: true
+
+diff --git a/app/src/main/res/values-fa/strings.xml b/app/src/main/res/values-fa/strings.xml
+index 4a57c7ec5208a3e885952337b0a418a11cc9a410..ef1e120e3ca0119236c74610c6c63fa548ea6dc7 100644
+--- a/app/src/main/res/values-fa/strings.xml
++++ b/app/src/main/res/values-fa/strings.xml
+@@ -3719,7 +3719,7 @@
+     <string name="preferences__led_color_unknown">ناشناخته</string>
+     <string name="preferences__silent">بی‌صدا</string>
+     <string name="preferences__advanced">پیشرفته</string>
+-    <string name="preferences__donate_to_signal">اهدای کمک مالی به سیگنال</string>
++    <string name="preferences__donate_to_signal">اهدای کمک مالی به مولی</string>
+     <!-- Preference label for stories -->
+     <string name="preferences__stories">استوری‌ها</string>
+     <string name="preferences__payments">پرداخت‌ها</string>

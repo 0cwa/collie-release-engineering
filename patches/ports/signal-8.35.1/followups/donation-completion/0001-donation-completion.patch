@@ -1,0 +1,273 @@
+From 146374917640e0fdf9980cf5aca5ac6ab78f3c5e Mon Sep 17 00:00:00 2001
+From: 0cwa <0@none.org>
+Date: Mon, 2 Nov 2026 02:19:22 +0100
+Subject: [PATCH] Restore donation completion acknowledgement
+
+Display the earned badge after immediate donations and restore the eligible first-Boost monthly sustainer link without exposing profile-badge controls. Use existing thank-you copy that does not promise unsupported profile display.
+
+For long-running donations, stop showing the loading indicator after the badge loads when Molly disables the profile-badge toggle. Keep loading visible while the badge is unavailable, and cover both states with focused Compose UI tests.
+
+AI-Generated: true
+
+Based-On-Source-Commit: 5aa465941ac4e4f1d8f126db9521e5043c36cb29
+
+AI-assisted compatibility changes: restore imports across source checkpoints.
+
+AI-assisted compatibility changes: use a seven-day duration in the existing backup exporter test.
+
+AI-assisted compatibility changes: restore Molly logger collection.
+
+Carry this AI-assisted source change as its own
+reviewable patch, preserving the original source author and diff.
+The official Molly snapshot and earlier resolution patches do
+not receive regenerated provenance headers.
+
+Source-Commit: 5ec757eabe4b320f50638e9f907ce9a781c1d4e2
+AI-Generated: true
+
+diff --git a/app/src/main/java/org/thoughtcrime/securesms/components/settings/app/subscription/completed/TerminalDonationBottomSheet.kt b/app/src/main/java/org/thoughtcrime/securesms/components/settings/app/subscription/completed/TerminalDonationBottomSheet.kt
+index 16a0dbaad715a402df1dad1b044493544795d297..1728e92637d1cf66003d444ff4e3559f6f61f742 100644
+--- a/app/src/main/java/org/thoughtcrime/securesms/components/settings/app/subscription/completed/TerminalDonationBottomSheet.kt
++++ b/app/src/main/java/org/thoughtcrime/securesms/components/settings/app/subscription/completed/TerminalDonationBottomSheet.kt
+@@ -6,6 +6,7 @@
+ package org.thoughtcrime.securesms.components.settings.app.subscription.completed
+ 
+ import android.content.DialogInterface
++import androidx.annotation.VisibleForTesting
+ import androidx.compose.foundation.background
+ import androidx.compose.foundation.border
+ import androidx.compose.foundation.layout.Box
+@@ -209,7 +210,8 @@ private fun DonationPaymentFailureBottomSheet(
+ }
+ 
+ @Composable
+-private fun DonationCompletedSheetContent(
++@VisibleForTesting
++internal fun DonationCompletedSheetContent(
+   badge: Badge?,
+   isToggleChecked: Boolean,
+   toggleType: TerminalDonationViewModel.ToggleType,
+@@ -248,9 +250,9 @@ private fun DonationCompletedSheetContent(
+         .padding(horizontal = 45.dp)
+     )
+ 
+-    if (toggleType == TerminalDonationViewModel.ToggleType.NONE) {
++    if (badge == null) {
+       CircularProgressIndicator()
+-    } else {
++    } else if (toggleType != TerminalDonationViewModel.ToggleType.NONE) {
+       DonationToggleRow(
+         checked = isToggleChecked,
+         text = stringResource(id = toggleType.copyId),
+diff --git a/app/src/main/java/org/thoughtcrime/securesms/components/settings/app/subscription/thanks/ThanksForYourSupportBottomSheetDialogFragment.kt b/app/src/main/java/org/thoughtcrime/securesms/components/settings/app/subscription/thanks/ThanksForYourSupportBottomSheetDialogFragment.kt
+index 46d0f17e1617f86403658f7212d281620a4dcf13..c7c65efa71d5515a448c3b98b22d2d3b9e1c949a 100644
+--- a/app/src/main/java/org/thoughtcrime/securesms/components/settings/app/subscription/thanks/ThanksForYourSupportBottomSheetDialogFragment.kt
++++ b/app/src/main/java/org/thoughtcrime/securesms/components/settings/app/subscription/thanks/ThanksForYourSupportBottomSheetDialogFragment.kt
+@@ -2,15 +2,23 @@ package org.thoughtcrime.securesms.components.settings.app.subscription.thanks
+ 
+ import android.content.DialogInterface
+ import android.os.Bundle
++import android.text.SpannableStringBuilder
+ import android.view.LayoutInflater
+ import android.view.View
+ import android.view.ViewGroup
++import android.widget.TextView
++import androidx.core.text.method.LinkMovementMethodCompat
+ import com.google.android.material.button.MaterialButton
+ import org.signal.core.models.badges.Badge
+ import org.signal.core.ui.FixedRoundedCornerBottomSheetDialogFragment
++import org.signal.core.ui.util.SpanUtil
++import org.signal.core.ui.util.ThemeUtil
+ import org.thoughtcrime.securesms.R
++import org.thoughtcrime.securesms.badges.BadgeImageView
+ import org.thoughtcrime.securesms.components.settings.app.AppSettingsActivity
++import org.thoughtcrime.securesms.recipients.Recipient
+ import org.thoughtcrime.securesms.util.fragments.findListener
++import org.signal.core.ui.R as CoreUiR
+ 
+ class ThanksForYourSupportBottomSheetDialogFragment : FixedRoundedCornerBottomSheetDialogFragment() {
+ 
+@@ -33,6 +41,30 @@ class ThanksForYourSupportBottomSheetDialogFragment : FixedRoundedCornerBottomSh
+   }
+ 
+   override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
++    val args = ThanksForYourSupportBottomSheetDialogFragmentArgs.fromBundle(requireArguments())
++    val badge: BadgeImageView = view.findViewById(R.id.thanks_bottom_sheet_badge)
++    val subhead: TextView = view.findViewById(R.id.thanks_bottom_sheet_subhead)
++    val hasNonBoostBadge = Recipient.self().badges.any { !it.isBoost() }
++    badge.setBadge(args.badge)
++
++    if (args.badge.isBoost() && !hasNonBoostBadge) {
++      subhead.visibility = View.VISIBLE
++      subhead.movementMethod = LinkMovementMethodCompat.getInstance()
++      subhead.text = SpannableStringBuilder(getString(R.string.SubscribeThanksForYourSupportBottomSheetDialogFragment__you_can_also))
++        .append(" ")
++        .append(
++          SpanUtil.clickable(
++            getString(R.string.SubscribeThanksForYourSupportBottomSheetDialogFragment__become_a_montly_sustainer),
++            ThemeUtil.getThemedColor(requireContext(), CoreUiR.attr.signal_accent_primary)
++          ) {
++            requireActivity().finish()
++            requireActivity().startActivity(AppSettingsActivity.subscriptions(requireContext()))
++          }
++        )
++    } else {
++      subhead.visibility = View.GONE
++    }
++
+     val done: MaterialButton = view.findViewById(R.id.thanks_bottom_sheet_done)
+     done.setOnClickListener { dismissAllowingStateLoss() }
+   }
+diff --git a/app/src/main/res/layout/thanks_for_your_support_bottom_sheet_dialog_fragment.xml b/app/src/main/res/layout/thanks_for_your_support_bottom_sheet_dialog_fragment.xml
+index eeb5a0d946638ff9ad51763c2b35b0ab5136531e..da57e3c0696a3a66c7ef9d8ec7e70852d905f4c1 100644
+--- a/app/src/main/res/layout/thanks_for_your_support_bottom_sheet_dialog_fragment.xml
++++ b/app/src/main/res/layout/thanks_for_your_support_bottom_sheet_dialog_fragment.xml
+@@ -27,6 +27,18 @@
+             android:layout_height="wrap_content"
+             android:paddingBottom="16dp">
+ 
++            <org.thoughtcrime.securesms.badges.BadgeImageView
++                android:id="@+id/thanks_bottom_sheet_badge"
++                android:layout_width="80dp"
++                android:layout_height="80dp"
++                android:layout_marginTop="28dp"
++                android:contentDescription="@string/ImageView__badge"
++                app:badge_size="badge_112"
++                app:layout_constraintEnd_toEndOf="parent"
++                app:layout_constraintStart_toStartOf="parent"
++                app:layout_constraintTop_toTopOf="parent"
++                tools:src="@drawable/test_gradient" />
++
+             <TextView
+                 android:id="@+id/thanks_bottom_sheet_heading"
+                 android:layout_width="0dp"
+@@ -39,7 +51,23 @@
+                 android:textAppearance="@style/Signal.Text.TitleLarge"
+                 app:layout_constraintEnd_toEndOf="parent"
+                 app:layout_constraintStart_toStartOf="parent"
+-                app:layout_constraintTop_toTopOf="parent" />
++                app:layout_constraintTop_toBottomOf="@id/thanks_bottom_sheet_badge" />
++
++            <TextView
++                android:id="@+id/thanks_bottom_sheet_subhead"
++                android:layout_width="0dp"
++                android:layout_height="wrap_content"
++                android:layout_marginStart="@dimen/dsl_settings_gutter"
++                android:layout_marginTop="6dp"
++                android:layout_marginEnd="@dimen/dsl_settings_gutter"
++                android:gravity="center"
++                android:textAppearance="@style/Signal.Text.BodyLarge"
++                android:textColor="?attr/colorOnSurfaceVariant"
++                android:visibility="gone"
++                app:layout_constraintEnd_toEndOf="parent"
++                app:layout_constraintStart_toStartOf="parent"
++                app:layout_constraintTop_toBottomOf="@id/thanks_bottom_sheet_heading"
++                tools:text="@string/SubscribeThanksForYourSupportBottomSheetDialogFragment__become_a_montly_sustainer" />
+ 
+             <com.google.android.material.button.MaterialButton
+                 android:id="@+id/thanks_bottom_sheet_done"
+@@ -53,8 +81,8 @@
+                 android:text="@string/SubscribeThanksForYourSupportBottomSheetDialogFragment__continue"
+                 app:layout_constraintEnd_toEndOf="parent"
+                 app:layout_constraintStart_toStartOf="parent"
+-                app:layout_constraintTop_toBottomOf="@id/thanks_bottom_sheet_heading" />
++                app:layout_constraintTop_toBottomOf="@id/thanks_bottom_sheet_subhead" />
+ 
+         </androidx.constraintlayout.widget.ConstraintLayout>
+     </androidx.core.widget.NestedScrollView>
+-</LinearLayout>
+\ No newline at end of file
++</LinearLayout>
+diff --git a/app/src/test/java/org/thoughtcrime/securesms/components/settings/app/subscription/completed/TerminalDonationBottomSheetTest.kt b/app/src/test/java/org/thoughtcrime/securesms/components/settings/app/subscription/completed/TerminalDonationBottomSheetTest.kt
+new file mode 100644
+index 0000000000000000000000000000000000000000..c81643c2d299c7de01cf50d5db192bc442f230f4
+--- /dev/null
++++ b/app/src/test/java/org/thoughtcrime/securesms/components/settings/app/subscription/completed/TerminalDonationBottomSheetTest.kt
+@@ -0,0 +1,87 @@
++/*
++ * Copyright 2026 Signal Messenger, LLC
++ * SPDX-License-Identifier: AGPL-3.0-only
++ */
++
++package org.thoughtcrime.securesms.components.settings.app.subscription.completed
++
++import android.app.Application
++import android.net.Uri
++import androidx.compose.runtime.CompositionLocalProvider
++import androidx.compose.ui.platform.LocalInspectionMode
++import androidx.compose.ui.semantics.ProgressBarRangeInfo
++import androidx.compose.ui.test.assertIsDisplayed
++import androidx.compose.ui.test.hasProgressBarRangeInfo
++import androidx.compose.ui.test.junit4.createComposeRule
++import androidx.compose.ui.test.onNodeWithText
++import androidx.test.core.app.ApplicationProvider
++import org.junit.Rule
++import org.junit.Test
++import org.junit.runner.RunWith
++import org.robolectric.RobolectricTestRunner
++import org.robolectric.annotation.Config
++import org.signal.core.models.badges.Badge
++import org.signal.core.ui.CoreUiDependenciesRule
++import org.signal.core.ui.compose.theme.SignalTheme
++import org.thoughtcrime.securesms.R
++
++@RunWith(RobolectricTestRunner::class)
++@Config(application = Application::class)
++class TerminalDonationBottomSheetTest {
++
++  @get:Rule
++  val composeTestRule = createComposeRule()
++
++  @get:Rule
++  val coreUiDependenciesRule = CoreUiDependenciesRule(ApplicationProvider.getApplicationContext())
++
++  @Test
++  fun `loaded badge without profile toggle renders completion instead of loading`() {
++    setContent(badge = testBadge())
++
++    composeTestRule.onNode(hasProgressBarRangeInfo(ProgressBarRangeInfo.Indeterminate)).assertDoesNotExist()
++    composeTestRule.onNodeWithText(
++      ApplicationProvider.getApplicationContext<Application>().getString(R.string.DonationCompletedBottomSheet__donation_complete)
++    ).assertIsDisplayed()
++    composeTestRule.onNodeWithText(
++      ApplicationProvider.getApplicationContext<Application>().getString(R.string.SubscribeThanksForYourSupportBottomSheetDialogFragment__display_on_profile)
++    ).assertDoesNotExist()
++  }
++
++  @Test
++  fun `missing badge keeps the loading indicator`() {
++    setContent(badge = null)
++
++    composeTestRule.onNode(hasProgressBarRangeInfo(ProgressBarRangeInfo.Indeterminate)).assertIsDisplayed()
++  }
++
++  private fun setContent(badge: Badge?) {
++    composeTestRule.setContent {
++      SignalTheme {
++        CompositionLocalProvider(LocalInspectionMode provides true) {
++          DonationCompletedSheetContent(
++            badge = badge,
++            isToggleChecked = false,
++            toggleType = TerminalDonationViewModel.ToggleType.NONE,
++            onCheckChanged = {},
++            onDoneClick = {}
++          )
++        }
++      }
++    }
++  }
++
++  private fun testBadge(): Badge {
++    return Badge(
++      id = Badge.BOOST_BADGE_ID,
++      category = Badge.Category.Donor,
++      name = "Boost",
++      description = "Support Signal",
++      imageUrl = Uri.EMPTY,
++      imageDensity = "1",
++      expirationTimestamp = 0,
++      visible = false,
++      duration = 30
++    )
++  }
++}

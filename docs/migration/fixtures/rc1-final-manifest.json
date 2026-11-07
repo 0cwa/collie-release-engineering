@@ -1,0 +1,56 @@
+{
+  "schema": 1,
+  "rehearsal": false,
+  "unsigned_manifest_sha256": "c29640756624cf59354e0f41f7c9d79ba59fea50367a623afea0839ad22ffb5f",
+  "commit": "698902e405975bbd87789a2e376f80b564031738",
+  "run_id": "0",
+  "version_code": 177702,
+  "version_name": "8.35.1-1-rc1",
+  "certificate_sha256": "f8cc0c0c052e5635c26fcd293c2b0af3e87d61ff7f2df3602a9af6e91f73c826",
+  "apks": [
+    {
+      "profile": "collie",
+      "file": "collie.apk",
+      "unsigned_sha256": "97e0a39365cff50af3425fff9c9f19cf56500b31bae211de1baf9c94c35e931f",
+      "signed_sha256": "5fbd0fe817bc6711c56fbc39b8479cc0a68a7d7fe921a7d9c9fab59333fda9ee",
+      "certificate_sha256": "f8cc0c0c052e5635c26fcd293c2b0af3e87d61ff7f2df3602a9af6e91f73c826"
+    },
+    {
+      "profile": "collie-foss",
+      "file": "collie-foss.apk",
+      "unsigned_sha256": "97e0a39365cff50af3425fff9c9f19cf56500b31bae211de1baf9c94c35e931f",
+      "signed_sha256": "5fbd0fe817bc6711c56fbc39b8479cc0a68a7d7fe921a7d9c9fab59333fda9ee",
+      "certificate_sha256": "f8cc0c0c052e5635c26fcd293c2b0af3e87d61ff7f2df3602a9af6e91f73c826"
+    },
+    {
+      "profile": "molly-continued",
+      "file": "molly-continued.apk",
+      "unsigned_sha256": "97e0a39365cff50af3425fff9c9f19cf56500b31bae211de1baf9c94c35e931f",
+      "signed_sha256": "5fbd0fe817bc6711c56fbc39b8479cc0a68a7d7fe921a7d9c9fab59333fda9ee",
+      "certificate_sha256": "f8cc0c0c052e5635c26fcd293c2b0af3e87d61ff7f2df3602a9af6e91f73c826"
+    },
+    {
+      "profile": "molly-foss-continued",
+      "file": "molly-foss-continued.apk",
+      "unsigned_sha256": "97e0a39365cff50af3425fff9c9f19cf56500b31bae211de1baf9c94c35e931f",
+      "signed_sha256": "5fbd0fe817bc6711c56fbc39b8479cc0a68a7d7fe921a7d9c9fab59333fda9ee",
+      "certificate_sha256": "f8cc0c0c052e5635c26fcd293c2b0af3e87d61ff7f2df3602a9af6e91f73c826"
+    },
+    {
+      "profile": "molly-minimal",
+      "file": "molly-minimal.apk",
+      "unsigned_sha256": "97e0a39365cff50af3425fff9c9f19cf56500b31bae211de1baf9c94c35e931f",
+      "signed_sha256": "5fbd0fe817bc6711c56fbc39b8479cc0a68a7d7fe921a7d9c9fab59333fda9ee",
+      "certificate_sha256": "f8cc0c0c052e5635c26fcd293c2b0af3e87d61ff7f2df3602a9af6e91f73c826"
+    }
+  ],
+  "instrumentation_checklist": {
+    "commit": "698902e405975bbd87789a2e376f80b564031738",
+    "status": "not run",
+    "evidence": "",
+    "reason": "The full instrumentation suite was not run on this exact head. The user requested no automated test for the one-line notification-default change; prior bounded checks used earlier source."
+  },
+  "artifact_mode": "single-collie",
+  "source_profile": "collie",
+  "package": "im.collie.app"
+}

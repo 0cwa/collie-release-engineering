@@ -1,0 +1,78 @@
+From ca601b14e26154e72220c85cb07f29cad185af1b Mon Sep 17 00:00:00 2001
+From: 0cwa <0@none.org>
+Date: Fri, 6 Nov 2026 10:20:44 +0100
+Subject: [PATCH] Show Molly donation label in the moved settings screen
+
+Carry this AI-assisted source change as its own
+reviewable patch, preserving the original source author and diff.
+The official Molly snapshot and earlier resolution patches do
+not receive regenerated provenance headers.
+
+Source-Commit: 550bb27397b4c4a347bab263c5e22ee3d3de0acc
+AI-Generated: true
+
+diff --git a/app/src/main/java/org/thoughtcrime/securesms/components/settings/app/AppSettingsEntry.kt b/app/src/main/java/org/thoughtcrime/securesms/components/settings/app/AppSettingsEntry.kt
+index 70455047187cd60404895f17e36e21503a1e2881..94227cae9dc0687fcdf8635b028bf11d9fe29a1e 100644
+--- a/app/src/main/java/org/thoughtcrime/securesms/components/settings/app/AppSettingsEntry.kt
++++ b/app/src/main/java/org/thoughtcrime/securesms/components/settings/app/AppSettingsEntry.kt
+@@ -68,6 +68,7 @@ fun AppSettingsEntry(
+     state = state,
+     onEvent = viewModel::onEvent,
+     selectedRoute = selectedRoute,
++    donationLabel = stringResource(R.string.preferences__donate_to_signal),
+     networkLabel = stringResource(R.string.preferences__network),
+     networkIcon = painterResource(R.drawable.ic_network_24),
+     avatar = { self?.let { SelfAvatar(it) } },
+diff --git a/feature/app-settings/src/main/java/org/signal/appsettings/home/AppSettingsScreen.kt b/feature/app-settings/src/main/java/org/signal/appsettings/home/AppSettingsScreen.kt
+index 91d084d7a884fd82d7af095a1432c8f809c9f83b..1c467ba7ae4079e5a809bb280512bd13f5427733 100644
+--- a/feature/app-settings/src/main/java/org/signal/appsettings/home/AppSettingsScreen.kt
++++ b/feature/app-settings/src/main/java/org/signal/appsettings/home/AppSettingsScreen.kt
+@@ -99,6 +99,7 @@ fun AppSettingsScreen(
+   containerColor: Color = if (rememberIsSplitPaneSettings()) SignalTheme.colors.colorSurface4 else MaterialTheme.colorScheme.background,
+   contentColor: Color = MaterialTheme.colorScheme.contentColorFor(containerColor).takeOrElse { MaterialTheme.colorScheme.onSurface },
+   selectedRoute: AppSettingsRoute? = null,
++  donationLabel: String? = null,
+   networkLabel: String? = null,
+   networkIcon: Painter? = null,
+   avatar: @Composable () -> Unit = {},
+@@ -188,7 +189,7 @@ fun AppSettingsScreen(
+           Rows.TextRow(
+             text = {
+               Text(
+-                text = stringResource(R.string.AppSettingsScreen__donate_to_signal),
++                text = donationLabel ?: stringResource(R.string.AppSettingsScreen__donate_to_signal),
+                 modifier = Modifier.weight(1f)
+               )
+ 
+diff --git a/feature/app-settings/src/test/java/org/signal/appsettings/home/AppSettingsScreenTest.kt b/feature/app-settings/src/test/java/org/signal/appsettings/home/AppSettingsScreenTest.kt
+index e7900b405680d378c1e1fd1487c6719b1c81834f..0de0949abe9af73a35952e7c6507bbacab2fbc5b 100644
+--- a/feature/app-settings/src/test/java/org/signal/appsettings/home/AppSettingsScreenTest.kt
++++ b/feature/app-settings/src/test/java/org/signal/appsettings/home/AppSettingsScreenTest.kt
+@@ -56,6 +56,12 @@ class AppSettingsScreenTest {
+   }
+ 
+   @Test
++  fun `donation row displays the host app label`() {
++    setContent(createState(), donationLabel = "Donate to Molly")
++    composeTestRule.onNodeWithText("Donate to Molly").assertIsDisplayed()
++  }
++
++  @Test
+   fun `clicking the profile emits ProfileClicked`() {
+     setContent(createState())
+ 
+@@ -249,12 +255,13 @@ class AppSettingsScreenTest {
+     composeTestRule.onNodeWithTag(AppSettingsTestTags.ROW_CHATS).assertIsSelected()
+   }
+ 
+-  private fun setContent(state: AppSettingsState, selectedRoute: AppSettingsRoute? = null) {
++  private fun setContent(state: AppSettingsState, selectedRoute: AppSettingsRoute? = null, donationLabel: String? = null) {
+     composeTestRule.setContent {
+       AppSettingsScreen(
+         state = state,
+         onEvent = { events += it },
+         selectedRoute = selectedRoute,
++        donationLabel = donationLabel,
+         networkLabel = "Network"
+       )
+     }

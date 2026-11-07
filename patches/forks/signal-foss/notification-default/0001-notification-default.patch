@@ -1,0 +1,28 @@
+From 5c765dd6af11ca4bbe384cca3bcde944b5890a79 Mon Sep 17 00:00:00 2001
+From: 0cwa <0@none.org>
+Date: Fri, 6 Nov 2026 23:08:29 +0100
+Subject: [PATCH] Default notification content to name and message
+
+AI-assisted Collie default change. Existing saved notification privacy values remain authoritative.
+Source-Commit: 5c765dd6af11ca4bbe384cca3bcde944b5890a79
+
+---
+ .../java/org/thoughtcrime/securesms/keyvalue/SettingsValues.kt  | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/app/src/main/java/org/thoughtcrime/securesms/keyvalue/SettingsValues.kt b/app/src/main/java/org/thoughtcrime/securesms/keyvalue/SettingsValues.kt
+index 496e495605..ec79e8160f 100644
+--- a/app/src/main/java/org/thoughtcrime/securesms/keyvalue/SettingsValues.kt
++++ b/app/src/main/java/org/thoughtcrime/securesms/keyvalue/SettingsValues.kt
+@@ -373,7 +373,7 @@ class SettingsValues internal constructor(store: KeyValueStore, private val cont
+   var messageNotificationPriority: Int by integerValue(MESSAGE_NOTIFICATION_PRIORITY, NotificationCompat.PRIORITY_HIGH)
+ 
+   var messageNotificationsPrivacy: NotificationPrivacyPreference
+-    get() = NotificationPrivacyPreference(getString(MESSAGE_NOTIFICATION_PRIVACY, "none"))
++    get() = NotificationPrivacyPreference(getString(MESSAGE_NOTIFICATION_PRIVACY, "all"))
+     set(value) {
+       putString(MESSAGE_NOTIFICATION_PRIVACY, value.toString())
+     }
+-- 
+2.56.0
+

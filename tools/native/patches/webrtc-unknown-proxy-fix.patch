@@ -1,0 +1,11 @@
+diff --git a/ringrtc/rffi/src/peer_connection_factory.cc b/ringrtc/rffi/src/peer_connection_factory.cc
+--- a/ringrtc/rffi/src/peer_connection_factory.cc
++++ b/ringrtc/rffi/src/peer_connection_factory.cc
+@@ -340,6 +340,7 @@ RUSTEXPORT PeerConnectionInterface* Rust_createPeerConnection(
+     case kRffiProxyTypeSocks5: proxy_info.type = webrtc::PROXY_SOCKS5; break;
+     default:
+       RTC_LOG(LS_ERROR) << "Unknown proxy type: " << proxy_info_borrowed->type;
++      return nullptr;
+   }
+   proxy_info.address = SocketAddress(std::string(proxy_info_borrowed->hostname_borrowed),
+                                      proxy_info_borrowed->port);

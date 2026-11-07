@@ -1,0 +1,641 @@
+From 2d47525a12f8b951d952b250a136cb1e1f847a3b Mon Sep 17 00:00:00 2001
+From: Molly Patch Reconstruction <molly-patch-reconstruction@example.invalid>
+Date: Fri, 6 Nov 2026 10:40:24 +0100
+Subject: [PATCH] Port registration-and-linking to Signal 8.35.1, part 2
+
+Adapt Molly registration and Android linked-device policies to the new Signal registration architecture.
+
+These are AI-assisted compatibility changes from the recorded
+source checkpoint, exported after Git has performed its deterministic
+three-way merge of the unchanged official Molly 8.19.2-4 snapshot
+with Signal 8.35.1. The original Molly mailboxes remain unchanged.
+Offset-only movement and conflict-free automatic merges are already
+in the parent tree and are not re-exported as patch rewrites.
+
+This batch owns 35 whole-file changes. It records AI-assisted
+compatibility changes in the pinned source tree.
+The source commit records a derived candidate, not an official
+Molly release or a claim of upstream authorship.
+
+Source-Commit: f2a6b716b37cf8816223f392dc127dde319be968
+Origin-Base: c47a74ba0961903eeaeda6d22347a990056c3e83
+Origin-Target: 0e202dda90785771ff8c87526eaaf30c655f54f3
+Signal-Base: a74583b01e260944f699c4da03ba4e8ce04de32b
+Mechanical-Merge-Tree: d1b1951155a3e600a1c9af606e440ed25fc4b11d
+AI-Generated: true
+
+diff --git a/feature/registration/src/main/res/values-ro/strings.xml b/feature/registration/src/main/res/values-ro/strings.xml
+index 3c17205c2a70541f03f2d4f3c50fd4bb4da14ab4..31bcd5fc6936f7265b51d410f9ae4b41bf2ddf85 100644
+--- a/feature/registration/src/main/res/values-ro/strings.xml
++++ b/feature/registration/src/main/res/values-ro/strings.xml
+@@ -1,5 +1,4 @@
+-<?xml version="1.0" encoding="UTF-8"?>
+-<resources>
++<?xml version="1.0" encoding="UTF-8"?><resources>
+   <!-- Removed by excludeNonTranslatables <string name="terms_and_privacy_policy_url" translatable="false">https://signal.org/legal</string> -->
+   <!-- Removed by excludeNonTranslatables <string name="AccountLockedScreen__learn_more_url" translatable="false">https://support.signal.org/hc/articles/360007059792</string> -->
+ 
+@@ -144,7 +143,7 @@
+     <!-- Row title for restore/transfer without using a previous device -->
+     <string name="WelcomeFragment_restore_action_i_dont_have_my_old_phone">Nu am telefonul meu vechi</string>
+     <!-- Row subtitle for restore/transfer without using a previous device -->
+-    <string name="WelcomeFragment_restore_action_reinstalling">Sau reinstalează Signal pe același dispozitiv</string>
++    <string name="WelcomeFragment_restore_action_reinstalling">Sau reinstalează Molly pe același dispozitiv</string>
+ 
+     <!-- ArchiveRestoreSelectionScreen -->
+     <!-- Title text for the archive restore selection screen -->
+diff --git a/feature/registration/src/main/res/values-ro/strings2.xml b/feature/registration/src/main/res/values-ro/strings2.xml
+new file mode 100644
+index 0000000000000000000000000000000000000000..4efe2dfd3e0bd9b52c490b8eb023febd966bb23d
+--- /dev/null
++++ b/feature/registration/src/main/res/values-ro/strings2.xml
+@@ -0,0 +1,4 @@
++<?xml version="1.0" encoding="utf-8"?>
++<resources>
++    <string name="RegistrationActivity_network_settings">Reglări rețea</string>
++</resources>
+diff --git a/feature/registration/src/main/res/values-ru/strings.xml b/feature/registration/src/main/res/values-ru/strings.xml
+index f6efac0fc4f19ff22a0509737e703ed45dec9b34..8ab973a1b33ec4ca0668c2d75f52e24a0c482d38 100644
+--- a/feature/registration/src/main/res/values-ru/strings.xml
++++ b/feature/registration/src/main/res/values-ru/strings.xml
+@@ -1,5 +1,4 @@
+-<?xml version="1.0" encoding="UTF-8"?>
+-<resources>
++<?xml version="1.0" encoding="UTF-8"?><resources>
+   <!-- Removed by excludeNonTranslatables <string name="terms_and_privacy_policy_url" translatable="false">https://signal.org/legal</string> -->
+   <!-- Removed by excludeNonTranslatables <string name="AccountLockedScreen__learn_more_url" translatable="false">https://support.signal.org/hc/articles/360007059792</string> -->
+ 
+@@ -144,7 +143,7 @@
+     <!-- Row title for restore/transfer without using a previous device -->
+     <string name="WelcomeFragment_restore_action_i_dont_have_my_old_phone">У меня нет старого телефона</string>
+     <!-- Row subtitle for restore/transfer without using a previous device -->
+-    <string name="WelcomeFragment_restore_action_reinstalling">Либо вы повторно устанавливаете Signal на том же устройстве</string>
++    <string name="WelcomeFragment_restore_action_reinstalling">Либо вы повторно устанавливаете Molly на том же устройстве</string>
+ 
+     <!-- ArchiveRestoreSelectionScreen -->
+     <!-- Title text for the archive restore selection screen -->
+diff --git a/feature/registration/src/main/res/values-ru/strings2.xml b/feature/registration/src/main/res/values-ru/strings2.xml
+new file mode 100644
+index 0000000000000000000000000000000000000000..467e86fced2bf5037a305f78ff11d0f65f59cde3
+--- /dev/null
++++ b/feature/registration/src/main/res/values-ru/strings2.xml
+@@ -0,0 +1,4 @@
++<?xml version="1.0" encoding="utf-8"?>
++<resources>
++    <string name="RegistrationActivity_network_settings">Настройки сети</string>
++</resources>
+diff --git a/feature/registration/src/main/res/values-sk/strings.xml b/feature/registration/src/main/res/values-sk/strings.xml
+index a4f33d1718d7587a01bfcd10cc65f9c4ac50399e..f4bf5ffb60768af9d5b2d90f89f07c082d73e132 100644
+--- a/feature/registration/src/main/res/values-sk/strings.xml
++++ b/feature/registration/src/main/res/values-sk/strings.xml
+@@ -1,5 +1,4 @@
+-<?xml version="1.0" encoding="UTF-8"?>
+-<resources>
++<?xml version="1.0" encoding="UTF-8"?><resources>
+   <!-- Removed by excludeNonTranslatables <string name="terms_and_privacy_policy_url" translatable="false">https://signal.org/legal</string> -->
+   <!-- Removed by excludeNonTranslatables <string name="AccountLockedScreen__learn_more_url" translatable="false">https://support.signal.org/hc/articles/360007059792</string> -->
+ 
+@@ -144,7 +143,7 @@
+     <!-- Row title for restore/transfer without using a previous device -->
+     <string name="WelcomeFragment_restore_action_i_dont_have_my_old_phone">Nemám svoj starý telefón</string>
+     <!-- Row subtitle for restore/transfer without using a previous device -->
+-    <string name="WelcomeFragment_restore_action_reinstalling">Alebo znova inštalujete Signal na rovnakom zariadení</string>
++    <string name="WelcomeFragment_restore_action_reinstalling">Alebo znova inštalujete Molly na rovnakom zariadení</string>
+ 
+     <!-- ArchiveRestoreSelectionScreen -->
+     <!-- Title text for the archive restore selection screen -->
+diff --git a/feature/registration/src/main/res/values-sl/strings.xml b/feature/registration/src/main/res/values-sl/strings.xml
+index 8c1bec2c81ab49e868b464b4dee798b5aa924bdd..9c6dd21b6c9a24e0445d9e6450f4357f468d11c0 100644
+--- a/feature/registration/src/main/res/values-sl/strings.xml
++++ b/feature/registration/src/main/res/values-sl/strings.xml
+@@ -1,5 +1,4 @@
+-<?xml version="1.0" encoding="UTF-8"?>
+-<resources>
++<?xml version="1.0" encoding="UTF-8"?><resources>
+   <!-- Removed by excludeNonTranslatables <string name="terms_and_privacy_policy_url" translatable="false">https://signal.org/legal</string> -->
+   <!-- Removed by excludeNonTranslatables <string name="AccountLockedScreen__learn_more_url" translatable="false">https://support.signal.org/hc/articles/360007059792</string> -->
+ 
+@@ -144,7 +143,7 @@
+     <!-- Row title for restore/transfer without using a previous device -->
+     <string name="WelcomeFragment_restore_action_i_dont_have_my_old_phone">Nimam starega telefona</string>
+     <!-- Row subtitle for restore/transfer without using a previous device -->
+-    <string name="WelcomeFragment_restore_action_reinstalling">Ali pa ponovno nameščate Signal v isto napravo</string>
++    <string name="WelcomeFragment_restore_action_reinstalling">Ali pa ponovno nameščate Molly v isto napravo</string>
+ 
+     <!-- ArchiveRestoreSelectionScreen -->
+     <!-- Title text for the archive restore selection screen -->
+diff --git a/feature/registration/src/main/res/values-sq/strings.xml b/feature/registration/src/main/res/values-sq/strings.xml
+index 4bbe17136bc171009d1ecd5fd3eaa69e1d960698..09abfc35433a1a0cc997881860ae1cca114bd94c 100644
+--- a/feature/registration/src/main/res/values-sq/strings.xml
++++ b/feature/registration/src/main/res/values-sq/strings.xml
+@@ -1,5 +1,4 @@
+-<?xml version="1.0" encoding="UTF-8"?>
+-<resources>
++<?xml version="1.0" encoding="UTF-8"?><resources>
+   <!-- Removed by excludeNonTranslatables <string name="terms_and_privacy_policy_url" translatable="false">https://signal.org/legal</string> -->
+   <!-- Removed by excludeNonTranslatables <string name="AccountLockedScreen__learn_more_url" translatable="false">https://support.signal.org/hc/articles/360007059792</string> -->
+ 
+@@ -144,7 +143,7 @@
+     <!-- Row title for restore/transfer without using a previous device -->
+     <string name="WelcomeFragment_restore_action_i_dont_have_my_old_phone">Nuk e kam telefonin e vjetër</string>
+     <!-- Row subtitle for restore/transfer without using a previous device -->
+-    <string name="WelcomeFragment_restore_action_reinstalling">Ose je duke e riinstaluar Signal në të njëjtën pajisje</string>
++    <string name="WelcomeFragment_restore_action_reinstalling">Ose je duke e riinstaluar Molly në të njëjtën pajisje</string>
+ 
+     <!-- ArchiveRestoreSelectionScreen -->
+     <!-- Title text for the archive restore selection screen -->
+diff --git a/feature/registration/src/main/res/values-sr/strings.xml b/feature/registration/src/main/res/values-sr/strings.xml
+index e3e4f4b624494f006c2be03ecc2ccc35e7565ac6..e45b87de7b23003fb61c6f3b25447c5d9c79f3de 100644
+--- a/feature/registration/src/main/res/values-sr/strings.xml
++++ b/feature/registration/src/main/res/values-sr/strings.xml
+@@ -1,5 +1,4 @@
+-<?xml version="1.0" encoding="UTF-8"?>
+-<resources>
++<?xml version="1.0" encoding="UTF-8"?><resources>
+   <!-- Removed by excludeNonTranslatables <string name="terms_and_privacy_policy_url" translatable="false">https://signal.org/legal</string> -->
+   <!-- Removed by excludeNonTranslatables <string name="AccountLockedScreen__learn_more_url" translatable="false">https://support.signal.org/hc/articles/360007059792</string> -->
+ 
+@@ -144,7 +143,7 @@
+     <!-- Row title for restore/transfer without using a previous device -->
+     <string name="WelcomeFragment_restore_action_i_dont_have_my_old_phone">Немам свој стари телефон</string>
+     <!-- Row subtitle for restore/transfer without using a previous device -->
+-    <string name="WelcomeFragment_restore_action_reinstalling">Или поново инсталирате Signal на истом уређају</string>
++    <string name="WelcomeFragment_restore_action_reinstalling">Или поново инсталирате Molly на истом уређају</string>
+ 
+     <!-- ArchiveRestoreSelectionScreen -->
+     <!-- Title text for the archive restore selection screen -->
+diff --git a/feature/registration/src/main/res/values-sr/strings2.xml b/feature/registration/src/main/res/values-sr/strings2.xml
+new file mode 100644
+index 0000000000000000000000000000000000000000..b12c2e356faf5388ec30089659e8677248f029a3
+--- /dev/null
++++ b/feature/registration/src/main/res/values-sr/strings2.xml
+@@ -0,0 +1,4 @@
++<?xml version="1.0" encoding="utf-8"?>
++<resources>
++    <string name="RegistrationActivity_network_settings">Подешавања мреже</string>
++</resources>
+diff --git a/feature/registration/src/main/res/values-sv/strings.xml b/feature/registration/src/main/res/values-sv/strings.xml
+index a6a7cafc3d35b87663d85d39c380e6369616fc36..b96260955d91cc16fad1d990d78e917a800cce6a 100644
+--- a/feature/registration/src/main/res/values-sv/strings.xml
++++ b/feature/registration/src/main/res/values-sv/strings.xml
+@@ -1,5 +1,4 @@
+-<?xml version="1.0" encoding="UTF-8"?>
+-<resources>
++<?xml version="1.0" encoding="UTF-8"?><resources>
+   <!-- Removed by excludeNonTranslatables <string name="terms_and_privacy_policy_url" translatable="false">https://signal.org/legal</string> -->
+   <!-- Removed by excludeNonTranslatables <string name="AccountLockedScreen__learn_more_url" translatable="false">https://support.signal.org/hc/articles/360007059792</string> -->
+ 
+@@ -144,7 +143,7 @@
+     <!-- Row title for restore/transfer without using a previous device -->
+     <string name="WelcomeFragment_restore_action_i_dont_have_my_old_phone">Jag har inte min gamla telefon</string>
+     <!-- Row subtitle for restore/transfer without using a previous device -->
+-    <string name="WelcomeFragment_restore_action_reinstalling">Eller så installerar du om Signal på samma enhet</string>
++    <string name="WelcomeFragment_restore_action_reinstalling">Eller så installerar du om Molly på samma enhet</string>
+ 
+     <!-- ArchiveRestoreSelectionScreen -->
+     <!-- Title text for the archive restore selection screen -->
+diff --git a/feature/registration/src/main/res/values-sv/strings2.xml b/feature/registration/src/main/res/values-sv/strings2.xml
+new file mode 100644
+index 0000000000000000000000000000000000000000..bfd845cbfde9190186832cbe89800fc973ca0ffe
+--- /dev/null
++++ b/feature/registration/src/main/res/values-sv/strings2.xml
+@@ -0,0 +1,4 @@
++<?xml version="1.0" encoding="utf-8"?>
++<resources>
++    <string name="RegistrationActivity_network_settings">Nätverksinställningar</string>
++</resources>
+diff --git a/feature/registration/src/main/res/values-sw/strings.xml b/feature/registration/src/main/res/values-sw/strings.xml
+index 69a63ff4b5b86dd1f3b1c34d7c05e45b6fba7ea8..fea9c13a8775c6d2c29a726c46551563bf2f358f 100644
+--- a/feature/registration/src/main/res/values-sw/strings.xml
++++ b/feature/registration/src/main/res/values-sw/strings.xml
+@@ -1,5 +1,4 @@
+-<?xml version="1.0" encoding="UTF-8"?>
+-<resources>
++<?xml version="1.0" encoding="UTF-8"?><resources>
+   <!-- Removed by excludeNonTranslatables <string name="terms_and_privacy_policy_url" translatable="false">https://signal.org/legal</string> -->
+   <!-- Removed by excludeNonTranslatables <string name="AccountLockedScreen__learn_more_url" translatable="false">https://support.signal.org/hc/articles/360007059792</string> -->
+ 
+@@ -144,7 +143,7 @@
+     <!-- Row title for restore/transfer without using a previous device -->
+     <string name="WelcomeFragment_restore_action_i_dont_have_my_old_phone">Sina simu yangu ya zamani</string>
+     <!-- Row subtitle for restore/transfer without using a previous device -->
+-    <string name="WelcomeFragment_restore_action_reinstalling">Au unasakinisha tena Signal kwenye kifaa kile kile</string>
++    <string name="WelcomeFragment_restore_action_reinstalling">Au unasakinisha tena Molly kwenye kifaa kile kile</string>
+ 
+     <!-- ArchiveRestoreSelectionScreen -->
+     <!-- Title text for the archive restore selection screen -->
+diff --git a/feature/registration/src/main/res/values-ta/strings2.xml b/feature/registration/src/main/res/values-ta/strings2.xml
+new file mode 100644
+index 0000000000000000000000000000000000000000..1d4c4c02152f7cc626e3b88386e5d798ee18beac
+--- /dev/null
++++ b/feature/registration/src/main/res/values-ta/strings2.xml
+@@ -0,0 +1,4 @@
++<?xml version="1.0" encoding="utf-8"?>
++<resources>
++    <string name="RegistrationActivity_network_settings">பிணைய அமைப்புகள்</string>
++</resources>
+diff --git a/feature/registration/src/main/res/values-te/strings.xml b/feature/registration/src/main/res/values-te/strings.xml
+index bf28fcf3727b2b9b1bcff33621f8b17f02d3e192..25c6250c50a5062be84e5d64969947ba97c2fdd8 100644
+--- a/feature/registration/src/main/res/values-te/strings.xml
++++ b/feature/registration/src/main/res/values-te/strings.xml
+@@ -1,5 +1,4 @@
+-<?xml version="1.0" encoding="UTF-8"?>
+-<resources>
++<?xml version="1.0" encoding="UTF-8"?><resources>
+   <!-- Removed by excludeNonTranslatables <string name="terms_and_privacy_policy_url" translatable="false">https://signal.org/legal</string> -->
+   <!-- Removed by excludeNonTranslatables <string name="AccountLockedScreen__learn_more_url" translatable="false">https://support.signal.org/hc/articles/360007059792</string> -->
+ 
+@@ -144,7 +143,7 @@
+     <!-- Row title for restore/transfer without using a previous device -->
+     <string name="WelcomeFragment_restore_action_i_dont_have_my_old_phone">నా దగ్గర నా పాత ఫోన్ లేదు</string>
+     <!-- Row subtitle for restore/transfer without using a previous device -->
+-    <string name="WelcomeFragment_restore_action_reinstalling">లేదా మీరు అదే పరికరంలో Signal ను మళ్ళీ ఇన్‌స్టాల్ చేస్తున్నారు</string>
++    <string name="WelcomeFragment_restore_action_reinstalling">లేదా మీరు అదే పరికరంలో Molly ను మళ్ళీ ఇన్‌స్టాల్ చేస్తున్నారు</string>
+ 
+     <!-- ArchiveRestoreSelectionScreen -->
+     <!-- Title text for the archive restore selection screen -->
+diff --git a/feature/registration/src/main/res/values-th/strings.xml b/feature/registration/src/main/res/values-th/strings.xml
+index 6a38b84632930b1bf4d4f9f25fbdf8808a77c03d..8c8f197eafb60bac004de2e9d92ce8283e924f6e 100644
+--- a/feature/registration/src/main/res/values-th/strings.xml
++++ b/feature/registration/src/main/res/values-th/strings.xml
+@@ -1,5 +1,4 @@
+-<?xml version="1.0" encoding="UTF-8"?>
+-<resources>
++<?xml version="1.0" encoding="UTF-8"?><resources>
+   <!-- Removed by excludeNonTranslatables <string name="terms_and_privacy_policy_url" translatable="false">https://signal.org/legal</string> -->
+   <!-- Removed by excludeNonTranslatables <string name="AccountLockedScreen__learn_more_url" translatable="false">https://support.signal.org/hc/articles/360007059792</string> -->
+ 
+@@ -144,7 +143,7 @@
+     <!-- Row title for restore/transfer without using a previous device -->
+     <string name="WelcomeFragment_restore_action_i_dont_have_my_old_phone">ฉันไม่มีโทรศัพท์เครื่องเก่า</string>
+     <!-- Row subtitle for restore/transfer without using a previous device -->
+-    <string name="WelcomeFragment_restore_action_reinstalling">หรือติดตั้ง Signal ใหม่บนอุปกรณ์เครื่องเดียวกันนั้น</string>
++    <string name="WelcomeFragment_restore_action_reinstalling">หรือติดตั้ง Molly ใหม่บนอุปกรณ์เครื่องเดียวกันนั้น</string>
+ 
+     <!-- ArchiveRestoreSelectionScreen -->
+     <!-- Title text for the archive restore selection screen -->
+diff --git a/feature/registration/src/main/res/values-tl/strings.xml b/feature/registration/src/main/res/values-tl/strings.xml
+index 38ac1335c76dc227b78af45b279e7b9ef4b6ee13..c6666eb5a2d336a75ce51134440e9546f86d2251 100644
+--- a/feature/registration/src/main/res/values-tl/strings.xml
++++ b/feature/registration/src/main/res/values-tl/strings.xml
+@@ -1,5 +1,4 @@
+-<?xml version="1.0" encoding="UTF-8"?>
+-<resources>
++<?xml version="1.0" encoding="UTF-8"?><resources>
+   <!-- Removed by excludeNonTranslatables <string name="terms_and_privacy_policy_url" translatable="false">https://signal.org/legal</string> -->
+   <!-- Removed by excludeNonTranslatables <string name="AccountLockedScreen__learn_more_url" translatable="false">https://support.signal.org/hc/articles/360007059792</string> -->
+ 
+@@ -144,7 +143,7 @@
+     <!-- Row title for restore/transfer without using a previous device -->
+     <string name="WelcomeFragment_restore_action_i_dont_have_my_old_phone">Wala sa akin ang lumang phone ko</string>
+     <!-- Row subtitle for restore/transfer without using a previous device -->
+-    <string name="WelcomeFragment_restore_action_reinstalling">O nag-iinstall ka ulit ng Signal sa parehong device</string>
++    <string name="WelcomeFragment_restore_action_reinstalling">O nag-iinstall ka ulit ng Molly sa parehong device</string>
+ 
+     <!-- ArchiveRestoreSelectionScreen -->
+     <!-- Title text for the archive restore selection screen -->
+diff --git a/feature/registration/src/main/res/values-tr/strings.xml b/feature/registration/src/main/res/values-tr/strings.xml
+index a017141b61f42f43063cbb158d671ab60980e8a1..b9626b754af2884b66e7e44ba3ea0a62a6b99c65 100644
+--- a/feature/registration/src/main/res/values-tr/strings.xml
++++ b/feature/registration/src/main/res/values-tr/strings.xml
+@@ -1,5 +1,4 @@
+-<?xml version="1.0" encoding="UTF-8"?>
+-<resources>
++<?xml version="1.0" encoding="UTF-8"?><resources>
+   <!-- Removed by excludeNonTranslatables <string name="terms_and_privacy_policy_url" translatable="false">https://signal.org/legal</string> -->
+   <!-- Removed by excludeNonTranslatables <string name="AccountLockedScreen__learn_more_url" translatable="false">https://support.signal.org/hc/articles/360007059792</string> -->
+ 
+@@ -144,7 +143,7 @@
+     <!-- Row title for restore/transfer without using a previous device -->
+     <string name="WelcomeFragment_restore_action_i_dont_have_my_old_phone">Eski telefonum yanımda değil</string>
+     <!-- Row subtitle for restore/transfer without using a previous device -->
+-    <string name="WelcomeFragment_restore_action_reinstalling">Ya da Signal\'ı aynı cihaza yeniden yüklüyorsun</string>
++    <string name="WelcomeFragment_restore_action_reinstalling">Ya da Molly\'ı aynı cihaza yeniden yüklüyorsun</string>
+ 
+     <!-- ArchiveRestoreSelectionScreen -->
+     <!-- Title text for the archive restore selection screen -->
+diff --git a/feature/registration/src/main/res/values-tr/strings2.xml b/feature/registration/src/main/res/values-tr/strings2.xml
+new file mode 100644
+index 0000000000000000000000000000000000000000..7677b041b72ab2ee888f4771616471777a814643
+--- /dev/null
++++ b/feature/registration/src/main/res/values-tr/strings2.xml
+@@ -0,0 +1,4 @@
++<?xml version="1.0" encoding="utf-8"?>
++<resources>
++    <string name="RegistrationActivity_network_settings">Ağ ayarları</string>
++</resources>
+diff --git a/feature/registration/src/main/res/values-ug/strings2.xml b/feature/registration/src/main/res/values-ug/strings2.xml
+new file mode 100644
+index 0000000000000000000000000000000000000000..e9a57bfbfcd5712e041fb2ee6f38658acd2b9ef1
+--- /dev/null
++++ b/feature/registration/src/main/res/values-ug/strings2.xml
+@@ -0,0 +1,4 @@
++<?xml version="1.0" encoding="utf-8"?>
++<resources>
++    <string name="RegistrationActivity_network_settings">تور تەڭشىكى</string>
++</resources>
+diff --git a/feature/registration/src/main/res/values-uk/strings.xml b/feature/registration/src/main/res/values-uk/strings.xml
+index 82597f84232dcd2882f67fb7643f3d061bf9841c..46a3ccab80a38341c06b0a15e775dbca3e3cce54 100644
+--- a/feature/registration/src/main/res/values-uk/strings.xml
++++ b/feature/registration/src/main/res/values-uk/strings.xml
+@@ -1,5 +1,4 @@
+-<?xml version="1.0" encoding="UTF-8"?>
+-<resources>
++<?xml version="1.0" encoding="UTF-8"?><resources>
+   <!-- Removed by excludeNonTranslatables <string name="terms_and_privacy_policy_url" translatable="false">https://signal.org/legal</string> -->
+   <!-- Removed by excludeNonTranslatables <string name="AccountLockedScreen__learn_more_url" translatable="false">https://support.signal.org/hc/articles/360007059792</string> -->
+ 
+@@ -144,7 +143,7 @@
+     <!-- Row title for restore/transfer without using a previous device -->
+     <string name="WelcomeFragment_restore_action_i_dont_have_my_old_phone">У мене не лишилося старого телефона</string>
+     <!-- Row subtitle for restore/transfer without using a previous device -->
+-    <string name="WelcomeFragment_restore_action_reinstalling">Або ви перевстановлюєте Signal на цьому ж пристрої</string>
++    <string name="WelcomeFragment_restore_action_reinstalling">Або ви перевстановлюєте Molly на цьому ж пристрої</string>
+ 
+     <!-- ArchiveRestoreSelectionScreen -->
+     <!-- Title text for the archive restore selection screen -->
+diff --git a/feature/registration/src/main/res/values-uk/strings2.xml b/feature/registration/src/main/res/values-uk/strings2.xml
+new file mode 100644
+index 0000000000000000000000000000000000000000..302c3c1d3a2ea40e34c2f9b36b517040d2400369
+--- /dev/null
++++ b/feature/registration/src/main/res/values-uk/strings2.xml
+@@ -0,0 +1,4 @@
++<?xml version="1.0" encoding="utf-8"?>
++<resources>
++    <string name="RegistrationActivity_network_settings">Налаштування мережі</string>
++</resources>
+diff --git a/feature/registration/src/main/res/values-ur/strings.xml b/feature/registration/src/main/res/values-ur/strings.xml
+index 75b7375965ce763f48573798b5413fb4b78ed06c..4b0da6a537f7e5d1045f40de6a4ea834c06adaf8 100644
+--- a/feature/registration/src/main/res/values-ur/strings.xml
++++ b/feature/registration/src/main/res/values-ur/strings.xml
+@@ -1,5 +1,4 @@
+-<?xml version="1.0" encoding="UTF-8"?>
+-<resources>
++<?xml version="1.0" encoding="UTF-8"?><resources>
+   <!-- Removed by excludeNonTranslatables <string name="terms_and_privacy_policy_url" translatable="false">https://signal.org/legal</string> -->
+   <!-- Removed by excludeNonTranslatables <string name="AccountLockedScreen__learn_more_url" translatable="false">https://support.signal.org/hc/articles/360007059792</string> -->
+ 
+@@ -144,7 +143,7 @@
+     <!-- Row title for restore/transfer without using a previous device -->
+     <string name="WelcomeFragment_restore_action_i_dont_have_my_old_phone">میرے پاس اپنا پرانا فون موجود نہیں ہے</string>
+     <!-- Row subtitle for restore/transfer without using a previous device -->
+-    <string name="WelcomeFragment_restore_action_reinstalling">یا آپ اسی ڈیوائس پر Signal کو دوبارہ انسٹال کر رہے ہیں</string>
++    <string name="WelcomeFragment_restore_action_reinstalling">یا آپ اسی ڈیوائس پر Molly کو دوبارہ انسٹال کر رہے ہیں</string>
+ 
+     <!-- ArchiveRestoreSelectionScreen -->
+     <!-- Title text for the archive restore selection screen -->
+diff --git a/feature/registration/src/main/res/values-vi/strings.xml b/feature/registration/src/main/res/values-vi/strings.xml
+index 1c0cd2f66100fcdc44b4efa84a5dd105ce028409..153381c50941a0214826fbe10b3734c91b17a19c 100644
+--- a/feature/registration/src/main/res/values-vi/strings.xml
++++ b/feature/registration/src/main/res/values-vi/strings.xml
+@@ -1,5 +1,4 @@
+-<?xml version="1.0" encoding="UTF-8"?>
+-<resources>
++<?xml version="1.0" encoding="UTF-8"?><resources>
+   <!-- Removed by excludeNonTranslatables <string name="terms_and_privacy_policy_url" translatable="false">https://signal.org/legal</string> -->
+   <!-- Removed by excludeNonTranslatables <string name="AccountLockedScreen__learn_more_url" translatable="false">https://support.signal.org/hc/articles/360007059792</string> -->
+ 
+@@ -144,7 +143,7 @@
+     <!-- Row title for restore/transfer without using a previous device -->
+     <string name="WelcomeFragment_restore_action_i_dont_have_my_old_phone">Tôi không có điện thoại cũ</string>
+     <!-- Row subtitle for restore/transfer without using a previous device -->
+-    <string name="WelcomeFragment_restore_action_reinstalling">Hoặc bạn đang cài lại Signal trên cùng thiết bị</string>
++    <string name="WelcomeFragment_restore_action_reinstalling">Hoặc bạn đang cài lại Molly trên cùng thiết bị</string>
+ 
+     <!-- ArchiveRestoreSelectionScreen -->
+     <!-- Title text for the archive restore selection screen -->
+diff --git a/feature/registration/src/main/res/values-vi/strings2.xml b/feature/registration/src/main/res/values-vi/strings2.xml
+new file mode 100644
+index 0000000000000000000000000000000000000000..d2e4b87ee2e44aa4d2ea99199d7798aad73f5389
+--- /dev/null
++++ b/feature/registration/src/main/res/values-vi/strings2.xml
+@@ -0,0 +1,4 @@
++<?xml version="1.0" encoding="utf-8"?>
++<resources>
++    <string name="RegistrationActivity_network_settings">Cài đặt mạng</string>
++</resources>
+diff --git a/feature/registration/src/main/res/values-yue/strings.xml b/feature/registration/src/main/res/values-yue/strings.xml
+index 30ed6ff7728b53970b8629b7dec2601ea576c5c3..6b56f4cac9c7ac9102ad2416aea4fb852e467eb2 100644
+--- a/feature/registration/src/main/res/values-yue/strings.xml
++++ b/feature/registration/src/main/res/values-yue/strings.xml
+@@ -1,5 +1,4 @@
+-<?xml version="1.0" encoding="UTF-8"?>
+-<resources>
++<?xml version="1.0" encoding="UTF-8"?><resources>
+   <!-- Removed by excludeNonTranslatables <string name="terms_and_privacy_policy_url" translatable="false">https://signal.org/legal</string> -->
+   <!-- Removed by excludeNonTranslatables <string name="AccountLockedScreen__learn_more_url" translatable="false">https://support.signal.org/hc/articles/360007059792</string> -->
+ 
+@@ -144,7 +143,7 @@
+     <!-- Row title for restore/transfer without using a previous device -->
+     <string name="WelcomeFragment_restore_action_i_dont_have_my_old_phone">部舊手機唔喺我手上</string>
+     <!-- Row subtitle for restore/transfer without using a previous device -->
+-    <string name="WelcomeFragment_restore_action_reinstalling">或者如果你係喺同一部機度重新安裝緊 Signal</string>
++    <string name="WelcomeFragment_restore_action_reinstalling">或者如果你係喺同一部機度重新安裝緊 Molly</string>
+ 
+     <!-- ArchiveRestoreSelectionScreen -->
+     <!-- Title text for the archive restore selection screen -->
+diff --git a/feature/registration/src/main/res/values-zh-rCN/strings.xml b/feature/registration/src/main/res/values-zh-rCN/strings.xml
+index f85b7633f7b094c4b719afb6640284f92d4eba91..713e1e022c7be3a5789a54f665e991c98fed6b2f 100644
+--- a/feature/registration/src/main/res/values-zh-rCN/strings.xml
++++ b/feature/registration/src/main/res/values-zh-rCN/strings.xml
+@@ -1,5 +1,4 @@
+-<?xml version="1.0" encoding="UTF-8"?>
+-<resources>
++<?xml version="1.0" encoding="UTF-8"?><resources>
+   <!-- Removed by excludeNonTranslatables <string name="terms_and_privacy_policy_url" translatable="false">https://signal.org/legal</string> -->
+   <!-- Removed by excludeNonTranslatables <string name="AccountLockedScreen__learn_more_url" translatable="false">https://support.signal.org/hc/articles/360007059792</string> -->
+ 
+@@ -144,7 +143,7 @@
+     <!-- Row title for restore/transfer without using a previous device -->
+     <string name="WelcomeFragment_restore_action_i_dont_have_my_old_phone">我无法用旧手机</string>
+     <!-- Row subtitle for restore/transfer without using a previous device -->
+-    <string name="WelcomeFragment_restore_action_reinstalling">您可以在同一个设备上重新安装 Signal</string>
++    <string name="WelcomeFragment_restore_action_reinstalling">您可以在同一个设备上重新安装 Molly</string>
+ 
+     <!-- ArchiveRestoreSelectionScreen -->
+     <!-- Title text for the archive restore selection screen -->
+diff --git a/feature/registration/src/main/res/values-zh-rCN/strings2.xml b/feature/registration/src/main/res/values-zh-rCN/strings2.xml
+new file mode 100644
+index 0000000000000000000000000000000000000000..710b7e0765e68e5fa026ce1208edfe062ecc7061
+--- /dev/null
++++ b/feature/registration/src/main/res/values-zh-rCN/strings2.xml
+@@ -0,0 +1,4 @@
++<?xml version="1.0" encoding="utf-8"?>
++<resources>
++    <string name="RegistrationActivity_network_settings">网络设置</string>
++</resources>
+diff --git a/feature/registration/src/main/res/values-zh-rHK/strings.xml b/feature/registration/src/main/res/values-zh-rHK/strings.xml
+index f116b4581c1fafb09597262a3b45f7182027d598..e1838da27051f855a763655b9b34124cbb1e27ce 100644
+--- a/feature/registration/src/main/res/values-zh-rHK/strings.xml
++++ b/feature/registration/src/main/res/values-zh-rHK/strings.xml
+@@ -1,5 +1,4 @@
+-<?xml version="1.0" encoding="UTF-8"?>
+-<resources>
++<?xml version="1.0" encoding="UTF-8"?><resources>
+   <!-- Removed by excludeNonTranslatables <string name="terms_and_privacy_policy_url" translatable="false">https://signal.org/legal</string> -->
+   <!-- Removed by excludeNonTranslatables <string name="AccountLockedScreen__learn_more_url" translatable="false">https://support.signal.org/hc/articles/360007059792</string> -->
+ 
+@@ -144,7 +143,7 @@
+     <!-- Row title for restore/transfer without using a previous device -->
+     <string name="WelcomeFragment_restore_action_i_dont_have_my_old_phone">我沒有我的舊手機</string>
+     <!-- Row subtitle for restore/transfer without using a previous device -->
+-    <string name="WelcomeFragment_restore_action_reinstalling">或者你正在同一裝置上重新安裝 Signal</string>
++    <string name="WelcomeFragment_restore_action_reinstalling">或者你正在同一裝置上重新安裝 Molly</string>
+ 
+     <!-- ArchiveRestoreSelectionScreen -->
+     <!-- Title text for the archive restore selection screen -->
+diff --git a/feature/registration/src/main/res/values-zh-rTW/strings.xml b/feature/registration/src/main/res/values-zh-rTW/strings.xml
+index 654272b46326e68e5d78f1fecea2154d0251b6dd..cc05029121d7aaae46c6ecb66e997995694db807 100644
+--- a/feature/registration/src/main/res/values-zh-rTW/strings.xml
++++ b/feature/registration/src/main/res/values-zh-rTW/strings.xml
+@@ -1,5 +1,4 @@
+-<?xml version="1.0" encoding="UTF-8"?>
+-<resources>
++<?xml version="1.0" encoding="UTF-8"?><resources>
+   <!-- Removed by excludeNonTranslatables <string name="terms_and_privacy_policy_url" translatable="false">https://signal.org/legal</string> -->
+   <!-- Removed by excludeNonTranslatables <string name="AccountLockedScreen__learn_more_url" translatable="false">https://support.signal.org/hc/articles/360007059792</string> -->
+ 
+@@ -144,7 +143,7 @@
+     <!-- Row title for restore/transfer without using a previous device -->
+     <string name="WelcomeFragment_restore_action_i_dont_have_my_old_phone">我沒有我的舊手機</string>
+     <!-- Row subtitle for restore/transfer without using a previous device -->
+-    <string name="WelcomeFragment_restore_action_reinstalling">或者你正在同一裝置上重新安裝 Signal</string>
++    <string name="WelcomeFragment_restore_action_reinstalling">或者你正在同一裝置上重新安裝 Molly</string>
+ 
+     <!-- ArchiveRestoreSelectionScreen -->
+     <!-- Title text for the archive restore selection screen -->
+diff --git a/feature/registration/src/main/res/values-zh-rTW/strings2.xml b/feature/registration/src/main/res/values-zh-rTW/strings2.xml
+new file mode 100644
+index 0000000000000000000000000000000000000000..c400b95e1c2b9fddbbc916ad3818d9a79340ccb5
+--- /dev/null
++++ b/feature/registration/src/main/res/values-zh-rTW/strings2.xml
+@@ -0,0 +1,4 @@
++<?xml version="1.0" encoding="utf-8"?>
++<resources>
++    <string name="RegistrationActivity_network_settings">網絡設定</string>
++</resources>
+diff --git a/feature/registration/src/main/res/values/strings.xml b/feature/registration/src/main/res/values/strings.xml
+index 978ed381c9c86ede1ca8d9f41406f93c86db67f2..d5483c8d9cd83387ad36a91b31c81c254b3c83bf 100644
+--- a/feature/registration/src/main/res/values/strings.xml
++++ b/feature/registration/src/main/res/values/strings.xml
+@@ -144,7 +144,7 @@
+     <!-- Row title for restore/transfer without using a previous device -->
+     <string name="WelcomeFragment_restore_action_i_dont_have_my_old_phone">I don\'t have my old phone</string>
+     <!-- Row subtitle for restore/transfer without using a previous device -->
+-    <string name="WelcomeFragment_restore_action_reinstalling">Or you\'re reinstalling Signal on the same device</string>
++    <string name="WelcomeFragment_restore_action_reinstalling" mollyify="true">Or you\'re reinstalling Molly on the same device</string>
+ 
+     <!-- ArchiveRestoreSelectionScreen -->
+     <!-- Title text for the archive restore selection screen -->
+diff --git a/feature/registration/src/main/res/values/strings2.xml b/feature/registration/src/main/res/values/strings2.xml
+new file mode 100644
+index 0000000000000000000000000000000000000000..197ad4c94ebebee072c67ef22ad3228c9b640057
+--- /dev/null
++++ b/feature/registration/src/main/res/values/strings2.xml
+@@ -0,0 +1,4 @@
++<?xml version="1.0" encoding="utf-8"?>
++<resources>
++    <string name="RegistrationActivity_network_settings">Network settings</string>
++</resources>
+diff --git a/feature/registration/src/test/java/org/signal/registration/RegistrationRepositoryTest.kt b/feature/registration/src/test/java/org/signal/registration/RegistrationRepositoryTest.kt
+index 8882ff7d389900659a227baa691fdc83e5364800..c8a44f561ea59fa6234cfa84a1c3dcb74aa7f2f4 100644
+--- a/feature/registration/src/test/java/org/signal/registration/RegistrationRepositoryTest.kt
++++ b/feature/registration/src/test/java/org/signal/registration/RegistrationRepositoryTest.kt
+@@ -16,6 +16,8 @@ import assertk.assertions.isNull
+ import assertk.assertions.isTrue
+ import io.mockk.mockk
+ import kotlinx.coroutines.ExperimentalCoroutinesApi
++import kotlinx.coroutines.flow.emptyFlow
++import kotlinx.coroutines.flow.toList
+ import kotlinx.coroutines.test.runTest
+ import okio.ByteString.Companion.toByteString
+ import org.junit.Before
+@@ -80,6 +82,32 @@ class RegistrationRepositoryTest {
+     )
+   }
+ 
++  @Test
++  fun `a fresh registration does not enable network before the user proceeds`() {
++    assertThat(networkController.networkEnabledForRegistration).isEqualTo(false)
++  }
++
++  @Test
++  fun `linking enables network before provisioning and does not advertise disabled transfer`() = runTest {
++    networkController.onStartLinkDeviceProvisioning = { allowLinkAndSync ->
++      assertThat(networkController.networkEnabledForRegistration).isEqualTo(true)
++      assertThat(allowLinkAndSync).isEqualTo(false)
++      emptyFlow()
++    }
++
++    repository.startLinkDeviceProvisioning().toList()
++  }
++
++  @Test
++  fun `quick restore enables network before starting its provisioning connection`() = runTest {
++    networkController.onStartProvisioning = {
++      assertThat(networkController.networkEnabledForRegistration).isEqualTo(true)
++      emptyFlow()
++    }
++
++    repository.startProvisioning().toList()
++  }
++
+   // ==================== getAndMaybeHealRemoteBackupInfo ====================
+ 
+   @Test
+diff --git a/feature/registration/src/test/java/org/signal/registration/fakes/FakeNetworkController.kt b/feature/registration/src/test/java/org/signal/registration/fakes/FakeNetworkController.kt
+index aeed7dc3a650649c2d7d70d36b57c534ec95c996..231f062c8c9365448c1bd8a0b0142bdf9921ee5c 100644
+--- a/feature/registration/src/test/java/org/signal/registration/fakes/FakeNetworkController.kt
++++ b/feature/registration/src/test/java/org/signal/registration/fakes/FakeNetworkController.kt
+@@ -500,7 +500,14 @@ class FakeNetworkController(
+     return onStartProvisioning()
+   }
+ 
+-  override fun startLinkDeviceProvisioning(allowLinkAndSync: Boolean): Flow<LinkDeviceProvisioningEvent> = notExpected()
++  var networkEnabledForRegistration = false
++  var onStartLinkDeviceProvisioning: (Boolean) -> Flow<LinkDeviceProvisioningEvent> = { notExpected() }
++
++  override fun enableNetworkForRegistration() {
++    networkEnabledForRegistration = true
++  }
++
++  override fun startLinkDeviceProvisioning(allowLinkAndSync: Boolean): Flow<LinkDeviceProvisioningEvent> = onStartLinkDeviceProvisioning(allowLinkAndSync)
+ 
+   override suspend fun registerAsLinkedDevice(
+     aci: ACI,
+diff --git a/feature/registration/src/test/java/org/signal/registration/screens/phonenumber/PhoneNumberEntryViewModelTest.kt b/feature/registration/src/test/java/org/signal/registration/screens/phonenumber/PhoneNumberEntryViewModelTest.kt
+index af05ac27b8b5c2ad543d9350d6826c639af34e70..402635c50290e90ee9747702a95071202d419fed 100644
+--- a/feature/registration/src/test/java/org/signal/registration/screens/phonenumber/PhoneNumberEntryViewModelTest.kt
++++ b/feature/registration/src/test/java/org/signal/registration/screens/phonenumber/PhoneNumberEntryViewModelTest.kt
+@@ -19,6 +19,7 @@ import io.mockk.coEvery
+ import io.mockk.coVerify
+ import io.mockk.every
+ import io.mockk.mockk
++import io.mockk.verify
+ import kotlinx.coroutines.Dispatchers
+ import kotlinx.coroutines.ExperimentalCoroutinesApi
+ import kotlinx.coroutines.flow.MutableStateFlow
+@@ -526,6 +527,15 @@ class PhoneNumberEntryViewModelTest {
+   // ==================== Trunk Prefix Normalization Tests ====================
+ 
+   @Test
++  fun `entering a number and opening confirmation leave networking disabled`() = runTest {
++    val initialState = PhoneNumberEntryState(countryCode = "1", nationalNumber = "2025550123")
++
++    viewModel.applyEvent(initialState, PhoneNumberEntryScreenEvents.NextClicked, parentEventEmitter, stateEmitter)
++
++    verify(exactly = 0) { mockRepository.enableNetworkForRegistration() }
++  }
++
++  @Test
+   fun `NextClicked strips a redundant leading trunk prefix before showing the confirmation dialog`() = runTest {
+     // Dutch users habitually type their number with the leading national '0' (e.g. 0612345678), which must not end
+     // up in the E164 (+31612345678, not +310612345678).
+@@ -584,6 +594,7 @@ class PhoneNumberEntryViewModelTest {
+ 
+     viewModel.applyEvent(initialState, PhoneNumberEntryScreenEvents.PhoneNumberConfirmed, parentEventEmitter, stateEmitter)
+ 
++    verify(exactly = 1) { mockRepository.enableNetworkForRegistration() }
+     coVerify(exactly = 1) { mockRepository.createSession("+31612345678") }
+     assertThat(emittedStates.last().nationalNumber).isEqualTo("612345678")
+     assertThat(emittedEvents.filterIsInstance<RegistrationFlowEvent.E164Chosen>())

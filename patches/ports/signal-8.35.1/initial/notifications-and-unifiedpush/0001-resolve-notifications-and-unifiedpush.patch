@@ -1,0 +1,2237 @@
+From c77ee7e7920f199f396f40ea74cd053a680ab67b Mon Sep 17 00:00:00 2001
+From: Molly Patch Reconstruction <molly-patch-reconstruction@example.invalid>
+Date: Fri, 6 Nov 2026 10:40:24 +0100
+Subject: [PATCH] Port notifications-and-unifiedpush to Signal 8.35.1, part 1
+
+Retain MollySocket, UnifiedPush and push-selection behavior while resolving notification and delivery API changes.
+
+These are AI-assisted compatibility changes from the recorded
+source checkpoint, exported after Git has performed its deterministic
+three-way merge of the unchanged official Molly 8.19.2-4 snapshot
+with Signal 8.35.1. The original Molly mailboxes remain unchanged.
+Offset-only movement and conflict-free automatic merges are already
+in the parent tree and are not re-exported as patch rewrites.
+
+This batch owns 19 whole-file changes. It records AI-assisted
+compatibility changes in the pinned source tree.
+The source commit records a derived candidate, not an official
+Molly release or a claim of upstream authorship.
+
+Source-Commit: f2a6b716b37cf8816223f392dc127dde319be968
+Origin-Base: c47a74ba0961903eeaeda6d22347a990056c3e83
+Origin-Target: 0e202dda90785771ff8c87526eaaf30c655f54f3
+Signal-Base: a74583b01e260944f699c4da03ba4e8ce04de32b
+Mechanical-Merge-Tree: d1b1951155a3e600a1c9af606e440ed25fc4b11d
+AI-Generated: true
+
+diff --git a/app/src/main/java/im/molly/unifiedpush/MollySocketRepository.kt b/app/src/main/java/im/molly/unifiedpush/MollySocketRepository.kt
+index 03a37a20bc0435ea955f03d893438b0b265f9916..727746cea4bb3fb8aef5bfdd0d479a771e573b26 100644
+--- a/app/src/main/java/im/molly/unifiedpush/MollySocketRepository.kt
++++ b/app/src/main/java/im/molly/unifiedpush/MollySocketRepository.kt
+@@ -24,7 +24,7 @@ import org.thoughtcrime.securesms.AppCapabilities
+ import org.thoughtcrime.securesms.crypto.ReentrantSessionLock
+ import org.thoughtcrime.securesms.dependencies.AppDependencies
+ import org.thoughtcrime.securesms.dependencies.AppDependencies.keysApi
+-import org.thoughtcrime.securesms.keyvalue.PhoneNumberPrivacyValues.PhoneNumberDiscoverabilityMode
++import org.signal.storage.keyvalue.PhoneNumberPrivacyValues.PhoneNumberDiscoverabilityMode
+ import org.thoughtcrime.securesms.keyvalue.SignalStore
+ import org.thoughtcrime.securesms.linkdevice.LinkDeviceRepository
+ import org.thoughtcrime.securesms.push.AccountManagerFactory
+diff --git a/app/src/main/java/im/molly/unifiedpush/components/settings/app/notifications/MollySocketQrScanScreen.kt b/app/src/main/java/im/molly/unifiedpush/components/settings/app/notifications/MollySocketQrScanScreen.kt
+index 442807d8daff188a00085675a1eb579d2b982c96..92706e9ffba8f9adfc5f2e07361f92f81215e152 100644
+--- a/app/src/main/java/im/molly/unifiedpush/components/settings/app/notifications/MollySocketQrScanScreen.kt
++++ b/app/src/main/java/im/molly/unifiedpush/components/settings/app/notifications/MollySocketQrScanScreen.kt
+@@ -31,6 +31,8 @@ import org.signal.core.ui.compose.Buttons
+ import org.signal.core.ui.compose.Dialogs
+ import org.signal.core.ui.compose.theme.SignalTheme
+ import org.thoughtcrime.securesms.R
++import org.signal.core.ui.R as CoreUiR
++import org.signal.appsettings.R as AppSettingsR
+ import org.thoughtcrime.securesms.qr.QrCrosshair
+ import org.signal.mediasend.R as MediaSendR
+ 
+@@ -51,7 +53,7 @@ fun MollySocketQrScanScreen(
+ ) {
+   when (qrScanResult) {
+     QrScanResult.InvalidData -> {
+-      QrScanResultDialog(message = stringResource(R.string.UsernameLinkSettings_qr_result_invalid), onDismiss = onQrResultHandled)
++      QrScanResultDialog(message = stringResource(AppSettingsR.string.UsernameLinkSettings_qr_result_invalid), onDismiss = onQrResultHandled)
+     }
+ 
+     QrScanResult.NetworkError -> {
+@@ -60,7 +62,7 @@ fun MollySocketQrScanScreen(
+ 
+     QrScanResult.QrNotFound -> {
+       QrScanResultDialog(
+-        title = stringResource(R.string.UsernameLinkSettings_qr_code_not_found),
++        title = stringResource(AppSettingsR.string.UsernameLinkSettings_qr_code_not_found),
+         message = stringResource(R.string.MollySocketLink_try_scanning_another_image_containing_a_mollysocket_qr_code),
+         onDismiss = onQrResultHandled
+       )
+@@ -143,7 +145,7 @@ fun MollySocketQrScanScreen(
+         onClick = onOpenGalleryClicked
+       ) {
+         Image(
+-          painter = painterResource(id = R.drawable.symbol_album_24),
++          painter = painterResource(id = CoreUiR.drawable.symbol_album_24),
+           contentDescription = null,
+           colorFilter = ColorFilter.tint(MaterialTheme.colorScheme.onSurface)
+         )
+diff --git a/app/src/main/java/org/thoughtcrime/securesms/components/settings/app/notifications/NotificationsSettingsEntry.kt b/app/src/main/java/org/thoughtcrime/securesms/components/settings/app/notifications/NotificationsSettingsEntry.kt
+deleted file mode 100644
+index 443c8b5a6f29482313abe18a3ade9c5bc49a92fa..0000000000000000000000000000000000000000
+--- a/app/src/main/java/org/thoughtcrime/securesms/components/settings/app/notifications/NotificationsSettingsEntry.kt
++++ /dev/null
+@@ -1,98 +0,0 @@
+-/*
+- * Copyright 2026 Signal Messenger, LLC
+- * SPDX-License-Identifier: AGPL-3.0-only
+- */
+-
+-package org.thoughtcrime.securesms.components.settings.app.notifications
+-
+-import android.app.Activity
+-import android.content.ActivityNotFoundException
+-import androidx.activity.compose.LocalActivity
+-import androidx.activity.compose.ManagedActivityResultLauncher
+-import androidx.activity.compose.rememberLauncherForActivityResult
+-import androidx.compose.runtime.Composable
+-import androidx.compose.runtime.getValue
+-import androidx.compose.runtime.remember
+-import androidx.fragment.app.FragmentActivity
+-import androidx.lifecycle.compose.collectAsStateWithLifecycle
+-import androidx.lifecycle.viewmodel.compose.viewModel
+-import org.signal.appsettings.notifications.NotificationsSettingsAction
+-import org.signal.appsettings.notifications.NotificationsSettingsEvent
+-import org.signal.appsettings.notifications.NotificationsSettingsScreen
+-import org.signal.appsettings.routes.AppSettingsNavigationEvent
+-import org.signal.core.ui.BottomSheetUtil
+-import org.signal.core.ui.compose.CollectActions
+-import org.signal.core.util.logging.Log
+-import org.thoughtcrime.securesms.components.PromptBatterySaverDialogFragment
+-import org.thoughtcrime.securesms.notifications.NotificationChannels
+-import org.thoughtcrime.securesms.notifications.TurnOnNotificationsBottomSheet
+-
+-private val TAG = Log.tag(NotificationsSettingsAction::class)
+-
+-/**
+- * App-wide notification settings, wired to their view model and to the system pickers and sheets they open.
+- */
+-@Composable
+-fun NotificationsSettingsEntry(
+-  parentEventEmitter: (AppSettingsNavigationEvent) -> Unit
+-) {
+-  val viewModel: NotificationsSettingsViewModel = viewModel { NotificationsSettingsViewModel(parentEventEmitter) }
+-  val state by viewModel.state.collectAsStateWithLifecycle()
+-  val activity = LocalActivity.current
+-
+-  val messageSoundPicker = rememberLauncherForActivityResult(
+-    contract = remember { NotificationSoundSelectionContract(NotificationSoundSelectionContract.Target.MESSAGE) },
+-    onResult = { viewModel.onEvent(NotificationsSettingsEvent.MessageSoundPicked(it)) }
+-  )
+-
+-  val callRingtonePicker = rememberLauncherForActivityResult(
+-    contract = remember { NotificationSoundSelectionContract(NotificationSoundSelectionContract.Target.CALL) },
+-    onResult = { viewModel.onEvent(NotificationsSettingsEvent.CallRingtonePicked(it)) }
+-  )
+-
+-  val prioritySettings = rememberLauncherForActivityResult(
+-    contract = remember { NotificationPrioritySelectionContract() },
+-    onResult = {}
+-  )
+-
+-  CollectActions(viewModel.actions) { action ->
+-    when (action) {
+-      NotificationsSettingsAction.ShowTurnOnNotificationsSheet -> activity.asFragmentActivity(action) {
+-        TurnOnNotificationsBottomSheet.turnOnSystemNotificationsFragment(it).show(it.supportFragmentManager, BottomSheetUtil.STANDARD_BOTTOM_SHEET_FRAGMENT_TAG)
+-      }
+-      NotificationsSettingsAction.OpenMessageChannelSettings -> {
+-        if (activity != null) {
+-          NotificationChannels.getInstance().openChannelSettings(activity, NotificationChannels.getInstance().messagesChannel, null)
+-        }
+-      }
+-      NotificationsSettingsAction.LaunchMessageSoundPicker -> messageSoundPicker.launchSoundPicker { viewModel.onEvent(NotificationsSettingsEvent.SoundPickerUnavailable) }
+-      NotificationsSettingsAction.LaunchCallRingtonePicker -> callRingtonePicker.launchSoundPicker { viewModel.onEvent(NotificationsSettingsEvent.SoundPickerUnavailable) }
+-      NotificationsSettingsAction.LaunchNotificationPrioritySettings -> prioritySettings.launch(Unit)
+-      NotificationsSettingsAction.ShowTroubleshootNotificationsDialog -> activity.asFragmentActivity(action) { PromptBatterySaverDialogFragment.show(it.supportFragmentManager) }
+-    }
+-  }
+-
+-  NotificationsSettingsScreen(
+-    state = state,
+-    onEvent = viewModel::onEvent
+-  )
+-}
+-
+-/** Runs [block] with this activity as the [FragmentActivity] whose fragment manager the sheets and dialogs here are shown on. */
+-private inline fun Activity?.asFragmentActivity(action: NotificationsSettingsAction, block: (FragmentActivity) -> Unit) {
+-  val fragmentActivity = this as? FragmentActivity
+-  if (fragmentActivity == null) {
+-    Log.w(TAG, "Unable to handle $action without a FragmentActivity.")
+-    return
+-  }
+-
+-  block(fragmentActivity)
+-}
+-
+-private fun ManagedActivityResultLauncher<Unit, *>.launchSoundPicker(onUnavailable: () -> Unit) {
+-  try {
+-    launch(Unit)
+-  } catch (e: ActivityNotFoundException) {
+-    onUnavailable()
+-  }
+-}
+diff --git a/app/src/main/java/org/thoughtcrime/securesms/components/settings/app/notifications/NotificationsSettingsFragment.kt b/app/src/main/java/org/thoughtcrime/securesms/components/settings/app/notifications/NotificationsSettingsFragment.kt
+index e8dffc538ead94652ca8a98ff6d0df394f4fbcac..698d0a933d37816bd7a09332b47c8829734c06e7 100644
+--- a/app/src/main/java/org/thoughtcrime/securesms/components/settings/app/notifications/NotificationsSettingsFragment.kt
++++ b/app/src/main/java/org/thoughtcrime/securesms/components/settings/app/notifications/NotificationsSettingsFragment.kt
+@@ -1,6 +1,5 @@
+ package org.thoughtcrime.securesms.components.settings.app.notifications
+ 
+-<<<<<<< MOLLY
+ import android.content.ActivityNotFoundException
+ import android.media.Ringtone
+ import android.net.Uri
+@@ -26,7 +25,9 @@ import androidx.compose.material3.Text
+ import androidx.compose.runtime.Composable
+ import androidx.compose.runtime.LaunchedEffect
+ import androidx.compose.runtime.getValue
++import androidx.compose.runtime.mutableStateOf
+ import androidx.compose.runtime.remember
++import androidx.compose.runtime.setValue
+ import androidx.compose.ui.Modifier
+ import androidx.compose.ui.draw.clip
+ import androidx.compose.ui.graphics.Color
+@@ -53,16 +54,21 @@ import org.greenrobot.eventbus.EventBus
+ import org.greenrobot.eventbus.Subscribe
+ import org.greenrobot.eventbus.ThreadMode
+ import org.signal.core.ui.BottomSheetUtil
+-=======
+-import androidx.compose.runtime.Composable
+-import androidx.navigation.fragment.findNavController
+-import org.signal.appsettings.routes.AppSettingsRoute
+->>>>>>> SIGNAL
+ import org.signal.core.ui.compose.ComposeFragment
++import org.signal.core.ui.compose.DayNightPreviews
++import org.signal.core.ui.compose.Dialogs
++import org.signal.core.ui.compose.Dividers
++import org.signal.core.ui.compose.Previews
++import org.signal.core.ui.compose.Rows
++import org.signal.core.ui.compose.Scaffolds
++import org.signal.core.ui.compose.SignalIcons
++import org.signal.core.ui.compose.Texts
++import org.signal.core.ui.viewModel
++import org.signal.core.util.logging.Log
+ import org.thoughtcrime.securesms.R
+-<<<<<<< MOLLY
++import org.signal.appsettings.R as AppSettingsR
+ import org.thoughtcrime.securesms.components.PromptBatterySaverDialogFragment
+-import org.thoughtcrime.securesms.components.settings.app.routes.AppSettingsRoute
++import org.signal.appsettings.routes.AppSettingsRoute
+ import org.thoughtcrime.securesms.components.settings.app.routes.AppSettingsRouter
+ import org.thoughtcrime.securesms.components.settings.models.Banner
+ import org.thoughtcrime.securesms.conversation.v2.registerForLifecycle
+@@ -72,19 +78,13 @@ import org.thoughtcrime.securesms.notifications.NotificationChannels
+ import org.thoughtcrime.securesms.notifications.TurnOnNotificationsBottomSheet
+ import org.thoughtcrime.securesms.util.CommunicationActions
+ import org.thoughtcrime.securesms.util.RingtoneUtil
+-import org.thoughtcrime.securesms.util.SecurePreferenceManager
+-=======
+-import org.thoughtcrime.securesms.components.settings.app.appSettingsRouter
+->>>>>>> SIGNAL
+ import org.thoughtcrime.securesms.util.navigation.safeNavigate
++import org.signal.core.ui.R as CoreUiR
+ 
+ class NotificationsSettingsFragment : ComposeFragment() {
+ 
+-<<<<<<< MOLLY
+   private val viewModel: NotificationsSettingsViewModel by viewModel {
+-    val sharedPreferences = SecurePreferenceManager.getSecurePreferences(requireContext())
+-
+-    NotificationsSettingsViewModel.Factory(sharedPreferences).create(NotificationsSettingsViewModel::class.java)
++    NotificationsSettingsViewModel.Factory().create(NotificationsSettingsViewModel::class.java)
+   }
+ 
+   private val appSettingsRouter: AppSettingsRouter by viewModel {
+@@ -112,6 +112,10 @@ class NotificationsSettingsFragment : ComposeFragment() {
+               findNavController().safeNavigate(R.id.action_notificationsSettingsFragment_to_unifiedPushFragment)
+             }
+ 
++            AppSettingsRoute.NotificationsRoute.MutedNotifications -> {
++              findNavController().safeNavigate(R.id.action_notificationsSettingsFragment_to_mutedNotificationsFragment)
++            }
++
+             else -> error("Unexpected route: ${it.javaClass.name}")
+           }
+         }
+@@ -129,9 +133,6 @@ class NotificationsSettingsFragment : ComposeFragment() {
+     super.onResume()
+     viewModel.refresh()
+   }
+-=======
+-  private val appSettingsRouter by appSettingsRouter(onNavigateToScreen = ::navigateToScreen)
+->>>>>>> SIGNAL
+ 
+   @Subscribe(threadMode = ThreadMode.MAIN)
+   fun onPushServiceEvent(event: PushServiceEvent) {
+@@ -140,10 +141,27 @@ class NotificationsSettingsFragment : ComposeFragment() {
+ 
+   @Composable
+   override fun FragmentContent() {
+-    NotificationsSettingsEntry(parentEventEmitter = appSettingsRouter::onEvent)
++    val state by viewModel.state.collectAsStateWithLifecycle()
++
++    NotificationsSettingsScreen(state = state, callbacks = callbacks)
++  }
++}
++
++/**
++ * Default callbacks that package up launcher handling and other logic that was in the original fragment.
++ * This must be called during the creation cycle of the component it is attached to.
++ */
++open class DefaultNotificationsSettingsCallbacks(
++  val activity: FragmentActivity,
++  val viewModel: NotificationsSettingsViewModel,
++  val appSettingsRouter: AppSettingsRouter,
++  activityResultRegisterer: ActivityResultRegisterer = ActivityResultRegisterer.ForActivity(activity)
++) : NotificationsSettingsCallbacks {
++
++  companion object {
++    private val TAG = Log.tag(DefaultNotificationsSettingsCallbacks::class)
+   }
+ 
+-<<<<<<< MOLLY
+   interface ActivityResultRegisterer {
+     fun <I, O> registerForActivityResult(
+       contract: ActivityResultContract<I, O>,
+@@ -238,13 +256,13 @@ class NotificationsSettingsFragment : ComposeFragment() {
+       val tone: Ringtone? = RingtoneUtil.getRingtone(activity, uri)
+       if (tone != null) {
+         try {
+-          tone.getTitle(activity) ?: activity.getString(R.string.NotificationsSettingsFragment__unknown_ringtone)
++          tone.getTitle(activity) ?: activity.getString(AppSettingsR.string.NotificationsSettingsFragment__unknown_ringtone)
+         } catch (e: SecurityException) {
+           Log.w(TAG, "Unable to get title for ringtone", e)
+-          return activity.getString(R.string.NotificationsSettingsFragment__unknown_ringtone)
++          return activity.getString(AppSettingsR.string.NotificationsSettingsFragment__unknown_ringtone)
+         }
+       } else {
+-        activity.getString(R.string.preferences__default)
++        activity.getString(AppSettingsR.string.preferences__default)
+       }
+     }
+   }
+@@ -266,7 +284,7 @@ class NotificationsSettingsFragment : ComposeFragment() {
+   }
+ 
+   override fun setMessageNotificationVibration(enabled: Boolean) {
+-    viewModel.setMessageNotificationsEnabled(enabled)
++    viewModel.setMessageNotificationVibration(enabled)
+   }
+ 
+   override fun setMessasgeNotificationLedColor(selection: String) {
+@@ -341,8 +359,8 @@ class NotificationsSettingsFragment : ComposeFragment() {
+             .setPositiveButton(R.string.AddLinkDeviceFragment__scan_qr_code) { _, _ ->
+               qrScanLauncher.launch()
+             }
+-            .setNegativeButton(R.string.RegistrationActivity_cancel, null)
+-            .setNeutralButton(R.string.LearnMoreTextView_learn_more) { _, _ ->
++            .setNegativeButton(android.R.string.cancel, null)
++            .setNeutralButton(CoreUiR.string.LearnMoreTextView_learn_more) { _, _ ->
+               CommunicationActions.openBrowserLink(activity, activity.getString(R.string.mollysocket_setup_url))
+             }
+             .show()
+@@ -380,6 +398,22 @@ class NotificationsSettingsFragment : ComposeFragment() {
+ 
+     viewModel.setPlayServicesErrorCode(null)
+   }
++
++  override fun onMutedClicked() {
++    appSettingsRouter.navigateTo(AppSettingsRoute.NotificationsRoute.MutedNotifications)
++  }
++
++  override fun setReactionNotificationEnabled(enabled: Boolean) {
++    viewModel.setReactionNotificationEnabled(enabled)
++  }
++
++  override fun setUnreadReminderEnabled(enabled: Boolean) {
++    viewModel.setUnreadReminderEnabled(enabled)
++  }
++
++  override fun onReset() {
++    viewModel.resetSettings()
++  }
+ }
+ 
+ interface NotificationsSettingsCallbacks {
+@@ -407,6 +441,10 @@ interface NotificationsSettingsCallbacks {
+   fun onNotificationMethodChanged(fromToMethods: Pair<NotificationDeliveryMethod, NotificationDeliveryMethod>) = Unit
+   fun onNavigationUnifiedPushSettings() = Unit
+   fun onPlayServicesError(errorCode: Int) = Unit
++  fun onMutedClicked() = Unit
++  fun setReactionNotificationEnabled(enabled: Boolean) = Unit
++  fun setUnreadReminderEnabled(enabled: Boolean) = Unit
++  fun onReset() = Unit
+ 
+   object Empty : NotificationsSettingsCallbacks
+ }
+@@ -417,6 +455,20 @@ fun NotificationsSettingsScreen(
+   callbacks: NotificationsSettingsCallbacks,
+   deviceState: DeviceState = remember { DeviceState() }
+ ) {
++  var showDialog by remember { mutableStateOf(false) }
++
++  if (showDialog) {
++    Dialogs.SimpleAlertDialog(
++      title = "",
++      body = stringResource(AppSettingsR.string.NotificationsSettingsFragment__reset_body),
++      dismiss = stringResource(android.R.string.cancel),
++      onDismiss = { showDialog = false },
++      confirm = stringResource(AppSettingsR.string.NotificationsSettingsFragment__reset_confirm),
++      onConfirm = callbacks::onReset,
++      confirmColor = MaterialTheme.colorScheme.error
++    )
++  }
++
+   Scaffolds.Settings(
+     title = stringResource(R.string.preferences__notifications),
+     onNavigationClick = callbacks::onNavigationClick,
+@@ -446,23 +498,88 @@ fun NotificationsSettingsScreen(
+       }
+ 
+       item {
+-        Texts.SectionHeader(stringResource(R.string.NotificationsSettingsFragment__messages))
++        Rows.ToggleRow(
++          text = stringResource(AppSettingsR.string.preferences__enable_notifications),
++          enabled = state.messageNotificationsState.canEnableNotifications,
++          checked = state.messageNotificationsState.notificationsEnabled,
++          onCheckChanged = callbacks::setMessageNotificationsEnabled
++        )
++      }
++
++      item {
++        Rows.RadioListRow(
++          text = stringResource(AppSettingsR.string.preferences_notifications__show),
++          labels = stringArrayResource(AppSettingsR.array.pref_notification_privacy_entries),
++          values = stringArrayResource(AppSettingsR.array.pref_notification_privacy_values),
++          selectedValue = state.messageNotificationsState.messagePrivacy,
++          enabled = state.messageNotificationsState.notificationsEnabled,
++          onSelected = callbacks::setMessageNotificationPrivacy
++        )
++      }
++
++      item {
++        Rows.TextRow(
++          text = stringResource(AppSettingsR.string.preferences_notifications__while_muted),
++          label = getWhileMutedString(state),
++          enabled = state.messageNotificationsState.notificationsEnabled,
++          onClick = callbacks::onMutedClicked
++        )
+       }
+ 
+       item {
+         Rows.ToggleRow(
+-          text = stringResource(R.string.preferences__notifications),
++          text = stringResource(AppSettingsR.string.preferences_notifications__reaction),
++          label = stringResource(AppSettingsR.string.preferences_notifications__notify_reaction),
+           enabled = state.messageNotificationsState.canEnableNotifications,
+-          checked = state.messageNotificationsState.notificationsEnabled,
+-          onCheckChanged = callbacks::setMessageNotificationsEnabled
++          checked = state.messageNotificationsState.reactionNotificationEnabled,
++          onCheckChanged = callbacks::setReactionNotificationEnabled
+         )
+       }
+ 
++      item {
++        Rows.ToggleRow(
++          text = stringResource(R.string.preferences_notifications__unread),
++          label = stringResource(AppSettingsR.string.preferences_notifications__notify_unread),
++          enabled = state.messageNotificationsState.canEnableNotifications,
++          checked = state.messageNotificationsState.unreadReminderEnabled,
++          onCheckChanged = callbacks::setUnreadReminderEnabled
++        )
++      }
++
++      item {
++        Rows.ToggleRow(
++          text = stringResource(AppSettingsR.string.NotificationsSettingsFragment__contact_joins_signal),
++          label = stringResource(AppSettingsR.string.NotificationsSettingsFragment__notify_contact),
++          enabled = state.messageNotificationsState.canEnableNotifications,
++          checked = state.notifyWhenContactJoinsSignal,
++          onCheckChanged = callbacks::setNotifyWhenContactJoinsSignal
++        )
++      }
++
++      item {
++        Rows.RadioListRow(
++          text = stringResource(AppSettingsR.string.preferences__repeat_alerts),
++          labels = stringArrayResource(AppSettingsR.array.pref_repeat_alerts_entries),
++          values = stringArrayResource(AppSettingsR.array.pref_repeat_alerts_values),
++          selectedValue = state.messageNotificationsState.repeatAlerts.toString(),
++          enabled = state.messageNotificationsState.notificationsEnabled,
++          onSelected = callbacks::setMessageRepeatAlerts
++        )
++      }
++
++      item {
++        Dividers.Default()
++      }
++
++      item {
++        Texts.SectionHeader(stringResource(AppSettingsR.string.NotificationsSettingsFragment__sounds))
++      }
++
+       if (deviceState.apiLevel >= 30) {
+         item {
+           Rows.TextRow(
+-            text = stringResource(R.string.preferences__customize),
+-            label = stringResource(R.string.preferences__change_sound_and_vibration),
++            text = stringResource(AppSettingsR.string.preferences__customize),
++            label = stringResource(AppSettingsR.string.preferences__change_sound_and_vibration),
+             enabled = state.messageNotificationsState.notificationsEnabled,
+             onClick = callbacks::onCustomizeClick
+           )
+@@ -470,7 +587,7 @@ fun NotificationsSettingsScreen(
+       } else {
+         item {
+           Rows.TextRow(
+-            text = stringResource(R.string.preferences__sound),
++            text = stringResource(AppSettingsR.string.preferences__sound),
+             label = remember(state.messageNotificationsState.sound) {
+               callbacks.getRingtoneSummary(state.messageNotificationsState.sound)
+             },
+@@ -481,10 +598,10 @@ fun NotificationsSettingsScreen(
+ 
+         item {
+           Rows.ToggleRow(
+-            text = stringResource(R.string.preferences__vibrate),
++            text = stringResource(AppSettingsR.string.preferences__vibrate),
+             checked = state.messageNotificationsState.vibrateEnabled,
+             enabled = state.messageNotificationsState.notificationsEnabled,
+-            onCheckChanged = callbacks::setMessageNotificationsEnabled
++            onCheckChanged = callbacks::setMessageNotificationVibration
+           )
+         }
+ 
+@@ -500,11 +617,11 @@ fun NotificationsSettingsScreen(
+ 
+               Spacer(modifier = Modifier.size(10.dp))
+ 
+-              Text(text = stringResource(R.string.preferences__led_color))
++              Text(text = stringResource(AppSettingsR.string.preferences__led_color))
+             },
+-            dialogTitle = stringResource(R.string.preferences__led_color),
+-            labels = stringArrayResource(R.array.pref_led_color_entries),
+-            values = stringArrayResource(R.array.pref_led_color_values),
++            dialogTitle = stringResource(AppSettingsR.string.preferences__led_color),
++            labels = stringArrayResource(AppSettingsR.array.pref_led_color_entries),
++            values = stringArrayResource(AppSettingsR.array.pref_led_color_values),
+             selectedValue = state.messageNotificationsState.ledColor,
+             enabled = state.messageNotificationsState.notificationsEnabled,
+             onSelected = callbacks::setMessasgeNotificationLedColor
+@@ -514,9 +631,9 @@ fun NotificationsSettingsScreen(
+         if (!deviceState.supportsNotificationChannels) {
+           item {
+             Rows.RadioListRow(
+-              text = stringResource(R.string.preferences__pref_led_blink_title),
+-              labels = stringArrayResource(R.array.pref_led_blink_pattern_entries),
+-              values = stringArrayResource(R.array.pref_led_blink_pattern_values),
++              text = stringResource(AppSettingsR.string.preferences__pref_led_blink_title),
++              labels = stringArrayResource(AppSettingsR.array.pref_led_blink_pattern_entries),
++              values = stringArrayResource(AppSettingsR.array.pref_led_blink_pattern_values),
+               selectedValue = state.messageNotificationsState.ledBlink,
+               enabled = state.messageNotificationsState.notificationsEnabled,
+               onSelected = callbacks::setMessasgeNotificationLedBlink
+@@ -527,39 +644,17 @@ fun NotificationsSettingsScreen(
+ 
+       item {
+         Rows.ToggleRow(
+-          text = stringResource(R.string.preferences_notifications__in_chat_sounds),
++          text = stringResource(AppSettingsR.string.preferences_notifications__in_chat_sounds),
+           checked = state.messageNotificationsState.inChatSoundsEnabled,
+           enabled = state.messageNotificationsState.notificationsEnabled,
+           onCheckChanged = callbacks::setMessageNotificationInChatSoundsEnabled
+         )
+       }
+ 
+-      item {
+-        Rows.RadioListRow(
+-          text = stringResource(R.string.preferences__repeat_alerts),
+-          labels = stringArrayResource(R.array.pref_repeat_alerts_entries),
+-          values = stringArrayResource(R.array.pref_repeat_alerts_values),
+-          selectedValue = state.messageNotificationsState.repeatAlerts.toString(),
+-          enabled = state.messageNotificationsState.notificationsEnabled,
+-          onSelected = callbacks::setMessageRepeatAlerts
+-        )
+-      }
+-
+-      item {
+-        Rows.RadioListRow(
+-          text = stringResource(R.string.preferences_notifications__show),
+-          labels = stringArrayResource(R.array.pref_notification_privacy_entries),
+-          values = stringArrayResource(R.array.pref_notification_privacy_values),
+-          selectedValue = state.messageNotificationsState.messagePrivacy,
+-          enabled = state.messageNotificationsState.notificationsEnabled,
+-          onSelected = callbacks::setMessageNotificationPrivacy
+-        )
+-      }
+-
+       if (deviceState.apiLevel >= 23 && state.messageNotificationsState.troubleshootNotifications) {
+         item {
+           Rows.TextRow(
+-            text = stringResource(R.string.preferences_notifications__troubleshoot),
++            text = stringResource(AppSettingsR.string.preferences_notifications__troubleshoot),
+             onClick = callbacks::onTroubleshootNotificationsClick
+           )
+         }
+@@ -569,7 +664,7 @@ fun NotificationsSettingsScreen(
+         if (deviceState.supportsNotificationChannels) {
+           item {
+             Rows.TextRow(
+-              text = stringResource(R.string.preferences_notifications__priority),
++              text = stringResource(AppSettingsR.string.preferences_notifications__priority),
+               enabled = state.messageNotificationsState.notificationsEnabled,
+               onClick = callbacks::launchNotificationPriorityIntent
+             )
+@@ -577,9 +672,9 @@ fun NotificationsSettingsScreen(
+         } else {
+           item {
+             Rows.RadioListRow(
+-              text = stringResource(R.string.preferences_notifications__priority),
+-              labels = stringArrayResource(R.array.pref_notification_priority_entries),
+-              values = stringArrayResource(R.array.pref_notification_priority_values),
++              text = stringResource(AppSettingsR.string.preferences_notifications__priority),
++              labels = stringArrayResource(AppSettingsR.array.pref_notification_priority_entries),
++              values = stringArrayResource(AppSettingsR.array.pref_notification_priority_values),
+               selectedValue = state.messageNotificationsState.priority.toString(),
+               enabled = state.messageNotificationsState.notificationsEnabled,
+               onSelected = callbacks::setMessageNotificationPriority
+@@ -593,12 +688,12 @@ fun NotificationsSettingsScreen(
+       }
+ 
+       item {
+-        Texts.SectionHeader(stringResource(R.string.NotificationsSettingsFragment__calls))
++        Texts.SectionHeader(stringResource(AppSettingsR.string.NotificationsSettingsFragment__calls))
+       }
+ 
+       item {
+         Rows.ToggleRow(
+-          text = stringResource(R.string.preferences__notifications),
++          text = stringResource(AppSettingsR.string.preferences__call_notifications),
+           enabled = state.callNotificationsState.canEnableNotifications,
+           checked = state.callNotificationsState.notificationsEnabled,
+           onCheckChanged = callbacks::setCallNotificationsEnabled
+@@ -611,7 +706,7 @@ fun NotificationsSettingsScreen(
+         }
+ 
+         Rows.TextRow(
+-          text = stringResource(R.string.preferences_notifications__ringtone),
++          text = stringResource(AppSettingsR.string.preferences_notifications__ringtone),
+           label = ringtoneSummary,
+           enabled = state.callNotificationsState.notificationsEnabled,
+           onClick = callbacks::launchCallsSoundSelectionIntent
+@@ -620,7 +715,7 @@ fun NotificationsSettingsScreen(
+ 
+       item {
+         Rows.ToggleRow(
+-          text = stringResource(R.string.preferences__vibrate),
++          text = stringResource(AppSettingsR.string.preferences__vibrate),
+           checked = state.callNotificationsState.vibrateEnabled,
+           enabled = state.callNotificationsState.notificationsEnabled,
+           onCheckChanged = callbacks::setCallVibrateEnabled
+@@ -632,13 +727,9 @@ fun NotificationsSettingsScreen(
+       }
+ 
+       item {
+-        Texts.SectionHeader(stringResource(R.string.NotificationsSettingsFragment__notification_profiles))
+-      }
+-
+-      item {
+         Rows.TextRow(
+-          text = stringResource(R.string.NotificationsSettingsFragment__profiles),
+-          label = stringResource(R.string.NotificationsSettingsFragment__create_a_profile_to_receive_notifications_only_from_people_and_groups_you_choose),
++          text = stringResource(R.string.NotificationsSettingsFragment__notification_profiles),
++          label = stringResource(AppSettingsR.string.NotificationsSettingsFragment__create_a_profile_to_receive_notifications_only_from_people_and_groups_you_choose),
+           onClick = callbacks::onNavigationProfilesClick
+         )
+       }
+@@ -663,10 +754,10 @@ fun NotificationsSettingsScreen(
+       }
+ 
+       item {
+-        Rows.ToggleRow(
+-          text = stringResource(R.string.NotificationsSettingsFragment__contact_joins_signal),
+-          checked = state.notifyWhenContactJoinsSignal,
+-          onCheckChanged = callbacks::setNotifyWhenContactJoinsSignal
++        Rows.TextRow(
++          text = stringResource(AppSettingsR.string.NotificationsSettingsFragment__reset),
++          label = stringResource(AppSettingsR.string.NotificationsSettingsFragment__reset_notifications),
++          onClick = { showDialog = true }
+         )
+       }
+ 
+@@ -714,7 +805,7 @@ fun NotificationsSettingsScreen(
+             {
+               Icon(
+                 painter = painterResource(android.R.drawable.ic_dialog_alert),
+-                contentDescription = null,
++                contentDescription = stringResource(R.string.notification_delivery_service_unavailable),
+                 tint = colorResource(R.color.signal_alert_primary)
+               )
+             }
+@@ -743,14 +834,33 @@ fun NotificationsSettingsScreen(
+ }
+ 
+ @Composable
++private fun getWhileMutedString(state: NotificationsSettingsState): String {
++  val body = mutableListOf<String>()
++  if (state.messageNotificationsState.allowCallsWhileMuted) {
++    body.add(stringResource(R.string.MutedNotificationsFragment__calls))
++  }
++  if (state.messageNotificationsState.allowMentionsWhileMuted) {
++    body.add(stringResource(R.string.MutedNotificationsFragment__mentions))
++  }
++  if (state.messageNotificationsState.allowRepliesWhileMuted) {
++    body.add(stringResource(R.string.MutedNotificationsFragment__replies))
++  }
++  return if (body.isNotEmpty()) {
++    body.joinToString(", ")
++  } else {
++    stringResource(CoreUiR.string.preferences__none)
++  }
++}
++
++@Composable
+ private fun getLedColor(ledColorString: String): Color {
+   return when (ledColorString) {
+-    "green" -> colorResource(R.color.green_500)
++    "green" -> colorResource(CoreUiR.color.green_500)
+     "red" -> colorResource(R.color.red_500)
+-    "blue" -> colorResource(R.color.blue_500)
+-    "yellow" -> colorResource(R.color.yellow_500)
+-    "cyan" -> colorResource(R.color.cyan_500)
+-    "magenta" -> colorResource(R.color.pink_500)
++    "blue" -> colorResource(CoreUiR.color.blue_500)
++    "yellow" -> colorResource(CoreUiR.color.yellow_500)
++    "cyan" -> colorResource(CoreUiR.color.cyan_500)
++    "magenta" -> colorResource(CoreUiR.color.pink_500)
+     "white" -> colorResource(R.color.white)
+     else -> colorResource(R.color.transparent)
+   }
+@@ -805,7 +915,12 @@ private fun rememberTestState(): NotificationsSettingsState = remember {
+       repeatAlerts = 1,
+       messagePrivacy = "",
+       priority = 1,
+-      troubleshootNotifications = true
++      troubleshootNotifications = true,
++      reactionNotificationEnabled = true,
++      unreadReminderEnabled = true,
++      allowCallsWhileMuted = false,
++      allowMentionsWhileMuted = true,
++      allowRepliesWhileMuted = true
+     ),
+     callNotificationsState = CallNotificationsState(
+       notificationsEnabled = true,
+@@ -828,13 +943,3 @@ data class DeviceState(
+   val apiLevel: Int = Build.VERSION.SDK_INT,
+   val supportsNotificationChannels: Boolean = NotificationChannels.supported()
+ )
+-=======
+-  private fun navigateToScreen(route: AppSettingsRoute) {
+-    when (route) {
+-      AppSettingsRoute.NotificationsRoute.NotificationProfiles -> findNavController().safeNavigate(R.id.action_notificationsSettingsFragment_to_notificationProfilesFragment)
+-      AppSettingsRoute.NotificationsRoute.MutedNotifications -> findNavController().safeNavigate(R.id.action_notificationsSettingsFragment_to_mutedNotificationsFragment)
+-      else -> error("Unexpected route: ${route.javaClass.name}")
+-    }
+-  }
+-}
+->>>>>>> SIGNAL
+diff --git a/app/src/main/java/org/thoughtcrime/securesms/components/settings/app/notifications/NotificationsSettingsNavigation.kt b/app/src/main/java/org/thoughtcrime/securesms/components/settings/app/notifications/NotificationsSettingsNavigation.kt
+index 625bc962fdba1d8de1b6f4fb3d74093153223428..5c7b6de6a48871a5ca7101308448d45f9ee30f68 100644
+--- a/app/src/main/java/org/thoughtcrime/securesms/components/settings/app/notifications/NotificationsSettingsNavigation.kt
++++ b/app/src/main/java/org/thoughtcrime/securesms/components/settings/app/notifications/NotificationsSettingsNavigation.kt
+@@ -5,11 +5,15 @@
+ 
+ package org.thoughtcrime.securesms.components.settings.app.notifications
+ 
++import androidx.compose.runtime.LaunchedEffect
++import androidx.compose.ui.platform.LocalContext
+ import androidx.navigation3.runtime.EntryProviderScope
+ import androidx.navigation3.runtime.NavKey
+ import org.signal.appsettings.routes.AppSettingsNavigationEvent
+ import org.signal.appsettings.routes.AppSettingsRoute
++import org.signal.appsettings.routes.navigateBack
+ import org.signal.core.ui.compose.split.detailEntry
++import org.thoughtcrime.securesms.components.settings.app.AppSettingsActivity
+ import org.thoughtcrime.securesms.components.settings.app.notifications.muted.MutedNotificationsEntry
+ import org.thoughtcrime.securesms.components.settings.app.notifications.profiles.allowedmembers.AddAllowedMembersEntry
+ import org.thoughtcrime.securesms.components.settings.app.notifications.profiles.created.NotificationProfileCreatedEntry
+@@ -24,7 +28,19 @@ import org.thoughtcrime.securesms.components.settings.app.notifications.profiles
+  */
+ fun EntryProviderScope<NavKey>.registerNotificationsRoutes(parentEventEmitter: (AppSettingsNavigationEvent) -> Unit) {
+   detailEntry<AppSettingsRoute.NotificationsRoute.Notifications> {
+-    NotificationsSettingsEntry(parentEventEmitter = parentEventEmitter)
++    val context = LocalContext.current
++    LaunchedEffect(Unit) {
++      context.startActivity(AppSettingsActivity.notifications(context))
++      parentEventEmitter.navigateBack()
++    }
++  }
++
++  detailEntry<AppSettingsRoute.NotificationsRoute.PlayServicesProblem> { route ->
++    val context = LocalContext.current
++    LaunchedEffect(route.errorCode) {
++      context.startActivity(AppSettingsActivity.playServicesProblem(context, route.errorCode))
++      parentEventEmitter.navigateBack()
++    }
+   }
+ 
+   detailEntry<AppSettingsRoute.NotificationsRoute.MutedNotifications> {
+diff --git a/app/src/main/java/org/thoughtcrime/securesms/components/settings/app/notifications/NotificationsSettingsRepository.kt b/app/src/main/java/org/thoughtcrime/securesms/components/settings/app/notifications/NotificationsSettingsRepository.kt
+deleted file mode 100644
+index 892dfc4bb8be269cbb816b861c8718ce13897430..0000000000000000000000000000000000000000
+--- a/app/src/main/java/org/thoughtcrime/securesms/components/settings/app/notifications/NotificationsSettingsRepository.kt
++++ /dev/null
+@@ -1,227 +0,0 @@
+-/*
+- * Copyright 2026 Signal Messenger, LLC
+- * SPDX-License-Identifier: AGPL-3.0-only
+- */
+-
+-package org.thoughtcrime.securesms.components.settings.app.notifications
+-
+-import android.media.Ringtone
+-import android.net.Uri
+-import android.os.Build
+-import android.provider.Settings
+-import kotlinx.coroutines.flow.Flow
+-import kotlinx.coroutines.flow.map
+-import kotlinx.coroutines.rx3.asFlow
+-import kotlinx.coroutines.withContext
+-import org.signal.appsettings.notifications.CallNotificationsState
+-import org.signal.appsettings.notifications.MessageNotificationsState
+-import org.signal.appsettings.notifications.NotificationsSettingsState
+-import org.signal.appsettings.notifications.SoundSummary
+-import org.signal.core.util.concurrent.SignalDispatchers
+-import org.signal.core.util.logging.Log
+-import org.thoughtcrime.securesms.database.SignalDatabase
+-import org.thoughtcrime.securesms.dependencies.AppDependencies
+-import org.thoughtcrime.securesms.keyvalue.SignalStore
+-import org.thoughtcrime.securesms.notifications.DeviceSpecificNotificationConfig
+-import org.thoughtcrime.securesms.notifications.NotificationChannels
+-import org.thoughtcrime.securesms.notifications.SlowNotificationHeuristics
+-import org.thoughtcrime.securesms.preferences.widgets.NotificationPrivacyPreference
+-import org.thoughtcrime.securesms.recipients.Recipient
+-import org.thoughtcrime.securesms.storage.StorageSyncHelper
+-import org.thoughtcrime.securesms.util.RingtoneUtil
+-
+-/**
+- * All of the storage and platform access behind [NotificationsSettingsViewModel].
+- */
+-object NotificationsSettingsRepository {
+-
+-  private val TAG = Log.tag(NotificationsSettingsRepository::class)
+-
+-  /** Looking a sound's name up queries the media store, so each sound is only looked up once. */
+-  private val soundSummaries = mutableMapOf<Uri, SoundSummary>()
+-
+-  /** Emits whenever the local user's recipient changes, such as when settings sync in from another device. */
+-  fun observeSelfChanges(): Flow<Unit> {
+-    return Recipient.self().live().observable().asFlow().map { }
+-  }
+-
+-  /** Copies the sound and vibration the message notification channel currently has, which may have been changed in the system's settings. */
+-  fun syncFromNotificationChannel() {
+-    if (NotificationChannels.supported()) {
+-      SignalStore.settings.messageNotificationSound = NotificationChannels.getInstance().messageRingtone
+-      SignalStore.settings.isMessageVibrateEnabled = NotificationChannels.getInstance().messageVibrate
+-    }
+-  }
+-
+-  /**
+-   * Reads the current settings into [currentState], keeping its dialog, snackbar and troubleshooting flag, which aren't
+-   * stored settings.
+-   */
+-  fun getState(currentState: NotificationsSettingsState): NotificationsSettingsState {
+-    val canEnableNotifications = canEnableNotifications()
+-
+-    return currentState.copy(
+-      messageNotificationsState = MessageNotificationsState(
+-        notificationsEnabled = SignalStore.settings.isMessageNotificationsEnabled && canEnableNotifications,
+-        canEnableNotifications = canEnableNotifications,
+-        sound = getSoundSummary(SignalStore.settings.messageNotificationSound),
+-        vibrateEnabled = SignalStore.settings.isMessageVibrateEnabled,
+-        ledColor = SignalStore.settings.messageLedColor,
+-        ledBlink = SignalStore.settings.messageLedBlinkPattern,
+-        inChatSoundsEnabled = SignalStore.settings.isMessageNotificationsInChatSoundsEnabled,
+-        repeatAlerts = SignalStore.settings.messageNotificationsRepeatAlerts,
+-        messagePrivacy = SignalStore.settings.messageNotificationsPrivacy.toString(),
+-        priority = SignalStore.settings.messageNotificationPriority,
+-        troubleshootNotifications = currentState.messageNotificationsState.troubleshootNotifications,
+-        reactionNotificationEnabled = SignalStore.settings.reactionNotifications,
+-        unreadReminderEnabled = SignalStore.settings.unreadReminderEnabled,
+-        allowCallsWhileMuted = SignalStore.settings.allowCallsWhileMuted,
+-        allowMentionsWhileMuted = SignalStore.settings.allowMentionsWhileMuted,
+-        allowRepliesWhileMuted = SignalStore.settings.allowRepliesWhileMuted
+-      ),
+-      callNotificationsState = CallNotificationsState(
+-        notificationsEnabled = SignalStore.settings.isCallNotificationsEnabled && canEnableNotifications,
+-        canEnableNotifications = canEnableNotifications,
+-        ringtone = getSoundSummary(SignalStore.settings.callRingtone),
+-        vibrateEnabled = SignalStore.settings.isCallVibrateEnabled
+-      ),
+-      notifyWhenContactJoinsSignal = SignalStore.settings.isNotifyWhenContactJoinsSignal
+-    )
+-  }
+-
+-  /** Whether notifications look delayed enough to offer troubleshooting. Slow to work out, and not thread-safe. */
+-  suspend fun isTroubleshootingRecommended(): Boolean {
+-    return withContext(SignalDispatchers.Default) {
+-      (SlowNotificationHeuristics.isBatteryOptimizationsOn() && SlowNotificationHeuristics.isHavingDelayedNotifications()) ||
+-        SlowNotificationHeuristics.getDeviceSpecificShowCondition() == DeviceSpecificNotificationConfig.ShowCondition.ALWAYS
+-    }
+-  }
+-
+-  fun setMessageNotificationsEnabled(enabled: Boolean) {
+-    SignalStore.settings.isMessageNotificationsEnabled = enabled
+-  }
+-
+-  fun setMessageNotificationsSound(sound: Uri?) {
+-    val messageSound = sound ?: Uri.EMPTY
+-    SignalStore.settings.messageNotificationSound = messageSound
+-    NotificationChannels.getInstance().updateMessageRingtone(messageSound)
+-  }
+-
+-  fun setMessageNotificationVibration(enabled: Boolean) {
+-    SignalStore.settings.isMessageVibrateEnabled = enabled
+-    NotificationChannels.getInstance().updateMessageVibrate(enabled)
+-  }
+-
+-  fun setMessageNotificationLedColor(color: String) {
+-    SignalStore.settings.messageLedColor = color
+-    NotificationChannels.getInstance().updateMessagesLedColor(color)
+-  }
+-
+-  fun setMessageNotificationLedBlink(blink: String) {
+-    SignalStore.settings.messageLedBlinkPattern = blink
+-  }
+-
+-  fun setMessageNotificationInChatSoundsEnabled(enabled: Boolean) {
+-    SignalStore.settings.isMessageNotificationsInChatSoundsEnabled = enabled
+-  }
+-
+-  fun setMessageRepeatAlerts(repeats: Int) {
+-    SignalStore.settings.messageNotificationsRepeatAlerts = repeats
+-  }
+-
+-  fun setMessageNotificationPrivacy(preference: String) {
+-    SignalStore.settings.messageNotificationsPrivacy = NotificationPrivacyPreference(preference)
+-  }
+-
+-  fun setMessageNotificationPriority(priority: Int) {
+-    SignalStore.settings.messageNotificationPriority = priority
+-  }
+-
+-  fun setCallNotificationsEnabled(enabled: Boolean) {
+-    SignalStore.settings.isCallNotificationsEnabled = enabled
+-  }
+-
+-  fun setCallRingtone(ringtone: Uri?) {
+-    SignalStore.settings.callRingtone = ringtone ?: Uri.EMPTY
+-  }
+-
+-  fun setCallVibrateEnabled(enabled: Boolean) {
+-    SignalStore.settings.isCallVibrateEnabled = enabled
+-  }
+-
+-  suspend fun setNotifyWhenContactJoinsSignal(enabled: Boolean) {
+-    SignalStore.settings.isNotifyWhenContactJoinsSignal = enabled
+-    markSelfNeedsSync()
+-  }
+-
+-  suspend fun setReactionNotificationsEnabled(enabled: Boolean) {
+-    SignalStore.settings.reactionNotifications = enabled
+-    markSelfNeedsSync()
+-  }
+-
+-  suspend fun setUnreadReminderEnabled(enabled: Boolean) {
+-    SignalStore.settings.unreadReminderEnabled = enabled
+-    markSelfNeedsSync()
+-  }
+-
+-  /** Puts every notification setting back to its default, including each chat's own notification settings. */
+-  suspend fun resetSettings() {
+-    Log.i(TAG, "Resetting all notifications.")
+-    setMessageNotificationsSound(Settings.System.DEFAULT_NOTIFICATION_URI)
+-    SignalStore.settings.isMessageNotificationsInChatSoundsEnabled = true
+-    SignalStore.settings.messageNotificationsPrivacy = NotificationPrivacyPreference("all")
+-    SignalStore.settings.allowCallsWhileMuted = false
+-    SignalStore.settings.allowMentionsWhileMuted = true
+-    SignalStore.settings.allowRepliesWhileMuted = true
+-    SignalStore.settings.reactionNotifications = true
+-    SignalStore.settings.unreadReminderEnabled = true
+-    SignalStore.settings.isNotifyWhenContactJoinsSignal = false
+-    SignalStore.settings.messageNotificationsRepeatAlerts = 0
+-
+-    withContext(SignalDispatchers.Default) {
+-      SignalDatabase.recipients.resetAllChatNotificationSettings()
+-    }
+-
+-    markSelfNeedsSync()
+-  }
+-
+-  private suspend fun markSelfNeedsSync() {
+-    withContext(SignalDispatchers.Default) {
+-      SignalDatabase.recipients.markNeedsSync(Recipient.self().id)
+-      StorageSyncHelper.scheduleSyncForDataChange()
+-    }
+-  }
+-
+-  private fun getSoundSummary(uri: Uri): SoundSummary {
+-    return synchronized(soundSummaries) {
+-      soundSummaries.getOrPut(uri) { lookUpSoundSummary(uri) }
+-    }
+-  }
+-
+-  private fun lookUpSoundSummary(uri: Uri): SoundSummary {
+-    if (uri.toString().isBlank()) {
+-      return SoundSummary.Silent
+-    }
+-
+-    val context = AppDependencies.application
+-    val tone: Ringtone = RingtoneUtil.getRingtone(context, uri) ?: return SoundSummary.Default
+-
+-    return try {
+-      tone.getTitle(context)?.let { SoundSummary.Named(it) } ?: SoundSummary.Unknown
+-    } catch (e: SecurityException) {
+-      Log.w(TAG, "Unable to get title for ringtone", e)
+-      SoundSummary.Unknown
+-    }
+-  }
+-
+-  private fun canEnableNotifications(): Boolean {
+-    val areNotificationsDisabledBySystem = Build.VERSION.SDK_INT >= 26 &&
+-      (
+-        !NotificationChannels.getInstance().isMessageChannelEnabled ||
+-          !NotificationChannels.getInstance().isMessagesChannelGroupEnabled ||
+-          !NotificationChannels.getInstance().areNotificationsEnabled()
+-        )
+-
+-    return !areNotificationsDisabledBySystem
+-  }
+-}
+diff --git a/app/src/main/java/org/thoughtcrime/securesms/components/settings/app/notifications/NotificationsSettingsState.kt b/app/src/main/java/org/thoughtcrime/securesms/components/settings/app/notifications/NotificationsSettingsState.kt
+index b773d3ef254598cabcc7ce933a1b2baeeb1aaece..1f9f427f20cfb7702df03701802c0b1b749d5802 100644
+--- a/app/src/main/java/org/thoughtcrime/securesms/components/settings/app/notifications/NotificationsSettingsState.kt
++++ b/app/src/main/java/org/thoughtcrime/securesms/components/settings/app/notifications/NotificationsSettingsState.kt
+@@ -27,7 +27,12 @@ data class MessageNotificationsState(
+   val repeatAlerts: Int,
+   val messagePrivacy: String,
+   val priority: Int,
+-  val troubleshootNotifications: Boolean
++  val troubleshootNotifications: Boolean,
++  val reactionNotificationEnabled: Boolean,
++  val unreadReminderEnabled: Boolean,
++  val allowCallsWhileMuted: Boolean,
++  val allowMentionsWhileMuted: Boolean,
++  val allowRepliesWhileMuted: Boolean
+ )
+ 
+ data class CallNotificationsState(
+diff --git a/app/src/main/java/org/thoughtcrime/securesms/components/settings/app/notifications/NotificationsSettingsViewModel.kt b/app/src/main/java/org/thoughtcrime/securesms/components/settings/app/notifications/NotificationsSettingsViewModel.kt
+index cca2c80bda64aebfac5198a1183c7964d12d1931..21fb3bcf6eabb6385c6e3fa9c314fbdf2858df94 100644
+--- a/app/src/main/java/org/thoughtcrime/securesms/components/settings/app/notifications/NotificationsSettingsViewModel.kt
++++ b/app/src/main/java/org/thoughtcrime/securesms/components/settings/app/notifications/NotificationsSettingsViewModel.kt
+@@ -1,27 +1,22 @@
+-/*
+- * Copyright 2026 Signal Messenger, LLC
+- * SPDX-License-Identifier: AGPL-3.0-only
+- */
+-
+ package org.thoughtcrime.securesms.components.settings.app.notifications
+ 
++import android.net.Uri
++import android.os.Build
++import android.provider.Settings
++import androidx.lifecycle.ViewModel
++import androidx.lifecycle.ViewModelProvider
+ import androidx.lifecycle.viewModelScope
+-<<<<<<< MOLLY
+ import im.molly.unifiedpush.UnifiedPushDistributor
+ import im.molly.unifiedpush.components.settings.app.notifications.updateMollySocket
+ import im.molly.unifiedpush.model.MollySocket
+ import kotlinx.coroutines.Dispatchers
+-=======
+-import kotlinx.coroutines.channels.Channel
+-import kotlinx.coroutines.flow.Flow
+->>>>>>> SIGNAL
+ import kotlinx.coroutines.flow.MutableStateFlow
+ import kotlinx.coroutines.flow.StateFlow
+-import kotlinx.coroutines.flow.asStateFlow
+-import kotlinx.coroutines.flow.receiveAsFlow
+ import kotlinx.coroutines.flow.update
+ import kotlinx.coroutines.launch
+-<<<<<<< MOLLY
++import org.signal.core.util.concurrent.SignalDispatchers
++import org.signal.core.util.logging.Log
++import org.thoughtcrime.securesms.database.SignalDatabase
+ import org.thoughtcrime.securesms.ApplicationContext
+ import org.thoughtcrime.securesms.dependencies.AppDependencies
+ import org.thoughtcrime.securesms.keyvalue.SettingsValues.NotificationDeliveryMethod
+@@ -30,54 +25,46 @@ import org.thoughtcrime.securesms.notifications.DeviceSpecificNotificationConfig
+ import org.thoughtcrime.securesms.notifications.NotificationChannels
+ import org.thoughtcrime.securesms.notifications.SlowNotificationHeuristics
+ import org.thoughtcrime.securesms.preferences.widgets.NotificationPrivacyPreference
++import org.thoughtcrime.securesms.recipients.Recipient
++import org.thoughtcrime.securesms.recipients.RecipientForeverObserver
++import org.thoughtcrime.securesms.storage.StorageSyncHelper
+ import org.thoughtcrime.securesms.util.TextSecurePreferences
+-=======
+-import org.signal.appsettings.notifications.NotificationsSettingsAction
+-import org.signal.appsettings.notifications.NotificationsSettingsEvent
+-import org.signal.appsettings.notifications.NotificationsSettingsScreen
+-import org.signal.appsettings.notifications.NotificationsSettingsState
+-import org.signal.appsettings.routes.AppSettingsNavigationEvent
+-import org.signal.appsettings.routes.AppSettingsRoute
+-import org.signal.appsettings.routes.navigateBack
+-import org.signal.appsettings.routes.navigateTo
+-import org.signal.core.ui.compose.EventDrivenViewModel
+-import org.signal.core.util.logging.Log
+->>>>>>> SIGNAL
+ 
+-/**
+- * Drives [NotificationsSettingsScreen].
+- */
+-class NotificationsSettingsViewModel(
+-  private val parentEventEmitter: (AppSettingsNavigationEvent) -> Unit
+-) : EventDrivenViewModel<NotificationsSettingsEvent>(TAG) {
++class NotificationsSettingsViewModel : ViewModel(), RecipientForeverObserver {
+ 
+   companion object {
+     private val TAG = Log.tag(NotificationsSettingsViewModel::class)
+   }
+ 
+-  private val _state = MutableStateFlow(
+-    NotificationsSettingsRepository.run {
+-      syncFromNotificationChannel()
+-      getState(NotificationsSettingsState())
+-    }
+-  )
+-  private val _actions = Channel<NotificationsSettingsAction>(Channel.BUFFERED)
++  private val store = MutableStateFlow(getState())
++
++  val state: StateFlow<NotificationsSettingsState> = store
+ 
+-  val state: StateFlow<NotificationsSettingsState> = _state.asStateFlow()
+-  val actions: Flow<NotificationsSettingsAction> = _actions.receiveAsFlow()
++  private val self = Recipient.self().live()
+ 
+   init {
+-    viewModelScope.launch {
+-      val troubleshoot = NotificationsSettingsRepository.isTroubleshootingRecommended()
+-      _state.update { it.copy(messageNotificationsState = it.messageNotificationsState.copy(troubleshootNotifications = troubleshoot)) }
++    if (NotificationChannels.supported()) {
++      SignalStore.settings.messageNotificationSound = NotificationChannels.getInstance().messageRingtone
++      SignalStore.settings.isMessageVibrateEnabled = NotificationChannels.getInstance().messageVibrate
+     }
+ 
+-    viewModelScope.launch {
+-      NotificationsSettingsRepository.observeSelfChanges().collect { refresh() }
++    // Calculating slow notification stuff isn't thread-safe, so we do it without to start off so we have most state populated, then fetch it in the background.
++    store.update { getState(calculateSlowNotifications = false) }
++    viewModelScope.launch(Dispatchers.Default) {
++      store.update { getState(currentState = it, calculateSlowNotifications = true) }
+     }
++
++    self.observeForever(this)
++  }
++
++  override fun onRecipientChanged(recipient: Recipient) {
++    refresh()
++  }
++
++  override fun onCleared() {
++    self.removeForeverObserver(this)
+   }
+ 
+-<<<<<<< MOLLY
+   fun refresh() {
+     store.update { getState(currentState = it) }
+   }
+@@ -127,7 +114,7 @@ class NotificationsSettingsViewModel(
+   }
+ 
+   fun setMessageNotificationPriority(priority: Int) {
+-    sharedPreferences.edit().putString(TextSecurePreferences.NOTIFICATION_PRIORITY_PREF, priority.toString()).apply()
++    SignalStore.settings.messageNotificationPriority = priority
+     refresh()
+   }
+ 
+@@ -148,6 +135,7 @@ class NotificationsSettingsViewModel(
+ 
+   fun setNotifyWhenContactJoinsSignal(enabled: Boolean) {
+     SignalStore.settings.isNotifyWhenContactJoinsSignal = enabled
++    markSelfNeedsSync()
+     refresh()
+   }
+ 
+@@ -176,6 +164,48 @@ class NotificationsSettingsViewModel(
+     store.update { it.copy(playServicesErrorCode = errorCode) }
+   }
+ 
++  fun setReactionNotificationEnabled(enabled: Boolean) {
++    SignalStore.settings.reactionNotifications = enabled
++    markSelfNeedsSync()
++    refresh()
++  }
++
++  fun setUnreadReminderEnabled(enabled: Boolean) {
++    SignalStore.settings.unreadReminderEnabled = enabled
++    markSelfNeedsSync()
++    refresh()
++  }
++
++  fun resetSettings() {
++    Log.i(TAG, "Resetting all notifications.")
++    // Global
++    setMessageNotificationsSound(Settings.System.DEFAULT_NOTIFICATION_URI)
++    SignalStore.settings.isMessageNotificationsInChatSoundsEnabled = true
++    SignalStore.settings.messageNotificationsPrivacy = NotificationPrivacyPreference("all")
++    SignalStore.settings.allowCallsWhileMuted = false
++    SignalStore.settings.allowMentionsWhileMuted = true
++    SignalStore.settings.allowRepliesWhileMuted = true
++    SignalStore.settings.reactionNotifications = true
++    SignalStore.settings.unreadReminderEnabled = true
++    SignalStore.settings.isNotifyWhenContactJoinsSignal = false
++    SignalStore.settings.messageNotificationsRepeatAlerts = 0
++
++    // Per-chat
++    viewModelScope.launch(SignalDispatchers.Default) {
++      SignalDatabase.recipients.resetAllChatNotificationSettings()
++    }
++
++    markSelfNeedsSync()
++    refresh()
++  }
++
++  private fun markSelfNeedsSync() {
++    viewModelScope.launch(SignalDispatchers.Default) {
++      SignalDatabase.recipients.markNeedsSync(Recipient.self().id)
++      StorageSyncHelper.scheduleSyncForDataChange()
++    }
++  }
++
+   /**
+    * @param currentState If provided and [calculateSlowNotifications] = false, then we will copy the slow notification state from it
+    * @param calculateSlowNotifications If true, calculate the true slow notification state (this is not main-thread safe). Otherwise, it will copy from
+@@ -192,7 +222,7 @@ class NotificationsSettingsViewModel(
+       inChatSoundsEnabled = SignalStore.settings.isMessageNotificationsInChatSoundsEnabled,
+       repeatAlerts = SignalStore.settings.messageNotificationsRepeatAlerts,
+       messagePrivacy = SignalStore.settings.messageNotificationsPrivacy.toString(),
+-      priority = TextSecurePreferences.getNotificationPriority(AppDependencies.application),
++      priority = SignalStore.settings.messageNotificationPriority,
+       troubleshootNotifications = if (calculateSlowNotifications) {
+         (SlowNotificationHeuristics.isBatteryOptimizationsOn() && SlowNotificationHeuristics.isHavingDelayedNotifications()) ||
+           SlowNotificationHeuristics.getDeviceSpecificShowCondition() == DeviceSpecificNotificationConfig.ShowCondition.ALWAYS
+@@ -200,7 +230,12 @@ class NotificationsSettingsViewModel(
+         currentState.messageNotificationsState.troubleshootNotifications
+       } else {
+         false
+-      }
++      },
++      reactionNotificationEnabled = SignalStore.settings.reactionNotifications,
++      unreadReminderEnabled = SignalStore.settings.unreadReminderEnabled,
++      allowCallsWhileMuted = SignalStore.settings.allowCallsWhileMuted,
++      allowMentionsWhileMuted = SignalStore.settings.allowMentionsWhileMuted,
++      allowRepliesWhileMuted = SignalStore.settings.allowRepliesWhileMuted
+     ),
+     callNotificationsState = CallNotificationsState(
+       notificationsEnabled = SignalStore.settings.isCallNotificationsEnabled && canEnableNotifications(),
+@@ -227,53 +262,11 @@ class NotificationsSettingsViewModel(
+         )
+ 
+     return !areNotificationsDisabledBySystem
+-=======
+-  override suspend fun processEvent(event: NotificationsSettingsEvent) {
+-    when (event) {
+-      NotificationsSettingsEvent.ScreenResumed -> refresh()
+-      NotificationsSettingsEvent.NavigateBackClicked -> parentEventEmitter.navigateBack()
+-      NotificationsSettingsEvent.TurnOnNotificationsClicked -> _actions.send(NotificationsSettingsAction.ShowTurnOnNotificationsSheet)
+-      is NotificationsSettingsEvent.MessageNotificationsToggled -> changeSetting { setMessageNotificationsEnabled(event.enabled) }
+-      is NotificationsSettingsEvent.MessagePrivacySelected -> changeSetting { setMessageNotificationPrivacy(event.value) }
+-      NotificationsSettingsEvent.WhileMutedClicked -> parentEventEmitter.navigateTo(AppSettingsRoute.NotificationsRoute.MutedNotifications)
+-      is NotificationsSettingsEvent.ReactionNotificationsToggled -> changeSetting { setReactionNotificationsEnabled(event.enabled) }
+-      is NotificationsSettingsEvent.UnreadRemindersToggled -> changeSetting { setUnreadReminderEnabled(event.enabled) }
+-      is NotificationsSettingsEvent.ContactJoinsSignalToggled -> changeSetting { setNotifyWhenContactJoinsSignal(event.enabled) }
+-      is NotificationsSettingsEvent.RepeatAlertsSelected -> changeSetting { setMessageRepeatAlerts(event.value.toInt()) }
+-      NotificationsSettingsEvent.CustomizeClicked -> _actions.send(NotificationsSettingsAction.OpenMessageChannelSettings)
+-      NotificationsSettingsEvent.MessageSoundClicked -> _actions.send(NotificationsSettingsAction.LaunchMessageSoundPicker)
+-      is NotificationsSettingsEvent.MessageSoundPicked -> changeSetting { setMessageNotificationsSound(event.sound) }
+-      is NotificationsSettingsEvent.MessageVibrateToggled -> changeSetting { setMessageNotificationVibration(event.enabled) }
+-      is NotificationsSettingsEvent.LedColorSelected -> changeSetting { setMessageNotificationLedColor(event.value) }
+-      is NotificationsSettingsEvent.LedBlinkSelected -> changeSetting { setMessageNotificationLedBlink(event.value) }
+-      is NotificationsSettingsEvent.InChatSoundsToggled -> changeSetting { setMessageNotificationInChatSoundsEnabled(event.enabled) }
+-      NotificationsSettingsEvent.TroubleshootClicked -> _actions.send(NotificationsSettingsAction.ShowTroubleshootNotificationsDialog)
+-      NotificationsSettingsEvent.PriorityClicked -> _actions.send(NotificationsSettingsAction.LaunchNotificationPrioritySettings)
+-      is NotificationsSettingsEvent.PrioritySelected -> changeSetting { setMessageNotificationPriority(event.value.toInt()) }
+-      is NotificationsSettingsEvent.CallNotificationsToggled -> changeSetting { setCallNotificationsEnabled(event.enabled) }
+-      NotificationsSettingsEvent.CallRingtoneClicked -> _actions.send(NotificationsSettingsAction.LaunchCallRingtonePicker)
+-      is NotificationsSettingsEvent.CallRingtonePicked -> changeSetting { setCallRingtone(event.ringtone) }
+-      is NotificationsSettingsEvent.CallVibrateToggled -> changeSetting { setCallVibrateEnabled(event.enabled) }
+-      NotificationsSettingsEvent.SoundPickerUnavailable -> _state.update { it.copy(snackbar = NotificationsSettingsState.Snackbar.SoundPickerUnavailable) }
+-      NotificationsSettingsEvent.NotificationProfilesClicked -> parentEventEmitter.navigateTo(AppSettingsRoute.NotificationsRoute.NotificationProfiles)
+-      NotificationsSettingsEvent.ResetClicked -> _state.update { it.copy(dialog = NotificationsSettingsState.Dialog.ConfirmReset) }
+-      NotificationsSettingsEvent.ResetConfirmed -> {
+-        _state.update { it.copy(dialog = NotificationsSettingsState.Dialog.None) }
+-        changeSetting { resetSettings() }
+-      }
+-      NotificationsSettingsEvent.DialogDismissed -> _state.update { it.copy(dialog = NotificationsSettingsState.Dialog.None) }
+-      NotificationsSettingsEvent.SnackbarDismissed -> _state.update { it.copy(snackbar = NotificationsSettingsState.Snackbar.None) }
+-    }
+->>>>>>> SIGNAL
+   }
+ 
+-  /** Applies [change] to the stored settings, then reads them back. */
+-  private inline fun changeSetting(change: NotificationsSettingsRepository.() -> Unit) {
+-    NotificationsSettingsRepository.change()
+-    refresh()
+-  }
+-
+-  private fun refresh() {
+-    _state.update { NotificationsSettingsRepository.getState(it) }
++  class Factory : ViewModelProvider.Factory {
++    override fun <T : ViewModel> create(modelClass: Class<T>): T {
++      return requireNotNull(modelClass.cast(NotificationsSettingsViewModel()))
++    }
+   }
+ }
+diff --git a/app/src/main/java/org/thoughtcrime/securesms/keyvalue/UnifiedPushValues.kt b/app/src/main/java/org/thoughtcrime/securesms/keyvalue/UnifiedPushValues.kt
+index f12d279d7e29b9d5c8f652561f06c5b93add9b3f..1e1db2ea8c860fa758dc499daa28102b2237b3d7 100644
+--- a/app/src/main/java/org/thoughtcrime/securesms/keyvalue/UnifiedPushValues.kt
++++ b/app/src/main/java/org/thoughtcrime/securesms/keyvalue/UnifiedPushValues.kt
+@@ -3,6 +3,11 @@ package org.thoughtcrime.securesms.keyvalue
+ import im.molly.unifiedpush.model.MollySocketDevice
+ import im.molly.unifiedpush.model.RegistrationStatus
+ import org.signal.core.util.logging.Log
++import org.signal.storage.keyvalue.KeyValueStore
++import org.signal.storage.keyvalue.SignalStoreValues
++import org.signal.storage.keyvalue.booleanValue
++import org.signal.storage.keyvalue.longValue
++import org.signal.storage.keyvalue.stringValue
+ 
+ class UnifiedPushValues(store: KeyValueStore) : SignalStoreValues(store) {
+ 
+@@ -23,7 +28,7 @@ class UnifiedPushValues(store: KeyValueStore) : SignalStoreValues(store) {
+ 
+   public override fun onFirstEverAppLaunch() = Unit
+ 
+-  public override fun getKeysToIncludeInBackup() = emptyList<String>()
++  override val keysToIncludeInBackup: List<String> get() = emptyList()
+ 
+   @get:JvmName("isEnabled")
+   var enabled: Boolean by booleanValue(UNIFIEDPUSH_ENABLED, false)
+diff --git a/app/src/main/java/org/thoughtcrime/securesms/notifications/MarkReadReceiver.java b/app/src/main/java/org/thoughtcrime/securesms/notifications/MarkReadReceiver.java
+index cea02107ffa0ef5fa6566aae0d7325f86f1cd29d..dba103c2a751aa479f18c439b047583fa5a6e829 100644
+--- a/app/src/main/java/org/thoughtcrime/securesms/notifications/MarkReadReceiver.java
++++ b/app/src/main/java/org/thoughtcrime/securesms/notifications/MarkReadReceiver.java
+@@ -22,11 +22,7 @@ import org.thoughtcrime.securesms.jobs.CallLogEventSendJob;
+ import org.thoughtcrime.securesms.jobs.MultiDeviceReadUpdateJob;
+ import org.thoughtcrime.securesms.jobs.SendReadReceiptJob;
+ import org.thoughtcrime.securesms.notifications.v2.ConversationId;
+-<<<<<<< MOLLY
+-import org.thoughtcrime.securesms.recipients.RecipientId;
+ import org.thoughtcrime.securesms.service.ExportedBroadcastReceiver;
+-=======
+->>>>>>> SIGNAL
+ 
+ import java.util.ArrayList;
+ import java.util.LinkedList;
+diff --git a/app/src/main/java/org/thoughtcrime/securesms/notifications/NotificationIds.java b/app/src/main/java/org/thoughtcrime/securesms/notifications/NotificationIds.java
+deleted file mode 100644
+index ad0f4a25966e755c53f9e41e4de83255988018cb..0000000000000000000000000000000000000000
+--- a/app/src/main/java/org/thoughtcrime/securesms/notifications/NotificationIds.java
++++ /dev/null
+@@ -1,63 +0,0 @@
+-package org.thoughtcrime.securesms.notifications;
+-
+-import androidx.annotation.NonNull;
+-
+-import org.thoughtcrime.securesms.notifications.v2.ConversationId;
+-
+-public final class NotificationIds {
+-
+-  public static final int FCM_FAILURE                       = 12;
+-  public static final int ATTACHMENT_PROGRESS               = 50;
+-  public static final int BACKUP_PROGRESS                   = 51;
+-  public static final int APK_UPDATE_PROMPT_INSTALL         = 666;
+-  public static final int APK_UPDATE_FAILED_INSTALL         = 667;
+-  public static final int APK_UPDATE_SUCCESSFUL_INSTALL     = 668;
+-  public static final int PENDING_MESSAGES                  = 1111;
+-  public static final int MESSAGE_SUMMARY                   = 1338;
+-  //public static final int APPLICATION_MIGRATION           = 4242;
+-  //public static final int SMS_IMPORT_COMPLETE             = 31337;
+-  public static final int MAY_HAVE_MESSAGES_NOTIFICATION_ID = 31365;
+-  //public static final int PRE_REGISTRATION_SMS            = 5050;
+-  public static final int THREAD                            = 50000;
+-  public static final int MAX_THREAD                        = THREAD + 100_000;
+-  public static final int INTERNAL_ERROR                    = 258069;
+-  public static final int RECONCILIATION_ERROR              = 258070;
+-  //public static final int LEGACY_SQLCIPHER_MIGRATION      = 494949;
+-  public static final int USER_NOTIFICATION_MIGRATION       = 525600;
+-  public static final int DEVICE_TRANSFER                   = 625420;
+-  public static final int DONOR_BADGE_FAILURE               = 630001;
+-  public static final int FCM_FETCH                         = 630002;
+-  //public static final int SMS_EXPORT_SERVICE              = 630003;
+-  //public static final int SMS_EXPORT_COMPLETE             = 630004;
+-  public static final int STORY_THREAD                      = 700000;
+-  public static final int MAX_STORY_THREAD                  = STORY_THREAD + 100_000;
+-  public static final int MESSAGE_DELIVERY_FAILURE          = 800000;
+-  public static final int STORY_MESSAGE_DELIVERY_FAILURE    = 900000;
+-  public static final int UNREGISTERED_NOTIFICATION_ID      = 20230102;
+-  public static final int NEW_LINKED_DEVICE                 = 120400;
+-  public static final int OUT_OF_REMOTE_STORAGE             = 120500;
+-  public static final int INITIAL_BACKUP_FAILED             = 120501;
+-  public static final int MANUAL_BACKUP_NOT_CREATED         = 120502;
+-
+-  private NotificationIds() { }
+-
+-  public static int getNotificationIdForThread(@NonNull ConversationId conversationId) {
+-    if (conversationId.getGroupStoryId() != null) {
+-      return STORY_THREAD + conversationId.getGroupStoryId().intValue();
+-    } else {
+-      return THREAD + (int) conversationId.getThreadId();
+-    }
+-  }
+-
+-  public static int getNotificationIdForMessageDeliveryFailed(@NonNull ConversationId conversationId) {
+-    if (conversationId.getGroupStoryId() != null) {
+-      return STORY_MESSAGE_DELIVERY_FAILURE + conversationId.getGroupStoryId().intValue();
+-    } else {
+-      return MESSAGE_DELIVERY_FAILURE + (int) conversationId.getThreadId();
+-    }
+-  }
+-
+-  public static boolean isMessageNotificationId(int id) {
+-    return (id >= THREAD && id < (MAX_THREAD)) || (id >= STORY_THREAD && id < MAX_STORY_THREAD);
+-  }
+-}
+diff --git a/app/src/main/java/org/thoughtcrime/securesms/notifications/NotificationIds.kt b/app/src/main/java/org/thoughtcrime/securesms/notifications/NotificationIds.kt
+index 044051ad88322ece0f2e2e19939225b7ac887d83..29ae73d77c6222ded0d4bbab848a9ffdea03809e 100644
+--- a/app/src/main/java/org/thoughtcrime/securesms/notifications/NotificationIds.kt
++++ b/app/src/main/java/org/thoughtcrime/securesms/notifications/NotificationIds.kt
+@@ -3,7 +3,7 @@ package org.thoughtcrime.securesms.notifications
+ import org.thoughtcrime.securesms.notifications.v2.ConversationId
+ 
+ /**
+- * Single-use ids count up by 10 and stay below the first ranged id.
++ * New single-use ids count up by 10 and stay below the first ranged id. Molly-specific ids retain their existing values.
+  *
+  * Ranged ids are a base plus a database id, built by the `getNotificationIdFor*` functions. For example, thread ranges are offset by
+  * thread id, story ranges by the parent story's message id.
+@@ -36,6 +36,10 @@ object NotificationIds {
+   const val USER_NOTIFICATION_MIGRATION: Int = 190
+   const val DONOR_BADGE_FAILURE: Int = 200
+ 
++  const val FCM_FAILURE: Int = 12
++  const val PENDING_MESSAGES: Int = 1111
++  const val MANUAL_BACKUP_NOT_CREATED: Int = 120502
++
+   const val THREAD: Int = 10000000
+   const val MESSAGE_DELIVERY_FAILURE: Int = 20000000
+   const val UNREAD_REMINDER: Int = 30000000
+diff --git a/app/src/main/java/org/thoughtcrime/securesms/notifications/RemoteReplyReceiver.java b/app/src/main/java/org/thoughtcrime/securesms/notifications/RemoteReplyReceiver.java
+index 6f9fffc0afbac525e0c6f9386257c8da28be35e8..855e7b09b644851ccfa01324ab347b78d08d7765 100644
+--- a/app/src/main/java/org/thoughtcrime/securesms/notifications/RemoteReplyReceiver.java
++++ b/app/src/main/java/org/thoughtcrime/securesms/notifications/RemoteReplyReceiver.java
+@@ -36,11 +36,7 @@ import org.thoughtcrime.securesms.mms.SlideDeck;
+ import org.thoughtcrime.securesms.notifications.v2.ConversationId;
+ import org.thoughtcrime.securesms.notifications.v2.DefaultMessageNotifier;
+ import org.thoughtcrime.securesms.recipients.Recipient;
+-<<<<<<< MOLLY
+-import org.thoughtcrime.securesms.recipients.RecipientId;
+ import org.thoughtcrime.securesms.service.ExportedBroadcastReceiver;
+-=======
+->>>>>>> SIGNAL
+ import org.thoughtcrime.securesms.sms.MessageSender;
+ import org.thoughtcrime.securesms.util.MessageUtil;
+ 
+diff --git a/app/src/main/java/org/thoughtcrime/securesms/notifications/VitalsViewModel.kt b/app/src/main/java/org/thoughtcrime/securesms/notifications/VitalsViewModel.kt
+index b435e7318367d5c4038c075c09318fa0e80a6f65..88596bcf4647c3b4e6fdfb14ba69a6ed15f3169c 100644
+--- a/app/src/main/java/org/thoughtcrime/securesms/notifications/VitalsViewModel.kt
++++ b/app/src/main/java/org/thoughtcrime/securesms/notifications/VitalsViewModel.kt
+@@ -15,12 +15,6 @@ import io.reactivex.rxjava3.schedulers.Schedulers
+ import io.reactivex.rxjava3.subjects.BehaviorSubject
+ import org.thoughtcrime.securesms.keyvalue.SignalStore
+ import org.thoughtcrime.securesms.notifications.DeviceSpecificNotificationConfig.ShowCondition
+-<<<<<<< MOLLY
+-=======
+-import org.thoughtcrime.securesms.util.ConnectivityWarning
+-import org.thoughtcrime.securesms.util.NetworkUtil
+-import org.whispersystems.signalservice.api.websocket.WebSocketConnectionState
+->>>>>>> SIGNAL
+ import java.util.concurrent.TimeUnit
+ 
+ /**
+@@ -75,34 +69,6 @@ class VitalsViewModel(private val context: Application) : AndroidViewModel(conte
+         return@fromCallable State.PROMPT_GENERAL_BATTERY_SAVER_DIALOG
+       }
+ 
+-<<<<<<< MOLLY
+-=======
+-      if (havingDelayedNotifications && SlowNotificationHeuristics.shouldPromptUserForDelayedNotificationLogs()) {
+-        return@fromCallable State.PROMPT_DEBUGLOGS_FOR_NOTIFICATIONS
+-      }
+-
+-      val timeSinceLastConnection = System.currentTimeMillis() - SignalStore.misc.lastWebSocketConnectTime
+-      val timeSinceLastConnectionWarning = System.currentTimeMillis() - SignalStore.misc.lastConnectivityWarningTime
+-      val connectedToWebSocket = AppDependencies.webSocketObserver.value == WebSocketConnectionState.CONNECTED
+-      val isRegistered = SignalStore.account.isRegistered && !SignalStore.account.isUnauthorizedReceived
+-
+-      if (ConnectivityWarning.isEnabled && timeSinceLastConnection > ConnectivityWarning.threshold && timeSinceLastConnectionWarning > 14.days.inWholeMilliseconds && NetworkUtil.isConnected(context) && isRegistered && !connectedToWebSocket) {
+-        return@fromCallable if (ConnectivityWarning.isDebugPromptEnabled) {
+-          State.PROMPT_DEBUGLOGS_FOR_CONNECTIVITY_WARNING
+-        } else {
+-          State.PROMPT_CONNECTIVITY_WARNING
+-        }
+-      }
+-
+-      if (LogDatabase.getInstance(context).crashes.anyMatch(patterns = CrashConfig.patterns, promptThreshold = System.currentTimeMillis() - 14.days.inWholeMilliseconds)) {
+-        val timeSinceLastPrompt = System.currentTimeMillis() - SignalStore.uiHints.lastCrashPrompt
+-
+-        if (timeSinceLastPrompt > 1.days.inWholeMilliseconds) {
+-          return@fromCallable State.PROMPT_DEBUGLOGS_FOR_CRASH
+-        }
+-      }
+-
+->>>>>>> SIGNAL
+       return@fromCallable State.NONE
+     }.subscribeOn(Schedulers.io())
+   }
+diff --git a/app/src/main/java/org/thoughtcrime/securesms/notifications/v2/NotificationItem.kt b/app/src/main/java/org/thoughtcrime/securesms/notifications/v2/NotificationItem.kt
+index adddc3900fbd45ff85c6216a9a6ced51194eb9ac..3154f752b12db0c01c7a5248bf8f0b8f47be7083 100644
+--- a/app/src/main/java/org/thoughtcrime/securesms/notifications/v2/NotificationItem.kt
++++ b/app/src/main/java/org/thoughtcrime/securesms/notifications/v2/NotificationItem.kt
+@@ -14,11 +14,7 @@ import org.signal.core.util.Util
+ import org.signal.core.util.logging.Log
+ import org.signal.emoji.EmojiStrings
+ import org.thoughtcrime.securesms.R
+-<<<<<<< MOLLY
+ import org.thoughtcrime.securesms.ScreenLockController
+-import org.thoughtcrime.securesms.components.emoji.EmojiStrings
+-=======
+->>>>>>> SIGNAL
+ import org.thoughtcrime.securesms.contactshare.Contact
+ import org.thoughtcrime.securesms.contactshare.ContactUtil
+ import org.thoughtcrime.securesms.database.MentionUtil
+diff --git a/app/src/test/java/org/thoughtcrime/securesms/components/settings/app/notifications/MollyNotificationCallbacksTest.kt b/app/src/test/java/org/thoughtcrime/securesms/components/settings/app/notifications/MollyNotificationCallbacksTest.kt
+new file mode 100644
+index 0000000000000000000000000000000000000000..4c874617f0fa1240099b942f3e42c1d55656a10e
+--- /dev/null
++++ b/app/src/test/java/org/thoughtcrime/securesms/components/settings/app/notifications/MollyNotificationCallbacksTest.kt
+@@ -0,0 +1,109 @@
++package org.thoughtcrime.securesms.components.settings.app.notifications
++
++import android.app.Application
++import androidx.activity.result.ActivityResultCallback
++import androidx.activity.result.ActivityResultLauncher
++import androidx.activity.result.contract.ActivityResultContract
++import androidx.fragment.app.FragmentActivity
++import im.molly.unifiedpush.UnifiedPushDefaultDistributorLinkActivity
++import im.molly.unifiedpush.components.settings.app.notifications.MollySocketQrScannerActivity
++import im.molly.unifiedpush.model.MollySocket
++import io.mockk.mockk
++import io.mockk.verify
++import org.junit.Before
++import org.junit.Test
++import org.junit.runner.RunWith
++import org.robolectric.Robolectric
++import org.robolectric.RobolectricTestRunner
++import org.robolectric.Shadows.shadowOf
++import org.robolectric.annotation.Config
++import org.signal.appsettings.routes.AppSettingsRoute
++import org.thoughtcrime.securesms.components.settings.app.routes.AppSettingsRouter
++import org.thoughtcrime.securesms.keyvalue.SettingsValues.NotificationDeliveryMethod
++
++@RunWith(RobolectricTestRunner::class)
++@Config(application = Application::class)
++class MollyNotificationCallbacksTest {
++  private lateinit var activity: FragmentActivity
++  private val viewModel = mockk<NotificationsSettingsViewModel>(relaxed = true)
++  private val router = mockk<AppSettingsRouter>(relaxed = true)
++  private val results = RecordingResults()
++
++  @Before
++  fun setUp() {
++    activity = Robolectric.buildActivity(FragmentActivity::class.java).setup().get()
++    DefaultNotificationsSettingsCallbacks(activity, viewModel, router, results)
++  }
++
++  @Test
++  fun `cancelling QR setup does not change the delivery method or link a distributor`() {
++    results.qrResult.onActivityResult(null)
++
++    verify(exactly = 0) { viewModel.initializeMollySocket(any()) }
++    verify(exactly = 0) { viewModel.setPreferredNotificationMethod(any()) }
++    verify(exactly = 0) { results.distributorLauncher.launch(Unit, null) }
++  }
++
++  @Test
++  fun `successful QR setup stores server before selecting UnifiedPush and linking distributor`() {
++    val socket = MollySocket.WebServer("v".repeat(87), "https://push.example.org")
++    results.qrResult.onActivityResult(socket)
++
++    io.mockk.verifyOrder {
++      viewModel.initializeMollySocket(socket)
++      viewModel.setPreferredNotificationMethod(NotificationDeliveryMethod.UNIFIEDPUSH)
++      results.distributorLauncher.launch(Unit, null)
++    }
++  }
++
++  @Test
++  fun `distributor linking success opens settings without selecting a fallback`() {
++    results.distributorResult.onActivityResult(true)
++    shadowOf(android.os.Looper.getMainLooper()).idle()
++
++    verify(exactly = 0) { viewModel.selectFirstDistributor() }
++    verify(exactly = 1) { router.navigateTo(AppSettingsRoute.NotificationsRoute.UnifiedPushSettings) }
++  }
++
++  @Test
++  fun `missing distributor selects fallback before opening settings`() {
++    results.distributorResult.onActivityResult(false)
++    shadowOf(android.os.Looper.getMainLooper()).idle()
++
++    verify(exactly = 1) { viewModel.selectFirstDistributor() }
++    verify(exactly = 1) { router.navigateTo(AppSettingsRoute.NotificationsRoute.UnifiedPushSettings) }
++  }
++
++  @Test
++  fun `cancelled distributor link also selects fallback`() {
++    results.distributorResult.onActivityResult(null)
++    shadowOf(android.os.Looper.getMainLooper()).idle()
++
++    verify(exactly = 1) { viewModel.selectFirstDistributor() }
++    verify(exactly = 1) { router.navigateTo(AppSettingsRoute.NotificationsRoute.UnifiedPushSettings) }
++  }
++
++  private class RecordingResults : DefaultNotificationsSettingsCallbacks.ActivityResultRegisterer {
++    lateinit var qrResult: ActivityResultCallback<MollySocket?>
++    lateinit var distributorResult: ActivityResultCallback<Boolean?>
++    val distributorLauncher: ActivityResultLauncher<Unit> = mockk(relaxed = true)
++
++    @Suppress("UNCHECKED_CAST")
++    override fun <I, O> registerForActivityResult(
++      contract: ActivityResultContract<I, O>,
++      callback: ActivityResultCallback<O>
++    ): ActivityResultLauncher<I> {
++      return when (contract) {
++        is MollySocketQrScannerActivity.Contract -> {
++          qrResult = callback as ActivityResultCallback<MollySocket?>
++          mockk(relaxed = true)
++        }
++        is UnifiedPushDefaultDistributorLinkActivity.Contract -> {
++          distributorResult = callback as ActivityResultCallback<Boolean?>
++          distributorLauncher as ActivityResultLauncher<I>
++        }
++        else -> mockk(relaxed = true)
++      }
++    }
++  }
++}
+diff --git a/app/src/test/java/org/thoughtcrime/securesms/components/settings/app/notifications/MollyNotificationStartupRaceTest.kt b/app/src/test/java/org/thoughtcrime/securesms/components/settings/app/notifications/MollyNotificationStartupRaceTest.kt
+new file mode 100644
+index 0000000000000000000000000000000000000000..793adca0ab7be6368ae21f5ae85d07d9a2f4f970
+--- /dev/null
++++ b/app/src/test/java/org/thoughtcrime/securesms/components/settings/app/notifications/MollyNotificationStartupRaceTest.kt
+@@ -0,0 +1,97 @@
++package org.thoughtcrime.securesms.components.settings.app.notifications
++
++import android.app.Application
++import androidx.test.core.app.ApplicationProvider
++import io.mockk.every
++import io.mockk.mockk
++import io.mockk.mockkStatic
++import io.mockk.unmockkStatic
++import kotlinx.coroutines.flow.first
++import kotlinx.coroutines.runBlocking
++import kotlinx.coroutines.withTimeout
++import org.junit.After
++import org.junit.Assert.assertEquals
++import org.junit.Assert.assertNull
++import org.junit.Assert.assertTrue
++import org.junit.Before
++import org.junit.Rule
++import org.junit.Test
++import org.junit.rules.RuleChain
++import org.junit.runner.RunWith
++import org.robolectric.RobolectricTestRunner
++import org.robolectric.annotation.Config
++import org.thoughtcrime.securesms.keyvalue.AccountValues
++import org.thoughtcrime.securesms.keyvalue.SettingsValues
++import org.thoughtcrime.securesms.keyvalue.SignalStore
++import org.thoughtcrime.securesms.keyvalue.UnifiedPushValues
++import org.thoughtcrime.securesms.notifications.SlowNotificationHeuristics
++import org.thoughtcrime.securesms.notifications.NotificationChannels
++import org.thoughtcrime.securesms.recipients.LiveRecipient
++import org.thoughtcrime.securesms.recipients.Recipient
++import org.thoughtcrime.securesms.testutil.MockAppDependenciesRule
++import org.thoughtcrime.securesms.testutil.MockSignalStoreRule
++import org.thoughtcrime.securesms.util.SecurePreferenceManager
++import java.util.concurrent.CountDownLatch
++import java.util.concurrent.TimeUnit
++
++@RunWith(RobolectricTestRunner::class)
++@Config(application = Application::class, sdk = [28])
++class MollyNotificationStartupRaceTest {
++  private val dependencies = MockAppDependenciesRule()
++  private val signalStore = MockSignalStoreRule(setOf(AccountValues::class, SettingsValues::class))
++
++  @get:Rule
++  val rules: RuleChain = RuleChain.outerRule(dependencies).around(signalStore)
++
++  @Before
++  fun setUp() {
++    val context = ApplicationProvider.getApplicationContext<Application>()
++    mockkStatic(SecurePreferenceManager::class)
++    every { SecurePreferenceManager.getSecurePreferences(any()) } returns context.getSharedPreferences("notification-startup-test", 0)
++    val recipient = mockk<Recipient>()
++    val liveRecipient = mockk<LiveRecipient>(relaxed = true)
++    mockkStatic(Recipient::class)
++    every { Recipient.self() } returns recipient
++    every { recipient.live() } returns liveRecipient
++    every { SignalStore.unifiedpush } returns mockk<UnifiedPushValues>(relaxed = true)
++    mockkStatic(NotificationChannels::class)
++    every { NotificationChannels.supported() } returns false
++    every { NotificationChannels.getInstance() } returns mockk(relaxed = true)
++    mockkStatic(SlowNotificationHeuristics::class)
++  }
++
++  @After
++  fun tearDown() {
++    unmockkStatic(SlowNotificationHeuristics::class)
++    unmockkStatic(NotificationChannels::class)
++    unmockkStatic(Recipient::class)
++    unmockkStatic(SecurePreferenceManager::class)
++  }
++
++  @Test
++  fun `slow startup refresh preserves pending Play Services error`() {
++    val entered = CountDownLatch(1)
++    val release = CountDownLatch(1)
++    every { SlowNotificationHeuristics.isBatteryOptimizationsOn() } answers {
++      entered.countDown()
++      check(release.await(5, TimeUnit.SECONDS))
++      true
++    }
++    every { SlowNotificationHeuristics.isHavingDelayedNotifications() } returns true
++    try {
++      val viewModel = NotificationsSettingsViewModel()
++      assertTrue(entered.await(5, TimeUnit.SECONDS))
++      viewModel.setPlayServicesErrorCode(42)
++      release.countDown()
++      runBlocking {
++        withTimeout(5000) { viewModel.state.first { it.messageNotificationsState.troubleshootNotifications } }
++      }
++      assertEquals(42, viewModel.state.value.playServicesErrorCode)
++      viewModel.setPlayServicesErrorCode(null)
++      viewModel.refresh()
++      assertNull(viewModel.state.value.playServicesErrorCode)
++    } finally {
++      release.countDown()
++    }
++  }
++}
+diff --git a/app/src/test/java/org/thoughtcrime/securesms/components/settings/app/notifications/MollyNotificationsSettingsScreenTest.kt b/app/src/test/java/org/thoughtcrime/securesms/components/settings/app/notifications/MollyNotificationsSettingsScreenTest.kt
+new file mode 100644
+index 0000000000000000000000000000000000000000..3a9019b5e4452989e82e37ed398b674d50741c14
+--- /dev/null
++++ b/app/src/test/java/org/thoughtcrime/securesms/components/settings/app/notifications/MollyNotificationsSettingsScreenTest.kt
+@@ -0,0 +1,133 @@
++package org.thoughtcrime.securesms.components.settings.app.notifications
++
++import android.app.Application
++import android.net.Uri
++import androidx.compose.runtime.mutableStateOf
++import androidx.compose.ui.test.assertIsNotEnabled
++import androidx.compose.ui.test.assertIsDisplayed
++import androidx.compose.ui.test.hasScrollAction
++import androidx.compose.ui.test.hasText
++import androidx.compose.ui.test.junit4.createComposeRule
++import androidx.compose.ui.test.onNodeWithText
++import androidx.compose.ui.test.onNodeWithContentDescription
++import androidx.compose.ui.test.performClick
++import androidx.compose.ui.test.performScrollToNode
++import androidx.test.core.app.ApplicationProvider
++import com.google.android.gms.common.ConnectionResult
++import org.junit.Assert.assertEquals
++import org.junit.Assert.assertFalse
++import org.junit.Rule
++import org.junit.Test
++import org.junit.runner.RunWith
++import org.robolectric.RobolectricTestRunner
++import org.robolectric.annotation.Config
++import org.signal.core.ui.CoreUiDependenciesRule
++import org.signal.core.ui.compose.theme.SignalTheme
++import org.thoughtcrime.securesms.R
++import org.thoughtcrime.securesms.keyvalue.SettingsValues.NotificationDeliveryMethod
++
++@RunWith(RobolectricTestRunner::class)
++@Config(application = Application::class)
++class MollyNotificationsSettingsScreenTest {
++  @get:Rule val compose = createComposeRule()
++  @get:Rule val coreUiDependencies = CoreUiDependenciesRule(ApplicationProvider.getApplicationContext())
++  private val context: Application = ApplicationProvider.getApplicationContext()
++
++  @Test
++  fun `linked devices cannot select or configure UnifiedPush`() {
++    show(state(isLinkedDevice = true))
++    scrollTo(R.string.NotificationsSettingsFragment__delivery_service)
++    compose.onNodeWithText(text(R.string.NotificationsSettingsFragment__delivery_service)).performClick()
++    compose.onNodeWithText(text(NotificationDeliveryMethod.UNIFIEDPUSH.stringId)).assertDoesNotExist()
++    compose.onNodeWithText(text(R.string.NotificationsSettingsFragment__configure_unifiedpush)).assertDoesNotExist()
++  }
++
++  @Test
++  fun `choosing FCM reports transition and UnifiedPush configuration stays disabled`() {
++    var transition: Pair<NotificationDeliveryMethod, NotificationDeliveryMethod>? = null
++    val callbacks = object : NotificationsSettingsCallbacks {
++      override fun onNotificationMethodChanged(fromToMethods: Pair<NotificationDeliveryMethod, NotificationDeliveryMethod>) {
++        transition = fromToMethods
++      }
++    }
++    show(state(), callbacks)
++    scrollTo(R.string.NotificationsSettingsFragment__configure_unifiedpush)
++    compose.onNodeWithText(text(R.string.NotificationsSettingsFragment__configure_unifiedpush)).assertIsNotEnabled()
++    scrollTo(R.string.NotificationsSettingsFragment__delivery_service)
++    compose.onNodeWithText(text(R.string.NotificationsSettingsFragment__delivery_service)).performClick()
++    compose.onNodeWithText(text(NotificationDeliveryMethod.FCM.stringId)).performClick()
++    compose.runOnIdle { assertEquals(NotificationDeliveryMethod.WEBSOCKET to NotificationDeliveryMethod.FCM, transition) }
++  }
++
++  @Test
++  fun `unsupported locked notifications reach the callback as unsupported`() {
++    var supported: Boolean? = null
++    val callbacks = object : NotificationsSettingsCallbacks {
++      override fun setNotifyNewActivityWhileLocked(enabled: Boolean, isSupported: Boolean) {
++        supported = isSupported
++      }
++    }
++    show(state(canEnableNotifyWhileLocked = false), callbacks)
++    scrollTo(R.string.NotificationsSettingsFragment__new_activity_while_locked)
++    compose.onNodeWithText(text(R.string.NotificationsSettingsFragment__new_activity_while_locked)).performClick()
++    compose.runOnIdle { assertFalse(requireNotNull(supported)) }
++  }
++
++  @Test
++  fun `unavailable selected service exposes an accessible warning`() {
++    val current = mutableStateOf(state().copy(preferredNotificationMethod = NotificationDeliveryMethod.FCM, canReceiveFcm = false))
++    compose.setContent { SignalTheme { NotificationsSettingsScreen(current.value, NotificationsSettingsCallbacks.Empty, DeviceState(35, true)) } }
++    scrollTo(R.string.NotificationsSettingsFragment__delivery_service)
++    val description = text(R.string.notification_delivery_service_unavailable)
++    compose.onNodeWithContentDescription(description).assertIsDisplayed()
++
++    compose.runOnIdle { current.value = current.value.copy(preferredNotificationMethod = NotificationDeliveryMethod.UNIFIEDPUSH, canReceiveUnifiedPush = false) }
++    compose.onNodeWithContentDescription(description).assertIsDisplayed()
++
++    compose.runOnIdle { current.value = current.value.copy(preferredNotificationMethod = NotificationDeliveryMethod.WEBSOCKET) }
++    compose.onNodeWithContentDescription(description).assertDoesNotExist()
++  }
++
++  @Test
++  fun `clearing a play services error prevents a repeated callback`() {
++    val current = mutableStateOf(state(playServicesErrorCode = ConnectionResult.SERVICE_UPDATING))
++    val errors = mutableListOf<Int>()
++    val callbacks = object : NotificationsSettingsCallbacks {
++      override fun onPlayServicesError(errorCode: Int) {
++        errors += errorCode
++        current.value = current.value.copy(playServicesErrorCode = null)
++      }
++    }
++    compose.setContent { SignalTheme { NotificationsSettingsScreen(current.value, callbacks, DeviceState(35, true)) } }
++    compose.waitForIdle()
++    compose.runOnIdle { assertEquals(listOf(ConnectionResult.SERVICE_UPDATING), errors) }
++  }
++
++  private fun show(state: NotificationsSettingsState, callbacks: NotificationsSettingsCallbacks = NotificationsSettingsCallbacks.Empty) {
++    compose.setContent { SignalTheme { NotificationsSettingsScreen(state, callbacks, DeviceState(35, true)) } }
++  }
++
++  private fun scrollTo(id: Int) {
++    compose.onNode(hasScrollAction()).performScrollToNode(hasText(text(id)))
++  }
++
++  private fun text(id: Int): String = context.getString(id)
++
++  private fun state(isLinkedDevice: Boolean = false, canEnableNotifyWhileLocked: Boolean = true, playServicesErrorCode: Int? = null) = NotificationsSettingsState(
++    messageNotificationsState = MessageNotificationsState(
++      notificationsEnabled = true, canEnableNotifications = true, sound = Uri.EMPTY, vibrateEnabled = true,
++      ledColor = "blue", ledBlink = "", inChatSoundsEnabled = true, repeatAlerts = 1, messagePrivacy = "",
++      priority = 1, troubleshootNotifications = true, reactionNotificationEnabled = true, unreadReminderEnabled = true,
++      allowCallsWhileMuted = false, allowMentionsWhileMuted = false, allowRepliesWhileMuted = false
++    ),
++    callNotificationsState = CallNotificationsState(true, true, Uri.EMPTY, true),
++    notifyWhileLocked = false,
++    canEnableNotifyWhileLocked = canEnableNotifyWhileLocked,
++    isLinkedDevice = isLinkedDevice,
++    preferredNotificationMethod = NotificationDeliveryMethod.WEBSOCKET,
++    playServicesErrorCode = playServicesErrorCode,
++    canReceiveFcm = true,
++    canReceiveUnifiedPush = true,
++    notifyWhenContactJoinsSignal = true
++  )
++}
+diff --git a/app/src/test/java/org/thoughtcrime/securesms/components/settings/app/notifications/NotificationsSettingsViewModelTest.kt b/app/src/test/java/org/thoughtcrime/securesms/components/settings/app/notifications/NotificationsSettingsViewModelTest.kt
+deleted file mode 100644
+index 03fe5fa21de92b85bd6109ca7168ff51cc3969c9..0000000000000000000000000000000000000000
+--- a/app/src/test/java/org/thoughtcrime/securesms/components/settings/app/notifications/NotificationsSettingsViewModelTest.kt
++++ /dev/null
+@@ -1,349 +0,0 @@
+-/*
+- * Copyright 2026 Signal Messenger, LLC
+- * SPDX-License-Identifier: AGPL-3.0-only
+- */
+-
+-package org.thoughtcrime.securesms.components.settings.app.notifications
+-
+-import android.net.Uri
+-import assertk.assertThat
+-import assertk.assertions.containsExactly
+-import assertk.assertions.isEmpty
+-import assertk.assertions.isEqualTo
+-import assertk.assertions.isFalse
+-import assertk.assertions.isTrue
+-import io.mockk.Runs
+-import io.mockk.coEvery
+-import io.mockk.coVerify
+-import io.mockk.every
+-import io.mockk.just
+-import io.mockk.mockk
+-import io.mockk.mockkObject
+-import io.mockk.unmockkObject
+-import io.mockk.verify
+-import io.mockk.verifyOrder
+-import kotlinx.coroutines.Dispatchers
+-import kotlinx.coroutines.ExperimentalCoroutinesApi
+-import kotlinx.coroutines.flow.MutableSharedFlow
+-import kotlinx.coroutines.flow.toList
+-import kotlinx.coroutines.launch
+-import kotlinx.coroutines.test.TestScope
+-import kotlinx.coroutines.test.UnconfinedTestDispatcher
+-import kotlinx.coroutines.test.resetMain
+-import kotlinx.coroutines.test.runTest
+-import kotlinx.coroutines.test.setMain
+-import org.junit.After
+-import org.junit.Before
+-import org.junit.Rule
+-import org.junit.Test
+-import org.signal.appsettings.notifications.NotificationsSettingsAction
+-import org.signal.appsettings.notifications.NotificationsSettingsEvent
+-import org.signal.appsettings.notifications.NotificationsSettingsState
+-import org.signal.appsettings.routes.AppSettingsNavigationEvent
+-import org.signal.appsettings.routes.AppSettingsRoute
+-import org.thoughtcrime.securesms.testing.CoroutineDispatcherRule
+-
+-@OptIn(ExperimentalCoroutinesApi::class)
+-class NotificationsSettingsViewModelTest {
+-
+-  private val testDispatcher = UnconfinedTestDispatcher()
+-
+-  @get:Rule
+-  val dispatcherRule = CoroutineDispatcherRule(testDispatcher)
+-
+-  private val navigationEvents = mutableListOf<AppSettingsNavigationEvent>()
+-  private val selfChanges = MutableSharedFlow<Unit>()
+-
+-  /** What the repository reports as stored, so that a test can change a setting and watch it be read back. */
+-  private var storedNotifyWhenContactJoinsSignal = false
+-
+-  @Before
+-  fun setUp() {
+-    Dispatchers.setMain(testDispatcher)
+-    mockkObject(NotificationsSettingsRepository)
+-
+-    every { NotificationsSettingsRepository.syncFromNotificationChannel() } just Runs
+-    every { NotificationsSettingsRepository.observeSelfChanges() } returns selfChanges
+-    coEvery { NotificationsSettingsRepository.isTroubleshootingRecommended() } returns false
+-    every { NotificationsSettingsRepository.getState(any()) } answers {
+-      firstArg<NotificationsSettingsState>().copy(notifyWhenContactJoinsSignal = storedNotifyWhenContactJoinsSignal)
+-    }
+-
+-    every { NotificationsSettingsRepository.setMessageNotificationsEnabled(any()) } just Runs
+-    every { NotificationsSettingsRepository.setMessageNotificationsSound(any()) } just Runs
+-    every { NotificationsSettingsRepository.setMessageNotificationVibration(any()) } just Runs
+-    every { NotificationsSettingsRepository.setMessageNotificationLedColor(any()) } just Runs
+-    every { NotificationsSettingsRepository.setMessageNotificationLedBlink(any()) } just Runs
+-    every { NotificationsSettingsRepository.setMessageNotificationInChatSoundsEnabled(any()) } just Runs
+-    every { NotificationsSettingsRepository.setMessageRepeatAlerts(any()) } just Runs
+-    every { NotificationsSettingsRepository.setMessageNotificationPrivacy(any()) } just Runs
+-    every { NotificationsSettingsRepository.setMessageNotificationPriority(any()) } just Runs
+-    every { NotificationsSettingsRepository.setCallNotificationsEnabled(any()) } just Runs
+-    every { NotificationsSettingsRepository.setCallRingtone(any()) } just Runs
+-    every { NotificationsSettingsRepository.setCallVibrateEnabled(any()) } just Runs
+-    coEvery { NotificationsSettingsRepository.setNotifyWhenContactJoinsSignal(any()) } answers { storedNotifyWhenContactJoinsSignal = firstArg() }
+-    coEvery { NotificationsSettingsRepository.setReactionNotificationsEnabled(any()) } just Runs
+-    coEvery { NotificationsSettingsRepository.setUnreadReminderEnabled(any()) } just Runs
+-    coEvery { NotificationsSettingsRepository.resetSettings() } just Runs
+-  }
+-
+-  @After
+-  fun tearDown() {
+-    unmockkObject(NotificationsSettingsRepository)
+-    Dispatchers.resetMain()
+-  }
+-
+-  @Test
+-  fun `creating the view model copies in the notification channel's settings before reading them`() = runTest(testDispatcher) {
+-    createViewModel()
+-
+-    verifyOrder {
+-      NotificationsSettingsRepository.syncFromNotificationChannel()
+-      NotificationsSettingsRepository.getState(any())
+-    }
+-  }
+-
+-  @Test
+-  fun `troubleshooting is offered once it is worked out to be recommended`() = runTest(testDispatcher) {
+-    coEvery { NotificationsSettingsRepository.isTroubleshootingRecommended() } returns true
+-
+-    val viewModel = createViewModel()
+-
+-    assertThat(viewModel.state.value.messageNotificationsState.troubleshootNotifications).isTrue()
+-  }
+-
+-  @Test
+-  fun `troubleshooting is not offered when it is not recommended`() = runTest(testDispatcher) {
+-    val viewModel = createViewModel()
+-
+-    assertThat(viewModel.state.value.messageNotificationsState.troubleshootNotifications).isFalse()
+-  }
+-
+-  @Test
+-  fun `a change to the local user's recipient reads the settings back`() = runTest(testDispatcher) {
+-    val viewModel = createViewModel()
+-    storedNotifyWhenContactJoinsSignal = true
+-
+-    selfChanges.emit(Unit)
+-
+-    assertThat(viewModel.state.value.notifyWhenContactJoinsSignal).isTrue()
+-  }
+-
+-  @Test
+-  fun `ScreenResumed reads the settings back`() = runTest(testDispatcher) {
+-    val viewModel = createViewModel()
+-    storedNotifyWhenContactJoinsSignal = true
+-
+-    viewModel.onEvent(NotificationsSettingsEvent.ScreenResumed)
+-
+-    assertThat(viewModel.state.value.notifyWhenContactJoinsSignal).isTrue()
+-  }
+-
+-  @Test
+-  fun `changing a setting stores it and reads it back`() = runTest(testDispatcher) {
+-    val viewModel = createViewModel()
+-
+-    viewModel.onEvent(NotificationsSettingsEvent.ContactJoinsSignalToggled(true))
+-
+-    coVerify { NotificationsSettingsRepository.setNotifyWhenContactJoinsSignal(true) }
+-    assertThat(viewModel.state.value.notifyWhenContactJoinsSignal).isTrue()
+-  }
+-
+-  @Test
+-  fun `each setting is stored through the repository`() = runTest(testDispatcher) {
+-    val viewModel = createViewModel()
+-    val sound = mockk<Uri>()
+-    val ringtone = mockk<Uri>()
+-
+-    viewModel.onEvent(NotificationsSettingsEvent.MessageNotificationsToggled(false))
+-    viewModel.onEvent(NotificationsSettingsEvent.MessagePrivacySelected("contact"))
+-    viewModel.onEvent(NotificationsSettingsEvent.ReactionNotificationsToggled(false))
+-    viewModel.onEvent(NotificationsSettingsEvent.UnreadRemindersToggled(false))
+-    viewModel.onEvent(NotificationsSettingsEvent.RepeatAlertsSelected("3"))
+-    viewModel.onEvent(NotificationsSettingsEvent.MessageSoundPicked(sound))
+-    viewModel.onEvent(NotificationsSettingsEvent.MessageVibrateToggled(false))
+-    viewModel.onEvent(NotificationsSettingsEvent.LedColorSelected("red"))
+-    viewModel.onEvent(NotificationsSettingsEvent.LedBlinkSelected("500,2000"))
+-    viewModel.onEvent(NotificationsSettingsEvent.InChatSoundsToggled(false))
+-    viewModel.onEvent(NotificationsSettingsEvent.PrioritySelected("2"))
+-    viewModel.onEvent(NotificationsSettingsEvent.CallNotificationsToggled(false))
+-    viewModel.onEvent(NotificationsSettingsEvent.CallRingtonePicked(ringtone))
+-    viewModel.onEvent(NotificationsSettingsEvent.CallVibrateToggled(false))
+-
+-    coVerify {
+-      NotificationsSettingsRepository.setMessageNotificationsEnabled(false)
+-      NotificationsSettingsRepository.setMessageNotificationPrivacy("contact")
+-      NotificationsSettingsRepository.setReactionNotificationsEnabled(false)
+-      NotificationsSettingsRepository.setUnreadReminderEnabled(false)
+-      NotificationsSettingsRepository.setMessageRepeatAlerts(3)
+-      NotificationsSettingsRepository.setMessageNotificationsSound(sound)
+-      NotificationsSettingsRepository.setMessageNotificationVibration(false)
+-      NotificationsSettingsRepository.setMessageNotificationLedColor("red")
+-      NotificationsSettingsRepository.setMessageNotificationLedBlink("500,2000")
+-      NotificationsSettingsRepository.setMessageNotificationInChatSoundsEnabled(false)
+-      NotificationsSettingsRepository.setMessageNotificationPriority(2)
+-      NotificationsSettingsRepository.setCallNotificationsEnabled(false)
+-      NotificationsSettingsRepository.setCallRingtone(ringtone)
+-      NotificationsSettingsRepository.setCallVibrateEnabled(false)
+-    }
+-  }
+-
+-  @Test
+-  fun `a picker returning nothing is still stored, as no sound`() = runTest(testDispatcher) {
+-    val viewModel = createViewModel()
+-
+-    viewModel.onEvent(NotificationsSettingsEvent.MessageSoundPicked(null))
+-    viewModel.onEvent(NotificationsSettingsEvent.CallRingtonePicked(null))
+-
+-    verify {
+-      NotificationsSettingsRepository.setMessageNotificationsSound(null)
+-      NotificationsSettingsRepository.setCallRingtone(null)
+-    }
+-  }
+-
+-  @Test
+-  fun `NavigateBackClicked navigates back`() = runTest(testDispatcher) {
+-    val viewModel = createViewModel()
+-
+-    viewModel.onEvent(NotificationsSettingsEvent.NavigateBackClicked)
+-
+-    assertThat(navigationEvents).containsExactly(AppSettingsNavigationEvent.NavigateBack())
+-  }
+-
+-  @Test
+-  fun `WhileMutedClicked opens the muted notification settings`() = runTest(testDispatcher) {
+-    val viewModel = createViewModel()
+-
+-    viewModel.onEvent(NotificationsSettingsEvent.WhileMutedClicked)
+-
+-    assertThat(navigationEvents).containsExactly(AppSettingsNavigationEvent.NavigateToScreen(AppSettingsRoute.NotificationsRoute.MutedNotifications))
+-  }
+-
+-  @Test
+-  fun `NotificationProfilesClicked opens notification profiles`() = runTest(testDispatcher) {
+-    val viewModel = createViewModel()
+-
+-    viewModel.onEvent(NotificationsSettingsEvent.NotificationProfilesClicked)
+-
+-    assertThat(navigationEvents).containsExactly(AppSettingsNavigationEvent.NavigateToScreen(AppSettingsRoute.NotificationsRoute.NotificationProfiles))
+-  }
+-
+-  @Test
+-  fun `TurnOnNotificationsClicked shows how to turn notifications on`() = assertEventEmits(
+-    NotificationsSettingsEvent.TurnOnNotificationsClicked,
+-    NotificationsSettingsAction.ShowTurnOnNotificationsSheet
+-  )
+-
+-  @Test
+-  fun `CustomizeClicked opens the message channel's settings`() = assertEventEmits(
+-    NotificationsSettingsEvent.CustomizeClicked,
+-    NotificationsSettingsAction.OpenMessageChannelSettings
+-  )
+-
+-  @Test
+-  fun `MessageSoundClicked opens the sound picker`() = assertEventEmits(
+-    NotificationsSettingsEvent.MessageSoundClicked,
+-    NotificationsSettingsAction.LaunchMessageSoundPicker
+-  )
+-
+-  @Test
+-  fun `CallRingtoneClicked opens the ringtone picker`() = assertEventEmits(
+-    NotificationsSettingsEvent.CallRingtoneClicked,
+-    NotificationsSettingsAction.LaunchCallRingtonePicker
+-  )
+-
+-  @Test
+-  fun `PriorityClicked opens the channel's priority settings`() = assertEventEmits(
+-    NotificationsSettingsEvent.PriorityClicked,
+-    NotificationsSettingsAction.LaunchNotificationPrioritySettings
+-  )
+-
+-  @Test
+-  fun `TroubleshootClicked walks through what is delaying notifications`() = assertEventEmits(
+-    NotificationsSettingsEvent.TroubleshootClicked,
+-    NotificationsSettingsAction.ShowTroubleshootNotificationsDialog
+-  )
+-
+-  @Test
+-  fun `SoundPickerUnavailable shows a snackbar until it is dismissed`() = runTest(testDispatcher) {
+-    val viewModel = createViewModel()
+-
+-    viewModel.onEvent(NotificationsSettingsEvent.SoundPickerUnavailable)
+-    assertThat(viewModel.state.value.snackbar).isEqualTo(NotificationsSettingsState.Snackbar.SoundPickerUnavailable)
+-
+-    viewModel.onEvent(NotificationsSettingsEvent.SnackbarDismissed)
+-    assertThat(viewModel.state.value.snackbar).isEqualTo(NotificationsSettingsState.Snackbar.None)
+-  }
+-
+-  @Test
+-  fun `ResetClicked asks for confirmation without resetting`() = runTest(testDispatcher) {
+-    val viewModel = createViewModel()
+-
+-    viewModel.onEvent(NotificationsSettingsEvent.ResetClicked)
+-
+-    assertThat(viewModel.state.value.dialog).isEqualTo(NotificationsSettingsState.Dialog.ConfirmReset)
+-    coVerify(exactly = 0) { NotificationsSettingsRepository.resetSettings() }
+-  }
+-
+-  @Test
+-  fun `confirming the reset closes the dialog and resets every setting`() = runTest(testDispatcher) {
+-    val viewModel = createViewModel()
+-    viewModel.onEvent(NotificationsSettingsEvent.ResetClicked)
+-
+-    viewModel.onEvent(NotificationsSettingsEvent.ResetConfirmed)
+-
+-    assertThat(viewModel.state.value.dialog).isEqualTo(NotificationsSettingsState.Dialog.None)
+-    coVerify { NotificationsSettingsRepository.resetSettings() }
+-  }
+-
+-  @Test
+-  fun `DialogDismissed closes the dialog without resetting`() = runTest(testDispatcher) {
+-    val viewModel = createViewModel()
+-    viewModel.onEvent(NotificationsSettingsEvent.ResetClicked)
+-
+-    viewModel.onEvent(NotificationsSettingsEvent.DialogDismissed)
+-
+-    assertThat(viewModel.state.value.dialog).isEqualTo(NotificationsSettingsState.Dialog.None)
+-    coVerify(exactly = 0) { NotificationsSettingsRepository.resetSettings() }
+-  }
+-
+-  @Test
+-  fun `reading the settings back keeps the dialog and snackbar showing`() = runTest(testDispatcher) {
+-    val viewModel = createViewModel()
+-    viewModel.onEvent(NotificationsSettingsEvent.ResetClicked)
+-    viewModel.onEvent(NotificationsSettingsEvent.SoundPickerUnavailable)
+-
+-    viewModel.onEvent(NotificationsSettingsEvent.ScreenResumed)
+-
+-    assertThat(viewModel.state.value.dialog).isEqualTo(NotificationsSettingsState.Dialog.ConfirmReset)
+-    assertThat(viewModel.state.value.snackbar).isEqualTo(NotificationsSettingsState.Snackbar.SoundPickerUnavailable)
+-  }
+-
+-  @Test
+-  fun `picked sounds are logged without their URI, which can name a file the user added`() {
+-    val sound = mockk<Uri> { every { this@mockk.toString() } returns "content://media/external/audio/media/57?title=Mom saying hi" }
+-
+-    assertThat(NotificationsSettingsEvent.MessageSoundPicked(sound).toString()).isEqualTo("MessageSoundPicked(hasSound=true)")
+-    assertThat(NotificationsSettingsEvent.CallRingtonePicked(null).toString()).isEqualTo("CallRingtonePicked(hasRingtone=false)")
+-  }
+-
+-  private fun assertEventEmits(event: NotificationsSettingsEvent, expected: NotificationsSettingsAction) = runTest(testDispatcher) {
+-    val viewModel = createViewModel()
+-    val actions = collectActions(viewModel)
+-
+-    viewModel.onEvent(event)
+-
+-    assertThat(actions).containsExactly(expected)
+-    assertThat(navigationEvents).isEmpty()
+-  }
+-
+-  private fun createViewModel(): NotificationsSettingsViewModel {
+-    return NotificationsSettingsViewModel(parentEventEmitter = { navigationEvents += it })
+-  }
+-
+-  private fun TestScope.collectActions(viewModel: NotificationsSettingsViewModel): List<NotificationsSettingsAction> {
+-    val collected = mutableListOf<NotificationsSettingsAction>()
+-    backgroundScope.launch { viewModel.actions.toList(collected) }
+-    return collected
+-  }
+-}
