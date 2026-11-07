@@ -1,0 +1,18 @@
+{
+  "schema": 1,
+  "release_id": 437221260,
+  "tag": "v8.35.1-1-rc1",
+  "release_manifest_sha256": "4adb60596a2d9c96b19b39e74f98deebd46902a763e873bebae53699c0fd8b11",
+  "apk_sha256": "5fbd0fe817bc6711c56fbc39b8479cc0a68a7d7fe921a7d9c9fab59333fda9ee",
+  "apk_certificate_sha256": "f8cc0c0c052e5635c26fcd293c2b0af3e87d61ff7f2df3602a9af6e91f73c826",
+  "package": "im.collie.app",
+  "version_code": 177702,
+  "version_name": "8.35.1-1-rc1",
+  "aliases": {
+    "collie.apk": "5fbd0fe817bc6711c56fbc39b8479cc0a68a7d7fe921a7d9c9fab59333fda9ee",
+    "collie-foss.apk": "5fbd0fe817bc6711c56fbc39b8479cc0a68a7d7fe921a7d9c9fab59333fda9ee",
+    "molly-continued.apk": "5fbd0fe817bc6711c56fbc39b8479cc0a68a7d7fe921a7d9c9fab59333fda9ee",
+    "molly-foss-continued.apk": "5fbd0fe817bc6711c56fbc39b8479cc0a68a7d7fe921a7d9c9fab59333fda9ee",
+    "molly-minimal.apk": "5fbd0fe817bc6711c56fbc39b8479cc0a68a7d7fe921a7d9c9fab59333fda9ee"
+  }
+}
