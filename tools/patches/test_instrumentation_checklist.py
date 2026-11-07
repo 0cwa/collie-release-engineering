@@ -9,6 +9,7 @@ from unittest.mock import patch
 
 import release_artifacts as artifacts
 import release_sign
+from test_release_plan_support import legacy_args
 
 
 class InstrumentationChecklistTests(unittest.TestCase):
@@ -70,19 +71,29 @@ class InstrumentationChecklistTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, '16 KiB'):
             release_sign.read_instrumentation_checklist(self.path, self.commit)
 
+    def approved_args(self, args):
+        # Exercise the checklist boundary after real plan/version authorization,
+        # rather than passing because a different prerequisite failed earlier.
+        inventory=self.root/'inventory.json'
+        inventory.write_text(json.dumps([{'release':'fixture-old','code':177702,'sha256':'a'*64}]))
+        return legacy_args(args,self.root)+['--version-ledger',str(self.root/'versions.json'),
+                '--published-inventory',str(inventory),'--published-inventory-sha256',artifacts.sha256(inventory)]
+
     def test_missing_record_stops_before_signing_or_password_prompt(self):
         cert = 'b' * 64
         manifest = self.root / 'manifest.json'
         manifest.write_text(json.dumps({
             'schema': 1, 'commit': self.commit, 'workflow_revision': self.commit,
             'run_id': '1', 'run_attempt': '1', 'package': artifacts.PACKAGE,
-            'version_code': 177701, 'version_name': '8.35.1', 'certificate_sha256': cert,
+            'version_code': 177703, 'version_name': '8.35.1', 'certificate_sha256': cert,
+            'artifact_mode': 'single-collie', 'source_profile': 'collie',
             'apks': [{'profile': p, 'file': p + '.apk', 'sha256': 'c' * 64}
                      for p in sorted(artifacts.PROFILES)]}))
         args = ['release_sign', '--manifest', str(manifest), '--manifest-sha256', artifacts.sha256(manifest),
                 '--approved-commit', self.commit, '--approved-run', '1', '--certificate-sha256', cert,
                 '--apks', str(self.root), '--output', str(self.root / 'out'),
                 '--build-tools', str(self.root), '--scratch', str(self.root)]
+        args = self.approved_args(args)
         with patch('sys.argv', args), patch.dict(os.environ, {}, clear=True), \
              patch.object(release_sign, 'run') as run, patch.object(release_sign.getpass, 'getpass') as prompt:
             self.assertEqual(release_sign.main(), 1)
@@ -104,7 +115,8 @@ class InstrumentationChecklistTests(unittest.TestCase):
         manifest.write_text(json.dumps({
             'schema': 1, 'commit': self.commit, 'workflow_revision': self.commit,
             'run_id': '1', 'run_attempt': '1', 'package': artifacts.PACKAGE,
-            'version_code': 177701, 'version_name': '8.35.1', 'certificate_sha256': cert,
+            'version_code': 177703, 'version_name': '8.35.1', 'certificate_sha256': cert,
+            'artifact_mode': 'single-collie', 'source_profile': 'collie',
             'apks': [{'profile': p, 'file': p + '.apk', 'sha256': 'c' * 64}
                      for p in sorted(artifacts.PROFILES)]}))
         self.write('not run', '', 'maintainer accepted the gap')
@@ -112,6 +124,7 @@ class InstrumentationChecklistTests(unittest.TestCase):
                    '--manifest-sha256', artifacts.sha256(manifest), '--approved-commit', self.commit,
                    '--approved-run', '1', '--certificate-sha256', cert, '--apks', str(self.root),
                    '--output', str(self.root / 'out'), '--build-tools', str(self.root), '--scratch', str(self.root)]
+        command = self.approved_args(command)
         env = dict(os.environ, COLLIE_INSTRUMENTATION_CHECKLIST=str(self.path))
         result = subprocess.run(['bash', '-c', 'exec "$@"', 'wrapper', *command], env=env,
                                 text=True, capture_output=True)
