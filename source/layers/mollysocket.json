@@ -1,0 +1,21 @@
+{
+  "schema": 1,
+  "kind": "feature-layer",
+  "source_commit": "6f2595515d8466da725c1dda65f252ef02d05456",
+  "source_parent": "8b119e357d1c9c6863eff31756660bc07d6cfb8b",
+  "before_tree": "b5fbed355186be1e728d556a48718e7158e7ab8f",
+  "after_tree": "db433757a9a9526f3a604f95f05d5fe031753fae",
+  "paths": [
+    "lib/libsignal-service/src/main/java/org/whispersystems/signalservice/internal/util/BlacklistingTrustManager.java",
+    "lib/libsignal-service/src/test/java/org/whispersystems/signalservice/internal/util/BlacklistingTrustManagerTest.kt"
+  ],
+  "patch": "source/layers/mollysocket.patch",
+  "patch_sha256": "1eb301e0d92a22e69da5d42aecff0ac081f9520afb2236612dc0241a4e805b72",
+  "author": {
+    "name": "0cwa",
+    "email": "0@none.org"
+  },
+  "authored_at": "2026-11-07T19:25:12+01:00",
+  "subject": "Fix MollySocket TLS discovery with Android domain trust rules",
+  "policy_documentation_included": false
+}

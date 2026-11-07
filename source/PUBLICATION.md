@@ -29,6 +29,13 @@ currently a draft until public native inputs and direct build acceptance pass.
    move old release tags. Keep candidate refs through review and protect retained
    release source refs using separately approved repository settings.
 
+The required MollySocket TLS correction is a feature layer for the next release.
+Apply its exact reviewed patch from `source/layers/mollysocket.patch` after the
+complete source checkpoint recorded in `source/layers/mollysocket.json`; retain
+the original commit and author in the generated layer's provenance. Its patch
+includes both the trust-manager implementation and regression tests. Do not
+copy later permanent-policy documentation from the old application PR.
+
 The publication layer receives `application_base=plan['old_main']` and the same
 approved plan. That exact immutable application commit supplies `README.md`,
 `LICENSE`, `NOTICE`, and `assets`; these user-facing files are preserved without

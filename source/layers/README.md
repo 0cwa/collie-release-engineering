@@ -13,6 +13,11 @@ rewriting them; the publisher and candidate verifier compare their complete
 Git entries, including modes and symlinks, with the same `old_main`. Never use
 the original cutover baseline after the approved application main has advanced.
 
+The required MollySocket trust-context correction is recorded separately in
+`mollysocket.patch` and `mollysocket.json`. It starts from the complete current
+source checkpoint and preserves the original application commit and author in
+the generated feature-layer provenance; see [MOLLYSOCKET.md](../MOLLYSOCKET.md).
+
 Direct build blockers: the accepted native lock binds libsignal-android/client
 0.106.1-collie.1 and ringrtc-android 2.74.0-collie.1 but has no public immutable
 artifact origin. Do not substitute upstream binaries. Obtain approval to publish

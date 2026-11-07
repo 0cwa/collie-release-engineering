@@ -1,0 +1,172 @@
+diff --git a/lib/libsignal-service/src/main/java/org/whispersystems/signalservice/internal/util/BlacklistingTrustManager.java b/lib/libsignal-service/src/main/java/org/whispersystems/signalservice/internal/util/BlacklistingTrustManager.java
+index 747ad11e42971038cc0377d93fccd858957c63d1..4302adcda27529da62f549f3708d231795022318 100644
+--- a/lib/libsignal-service/src/main/java/org/whispersystems/signalservice/internal/util/BlacklistingTrustManager.java
++++ b/lib/libsignal-service/src/main/java/org/whispersystems/signalservice/internal/util/BlacklistingTrustManager.java
+@@ -14,6 +14,7 @@ import org.signal.network.config.TrustStore;
+ import java.io.IOException;
+ import java.io.InputStream;
+ import java.math.BigInteger;
++import java.net.Socket;
+ import java.security.KeyStore;
+ import java.security.KeyStoreException;
+ import java.security.NoSuchAlgorithmException;
+@@ -29,6 +30,8 @@ import java.util.Set;
+ import javax.net.ssl.TrustManager;
+ import javax.net.ssl.TrustManagerFactory;
+ import javax.net.ssl.X509TrustManager;
++import javax.net.ssl.X509ExtendedTrustManager;
++import javax.net.ssl.SSLEngine;
+ 
+ import kotlin.Pair;
+ 
+@@ -38,7 +41,7 @@ import kotlin.Pair;
+  *
+  * @author Moxie Marlinspike
+  */
+-public class BlacklistingTrustManager implements X509TrustManager {
++public class BlacklistingTrustManager extends X509ExtendedTrustManager {
+ 
+   private static final List<Pair<String, BigInteger>> BLACKLIST = new LinkedList<Pair<String, BigInteger>>() {{
+     add(new Pair<>("Open Whisper Systems", new BigInteger("4098")));
+@@ -118,10 +121,61 @@ public class BlacklistingTrustManager implements X509TrustManager {
+     trustManager.checkClientTrusted(chain, authType);
+   }
+ 
++  @Override
++  public void checkClientTrusted(X509Certificate[] chain, String authType, Socket socket)
++      throws CertificateException
++  {
++    if (trustManager instanceof X509ExtendedTrustManager) {
++      ((X509ExtendedTrustManager) trustManager).checkClientTrusted(chain, authType, socket);
++    } else {
++      trustManager.checkClientTrusted(chain, authType);
++    }
++  }
++
++  @Override
++  public void checkClientTrusted(X509Certificate[] chain, String authType, SSLEngine engine)
++      throws CertificateException
++  {
++    if (trustManager instanceof X509ExtendedTrustManager) {
++      ((X509ExtendedTrustManager) trustManager).checkClientTrusted(chain, authType, engine);
++    } else {
++      trustManager.checkClientTrusted(chain, authType);
++    }
++  }
++
+   @Override
+   public void checkServerTrusted(X509Certificate[] chain, String authType)
+       throws CertificateException
+   {
++    checkBlacklist(chain);
++    trustManager.checkServerTrusted(chain, authType);
++  }
++
++  @Override
++  public void checkServerTrusted(X509Certificate[] chain, String authType, Socket socket)
++      throws CertificateException
++  {
++    checkBlacklist(chain);
++    if (trustManager instanceof X509ExtendedTrustManager) {
++      ((X509ExtendedTrustManager) trustManager).checkServerTrusted(chain, authType, socket);
++    } else {
++      trustManager.checkServerTrusted(chain, authType);
++    }
++  }
++
++  @Override
++  public void checkServerTrusted(X509Certificate[] chain, String authType, SSLEngine engine)
++      throws CertificateException
++  {
++    checkBlacklist(chain);
++    if (trustManager instanceof X509ExtendedTrustManager) {
++      ((X509ExtendedTrustManager) trustManager).checkServerTrusted(chain, authType, engine);
++    } else {
++      trustManager.checkServerTrusted(chain, authType);
++    }
++  }
++
++  private static void checkBlacklist(X509Certificate[] chain) throws CertificateException {
+     for (X509Certificate certificate : chain) {
+       String publicKeySha256 = Hex.toStringCondensed(CryptoUtil.sha256(certificate.getPublicKey().getEncoded()));
+       if (BLACKLISTED_PUBLIC_KEY_SHA256.contains(publicKeySha256)) {
+@@ -136,8 +190,6 @@ public class BlacklistingTrustManager implements X509TrustManager {
+         }
+       }
+     }
+-
+-    trustManager.checkServerTrusted(chain, authType);
+   }
+ 
+   @Override
+diff --git a/lib/libsignal-service/src/test/java/org/whispersystems/signalservice/internal/util/BlacklistingTrustManagerTest.kt b/lib/libsignal-service/src/test/java/org/whispersystems/signalservice/internal/util/BlacklistingTrustManagerTest.kt
+index 738940dd83d6577f539895e741ddf6f77a0de8ab..66aaf91ef3777b7fe2083ec66d23d87c58768195 100644
+--- a/lib/libsignal-service/src/test/java/org/whispersystems/signalservice/internal/util/BlacklistingTrustManagerTest.kt
++++ b/lib/libsignal-service/src/test/java/org/whispersystems/signalservice/internal/util/BlacklistingTrustManagerTest.kt
+@@ -23,6 +23,9 @@ import org.junit.Test
+ import java.security.cert.CertificateException
+ import java.security.cert.CertificateFactory
+ import java.security.cert.X509Certificate
++import java.net.Socket
++import javax.net.ssl.SSLEngine
++import javax.net.ssl.X509ExtendedTrustManager
+ import javax.net.ssl.X509TrustManager
+ 
+ class BlacklistingTrustManagerTest {
+@@ -91,6 +94,56 @@ class BlacklistingTrustManagerTest {
+     }.isInstanceOf<CertificateException>()
+   }
+ 
++  @Test
++  fun `socket context is forwarded to an extended delegate`() {
++    val extended = mockk<X509ExtendedTrustManager>(relaxed = true)
++    val wrapper = BlacklistingTrustManager(extended)
++    val socket = mockk<Socket>()
++    val chain = arrayOf(readCertificate("ias.cert"))
++
++    wrapper.checkServerTrusted(chain, AUTH_TYPE, socket)
++
++    verify { extended.checkServerTrusted(chain, AUTH_TYPE, socket) }
++  }
++
++  @Test
++  fun `engine context is forwarded to an extended delegate`() {
++    val extended = mockk<X509ExtendedTrustManager>(relaxed = true)
++    val wrapper = BlacklistingTrustManager(extended)
++    val engine = mockk<SSLEngine>()
++    val chain = arrayOf(readCertificate("ias.cert"))
++
++    wrapper.checkServerTrusted(chain, AUTH_TYPE, engine)
++
++    verify { extended.checkServerTrusted(chain, AUTH_TYPE, engine) }
++  }
++
++  @Test
++  fun `blacklisted chain is rejected before contextual delegate`() {
++    val extended = mockk<X509ExtendedTrustManager>(relaxed = true)
++    val wrapper = BlacklistingTrustManager(extended)
++    val socket = mockk<Socket>()
++    val compromised = loadImpactedIntermediates().first().certificate()
++
++    assertFailure {
++      wrapper.checkServerTrusted(arrayOf(compromised), AUTH_TYPE, socket)
++    }.isInstanceOf<CertificateException>()
++
++    verify(exactly = 0) { extended.checkServerTrusted(any(), any(), any<Socket>()) }
++  }
++
++  @Test
++  fun `legacy delegate is used when contextual validation is unavailable`() {
++    val plain = mockk<X509TrustManager>(relaxed = true)
++    val wrapper = BlacklistingTrustManager(plain)
++    val engine = mockk<SSLEngine>()
++    val chain = arrayOf(readCertificate("ias.cert"))
++
++    wrapper.checkServerTrusted(chain, AUTH_TYPE, engine)
++
++    verify { plain.checkServerTrusted(chain, AUTH_TYPE) }
++  }
++
+   private fun loadImpactedIntermediates(): List<ImpactedIntermediate> {
+     val json = checkNotNull(javaClass.classLoader.getResourceAsStream(FIXTURE)) { "Missing $FIXTURE" }
+       .bufferedReader()
