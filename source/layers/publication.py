@@ -2,29 +2,41 @@
 """Materialize reviewed publication/build inputs before source publication."""
 from pathlib import Path
 import json
+import re
 import shutil
 import subprocess
 
-BASELINE = 'f6f68cdee08fb8d9acb6a866b1673deb10525f20'
 RECIPE_REVISION = '36779887ffc0bb1ecff55a87c350740662570039'
 RECONSTRUCTED_TREE = 'da5c03ff20ae2a672329eb8257bc33949845b268'
 
 
-def apply(app, engineering, previous_application):
+def preserve_user_files(app, previous_application, application_base, publication_plan):
+    """Copy only the explicitly pinned user-facing base; approval is external."""
+    if not isinstance(application_base,str) or not re.fullmatch('[0-9a-f]{40}',application_base):
+        raise ValueError('explicit immutable application base required')
+    if not isinstance(publication_plan,dict) or publication_plan.get('old_main')!=application_base:
+        raise ValueError('application base differs from publication plan old_main')
+    app, previous_application = map(Path,(app,previous_application))
+    resolved=subprocess.check_output(['git','-C',str(previous_application),'rev-parse','--verify',application_base+'^{commit}'],text=True).strip()
+    if resolved!=application_base:raise ValueError('application base must name the exact commit')
+    # The final publisher independently compares these complete owner-file
+    # blobs/modes with plan.old_main, in addition to checking the entire tree.
+    for name in ('README.md','LICENSE','NOTICE','assets'):
+        data=subprocess.check_output(['git','-C',str(previous_application),'archive',application_base,name])
+        target=app/name
+        if target.is_symlink() or target.is_file():target.unlink()
+        elif target.exists():shutil.rmtree(target)
+        import io,tarfile
+        with tarfile.open(fileobj=io.BytesIO(data)) as archive:archive.extractall(app,filter='data')
+
+
+def apply(app, engineering, previous_application, *, application_base, publication_plan):
     app, engineering, previous_application = map(Path, (app, engineering, previous_application))
     if subprocess.check_output(['git','-C',str(app),'rev-parse','HEAD^{tree}'],text=True).strip() != RECONSTRUCTED_TREE:
         raise ValueError('publication layer requires exact merged-main reconstruction')
     if subprocess.check_output(['git','-C',str(app),'status','--porcelain'], text=True).strip():
         raise ValueError('publication layer requires a clean reconstructed checkout')
-    # Retain approved human-facing content/assets, without carrying construction tools.
-    for name in ('README.md','LICENSE','NOTICE','assets'):
-        data = subprocess.check_output(['git','-C',str(previous_application),'archive',BASELINE,name])
-        import io, tarfile
-        with tarfile.open(fileobj=io.BytesIO(data)) as archive:
-            archive.extractall(app, filter='data')
-    readme = app / 'README.md'
-    readme.write_text(readme.read_text().replace('We use a patch-based release system for maximum code auditability, fast security updates ⚡, and interoperability.',
-        'Published application source is inspected here; reconstruction and release engineering live in [collie-release-engineering](https://github.com/0cwa/collie-release-engineering). See [BUILD.md](BUILD.md) and [VERIFY.md](VERIFY.md).'))
+    preserve_user_files(app, previous_application, application_base, publication_plan)
     shutil.rmtree(app / '.github/workflows')
     (app / '.github/workflows').mkdir()
     (app / '.github/workflows/source.yml').write_text('''name: Direct source checks
@@ -104,6 +116,8 @@ throw GradleException("Direct Android builds BLOCKED: publish and verify locked 
 '''
     gradle.write_text(text)
     (app/'BUILD.md').write_text('''# Building Collie
+
+Reconstruction and release engineering live in [collie-release-engineering](https://github.com/0cwa/collie-release-engineering). See [VERIFY.md](VERIFY.md) for Git-only source inspection.
 
 This checkout contains the reconstructed application source; Gradle does not run
 an assembler or inject source from another worktree. JDK/Gradle/SDK/NDK and strict

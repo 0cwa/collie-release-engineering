@@ -105,6 +105,14 @@ def validate_plan(plan):
     return plan
 
 
+def verify_user_files(repo,published,application_base):
+    """Preserve approved repository content, alongside full final-tree proof."""
+    for name in ('README.md','LICENSE','NOTICE','assets'):
+        expected=git(repo,'ls-tree',oid(application_base),'--',name)
+        if git(repo,'ls-tree',oid(published),'--',name)!=expected:
+            raise ValueError('published user-facing content differs from approved application base: '+name)
+
+
 def publish(repo, path, approved_digest, expected_main, *, messages=None, approved_messages_sha256=None, historical_messages=False):
     plain(repo)
     raw = path.read_bytes()
@@ -122,6 +130,7 @@ def publish(repo, path, approved_digest, expected_main, *, messages=None, approv
         raise ValueError('current base differs from approved base')
     if tree(repo, plan['signal']) != plan['layers'][0]['before_tree']:
         raise ValueError('first layer does not start at exact Signal tree')
+    verify_user_files(repo,plan['final_tree'],plan['old_main'])
     parent = plan['signal']
     outputs = []
     for index,layer in enumerate(plan['layers']):
@@ -146,6 +155,7 @@ def publish(repo, path, approved_digest, expected_main, *, messages=None, approv
 def verify(repo, plan, generated, integration, expected_main, *, messages=None):
     plain(repo)
     validate_plan(plan)
+    verify_user_files(repo,plan['final_tree'],plan['old_main'])
     if expected_main != plan['old_main']:
         raise ValueError('stale base')
     if tree(repo, generated) != plan['final_tree'] or tree(repo, integration) != plan['final_tree']:
