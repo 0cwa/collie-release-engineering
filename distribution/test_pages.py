@@ -91,6 +91,21 @@ class PagesTest(unittest.TestCase):
         self.assertFalse(b.load(journal)['previous_verified'])
         self.start_preflight(plan)
         self.assertTrue(b.load(journal)['previous_verified'])
+    def test_existing_live_manifest_mismatch_blocks_preflight(self):
+        old=self.bundle/'previous';(old/'assets').mkdir();(old/'assets/approved.svg').write_bytes(b'previous public asset');self.seal_previous()
+        plan=self.prepare();journal=self.output/'journal.json'
+        def changed(url):
+            name=url.removeprefix(plan['origin']);actual=dict(plan['previous_files'][name],status=200,headers={})
+            if name=='site-manifest.json':actual['sha256']='0'*64
+            return actual
+        with self.assertRaisesRegex(ValueError,'live previous site differs'):p.preflight(plan,journal,fetch=changed)
+        self.assertFalse(b.load(journal)['previous_verified'])
+        self.start_preflight(plan)
+    def test_same_approved_inputs_produce_identical_artifacts(self):
+        first=self.prepare()
+        with patch('binary_repo.verify_indexes',return_value=self.data):second=p.prepare(self.bundle,self.root/'other-output','c'*40)
+        self.assertEqual(first['artifacts'],second['artifacts'])
+        self.assertEqual(p.digest(first),p.digest(second))
     def test_bundle_links_traversal_and_duplicates_fail(self):
         for kind in ('link','traversal','duplicate'):
             file=self.root/(kind+'.tar')

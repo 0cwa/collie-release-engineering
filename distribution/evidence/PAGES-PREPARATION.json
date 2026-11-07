@@ -1,0 +1,47 @@
+{
+  "status": "STAGING ONLY \u2014 NO PRODUCTION DEPLOYMENT OR APPROVAL",
+  "policy_revision": "3da1b0946c6a5b8e76eb0eb43b135cf2e4a661e2",
+  "input_bundle_sha256": "a5e4c1290c1eeb77a1e55b7ff8dd221b9721c925485f3c093a741b0ab3f3e043",
+  "input_bundle_bytes": 97146880,
+  "input_approval_sha256": "437447d9be0c0bd823997f2ec966715ce93f3620ca0c00633ed197eb103e9d86",
+  "plan_sha256": "f250e758a02bb0aaf669e90fbf506d84d268b821d0ac30bc3a6b2bde47aab63d",
+  "repository_generation": "8a5d5c39712038b79d0576d6f9c7bc6d98feeba72082bb88e3f4e0e081128ca2",
+  "repository_receipt_sha256": "88f1838052dfebabc83967bc74fd5372bb19f217df697fb6b3a23c260ec4ef8a",
+  "repository_test_certificate_sha256": "4fcc45341a4bf5f31453d9087e309d6008686673334f8de5c7054e4bb8e3fb90",
+  "apk_sha256": "5fbd0fe817bc6711c56fbc39b8479cc0a68a7d7fe921a7d9c9fab59333fda9ee",
+  "artifacts": {
+    "phase1": {
+      "sha256": "78a4eb370dd5d595d41ab71046a9cbe3f67f144e3ed4c7c402db7376d2c4ed24",
+      "bytes": 97116160
+    },
+    "phase2": {
+      "sha256": "9b242a538497afa577b0ba641700056241c482c7047c07d13efb682ee00e9450",
+      "bytes": 97187840
+    }
+  },
+  "snapshot_bytes": {
+    "phase1": 97096236,
+    "phase2": 97159693
+  },
+  "snapshot_file_count": {
+    "phase1": 11,
+    "phase2": 23
+  },
+  "native_files_included": false,
+  "local_http_readback": "PASS both full snapshots; phase1 retry idempotent; exact real RC1 bytes",
+  "completed_phases": [
+    "phase1",
+    "phase2"
+  ],
+  "journal_sha256": "7fced351d7b02bc9e50980865cf391e3fa01160cf76e9bf16496b9d45c00c3c6",
+  "transport_scope": "Loopback HTTP mapping only; NOT real Pages/TLS/CDN readback",
+  "actual_pages_deployment": "NOT RUN; Pages/environment/DNS/index-production-key activation not authorized",
+  "tests": "PASS 40 standalone distribution/Pages tests; includes authoritative existing-origin preflight and deterministic artifacts across output directories",
+  "workflow_yaml": "Parsed with PyYAML6.0.3 and all external actionrefs40hex; hosted execution NOT RUN",
+  "native_storage": "Separate proposed native.collie.im/maven/v1 R2 origin; NOT PROVISIONED/PUBLISHED",
+  "infrastructure": {
+    "pages_api_engineering": "404 read-only",
+    "pages_api_application": "404 read-only",
+    "engineering_environments": "empty list; no protection claimed"
+  }
+}

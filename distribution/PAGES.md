@@ -179,3 +179,26 @@ exact hashes and preserved historical evidence; no versioned URL may ever serve
 different bytes. Defective APKs need higher versions. Key-loss/compromise, access-log
 minimization, host migration and APK-vs-index-vs-HTTPS identity runbooks remain in
 OPERATIONS.md. No production hosting, domain, key, native input or APK changed here.
+
+## Executed local package evidence
+
+Implementation policy commit3da1b0946c6a5b8e76eb0eb43b135cf2e4a661e2 produced
+real RC1-based, disposable-index-key artifacts. Phase1 tar97,116,160bytes SHA256
+78a4eb370dd5d595d41ab71046a9cbe3f67f144e3ed4c7c402db7376d2c4ed24;
+phase2 tar97,187,840bytes SHA256
+9b242a538497afa577b0ba641700056241c482c7047c07d13efb682ee00e9450.
+Input tar97,146,880bytes SHA256
+a5e4c1290c1eeb77a1e55b7ff8dd221b9721c925485f3c093a741b0ab3f3e043.
+These are concrete tested staging objects, not a request to deploy this test key.
+Both snapshots were served/read back fully over loopback HTTP with all expected
+hashes, and phase1 retry retained the same journal. No public HTTPS/Pages/CDN check
+or deployment occurred. The test journal's injected loopback transport is labeled;
+it is not a production readback attestation. Private test key and bulky artifacts
+are removed after independent inspection; only text hashes/receipts persist.
+
+Forty standalone tests pass, including explicit repository/generation/previous-site
+substitution rejection, current-live manifest mismatch, every previous URL
+verification, cache-failure retry, mixed generation failure, byte-identical output
+from the same approved bundle in different directories, safe extraction, restricted
+public paths and manual-only workflow/action pins. Actual initial Pages activation
+and endpoint client acceptance remain NOT RUN.
