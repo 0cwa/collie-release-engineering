@@ -72,6 +72,11 @@ class ActivationTest(unittest.TestCase):
         for href in ('/fdroid/repo/?fingerprint='+'A'*64,'//repo.collie.im/fdroid/repo/?fingerprint='+'A'*64):
             (self.bundle/'landing/index.html').write_text(original+'<a href="'+href+'">Add</a>');self.approval['landing_sha256']=p.digest(p.inventory(self.bundle/'landing'));b.atomic_json(self.bundle/'approval.json',self.approval)
             with patch('binary_repo.verify_indexes',return_value=self.data),self.assertRaisesRegex(ValueError,'activation'):p.prepare(self.bundle,self.root/'forbidden-relative','c'*40)
+        for href in (r'/fdroid\repo/?fingerprint=A',r'https://repo.collie.im\fdroid\repo/?fingerprint=A','/fdroid/\nrepo/?fingerprint=A'):
+            (self.bundle/'landing/index.html').write_text(original+'<a href="'+href+'">Add</a>');self.approval['landing_sha256']=p.digest(p.inventory(self.bundle/'landing'));b.atomic_json(self.bundle/'approval.json',self.approval)
+            with patch('binary_repo.verify_indexes',return_value=self.data),self.assertRaisesRegex(ValueError,'noncanonical'):p.prepare(self.bundle,self.root/'forbidden-noncanonical','c'*40)
+        (self.bundle/'landing/index.html').write_text(original+'<base href="https://repo.collie.im/"><a href="fdroid/repo/">Add</a>');self.approval['landing_sha256']=p.digest(p.inventory(self.bundle/'landing'));b.atomic_json(self.bundle/'approval.json',self.approval)
+        with patch('binary_repo.verify_indexes',return_value=self.data),self.assertRaisesRegex(ValueError,'approved base'):p.prepare(self.bundle,self.root/'forbidden-base','c'*40)
         (self.bundle/'landing/index.html').write_text(original);(self.bundle/'landing/add-repository.png').write_bytes(b'opaque stale fixture QR')
         self.approval['landing_sha256']=p.digest(p.inventory(self.bundle/'landing'));b.atomic_json(self.bundle/'approval.json',self.approval)
         with patch('binary_repo.verify_indexes',return_value=self.data),self.assertRaisesRegex(ValueError,'new repository QR'):p.prepare(self.bundle,self.root/'forbidden-stale','c'*40)

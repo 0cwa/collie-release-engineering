@@ -54,11 +54,16 @@ def has_add_link(text,origin='https://repo.collie.im/'):
         active=False
         def handle_starttag(self,tag,attrs):
             attrs=dict(attrs)
+            if tag=='base':raise ValueError('generated static page must use the approved base origin')
             if tag=='body' and attrs.get('data-repository-state') in ('active','preview'):self.active=True
             if tag=='a':
                 # Resolve root-relative and scheme-relative URLs as the browser
                 # does; a literal-prefix check misses both forms.
-                href=attrs.get('href','').strip()
+                href=attrs.get('href','')
+                # These templates emit canonical URLs. Refuse browser-specific
+                # rewrites instead of approximating a general WHATWG parser.
+                if chr(92) in href or any(ord(c)<32 or ord(c)==127 for c in href):raise ValueError('noncanonical link URL in generated static page')
+                href=href.strip()
                 try:target=urlsplit(urljoin(origin,href))
                 except ValueError:self.active=True;return
                 if target.scheme.lower() in ('fdroidrepos','fdroidrepo'):self.active=True

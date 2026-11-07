@@ -42,3 +42,8 @@ class SitePageTest(unittest.TestCase):
     def test_displayed_manual_address_includes_full_pinned_fingerprint(self):
         self.render('preview');text=(self.root/'preview/index.html').read_text();pinned=s.links('https://repo.collie.im/fdroid/repo/','a'*64)['https']
         self.assertIn('>'+pinned+'</a>',text)
+
+    def test_noncanonical_backslash_control_and_base_forms_fail_closed(self):
+        for href in (r'/fdroid\repo/?fingerprint=A',r'https://repo.collie.im\fdroid\repo/?fingerprint=A','/fdroid/\nrepo/?fingerprint=A'):
+            with self.subTest(href=href),self.assertRaisesRegex(ValueError,'noncanonical'):s.has_add_link('<a href="'+href+'">Add</a>')
+        with self.assertRaisesRegex(ValueError,'approved base'):s.has_add_link('<base href="https://example.org/"><a href="/fdroid/repo/">Add</a>')
