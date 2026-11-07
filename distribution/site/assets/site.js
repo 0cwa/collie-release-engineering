@@ -9,7 +9,7 @@
   button.addEventListener('click', async () => {
     const packageValue = document.getElementById('verification-package').textContent.trim();
     const signerValue = document.getElementById('verification-signer').textContent.trim();
-    const copyText = 'Package: ' + packageValue + '\nAPK signing SHA256: ' + signerValue;
+    const copyText = packageValue + '\n' + signerValue;
     fallback.value = copyText;
 
     if (window.isSecureContext && navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {

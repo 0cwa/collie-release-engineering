@@ -43,8 +43,8 @@
       "license": "repository AGPL-3.0-only"
     },
     "assets/site.js": {
-      "sha256": "4a462c5aea200c7b5941a8d62fa489025d10d97e4b2e29da867a942530765af4",
-      "bytes": 1234,
+      "sha256": "a2a6196e92bae0a231068f9494265dcdd9e7e932c00c1bbc696a8d175447a23d",
+      "bytes": 1200,
       "origin": "authored for accessible verification copy",
       "license": "repository AGPL-3.0-only"
     }

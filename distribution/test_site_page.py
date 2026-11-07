@@ -54,7 +54,7 @@ class SitePageTest(unittest.TestCase):
         self.assertIn('aria-describedby="verification-copy-status"',text)
         self.assertIn('role="status" aria-live="polite"',text)
         self.assertIn('aria-label="Verification details selected for manual copying"',text)
-        script=(s.ROOT/'assets/site.js').read_text();self.assertIn('navigator.clipboard.writeText',script);self.assertIn('fallback.select()',script)
+        script=(s.ROOT/'assets/site.js').read_text();self.assertIn('navigator.clipboard.writeText',script);self.assertIn('fallback.select()',script);self.assertIn(r"const copyText = packageValue + '\n' + signerValue;",script)
         self.assertTrue((self.root/'preview/assets/site.js').is_file())
 
     def test_verification_defaults_to_canonical_signer_when_input_omits_it(self):
