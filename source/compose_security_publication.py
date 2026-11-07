@@ -25,6 +25,14 @@ import commit_messages
 HEX40 = re.compile(r'[0-9a-f]{40}\Z')
 HEX64 = re.compile(r'[0-9a-f]{64}\Z')
 OWNER_PATHS = ('README.md', 'LICENSE', 'NOTICE', 'assets')
+SHORT_SUBJECTS = {
+    'Resolve modify/delete conflicts for modules Molly removes and remove new upstream files added beneath those excluded modules':
+        'Resolve excluded-module modify/delete conflicts',
+    'Carry Molly SOCKS, Tor, DNS and transport choices through the updated Signal networking interfaces and NetCipher integration':
+        'Preserve Molly proxy, DNS, and transport choices in updated Signal interfaces',
+    'Resolve shared application, account, service and core integration files whose APIs or feature boundaries changed upstream':
+        'Resolve shared app, account, service, and core integration changes',
+}
 
 
 def load_publication_layer():
@@ -187,6 +195,16 @@ def validate_security_manifest(manifest):
         raise ValueError('security layer publication marker digest is invalid')
 
 
+def shorten_message_subjects(messages):
+    for entry in messages['layers']:
+        if len(entry['subject']) > 120:
+            replacement = SHORT_SUBJECTS.get(entry['changes'])
+            if replacement is None or len(replacement) > 120:
+                raise ValueError('publication layer has no reviewed short commit subject: ' + entry['changes'].splitlines()[0])
+            entry['subject'] = replacement
+    return messages
+
+
 def set_owner_entries(repo, stage, current_main):
     """Copy exact current-main owner entries into the staged source index."""
     existing = git(stage, 'ls-files', '-z', '--', *OWNER_PATHS).split(b'\0')
@@ -329,7 +347,7 @@ def compose(repo, checkpoint_repo, stage, engineering, plan_path,
 
     plan_bytes = (json.dumps(plan, indent=2) + '\n').encode()
     plan_sha256 = hashlib.sha256(plan_bytes).hexdigest()
-    messages = commit_messages.preview(plan, plan_sha256)
+    messages = shorten_message_subjects(commit_messages.preview(plan, plan_sha256))
     commit_messages.validate(messages, plan, plan_sha256)
     write_new(output_plan, plan_bytes)
     write_new(output_messages, (json.dumps(messages, indent=2) + '\n').encode())

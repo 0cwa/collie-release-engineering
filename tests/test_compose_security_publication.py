@@ -29,6 +29,13 @@ class SecurityCompositionTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'five canonical'):
             composer.validate_security_manifest(changed)
 
+    def test_message_preview_shortens_known_legacy_subjects_without_changing_layer_records(self):
+        layer = 'Resolve modify/delete conflicts for modules Molly removes and remove new upstream files added beneath those excluded modules'
+        messages = {'layers': [{'subject': layer, 'changes': layer}]}
+        composer.shorten_message_subjects(messages)
+        self.assertEqual(messages['layers'][0]['subject'], 'Resolve excluded-module modify/delete conflicts')
+        self.assertEqual(messages['layers'][0]['changes'], layer)
+
     def test_publication_marker_digest_is_checked(self):
         oid = '1' * 40
         with mock.patch.object(composer, 'tree_blob', return_value=('100644', 'blob', oid, '.github/workflows/source.yml')):
