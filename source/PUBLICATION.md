@@ -96,3 +96,12 @@ for changed current main/plan/G/I. This preserves actual contributor authorship
 in the integration ancestry as well as explicit attribution in generated
 layers. No contributor edits the engineering patch forest. Fixture roundtrips
 against actual candidate G/I are test evidence, not production contributions.
+
+An import's pinned main snapshot must have exactly the reviewed contribution's
+complete tree, including repository files and modes. Ancestry alone does not
+permit dropping later main changes. If main advances, review/import the complete
+newer input or import reviewed deltas in order against matching immutable
+snapshots; do not merely rebind an older result to the newer main. Intermediate
+plans do not authorize publication: the final plan/base and complete output must
+match the independently read live main before fresh G/I approval. No automatic
+batch merge or rebase is performed by the importer.

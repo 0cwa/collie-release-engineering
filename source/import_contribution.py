@@ -19,6 +19,13 @@ def import_reviewed(repo, plan_path, reviewed_commit, overlay_path, expected_pat
     parents = publish.git(repo, 'show', '-s', '--format=%P', publish.oid(reviewed_commit)).decode().split()
     if len(parents) != 1 or publish.tree(repo, parents[0]) != plan['final_tree']:
         raise ValueError('contribution parent differs from complete approved source tree')
+    if current_main is None:
+        raise ValueError('independently pinned current main snapshot required')
+    publish.oid(current_main)
+    publish.git(repo, 'merge-base', '--is-ancestor', plan['old_main'], current_main)
+    publish.git(repo, 'merge-base', '--is-ancestor', reviewed_commit, current_main)
+    if publish.tree(repo,current_main) != publish.tree(repo,reviewed_commit):
+        raise ValueError('current main tree differs from reviewed contribution; review/import the complete newer tip instead')
     record = publish.round_trip(repo, parents[0], reviewed_commit, overlay_path)
     if expected_patch_sha256 is not None and record['patch_sha256'] != expected_patch_sha256:
         raise ValueError('contribution patch differs from separately reviewed digest')
@@ -35,11 +42,7 @@ def import_reviewed(repo, plan_path, reviewed_commit, overlay_path, expected_pat
         actual=indexed('write-tree').decode().strip()
         if actual != publish.tree(repo,reviewed_commit):
             raise ValueError('round-trip reconstruction differs from full reviewed tree')
-    if current_main is not None:
-        publish.oid(current_main)
-        publish.git(repo, 'merge-base', '--is-ancestor', plan['old_main'], current_main)
-        publish.git(repo, 'merge-base', '--is-ancestor', reviewed_commit, current_main)
-        plan['old_main'] = current_main
+    plan['old_main'] = current_main
     plan['layers'].append({'name':'Import reviewed ordinary application contribution',
                            'kind':'publication','before_tree':plan['final_tree'], 'after_tree':actual,
                            'provenance':f'Original reviewed contribution {reviewed_commit}; complete binary/mode delta SHA256 {record["patch_sha256"]}. Original commit retains contributor attribution; generated publication is composite.'})
