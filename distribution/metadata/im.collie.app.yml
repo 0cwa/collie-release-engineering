@@ -13,6 +13,6 @@ SourceCode: https://github.com/0cwa/collieim-android
 IssueTracker: https://github.com/0cwa/collieim-android/issues
 Donate: https://liberapay.com/Collie/
 AllowedAPKSigningKeys:
-  - '@APK_CERTIFICATE@'
+  - 'f8cc0c0c052e5635c26fcd293c2b0af3e87d61ff7f2df3602a9af6e91f73c826'
 AutoUpdateMode: None
 UpdateCheckMode: None

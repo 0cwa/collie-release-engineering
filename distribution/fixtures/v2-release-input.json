@@ -4,14 +4,14 @@
     "release_id": 1,
     "tag": "synthetic-fixture-not-a-release",
     "release_manifest_sha256": "3a133e489078d744c7d8352c869dbc9a457bbe7e616fc01f373838d0a835f91a",
-    "release_receipt_sha256": "c167f710e04c082aca92a6ec5994f2dab2f57c19fbd20cadd6b7d359d106d126",
+    "release_receipt_sha256": "4b1eeb3c4ebd8c198056933da73ffb0a3dc9e2e7fdfc86b9cf684a4a0f9b27b0",
     "receipt_approvals": {
       "source": "488a420e26d763412fbb068bf8015734a1748b8ae4076fb96a63c9a0a080b6d8",
       "build": "f798337257027904e47d7907b8a8834ac6dc865b661fdf9b86fe2324e8fe591d",
-      "release": "c167f710e04c082aca92a6ec5994f2dab2f57c19fbd20cadd6b7d359d106d126"
+      "release": "4b1eeb3c4ebd8c198056933da73ffb0a3dc9e2e7fdfc86b9cf684a4a0f9b27b0"
     },
     "apk_sha256": "e27b274814e82c4247364228e1d51dd6f51e5c5abb4ab4ac5f0bb2e29c9c0ad3",
-    "apk_certificate_sha256": "7777777777777777777777777777777777777777777777777777777777777777",
+    "apk_certificate_sha256": "f8cc0c0c052e5635c26fcd293c2b0af3e87d61ff7f2df3602a9af6e91f73c826",
     "package": "im.collie.app",
     "version_code": 177703,
     "version_name": "fixture-v2",
@@ -81,7 +81,7 @@
       "version_code": 177703,
       "version_name": "fixture-v2",
       "apk_sha256": "e27b274814e82c4247364228e1d51dd6f51e5c5abb4ab4ac5f0bb2e29c9c0ad3",
-      "apk_certificate_sha256": "7777777777777777777777777777777777777777777777777777777777777777",
+      "apk_certificate_sha256": "f8cc0c0c052e5635c26fcd293c2b0af3e87d61ff7f2df3602a9af6e91f73c826",
       "aliases": [
         "collie-foss.apk",
         "collie.apk",

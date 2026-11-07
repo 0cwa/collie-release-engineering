@@ -29,7 +29,7 @@ python distribution/stage_rc1.py --approval approval.json \
 Workspace is outside source, mode 0700; config mode 0600. The harness generates a
 30-day disposable **repository test key**, not an APK or production key. Never
 serve the workspace, keystore, config, approval, lock or promotion journal. Serve
-only `repo/`. `AllowedAPKSigningKeys` is generated from the approved APK certificate;
+only `repo/`. `AllowedAPKSigningKeys` is checked in with the verified existing production APK certificate; strict approval parsing rejects another certificate;
 no `Builds` entries exist. The APK certificate stays
 `f8cc0c0c052e5635c26fcd293c2b0af3e87d61ff7f2df3602a9af6e91f73c826`.
 

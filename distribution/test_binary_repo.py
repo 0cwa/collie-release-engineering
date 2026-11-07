@@ -98,6 +98,13 @@ class BinaryRepositoryTest(unittest.TestCase):
     def test_private_file_rejected_before_r2_plan(self):
         g=self.root/'g';g.mkdir();(g/'keystore.p12').write_bytes(b'private')
         with self.assertRaisesRegex(ValueError,'unexpected public file'):b.public_files(g)
+    def test_alternate_apk_certificate_cannot_be_approved(self):
+        metadata=(Path(__file__).parent/'metadata/im.collie.app.yml').read_text()
+        self.assertIn("AllowedAPKSigningKeys:\n  - '"+b.APK_CERTIFICATE+"'",metadata)
+        self.assertNotIn('@APK_CERTIFICATE@',metadata)
+        a=b.load(Path(__file__).parent/'approval.fixture.json');a['apk_certificate_sha256']='0'*64
+        path=self.root/'alternate-signer.json';path.write_text(json.dumps(a))
+        with self.assertRaisesRegex(ValueError,'signing certificate differs'):b.approval(path)
     def test_boolean_schema_is_not_legacy_integer_one(self):
         a=b.load(Path(__file__).parent/'approval.fixture.json');a['schema']=True
         path=self.root/'boolean.json';path.write_text(json.dumps(a))

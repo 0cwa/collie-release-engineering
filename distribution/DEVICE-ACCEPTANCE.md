@@ -53,7 +53,7 @@ refresh, then install and update through each client. Before each upgrade instal
 the approved RC3 on a clean disposable device and record firstInstallTime; after
 upgrade record version, update time, installer and on-device base.apk SHA256.
 
-PASS: 23 tests total: 18 binary/HTTP tests plus5 shared receipt-chain adapter tests. New HTTP tests
+PASS: 24 tests total: 19 binary/HTTP tests plus5 shared receipt-chain adapter tests. New HTTP tests
 cover immutable APK cache headers, no-store negative response followed by upload
 and successful read-back, mutable-entry freshness, private/traversal rejection and
 same-second entry replacement with an old If-Modified-Since header returning200

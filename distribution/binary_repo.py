@@ -15,6 +15,7 @@ import tempfile
 
 SERVER_VERSION = '2.4.5'
 APP = 'im.collie.app'
+APK_CERTIFICATE = 'f8cc0c0c052e5635c26fcd293c2b0af3e87d61ff7f2df3602a9af6e91f73c826'
 ALIASES = {'collie.apk','collie-foss.apk','molly-continued.apk','molly-foss-continued.apk','molly-minimal.apk'}
 
 def sha(path):
@@ -43,6 +44,7 @@ def approval(path):
         if a['receipt_approvals']['release']!=a['release_receipt_sha256']:raise ValueError('release receipt approval differs')
     for k in ('release_manifest_sha256','apk_sha256','apk_certificate_sha256'):
         if not re.fullmatch('[0-9a-f]{64}',a[k]): raise ValueError(k)
+    if a['apk_certificate_sha256']!=APK_CERTIFICATE:raise ValueError('production APK signing certificate differs')
     if a['package']!=APP or type(a['version_code']) is not int or a['version_code']<=0: raise ValueError('package/version')
     if type(a['release_id']) is not int or a['release_id']<=0 or not a['tag'] or not a['version_name']: raise ValueError('release identity')
     if set(a['aliases'])!=ALIASES or any(v!=a['apk_sha256'] for v in a['aliases'].values()): raise ValueError('alias inequality')
@@ -101,7 +103,7 @@ def ingest(approved,manifest,apk,workspace,aapt,apksigner,receipt_bundle=None):
         target=workspace/'repo'/f"{APP}_{a['version_code']}.apk"
         immutable_copy(apk,target)
         metadata=Path(__file__).parent/'metadata'/f'{APP}.yml'
-        text=metadata.read_text().replace('@APK_CERTIFICATE@',a['apk_certificate_sha256'])
+        text=metadata.read_text()
         (workspace/'metadata').mkdir(exist_ok=True)
         (workspace/'metadata'/metadata.name).write_text(text)
         (workspace/'approved-release.json').write_text(json.dumps(a,indent=2)+'\n')
