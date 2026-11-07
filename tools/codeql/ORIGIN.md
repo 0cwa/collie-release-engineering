@@ -53,3 +53,10 @@ Copied/adapted source hashes:
 - tools/codeql/test_snapshot.py f990fbfff70330686ae23b9cb202fd9110eff3e21192cca2c58ddd47792b762f
 - tools/screenshots/screenshot_artifacts.py 886a49ae3dd1d0fc458d49b86b2016cd64f10e72905a6f87e66505cacb28e9bb
 - tools/screenshots/test_screenshot_artifacts.py 280422c033f7c88638a9ebe1970bdb745c75f90339d402f130586ec54ffcaf04
+
+Pull request runs must load both this report tool and the reviewed-findings
+manifest from the base commit; pushes and manual runs use the analyzed commit.
+This stops a pull request from using its own manifest or report implementation
+to approve findings. The workflow definition can still be changed in a pull
+request, so repositories must require external review and protect workflow edits
+with branch protection. This arrangement does not make workflow YAML tamperproof.

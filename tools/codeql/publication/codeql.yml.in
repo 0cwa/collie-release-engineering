@@ -26,6 +26,16 @@ jobs:
           path: source
           persist-credentials: false
           lfs: false
+      - name: Check out trusted review policy at the base revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.base.sha || github.sha }}
+          path: trusted-policy
+          sparse-checkout: |
+            .github/codeql/reviewed-findings.json
+            tools/codeql
+          persist-credentials: false
+          lfs: false
       - name: Load the independently reviewed engineering policy
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -57,8 +67,8 @@ jobs:
         if: always() && !cancelled()
         run: |
           mkdir -p "$RUNNER_TEMP/codeql-evidence"
-          python3 policy/tools/codeql/report.py "$RUNNER_TEMP/codeql-sarif" \
-            --language actions --reviews source/.github/codeql/reviewed-findings.json \
+          python3 trusted-policy/tools/codeql/report.py "$RUNNER_TEMP/codeql-sarif" \
+            --language actions --reviews trusted-policy/.github/codeql/reviewed-findings.json \
             --source-root source --output "$RUNNER_TEMP/codeql-evidence/audit.json" \
             --summary "$RUNNER_TEMP/codeql-evidence/audit.md"
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
