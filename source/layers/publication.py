@@ -30,16 +30,7 @@ def preserve_user_files(app, previous_application, application_base, publication
         with tarfile.open(fileobj=io.BytesIO(data)) as archive:archive.extractall(app,filter='data')
 
 
-def apply(app, engineering, previous_application, *, application_base, publication_plan):
-    app, engineering, previous_application = map(Path, (app, engineering, previous_application))
-    if subprocess.check_output(['git','-C',str(app),'rev-parse','HEAD^{tree}'],text=True).strip() != RECONSTRUCTED_TREE:
-        raise ValueError('publication layer requires exact merged-main reconstruction')
-    if subprocess.check_output(['git','-C',str(app),'status','--porcelain'], text=True).strip():
-        raise ValueError('publication layer requires a clean reconstructed checkout')
-    preserve_user_files(app, previous_application, application_base, publication_plan)
-    shutil.rmtree(app / '.github/workflows')
-    (app / '.github/workflows').mkdir()
-    (app / '.github/workflows/source.yml').write_text('''name: Direct source checks
+SOURCE_WORKFLOW = '''name: Direct source checks
 on: [push, pull_request, workflow_dispatch]
 permissions:
   contents: read
@@ -54,7 +45,25 @@ jobs:
       - run: git diff --check && test -f app/build.gradle.kts && test ! -d tools/patches
       - name: Report direct-build gate
         run: python3 -c 'import json; x=json.load(open("build-inputs/native-publication.json")); assert x["status"] == "BLOCKED"; print("Direct Android build acceptance BLOCKED pending public immutable native inputs; this source check is not build approval")'
-''')
+'''
+
+
+def replace_application_workflows(app):
+    """Replace legacy workflows with the reviewed source-only workflow."""
+    workflows = Path(app) / ".github/workflows"
+    shutil.rmtree(workflows)
+    workflows.mkdir()
+    (workflows / "source.yml").write_text(SOURCE_WORKFLOW)
+
+
+def apply(app, engineering, previous_application, *, application_base, publication_plan):
+    app, engineering, previous_application = map(Path, (app, engineering, previous_application))
+    if subprocess.check_output(['git','-C',str(app),'rev-parse','HEAD^{tree}'],text=True).strip() != RECONSTRUCTED_TREE:
+        raise ValueError('publication layer requires exact merged-main reconstruction')
+    if subprocess.check_output(['git','-C',str(app),'status','--porcelain'], text=True).strip():
+        raise ValueError('publication layer requires a clean reconstructed checkout')
+    preserve_user_files(app, previous_application, application_base, publication_plan)
+    replace_application_workflows(app)
     (app / 'build-inputs').mkdir(exist_ok=True)
     (app / 'build-inputs/engineering.json').write_text(json.dumps({'schema': 1, 'origin': 'https://github.com/0cwa/collie-release-engineering.git', 'recipe_revision': RECIPE_REVISION, 'native_recipe_path': 'tools/native', 'trust': 'trusted-local native outputs; independent reproduction not established'}, indent=2)+'\n')
     shutil.copyfile(engineering / 'tools/native/native-lock.json', app / 'build-inputs/native-lock.json')

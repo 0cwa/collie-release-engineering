@@ -1,0 +1,290 @@
+diff --git a/.github/codeql/codeql-config.yml b/.github/codeql/codeql-config.yml
+new file mode 100644
+index 0000000000000000000000000000000000000000..390d44f5d6a8cf1d53266ea7637dfdf5f9538ac9
+--- /dev/null
++++ b/.github/codeql/codeql-config.yml
+@@ -0,0 +1,6 @@
++name: Collie security analysis
++
++# Includes the default security queries. Additional findings need review; do not
++# hide them with directory exclusions or blanket query/severity filters.
++queries:
++  - uses: security-extended
+diff --git a/.github/codeql/reviewed-findings.json b/.github/codeql/reviewed-findings.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..4e49c62f6d2e6a25532522e1e9704c867903c578
+--- /dev/null
++++ b/.github/codeql/reviewed-findings.json
+@@ -0,0 +1 @@
++{"schema": 1, "reviews": []}
+diff --git a/.github/workflows/codeql.yml b/.github/workflows/codeql.yml
+new file mode 100644
+index 0000000000000000000000000000000000000000..576254d63a7822c807acb4a0631a2c0ffdf42861
+--- /dev/null
++++ b/.github/workflows/codeql.yml
+@@ -0,0 +1,85 @@
++name: Published workflow CodeQL
++on:
++  pull_request:
++    branches: [main]
++  push:
++    branches: [main]
++  workflow_dispatch:
++permissions:
++  contents: read
++cache-mode: read
++jobs:
++  workflow-analysis:
++    name: Analyze GitHub Actions only
++    runs-on: ubuntu-24.04
++    permissions:
++      contents: read
++      security-events: write
++    env:
++      CODEQL_ACTION_DIFF_INFORMED_QUERIES: 'false'
++      CODEQL_OVERLAY_DATABASE_MODE: 'none'
++    steps:
++      - name: Check out exact source under analysis
++        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
++        with:
++          ref: ${{ github.event.pull_request.head.sha || github.sha }}
++          path: source
++          persist-credentials: false
++          lfs: false
++      - name: Check out trusted review policy at the base revision
++        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
++        with:
++          ref: ${{ github.event.pull_request.base.sha || github.sha }}
++          path: trusted-policy
++          sparse-checkout: .github/codeql
++          persist-credentials: false
++          lfs: false
++      - name: Load the independently reviewed engineering policy
++        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
++        with:
++          repository: 0cwa/collie-release-engineering
++          ref: 124ca006b36c64e12807db2d1737d7f1faf06471
++          path: policy
++          sparse-checkout: tools/codeql
++          persist-credentials: false
++      - name: State the exact analyzed source and coverage limit
++        run: |
++          git -C source rev-parse HEAD HEAD^{tree}
++          printf '%s\n' 'Actions workflow analysis only. Java/Kotlin and native-dependency source analysis: NOT RUN; a reviewed traced Android build with verified public native inputs is required before activation.' >> "$GITHUB_STEP_SUMMARY"
++      - uses: github/codeql-action/init@33d7b85da1a04171e211befe2c739303b9a4c066 # v4.39.3
++        with:
++          tools: linked
++          languages: actions
++          build-mode: none
++          source-root: source
++          config-file: ./source/.github/codeql/codeql-config.yml
++          trap-caching: false
++          dependency-caching: false
++      - uses: github/codeql-action/analyze@33d7b85da1a04171e211befe2c739303b9a4c066 # v4.39.3
++        with:
++          category: /language:actions
++          output: ${{ runner.temp }}/codeql-sarif
++          upload: ${{ vars.CODEQL_ADVANCED_UPLOAD == 'true' && 'always' || 'never' }}
++          upload-database: false
++      - name: Apply the pinned findings and extraction gate
++        if: always() && !cancelled()
++        run: |
++          mkdir -p "$RUNNER_TEMP/codeql-evidence"
++          review_file=trusted-policy/.github/codeql/reviewed-findings.json
++          if [[ ! -f "$review_file" ]]; then
++            review_file="$RUNNER_TEMP/codeql-evidence/empty-reviews.json"
++            printf '%s\n' '{"schema":1,"reviews":[]}' > "$review_file"
++          fi
++          python3 policy/tools/codeql/report.py "$RUNNER_TEMP/codeql-sarif" \
++            --language actions --reviews "$review_file" \
++            --source-root source --output "$RUNNER_TEMP/codeql-evidence/audit.json" \
++            --summary "$RUNNER_TEMP/codeql-evidence/audit.md"
++      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
++        if: always() && !cancelled()
++        with:
++          name: codeql-published-workflows
++          path: |
++            ${{ runner.temp }}/codeql-sarif
++            ${{ runner.temp }}/codeql-evidence
++          if-no-files-found: error
++          retention-days: 14
+diff --git a/.github/workflows/publish-screenshots.yml b/.github/workflows/publish-screenshots.yml
+new file mode 100644
+index 0000000000000000000000000000000000000000..c73c349d3ce9eee88157a173aba056878a371d92
+--- /dev/null
++++ b/.github/workflows/publish-screenshots.yml
+@@ -0,0 +1,67 @@
++name: Publish Reviewed Screenshot Data
++on:
++  workflow_dispatch:
++    inputs:
++      branch:
++        description: Same-repository feature branch; never main/release
++        type: string
++        required: true
++      base_sha:
++        description: Exact generated and reviewed branch head
++        type: string
++        required: true
++      run_id:
++        description: Successful Generate Screenshot Data run
++        type: string
++        required: true
++      attempt:
++        description: Exact generation run attempt
++        type: string
++        required: true
++      artifact_id:
++        description: Reviewed bounded screenshot data artifact ID
++        type: string
++        required: true
++      pr_number:
++        description: Optional open same-repository PR number
++        type: string
++        required: false
++permissions: {}
++cache-mode: none
++jobs:
++  publish:
++    if: github.ref == 'refs/heads/main'
++    runs-on: ubuntu-24.04
++    timeout-minutes: 20
++    permissions:
++      actions: read
++      contents: write
++      pull-requests: read
++    concurrency:
++      group: publish-screenshots-${{ inputs.branch }}
++      cancel-in-progress: false
++    steps:
++      - name: Load independently reviewed engineering publication policy
++        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
++        with:
++          repository: 0cwa/collie-release-engineering
++          ref: 124ca006b36c64e12807db2d1737d7f1faf06471
++          path: policy
++          sparse-checkout: tools/screenshots
++          persist-credentials: false
++      - name: Validate data and append one image-only commit with an exact lease
++        env:
++          GH_TOKEN: ${{ github.token }}
++          BRANCH: ${{ inputs.branch }}
++          BASE_SHA: ${{ inputs.base_sha }}
++          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
++          ARTIFACT_ID: ${{ inputs.artifact_id }}
++          RUN_ID: ${{ inputs.run_id }}
++          ATTEMPT: ${{ inputs.attempt }}
++          PR_NUMBER: ${{ inputs.pr_number }}
++        run: |
++          python3 policy/tools/screenshots/screenshot_artifacts.py publish \
++            --repository "$GITHUB_REPOSITORY" --branch "$BRANCH" \
++            --base-sha "$BASE_SHA" --protected-branch "$DEFAULT_BRANCH" \
++            --artifact-id "$ARTIFACT_ID" --run-id "$RUN_ID" \
++            --attempt "$ATTEMPT" --pr-number "$PR_NUMBER"
+diff --git a/.github/workflows/update-screenshots.yml b/.github/workflows/update-screenshots.yml
+new file mode 100644
+index 0000000000000000000000000000000000000000..322324a5102107d9de654dfb31e0795ab427af5e
+--- /dev/null
++++ b/.github/workflows/update-screenshots.yml
+@@ -0,0 +1,101 @@
++name: Generate Screenshot Data
++
++# The selected branch runs Gradle without write/signing/cache credentials.
++# Publication is a separate manual main-only policy, never candidate code.
++on:
++  workflow_dispatch:
++  issue_comment:
++    types: [created]
++permissions: {}
++cache-mode: none
++jobs:
++  guidance:
++    if: >-
++      github.event_name == 'issue_comment' && github.event.issue.pull_request &&
++      github.event.comment.body == '!screenshots' &&
++      contains(fromJSON('["OWNER", "MEMBER", "COLLABORATOR"]'), github.event.comment.author_association)
++    runs-on: ubuntu-24.04
++    permissions:
++      contents: read
++      pull-requests: write
++    steps:
++      - name: Resolve the requested feature branch without executing it
++        env:
++          GH_TOKEN: ${{ github.token }}
++          PR_NUMBER: ${{ github.event.issue.number }}
++          REQUESTER: ${{ github.event.comment.user.login }}
++          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
++        run: |
++          set -euo pipefail
++          permission="$(gh api "repos/$GITHUB_REPOSITORY/collaborators/$REQUESTER/permission" --jq '.permission')"
++          case "$permission" in admin|maintain|write) ;; *) exit 1 ;; esac
++          gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER" > "$RUNNER_TEMP/screenshot-pr.json"
++          python3 - <<'PY' > "$RUNNER_TEMP/screenshot-dispatch.md"
++          import json, os, re, shlex
++          from pathlib import Path
++          pull = json.loads((Path(os.environ['RUNNER_TEMP']) / 'screenshot-pr.json').read_text())
++          head = pull['head']; branch = head['ref']
++          if pull['state'] != 'open' or head['repo']['full_name'] != os.environ['GITHUB_REPOSITORY']:
++              raise ValueError('An open same-repository PR is required')
++          if branch in ('main', os.environ['DEFAULT_BRANCH']) or branch.startswith('8.') or not re.fullmatch('[0-9a-f]{40}', head['sha']):
++              raise ValueError('A feature branch and exact source are required')
++          command = shlex.join(['gh','workflow','run','update-screenshots.yml','--repo',os.environ['GITHUB_REPOSITORY'],'--ref',branch])
++          print('Screenshot generation is a branch-scoped, read-only workflow. After reviewing the selected branch, run:')
++          print('\n```sh\n' + command + '\n```')
++          print('\nThen review the data artifact and dispatch publish-screenshots.yml on main with the exact run/attempt/artifact/head identities. No candidate code runs in this comment-triggered job.')
++          PY
++          gh pr comment "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --body-file "$RUNNER_TEMP/screenshot-dispatch.md"
++  generate:
++    if: >-
++      github.event_name == 'workflow_dispatch' && github.ref_type == 'branch' &&
++      github.ref_name != 'main' && github.ref_name != github.event.repository.default_branch &&
++      !startsWith(github.ref_name, '8.')
++    runs-on: ubuntu-latest-8-cores
++    timeout-minutes: 60
++    permissions:
++      contents: read
++    concurrency:
++      group: generate-screenshots-${{ github.ref }}
++      cancel-in-progress: true
++    steps:
++      - name: Check out the exact generation source
++        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
++        with:
++          ref: ${{ github.sha }}
++          path: source
++          submodules: true
++          lfs: true
++          persist-credentials: false
++      - name: Load pinned engineering screenshot collector
++        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
++        with:
++          repository: 0cwa/collie-release-engineering
++          ref: 124ca006b36c64e12807db2d1737d7f1faf06471
++          path: policy
++          sparse-checkout: tools/screenshots
++          persist-credentials: false
++      - uses: actions/setup-java@03ad4de0992f5dab5e18fcb136590ce7c4a0ac95 # v5
++        with:
++          distribution: temurin
++          java-version: 21
++      - uses: gradle/actions/wrapper-validation@3f131e8634966bd73d06cc69884922b02e6faf92 # v6
++      - uses: gradle/actions/setup-gradle@3f131e8634966bd73d06cc69884922b02e6faf92 # v6
++        with:
++          cache-disabled: true
++      - name: Generate screenshots without private build-cache values
++        working-directory: source
++        env:
++          SIGNAL_BUILD_CACHE_PUSH: false
++        run: ./gradlew updateScreenshots
++      - name: Collect only bounded screenshot data
++        env:
++          BASE_SHA: ${{ github.sha }}
++        run: python3 policy/tools/screenshots/screenshot_artifacts.py collect --repository source --base-sha "$BASE_SHA" --output "$RUNNER_TEMP/screenshots/screenshot-changes.json"
++      - name: Upload one data manifest
++        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
++        with:
++          name: screenshot-changes-${{ github.run_id }}-${{ github.run_attempt }}
++          path: ${{ runner.temp }}/screenshots/screenshot-changes.json
++          archive: true
++          if-no-files-found: error
++          retention-days: 7

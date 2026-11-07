@@ -1,0 +1,60 @@
+{
+  "schema": 1,
+  "kind": "feature-layer",
+  "name": "Pinned Actions security and screenshot workflows for published application source",
+  "application_base": "96fe0bdf78474dca9b06fb59adbb618b21e5ede0",
+  "before_tree": "5fe046686b3d9d9121125bb5f1505a5c3d090f6a",
+  "after_tree": "0a1f3ed3e192543f524ff10de0be6ff3e06cbc50",
+  "tree_scope": "publication-workflow-replacement-fixture only; not complete reconstructed application G/I",
+  "paths": [
+    ".github/codeql/codeql-config.yml",
+    ".github/codeql/reviewed-findings.json",
+    ".github/workflows/codeql.yml",
+    ".github/workflows/publish-screenshots.yml",
+    ".github/workflows/update-screenshots.yml"
+  ],
+  "files": {
+    ".github/codeql/codeql-config.yml": "61d120d00ff16b9c25303e245d6a08b286b9836f3c29a822b81d03f9f9601e0e",
+    ".github/codeql/reviewed-findings.json": "d1240327219f44e01b73eeae84e9b53aea21d51d1cca3da0dd3d62fc2ceaa465",
+    ".github/workflows/codeql.yml": "87fc25cbdaec275f2c9dd34dd894b329898b753d8f1b72e049124135173021bf",
+    ".github/workflows/publish-screenshots.yml": "c39aec80fe4546cd0f0e41e60b582bd8e0bc79815d30a12434af239b3c278d6e",
+    ".github/workflows/update-screenshots.yml": "1751975b8bffd8df79bc80ecbf75e4db101dff00e6d2c802cbc662df5aecc01f"
+  },
+  "modes": {
+    ".github/codeql/codeql-config.yml": "100644",
+    ".github/codeql/reviewed-findings.json": "100644",
+    ".github/workflows/codeql.yml": "100644",
+    ".github/workflows/publish-screenshots.yml": "100644",
+    ".github/workflows/update-screenshots.yml": "100644"
+  },
+  "patch": "source/layers/security-workflows.patch",
+  "patch_sha256": "2565c08939495b58dc3bc3b4a752a778fbdc17bc53b17288804d7be7de5caaca",
+  "policy": {
+    "origin": "https://github.com/0cwa/collie-release-engineering.git",
+    "revision": "124ca006b36c64e12807db2d1737d7f1faf06471",
+    "renderer": "tools/codeql/render_publication.py",
+    "renderer_sha256": "fcc6c7bb970d05597c3c4333c04288e98cbe090a9cfab1e1acd33d99f56bc936",
+    "template_paths": [
+      "tools/codeql/publication/codeql.yml.in",
+      "tools/codeql/publication/update-screenshots.yml.in",
+      "tools/codeql/publication/publish-screenshots.yml.in",
+      "tools/codeql/publication/codeql-config.yml",
+      "tools/codeql/publication/reviewed-findings.json"
+    ]
+  },
+  "ordering": {
+    "apply_after": "source/layers/publication.py::replace_application_workflows",
+    "publication_output_path": ".github/workflows/source.yml",
+    "publication_output_sha256": "e2e110000699622fc4e565e118074fd2e839dabfe0738b9aaf03a5376617873c",
+    "requires_absent_paths": [
+      ".github/codeql/codeql-config.yml",
+      ".github/codeql/reviewed-findings.json",
+      ".github/workflows/codeql.yml",
+      ".github/workflows/publish-screenshots.yml",
+      ".github/workflows/update-screenshots.yml"
+    ],
+    "must_precede": "generated G/I"
+  },
+  "coverage": "GitHub Actions only; Java/Kotlin/native dependency analysis NOT RUN; a separately verified traced Android build is required before source-language analysis.",
+  "replay_scope": "Isolated fixture proving the actual publication workflow replacement is followed by additive canonical renderer outputs. Full reconstructed G/I tree replay and final publication-plan binding remain pending owner freeze."
+}
