@@ -46,3 +46,73 @@ class RuntimePlanTests(unittest.TestCase):
         with self.assertRaises(ValueError):r.plan(args)
         path=self.root/'dup.json';path.write_text('{"schema":1,"schema":2}')
         with self.assertRaises(ValueError):r.document(path)
+
+
+class SourceCheckoutTests(unittest.TestCase):
+    def setUp(self):
+        import subprocess
+        self.subprocess=subprocess
+        self.tmp=tempfile.TemporaryDirectory();self.addCleanup(self.tmp.cleanup);self.repo=Path(self.tmp.name)
+        self.git('init','-q');self.git('config','user.name','Fixture');self.git('config','user.email','fixture@example.invalid')
+        self.file=self.repo/'plain.txt';self.file.write_bytes(b'approved\n')
+        (self.repo/'nested').mkdir();(self.repo/'nested/data.bin').write_bytes(b'\x00\xffbinary\n')
+        (self.repo/'link').symlink_to('nested/data.bin')
+        self.git('add','.');self.git('commit','-qm','Tracked source integrity fixture')
+        self.commit=self.git('rev-parse','HEAD');self.tree=self.git('rev-parse','HEAD^{tree}')
+        self.index=self.repo/'.git/index'
+    def git(self,*args):
+        return self.subprocess.check_output(['git','-C',str(self.repo),*args],text=True).strip()
+    def check(self):
+        before=self.index.read_bytes()
+        try:r.source_unchanged(self.repo,self.commit,self.tree)
+        finally:self.assertEqual(self.index.read_bytes(),before,'collector changed original index')
+    def test_actual_complete_tracked_bytes_modes_and_symlinks_pass_without_index_change(self):
+        self.check()
+    def test_mode_change_is_rejected_with_local_filemode_disabled(self):
+        self.git('config','core.fileMode','false');self.file.chmod(0o755)
+        with self.assertRaisesRegex(ValueError,'executable mode'):self.check()
+    def test_same_size_changed_bytes_with_restored_mtime_are_rejected(self):
+        import os
+        self.git('config','core.trustCTime','false');self.git('update-index','--refresh')
+        before=self.file.stat();self.file.write_bytes(b'tampered\n');os.utime(self.file,ns=(before.st_atime_ns,before.st_mtime_ns))
+        with self.assertRaisesRegex(ValueError,'source bytes'):self.check()
+    def test_regular_file_cannot_stand_in_for_symlink_with_symlinks_disabled(self):
+        self.git('config','core.symlinks','false');link=self.repo/'link';link.unlink();link.write_bytes(b'nested/data.bin')
+        with self.assertRaisesRegex(ValueError,'source symlink'):self.check()
+    def test_symlink_cannot_stand_in_for_regular_file(self):
+        self.file.unlink();self.file.symlink_to('nested/data.bin')
+        with self.assertRaisesRegex(ValueError,'file type'):self.check()
+    def test_parent_directory_symlink_is_rejected(self):
+        (self.repo/'nested').rename(self.repo/'moved');(self.repo/'nested').symlink_to('moved',target_is_directory=True)
+        with self.assertRaisesRegex(ValueError,'missing or unsafe'):self.check()
+    def test_assumed_unchanged_and_skip_worktree_cannot_hide_source(self):
+        for enabled,disabled in [('--assume-unchanged','--no-assume-unchanged'),('--skip-worktree','--no-skip-worktree')]:
+            with self.subTest(flag=enabled):
+                self.git('update-index',enabled,'plain.txt');self.file.write_bytes(b'tampered\n')
+                try:
+                    with self.assertRaisesRegex(ValueError,'hidden tracked'):self.check()
+                finally:self.file.write_bytes(b'approved\n');self.git('update-index',disabled,'plain.txt')
+    def test_staged_content_change_is_rejected_without_index_refresh(self):
+        self.file.write_bytes(b'tampered\n');self.git('add','plain.txt')
+        with self.assertRaisesRegex(ValueError,'source index'):self.check()
+    def test_local_clean_filter_cannot_hide_bytes_or_run_during_check(self):
+        import shlex
+        marker=self.repo/'filter-was-executed'
+        script='from pathlib import Path;Path('+repr(str(marker))+').touch();print("approved")'
+        self.git('config','filter.fixture.clean','python3 -c '+shlex.quote(script))
+        (self.repo/'.git/info/attributes').write_text('plain.txt filter=fixture\n')
+        self.file.write_bytes(b'tampered\n')
+        with self.assertRaisesRegex(ValueError,'source bytes'):self.check()
+        self.assertFalse(marker.exists(),'collector executed an ambient source conversion filter')
+    def test_mode_change_between_stat_and_open_is_rejected(self):
+        from unittest.mock import patch
+        original=r.os.open
+        def opening(path,*args,**kwargs):
+            if path==b'plain.txt' and 'dir_fd' in kwargs:self.file.chmod(0o755)
+            return original(path,*args,**kwargs)
+        with patch.object(r.os,'open',side_effect=opening):
+            with self.assertRaisesRegex(ValueError,'executable mode'):self.check()
+    def test_staged_gitlink_cannot_be_hidden_by_submodule_diff_settings(self):
+        self.git('config','diff.ignoreSubmodules','all')
+        self.git('update-index','--add','--cacheinfo','160000',self.commit,'newmodule')
+        with self.assertRaisesRegex(ValueError,'source index'):self.check()

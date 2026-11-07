@@ -93,18 +93,76 @@ def source_and_inputs(args,context):
     return source,inputs
 
 
+def source_unchanged(checkout,commit,tree):
+    """Compare every tracked raw blob/type/Git executable bit, without filters.
+
+    Read the original index only for staged/hidden-entry checks. Never refresh
+    its stat cache or let local Git conversion rules stand in for source bytes.
+    """
+    env={k:v for k,v in os.environ.items() if not k.startswith('GIT_')}
+    env.update(GIT_CONFIG_NOSYSTEM='1',GIT_CONFIG_GLOBAL=os.devnull,GIT_NO_REPLACE_OBJECTS='1',GIT_ATTR_NOSYSTEM='1')
+    def git(*argv):
+        return subprocess.check_output(['git','-C',str(checkout),'-c','core.hooksPath=/dev/null',
+            '-c','core.fsmonitor=false','-c','core.attributesFile=/dev/null',*argv],env=env)
+    common=Path(os.fsdecode(git('rev-parse','--path-format=absolute','--git-common-dir').strip()))
+    if any((common/name).exists() for name in ('info/grafts','objects/info/alternates','shallow')) or git('for-each-ref','--format=%(refname)','refs/replace').strip():
+        raise ValueError('hostile or incomplete source Git store')
+    if git('rev-parse','HEAD').decode().strip()!=commit or git('rev-parse','HEAD^{tree}').decode().strip()!=tree:
+        raise ValueError('actual checkout differs from approved source')
+    entries=git('ls-files','-v','-z').split(b'\0')
+    if any(line.startswith(b'S ') or line[:1].islower() for line in entries):
+        raise ValueError('hidden tracked source entries')
+    tracked=list(filter(None,git('ls-tree','-r','-z','--full-tree',commit).split(b'\0')))
+    approved_index=[]
+    for entry in tracked:
+        metadata,path=entry.split(b'\t',1);mode,kind,expected=metadata.split()
+        approved_index.append(mode+b' '+expected+b' 0\t'+path)
+    if sorted(filter(None,git('ls-files','--stage','-z').split(b'\0')))!=sorted(approved_index):
+        raise ValueError('tracked source index changed during build')
+    root=os.open(checkout,os.O_RDONLY|os.O_DIRECTORY)
+    try:
+        for entry in tracked:
+            metadata,path=entry.split(b'\t',1);mode,kind,expected=metadata.split()
+            parts=path.split(b'/')
+            if mode not in (b'100644',b'100755',b'120000') or kind!=b'blob' or any(x in (b'',b'.',b'..') for x in parts):
+                raise ValueError('unsupported tracked source entry')
+            directory=os.dup(root)
+            try:
+                for part in parts[:-1]:
+                    child=os.open(part,os.O_RDONLY|os.O_DIRECTORY|os.O_NOFOLLOW,dir_fd=directory)
+                    os.close(directory);directory=child
+                name=parts[-1];info=os.stat(name,dir_fd=directory,follow_symlinks=False)
+                if mode==b'120000':
+                    if not stat.S_ISLNK(info.st_mode):raise ValueError('tracked source symlink changed')
+                    content=os.fsencode(os.readlink(name,dir_fd=directory))
+                    actual=hashlib.sha1(b'blob '+str(len(content)).encode()+b'\0'+content).hexdigest()
+                else:
+                    if not stat.S_ISREG(info.st_mode) or bool(info.st_mode&stat.S_IXUSR)!=(mode==b'100755'):
+                        raise ValueError('tracked source file type or executable mode changed')
+                    descriptor=os.open(name,os.O_RDONLY|os.O_NOFOLLOW|os.O_NONBLOCK,dir_fd=directory)
+                    with os.fdopen(descriptor,'rb') as stream:
+                        before=os.fstat(stream.fileno())
+                        if bool(before.st_mode&stat.S_IXUSR)!=(mode==b'100755'):
+                            raise ValueError('tracked source executable mode changed while opening')
+                        if not stat.S_ISREG(before.st_mode) or (before.st_dev,before.st_ino)!=(info.st_dev,info.st_ino):
+                            raise ValueError('tracked source file changed while checking')
+                        digest=hashlib.sha1(b'blob '+str(before.st_size).encode()+b'\0');size=0
+                        for chunk in iter(lambda:stream.read(1024*1024),b''):digest.update(chunk);size+=len(chunk)
+                        after=os.fstat(stream.fileno())
+                        if size!=before.st_size or (before.st_size,before.st_mtime_ns,before.st_ctime_ns)!=(after.st_size,after.st_mtime_ns,after.st_ctime_ns):
+                            raise ValueError('tracked source file changed while checking')
+                        actual=digest.hexdigest()
+                if actual.encode()!=expected:raise ValueError('tracked source bytes changed during build')
+            except OSError as error:
+                raise ValueError('tracked source file is missing or unsafe') from error
+            finally:os.close(directory)
+    finally:os.close(root)
+
+
 def collect(args,context,unsigned_sha):
     source,inputs=source_and_inputs(args,context);p,plan_sha=context
     if args.source_checkout is None:raise ValueError('new-source collection requires actual source checkout')
-    env={k:v for k,v in os.environ.items() if not k.startswith('GIT_')}
-    env.update(GIT_CONFIG_NOSYSTEM='1',GIT_CONFIG_GLOBAL=os.devnull,GIT_NO_REPLACE_OBJECTS='1',GIT_ATTR_NOSYSTEM='1')
-    def git(*argv):return subprocess.check_output(['git','-C',str(args.source_checkout),'-c','core.hooksPath=/dev/null','-c','core.fsmonitor=false','-c','core.attributesFile=/dev/null',*argv],env=env).decode().strip()
-    common=Path(git('rev-parse','--path-format=absolute','--git-common-dir'))
-    if any((common/name).exists() for name in ('info/grafts','objects/info/alternates','shallow')) or git('for-each-ref','--format=%(refname)','refs/replace'):raise ValueError('hostile or incomplete source Git store')
-    if git('rev-parse','HEAD')!=p['source_commit'] or git('rev-parse','HEAD^{tree}')!=source['payload']['published_tree']:raise ValueError('actual checkout differs from approved source')
-    entries=git('ls-files','-v').splitlines()
-    if any(line.startswith('S ') or (line and line[0].islower()) for line in entries):raise ValueError('hidden tracked source entries')
-    if git('diff','--no-ext-diff','--no-textconv','--name-only') or git('diff','--cached','--no-ext-diff','--no-textconv','--name-only'):raise ValueError('tracked source changed during build')
+    source_unchanged(args.source_checkout,p['source_commit'],source['payload']['published_tree'])
     for attr,key in [('toolchain_input','toolchain_sha256'),('dependency_input','dependencies_sha256'),('native_input','native_inputs_sha256')]:
         path=getattr(args,attr,None)
         if path is None or hashlib.sha256(raw(path)).hexdigest()!=inputs[key]:raise ValueError('actual '+attr+' bytes differ from approved build inputs')
