@@ -1,0 +1,14 @@
+{
+  "status": "PASS",
+  "source": "96e398200d1e6c9a0e9aeac906027845185927a9",
+  "integration": "54477b110c97eff375bca2ff3ca30537a3e447f4",
+  "tree": "3b9ae5afe43c9dbed176503843401984c3efb589",
+  "current_main": "db836d43fe40a6c770de5d115dbb665df25cf8db",
+  "stale_main": "PASS rejected",
+  "import_helper_sha256": "90a6313e0ca8d29760607bffe7fa0917b706074ecb5266f2439bf844d4948e50",
+  "scope": "Independent synthetic ordinary contribution above actual I2; no production ref, Android build or native reproduction",
+  "implementation": "087fdfb26f4e2ee4167165d761b0baf6197f6fe4",
+  "base_integration": "4fa701188f3c27cd4af3fa919da2f64ebee5bd6c",
+  "engineering_representation_fixture": "455aab37ab7a2901bcb51b398cd107e6b0349af2",
+  "patch_sha256": "874622d3728270e79d6b94517e88286c782e07314283dd7e7174eaf06ef53f8b"
+}

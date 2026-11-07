@@ -13,6 +13,7 @@ import sys
 import tempfile
 
 import version_policy
+import runtime_receipts as runtime
 import release_artifacts as artifacts
 
 
@@ -86,10 +87,15 @@ def main():
     p.add_argument('--version-ledger', type=Path, help='durable shared operator reservation ledger')
     p.add_argument('--published-inventory', type=Path, help='fresh verified production release inventory')
     p.add_argument('--published-inventory-sha256', help='independently approved inventory digest')
+    runtime.arguments(p)
     args = p.parse_args()
     identities = ({'source_commit':args.approved_commit,'engineering_revision':args.engineering_revision,'workflow_revision':args.workflow_revision}
                   if args.engineering_revision or args.workflow_revision else None)
     try:
+        context=runtime.plan(args,historical_rehearsal=args.rehearse)
+        if context and context[0]['mode']=='new-source':
+            if args.rehearse:raise ValueError('new-source fixtures must pin a pre-created test key; unknown rehearsal signer cannot satisfy plan')
+            identities=runtime.identities(context)
         if not args.scratch.is_dir():
             raise ValueError('--scratch must be an existing private directory')
         if args.output.exists():
@@ -103,7 +109,9 @@ def main():
             if artifacts.sha256(manifest) != args.manifest_sha256:
                 raise ValueError('manifest differs from independently authenticated SHA-256')
             m = json.loads(manifest.read_text())
+            runtime.check_manifest(context,m)
             entries = artifacts.validate_manifest(m, args.approved_commit, args.approved_run, args.certificate_sha256, identities)
+            graph=runtime.signing(args,context,m) if context and context[0]['mode']=='new-source' else None
             if not args.rehearse:
                 artifacts.require_canonical_release(m)
                 reservation = dict(m, _unsigned_manifest_sha256=args.manifest_sha256)
@@ -184,7 +192,12 @@ def main():
                 final['package'] = artifacts.PACKAGE
             if any(x['certificate_sha256'] != final['certificate_sha256'] for x in signed):
                 raise ValueError('signed APKs have different certificates')
-            (args.output / 'final-manifest.json').write_text(json.dumps(final, indent=2) + '\n')
+            if graph:
+                final.update(schema=2,package=artifacts.PACKAGE,release_mode='new-source',release_plan_sha256=context[1],source_receipt_sha256=m['source_receipt_sha256'],build_receipt_sha256=m['build_receipt_sha256'],**runtime.identities(context))
+            raw_final=(json.dumps(final,indent=2)+'\n').encode()
+            (args.output / 'final-manifest.json').write_bytes(raw_final)
+            if graph:
+                runtime.write(args.output/'release-receipt.json',runtime.release(context,*graph,final,raw_final))
     except (ValueError, KeyError, OSError, subprocess.CalledProcessError, json.JSONDecodeError) as exc:
         print('release signing failed:', exc, file=sys.stderr)
         return 1

@@ -1,0 +1,309 @@
+{
+  "schema": 1,
+  "publication_plan_sha256": "b81dcc44ccd52bcc3b0e3c7d344cf1244021da68b96969220c02c83aa3368d03",
+  "layers": [
+    {
+      "index": 0,
+      "changes": "Mechanical Molly/Signal compatibility merge",
+      "subject": "Carry Molly’s features onto Signal 8.35.1",
+      "body": "Mechanical Molly/Signal compatibility merge.\n\nComposite-generated: true\nLLM-Assisted: true\nOriginal-provenance: Original Molly 8.19.2-4 authors; exact deterministic merge with Signal 8.35.1. Composite output; conflicts resolved by subsequent layers. patches/ports/signal-8.35.1/provenance.json"
+    },
+    {
+      "index": 1,
+      "changes": "Retain the Molly updater and update preferences on the updated Signal application structure.",
+      "subject": "Preserve updater and update preferences",
+      "body": "Retain the Molly updater and update preferences on the updated Signal application structure.\n\nComposite-generated: true\nLLM-Assisted: true\nOriginal-provenance: patches/ports/signal-8.35.1/provenance.json layer initial/app-updates; original source f2a6b716b37cf8816223f392dc127dde319be968; composite/generated compatibility work, including recorded LLM assistance."
+    },
+    {
+      "index": 2,
+      "changes": "Resolve dynamic colors, themes and moved UI APIs while retaining Molly appearance behavior.",
+      "subject": "Keep Molly themes and dynamic colors",
+      "body": "Resolve dynamic colors, themes and moved UI APIs while retaining Molly appearance behavior.\n\nComposite-generated: true\nLLM-Assisted: true\nOriginal-provenance: patches/ports/signal-8.35.1/provenance.json layer initial/appearance; original source f2a6b716b37cf8816223f392dc127dde319be968; composite/generated compatibility work, including recorded LLM assistance."
+    },
+    {
+      "index": 3,
+      "changes": "Resolve backup and restore API changes while retaining Molly backup preferences and serialization behavior.",
+      "subject": "Preserve encrypted backups across restore changes",
+      "body": "Resolve backup and restore API changes while retaining Molly backup preferences and serialization behavior.\n\nComposite-generated: true\nLLM-Assisted: true\nOriginal-provenance: patches/ports/signal-8.35.1/provenance.json layer initial/backup-and-restore; original source f2a6b716b37cf8816223f392dc127dde319be968; composite/generated compatibility work, including recorded LLM assistance."
+    },
+    {
+      "index": 4,
+      "changes": "Retain the Molly map implementation and compatibility layer in the upgraded tree.",
+      "subject": "Keep Molly’s map integration",
+      "body": "Retain the Molly map implementation and compatibility layer in the upgraded tree.\n\nComposite-generated: true\nLLM-Assisted: true\nOriginal-provenance: patches/ports/signal-8.35.1/provenance.json layer initial/maps; original source f2a6b716b37cf8816223f392dc127dde319be968; composite/generated compatibility work, including recorded LLM assistance."
+    },
+    {
+      "index": 5,
+      "changes": "Resolve modify/delete conflicts for modules Molly removes and remove new upstream files added beneath those excluded modules.",
+      "subject": "Keep unused modules out of the build",
+      "body": "Resolve modify/delete conflicts for modules Molly removes and remove new upstream files added beneath those excluded modules.\n\nComposite-generated: true\nLLM-Assisted: true\nOriginal-provenance: patches/ports/signal-8.35.1/provenance.json layer initial/module-pruning; original source f2a6b716b37cf8816223f392dc127dde319be968; composite/generated compatibility work, including recorded LLM assistance."
+    },
+    {
+      "index": 6,
+      "changes": "Carry Molly SOCKS, Tor, DNS and transport choices through the updated Signal networking interfaces and NetCipher integration.",
+      "subject": "Keep Collie on its chosen proxy route",
+      "body": "Carry Molly SOCKS, Tor, DNS and transport choices through the updated Signal networking interfaces and NetCipher integration.\n\nComposite-generated: true\nLLM-Assisted: true\nOriginal-provenance: patches/ports/signal-8.35.1/provenance.json layer initial/networking-and-proxies; original source f2a6b716b37cf8816223f392dc127dde319be968; composite/generated compatibility work, including recorded LLM assistance."
+    },
+    {
+      "index": 7,
+      "changes": "Retain MollySocket, UnifiedPush and push-selection behavior while resolving notification and delivery API changes.",
+      "subject": "Keep Collie’s notification preferences intact",
+      "body": "Retain MollySocket, UnifiedPush and push-selection behavior while resolving notification and delivery API changes.\n\nComposite-generated: true\nLLM-Assisted: true\nOriginal-provenance: patches/ports/signal-8.35.1/provenance.json layer initial/notifications-and-unifiedpush; original source f2a6b716b37cf8816223f392dc127dde319be968; composite/generated compatibility work, including recorded LLM assistance."
+    },
+    {
+      "index": 8,
+      "changes": "Keep MobileCoin and Google billing excluded while adapting the remaining donation and migration code.",
+      "subject": "Keep MobileCoin and Google billing excluded",
+      "body": "Keep MobileCoin and Google billing excluded while adapting the remaining donation and migration code.\n\nComposite-generated: true\nLLM-Assisted: true\nOriginal-provenance: patches/ports/signal-8.35.1/provenance.json layer initial/payments-and-donations; original source f2a6b716b37cf8816223f392dc127dde319be968; composite/generated compatibility work, including recorded LLM assistance."
+    },
+    {
+      "index": 9,
+      "changes": "Retain Molly privacy policies for calls, unknown contacts and logging in the updated upstream code.",
+      "subject": "Preserve privacy controls for calls and logging",
+      "body": "Retain Molly privacy policies for calls, unknown contacts and logging in the updated upstream code.\n\nComposite-generated: true\nLLM-Assisted: true\nOriginal-provenance: patches/ports/signal-8.35.1/provenance.json layer initial/privacy-controls; original source f2a6b716b37cf8816223f392dc127dde319be968; composite/generated compatibility work, including recorded LLM assistance."
+    },
+    {
+      "index": 10,
+      "changes": "Adapt Molly registration and Android linked-device policies to the new Signal registration architecture.",
+      "subject": "Carry registration and linked-device rules forward",
+      "body": "Adapt Molly registration and Android linked-device policies to the new Signal registration architecture.\n\nComposite-generated: true\nLLM-Assisted: true\nOriginal-provenance: patches/ports/signal-8.35.1/provenance.json layer initial/registration-and-linking; original source f2a6b716b37cf8816223f392dc127dde319be968; composite/generated compatibility work, including recorded LLM assistance."
+    },
+    {
+      "index": 11,
+      "changes": "Resolve shared resource conflicts and relocated resources, retaining the port source's Molly branding and translations.",
+      "subject": "Retain Molly resources and translations",
+      "body": "Resolve shared resource conflicts and relocated resources, retaining the port source's Molly branding and translations.\n\nComposite-generated: true\nLLM-Assisted: true\nOriginal-provenance: patches/ports/signal-8.35.1/provenance.json layer initial/resources-and-branding; original source f2a6b716b37cf8816223f392dc127dde319be968; composite/generated compatibility work, including recorded LLM assistance."
+    },
+    {
+      "index": 12,
+      "changes": "Integrate encrypted preferences, secret handling and lock-aware application behavior with the updated Signal classes.",
+      "subject": "Keep encrypted preferences and lock behavior intact",
+      "body": "Integrate encrypted preferences, secret handling and lock-aware application behavior with the updated Signal classes.\n\nComposite-generated: true\nLLM-Assisted: true\nOriginal-provenance: patches/ports/signal-8.35.1/provenance.json layer initial/security-and-locking; original source f2a6b716b37cf8816223f392dc127dde319be968; composite/generated compatibility work, including recorded LLM assistance."
+    },
+    {
+      "index": 13,
+      "changes": "Resolve shared application, account, service and core integration files whose APIs or feature boundaries changed upstream.",
+      "subject": "Reconnect shared account and service interfaces",
+      "body": "Resolve shared application, account, service and core integration files whose APIs or feature boundaries changed upstream.\n\nComposite-generated: true\nLLM-Assisted: true\nOriginal-provenance: patches/ports/signal-8.35.1/provenance.json layer initial/integration; original source f2a6b716b37cf8816223f392dc127dde319be968; composite/generated compatibility work, including recorded LLM assistance."
+    },
+    {
+      "index": 14,
+      "changes": "Integrate the new Signal build layout and toolchain with Molly dependency, native-fork and release policies.",
+      "subject": "Adapt Molly to the new Signal build layout",
+      "body": "Integrate the new Signal build layout and toolchain with Molly dependency, native-fork and release policies.\n\nComposite-generated: true\nLLM-Assisted: true\nOriginal-provenance: patches/ports/signal-8.35.1/provenance.json layer initial/build-and-release; original source f2a6b716b37cf8816223f392dc127dde319be968; composite/generated compatibility work, including recorded LLM assistance."
+    },
+    {
+      "index": 15,
+      "changes": "Restore the Molly preference import in ported megaphones\n\nAI-assisted compatibility changes: restore imports across source checkpoints.\n\nAI-assisted compatibility changes: use a seven-day duration in the existing backup exporter test.\n\nAI-assisted compatibility changes: restore Molly logger collection.",
+      "subject": "Restore Molly preference imports",
+      "body": "Restore the Molly preference import in ported megaphones\n\nLLM-assisted compatibility changes: restore imports across source checkpoints.\n\nLLM-assisted compatibility changes: use a seven-day duration in the existing backup exporter test.\n\nLLM-assisted compatibility changes: restore Molly logger collection.\n\nComposite-generated: true\nLLM-Assisted: true\nOriginal-provenance: patches/ports/signal-8.35.1/provenance.json layer followups/restore-preference-import; original source bb5f0a637794e05d7d2eb2f64a22cf6bbf576b25; composite/generated compatibility work, including recorded LLM assistance."
+    },
+    {
+      "index": 16,
+      "changes": "Use the typed SDK DSL for Molly's NetCipher module\n\nAGP 9.4 rejects the numeric SDK catalog string passed to compileSdkVersion.\nMatch Signal's compileSdk release DSL while retaining the pinned SDK version\nand strict dependency verification.\n\nAI-assisted compatibility changes: restore imports across source checkpoints.\n\nAI-assisted compatibility changes: use a seven-day duration in the existing backup exporter test.\n\nAI-assisted compatibility changes: restore Molly logger collection.",
+      "subject": "Use the current SDK DSL for NetCipher",
+      "body": "Use the typed SDK DSL for Molly's NetCipher module\n\nAGP 9.4 rejects the numeric SDK catalog string passed to compileSdkVersion.\nMatch Signal's compileSdk release DSL while retaining the pinned SDK version\nand strict dependency verification.\n\nLLM-assisted compatibility changes: restore imports across source checkpoints.\n\nLLM-assisted compatibility changes: use a seven-day duration in the existing backup exporter test.\n\nLLM-assisted compatibility changes: restore Molly logger collection.\n\nComposite-generated: true\nLLM-Assisted: true\nOriginal-provenance: patches/ports/signal-8.35.1/provenance.json layer followups/netcipher-sdk-dsl; original source 4d7ad29a05f435e4472ccb0202cd6ab59e625cae; composite/generated compatibility work, including recorded LLM assistance."
+    },
+    {
+      "index": 17,
+      "changes": "Adapt Molly integrations and tests to Signal 8.33.2\n\nUpdate linked-device provisioning and FCM cleanup for the current service APIs while preserving proxy configuration, error types, user-selected delivery and retry credentials. Move remaining event producers and lifecycle-bound subscribers to Signal's event bus.\n\nRepair lock-aware receivers, encrypted backup preference imports, retained donation completion, dynamic theme resources and moved branding references. Keep Molly's excluded profile-badge and payment-wallet features excluded, and adapt inherited test fixtures accordingly.\n\nAdd transport and cleanup regressions for MollySocket, UnifiedPush and FCM.\n\nAI-assisted compatibility changes: restore imports across source checkpoints.\n\nAI-assisted compatibility changes: use a seven-day duration in the existing backup exporter test.\n\nAI-assisted compatibility changes: restore Molly logger collection.",
+      "subject": "Adapt Molly integration and regression tests",
+      "body": "Adapt Molly integrations and tests to Signal 8.33.2\n\nUpdate linked-device provisioning and FCM cleanup for the current service APIs while preserving proxy configuration, error types, user-selected delivery and retry credentials. Move remaining event producers and lifecycle-bound subscribers to Signal's event bus.\n\nRepair lock-aware receivers, encrypted backup preference imports, retained donation completion, dynamic theme resources and moved branding references. Keep Molly's excluded profile-badge and payment-wallet features excluded, and adapt inherited test fixtures accordingly.\n\nAdd transport and cleanup regressions for MollySocket, UnifiedPush and FCM.\n\nLLM-assisted compatibility changes: restore imports across source checkpoints.\n\nLLM-assisted compatibility changes: use a seven-day duration in the existing backup exporter test.\n\nLLM-assisted compatibility changes: restore Molly logger collection.\n\nComposite-generated: true\nLLM-Assisted: true\nOriginal-provenance: patches/ports/signal-8.35.1/provenance.json layer followups/integration-and-regression-tests; original source 136d74118681bcfb1778425cf886b189d46b00d5; composite/generated compatibility work, including recorded LLM assistance."
+    },
+    {
+      "index": 18,
+      "changes": "Fix CDN test configuration for Molly network transport\n\nAI-assisted compatibility changes: restore imports across source checkpoints.\n\nAI-assisted compatibility changes: use a seven-day duration in the existing backup exporter test.\n\nAI-assisted compatibility changes: restore Molly logger collection.",
+      "subject": "Correct network transport test configuration",
+      "body": "Fix CDN test configuration for Molly network transport\n\nLLM-assisted compatibility changes: restore imports across source checkpoints.\n\nLLM-assisted compatibility changes: use a seven-day duration in the existing backup exporter test.\n\nLLM-assisted compatibility changes: restore Molly logger collection.\n\nComposite-generated: true\nLLM-Assisted: true\nOriginal-provenance: patches/ports/signal-8.35.1/provenance.json layer followups/cdn-transport-test-fixture; original source 95df6968f0d213effee35813cae89f4eaff20be3; composite/generated compatibility work, including recorded LLM assistance."
+    },
+    {
+      "index": 19,
+      "changes": "Fix unit tests that did not match Molly behavior in the Signal 8.33.2 port\n\nApply remote config overrides in internal builds. Molly derives internalUser\nfrom the build type, not from the service, so loading overrides must ask\ninternalUser instead of the service's android.internalUser value, which Molly\ndoes not read. Overrides were never applied before.\n\nAdapt the Signal 8.33.2 tests to intended Molly differences:\n\n- IndividualSettingsViewModelTest stubs getLinkedDeviceCount, which Molly\n  adds to the contact details. Molly has no profile badges and no donations,\n  so badge and donate clicks produce no action.\n- RemoteConfigOverrideTest runs as an internal debug build instead of faking\n  the service's internalUser flag.\n- NotificationProfileDetailsScreenTest builds the expected schedule text with\n  formatHours, since Molly formats times with the locale's best pattern.\n- StoryContextMenuTest sets up app dependencies itself rather than relying on\n  another test having initialized PartAuthority.\n- The app-settings, registration, media-viewer and media-send tests expect\n  Molly's music-labelled waves icon, Molly name in the notification warning,\n  version row click event, always-shown link device button, a Material 3 theme\n  for the Molly video player layout, and Molly's minimum SDK (27).",
+      "subject": "Align unit tests with Molly behavior",
+      "body": "Fix unit tests that did not match Molly behavior in the Signal 8.33.2 port\n\nApply remote config overrides in internal builds. Molly derives internalUser\nfrom the build type, not from the service, so loading overrides must ask\ninternalUser instead of the service's android.internalUser value, which Molly\ndoes not read. Overrides were never applied before.\n\nAdapt the Signal 8.33.2 tests to intended Molly differences:\n\n- IndividualSettingsViewModelTest stubs getLinkedDeviceCount, which Molly\n  adds to the contact details. Molly has no profile badges and no donations,\n  so badge and donate clicks produce no action.\n- RemoteConfigOverrideTest runs as an internal debug build instead of faking\n  the service's internalUser flag.\n- NotificationProfileDetailsScreenTest builds the expected schedule text with\n  formatHours, since Molly formats times with the locale's best pattern.\n- StoryContextMenuTest sets up app dependencies itself rather than relying on\n  another test having initialized PartAuthority.\n- The app-settings, registration, media-viewer and media-send tests expect\n  Molly's music-labelled waves icon, Molly name in the notification warning,\n  version row click event, always-shown link device button, a Material 3 theme\n  for the Molly video player layout, and Molly's minimum SDK (27).\n\nComposite-generated: true\nLLM-Assisted: true\nOriginal-provenance: patches/ports/signal-8.35.1/provenance.json layer followups/molly-behavior-unit-tests; original source 77766e8ec8d3a0eeadf0c948473002afa1e379cc; composite/generated compatibility work, including recorded LLM assistance."
+    },
+    {
+      "index": 20,
+      "changes": "Fix lint errors in the Signal 8.33.2 port\n\n- RegistrationNavigation: log through the file's TAG constant (LogTagInlined).\n- values-night/dark_colors.xml: comment out five quote_view colors that the merge\n  restored from Signal. Molly reads these colors from theme attributes and keeps the\n  color entries commented out in both color files; the live night-only entries had no\n  default (MissingDefaultResource).",
+      "subject": "Repair lint issues in the ported source",
+      "body": "Fix lint errors in the Signal 8.33.2 port\n\n- RegistrationNavigation: log through the file's TAG constant (LogTagInlined).\n- values-night/dark_colors.xml: comment out five quote_view colors that the merge\n  restored from Signal. Molly reads these colors from theme attributes and keeps the\n  color entries commented out in both color files; the live night-only entries had no\n  default (MissingDefaultResource).\n\nComposite-generated: true\nLLM-Assisted: true\nOriginal-provenance: patches/ports/signal-8.35.1/provenance.json layer followups/signal-port-lint; original source 316b16bf38514723fedcd71a2aa7a4a5a30f6081; composite/generated compatibility work, including recorded LLM assistance."
+    },
+    {
+      "index": 21,
+      "changes": "Restore linked-device reminder after re-registration\n\nMark existing-account registration explicitly and restore the Molly reminder after successful primary-device multi-device re-registration. Add focused coverage for the entry-point marker and reminder policy.\n\nAI-assisted compatibility changes: restore imports across source checkpoints.\n\nAI-assisted compatibility changes: use a seven-day duration in the existing backup exporter test.\n\nAI-assisted compatibility changes: restore Molly logger collection.",
+      "subject": "Restore linked-device reminders after re-registration",
+      "body": "Restore linked-device reminder after re-registration\n\nMark existing-account registration explicitly and restore the Molly reminder after successful primary-device multi-device re-registration. Add focused coverage for the entry-point marker and reminder policy.\n\nLLM-assisted compatibility changes: restore imports across source checkpoints.\n\nLLM-assisted compatibility changes: use a seven-day duration in the existing backup exporter test.\n\nLLM-assisted compatibility changes: restore Molly logger collection.\n\nComposite-generated: true\nLLM-Assisted: true\nOriginal-provenance: patches/ports/signal-8.35.1/provenance.json layer followups/reregistration-linked-devices-reminder; original source e69bee5975c6b405e1cfaa190db4dbf849deef0e; composite/generated compatibility work, including recorded LLM assistance."
+    },
+    {
+      "index": 22,
+      "changes": "Restore migrated settings with backup frame precedence\n\nMap Molly shared-preference frames to their migrated SignalStore keys synchronously as the importer reads them. Later KeyValue frames then replace preference-only values or duplicate older values, matching the legacy exporter order.\n\nDrain queued SignalStore writes before opening the restore transaction and remove the post-restore preference re-read that could replace newer KeyValue data. Add focused coverage for preference-only language/privacy/media settings and notification-privacy KeyValue precedence through importer storage writes.\n\nAI-Generated: true\n\nBased-On-Source-Commit: 1127028dddb1ae2ee3b37b213a9449bd4c9f5930\n\nAI-assisted compatibility changes: restore imports across source checkpoints.\n\nAI-assisted compatibility changes: use a seven-day duration in the existing backup exporter test.\n\nAI-assisted compatibility changes: restore Molly logger collection.",
+      "subject": "Preserve backup settings import precedence",
+      "body": "Restore migrated settings with backup frame precedence\n\nMap Molly shared-preference frames to their migrated SignalStore keys synchronously as the importer reads them. Later KeyValue frames then replace preference-only values or duplicate older values, matching the legacy exporter order.\n\nDrain queued SignalStore writes before opening the restore transaction and remove the post-restore preference re-read that could replace newer KeyValue data. Add focused coverage for preference-only language/privacy/media settings and notification-privacy KeyValue precedence through importer storage writes.\n\n\nBased-On-Source-Commit: 1127028dddb1ae2ee3b37b213a9449bd4c9f5930\n\nLLM-assisted compatibility changes: restore imports across source checkpoints.\n\nLLM-assisted compatibility changes: use a seven-day duration in the existing backup exporter test.\n\nLLM-assisted compatibility changes: restore Molly logger collection.\n\nComposite-generated: true\nLLM-Assisted: true\nOriginal-provenance: patches/ports/signal-8.35.1/provenance.json layer followups/legacy-backup-precedence; original source 7086fd79c220797595ced70b0522a1c968492d72; composite/generated compatibility work, including recorded LLM assistance."
+    },
+    {
+      "index": 23,
+      "changes": "Restore donation completion acknowledgement\n\nDisplay the earned badge after immediate donations and restore the eligible first-Boost monthly sustainer link without exposing profile-badge controls. Use existing thank-you copy that does not promise unsupported profile display.\n\nFor long-running donations, stop showing the loading indicator after the badge loads when Molly disables the profile-badge toggle. Keep loading visible while the badge is unavailable, and cover both states with focused Compose UI tests.\n\nAI-Generated: true\n\nBased-On-Source-Commit: 5aa465941ac4e4f1d8f126db9521e5043c36cb29\n\nAI-assisted compatibility changes: restore imports across source checkpoints.\n\nAI-assisted compatibility changes: use a seven-day duration in the existing backup exporter test.\n\nAI-assisted compatibility changes: restore Molly logger collection.",
+      "subject": "Acknowledge completed donations",
+      "body": "Restore donation completion acknowledgement\n\nDisplay the earned badge after immediate donations and restore the eligible first-Boost monthly sustainer link without exposing profile-badge controls. Use existing thank-you copy that does not promise unsupported profile display.\n\nFor long-running donations, stop showing the loading indicator after the badge loads when Molly disables the profile-badge toggle. Keep loading visible while the badge is unavailable, and cover both states with focused Compose UI tests.\n\n\nBased-On-Source-Commit: 5aa465941ac4e4f1d8f126db9521e5043c36cb29\n\nLLM-assisted compatibility changes: restore imports across source checkpoints.\n\nLLM-assisted compatibility changes: use a seven-day duration in the existing backup exporter test.\n\nLLM-assisted compatibility changes: restore Molly logger collection.\n\nComposite-generated: true\nLLM-Assisted: true\nOriginal-provenance: patches/ports/signal-8.35.1/provenance.json layer followups/donation-completion; original source 5ec757eabe4b320f50638e9f907ce9a781c1d4e2; composite/generated compatibility work, including recorded LLM assistance."
+    },
+    {
+      "index": 24,
+      "changes": "Clean up legacy backup notifications after upgrade\n\nKeep the collision-free Signal IDs for new backup alerts, and remove old Molly alerts only when the active notification matches the backup channel. This avoids deleting old conversation notifications that shared the previous numeric range.\n\nAI-Generated: true\n\nBased-On-Source-Commit: e6194d5b335b7066c80297ba0b334bd975e55e56\n\nAI-assisted compatibility changes: restore imports across source checkpoints.\n\nAI-assisted compatibility changes: use a seven-day duration in the existing backup exporter test.\n\nAI-assisted compatibility changes: restore Molly logger collection.",
+      "subject": "Clear legacy backup notifications after upgrade",
+      "body": "Clean up legacy backup notifications after upgrade\n\nKeep the collision-free Signal IDs for new backup alerts, and remove old Molly alerts only when the active notification matches the backup channel. This avoids deleting old conversation notifications that shared the previous numeric range.\n\n\nBased-On-Source-Commit: e6194d5b335b7066c80297ba0b334bd975e55e56\n\nLLM-assisted compatibility changes: restore imports across source checkpoints.\n\nLLM-assisted compatibility changes: use a seven-day duration in the existing backup exporter test.\n\nLLM-assisted compatibility changes: restore Molly logger collection.\n\nComposite-generated: true\nLLM-Assisted: true\nOriginal-provenance: patches/ports/signal-8.35.1/provenance.json layer followups/backup-notification-id-upgrade; original source 86ff58b3b5524ffe801f45063e96963ad6239dc5; composite/generated compatibility work, including recorded LLM assistance."
+    },
+    {
+      "index": 25,
+      "changes": "Keep the passphrase timeout when foreground promotion is refused\n\nAI-assisted compatibility changes. The port caught Android's refusal to\npromote KeyCachingService to the foreground and continued, where Molly let\nthe exception propagate. If the service was then destroyed while the process\nsurvived, a later screen-off could miss scheduling the passphrase timeout.\nSchedule the configured timeout when promotion is refused and keep it until\npromotion succeeds with the screen on and unlocked.\n\nAI-Generated: true\n\nBased-On-Source-Commit: 27347983e6669e4c7689213e1c9447e43694f0d2",
+      "subject": "Keep passphrase timeouts when foreground startup is refused",
+      "body": "Keep the passphrase timeout when foreground promotion is refused\n\nLLM-assisted compatibility changes. The port caught Android's refusal to\npromote KeyCachingService to the foreground and continued, where Molly let\nthe exception propagate. If the service was then destroyed while the process\nsurvived, a later screen-off could miss scheduling the passphrase timeout.\nSchedule the configured timeout when promotion is refused and keep it until\npromotion succeeds with the screen on and unlocked.\n\n\nBased-On-Source-Commit: 27347983e6669e4c7689213e1c9447e43694f0d2.\n\nComposite-generated: true\nLLM-Assisted: true\nOriginal-provenance: patches/ports/signal-8.35.1/provenance.json layer followups/passphrase-timeout-fallback; original source d2c0552609f00220cd5f2dbc4c6bdb53ed6bf8d4; composite/generated compatibility work, including recorded LLM assistance."
+    },
+    {
+      "index": 26,
+      "changes": "Apply Molly's backup timer rule to the latest message revision\n\nAI-assisted compatibility changes. The port excluded a message from backups\nwhen any earlier revision had a started disappearing timer, and dropped\nmessages whose revision chain contained a cycle. Walk revisions as Signal\ndoes, stopping at a cycle, and apply Molly's started-timer exclusion to the\nrevision the walk ends on.\n\nAI-Generated: true\n\nBased-On-Source-Commit: 53bb4511abbfd5339db82305f1da8cb1f0655516",
+      "subject": "Apply backup timers to the latest message revision",
+      "body": "Apply Molly's backup timer rule to the latest message revision\n\nLLM-assisted compatibility changes. The port excluded a message from backups\nwhen any earlier revision had a started disappearing timer, and dropped\nmessages whose revision chain contained a cycle. Walk revisions as Signal\ndoes, stopping at a cycle, and apply Molly's started-timer exclusion to the\nrevision the walk ends on.\n\n\nBased-On-Source-Commit: 53bb4511abbfd5339db82305f1da8cb1f0655516.\n\nComposite-generated: true\nLLM-Assisted: true\nOriginal-provenance: patches/ports/signal-8.35.1/provenance.json layer followups/backup-revision-walk; original source 681e51c1cf02250226c8616de0bf928421fa9eb1; composite/generated compatibility work, including recorded LLM assistance."
+    },
+    {
+      "index": 27,
+      "changes": "Restore Molly's badges, locked debug log details and dynamic colors\n\nAI-assisted compatibility changes. The port lost three Molly 8.19.2-4\nbehaviors that a later fix on another branch restored but that never\nreached this release: contact settings show the recipient's badges again,\nwith their names for accessibility; the debug log's system information no\nlonger reads the locked SignalStore for the first installed version; and\ndynamic-color themes use Molly's light extended-color base again.\n\nAI-Generated: true\n\nBased-On-Source-Commit: 538be6ced48eae839052e17e30a24bae380c54f9",
+      "subject": "Restore badges, locked log details and dynamic colors",
+      "body": "Restore Molly's badges, locked debug log details and dynamic colors\n\nLLM-assisted compatibility changes. The port lost three Molly 8.19.2-4\nbehaviors that a later fix on another branch restored but that never\nreached this release: contact settings show the recipient's badges again,\nwith their names for accessibility; the debug log's system information no\nlonger reads the locked SignalStore for the first installed version; and\ndynamic-color themes use Molly's light extended-color base again.\n\n\nBased-On-Source-Commit: 538be6ced48eae839052e17e30a24bae380c54f9.\n\nComposite-generated: true\nLLM-Assisted: true\nOriginal-provenance: patches/ports/signal-8.35.1/provenance.json layer followups/restore-badges-log-theme; original source c9b1814e1d4692c5d4ca0e3abc80008faa2a1db3; composite/generated compatibility work, including recorded LLM assistance."
+    },
+    {
+      "index": 28,
+      "changes": "Enable linked-device history transfer on clean registration\n\nAI-assisted compatibility changes. Match Signal 8.33 so a newly linked phone advertises history transfer while retaining the existing clean-start guard.\n\nBased-On-Source-Commit: e106c757dca5904f9adce9e332b9f69d11bd4223",
+      "subject": "Enable history transfer for newly linked devices",
+      "body": "Enable linked-device history transfer on clean registration\n\nLLM-assisted compatibility changes. Match Signal 8.33 so a newly linked phone advertises history transfer while retaining the existing clean-start guard.\n\nBased-On-Source-Commit: e106c757dca5904f9adce9e332b9f69d11bd4223.\n\nComposite-generated: true\nLLM-Assisted: true\nOriginal-provenance: patches/ports/signal-8.35.1/provenance.json layer followups/enable-linked-history-transfer; original source 8dfe064698e005c02abf1eeb62bddc7c50972e91; composite/generated compatibility work, including recorded LLM assistance."
+    },
+    {
+      "index": 29,
+      "changes": "Restore shared Android instrumentation compatibility",
+      "subject": "Restore Android instrumentation compatibility",
+      "body": "Restore shared Android instrumentation compatibility.\n\nComposite-generated: true\nLLM-Assisted: true\nOriginal-provenance: patches/ports/signal-8.35.1/provenance.json layer followups/android-instrumentation-compatibility; original source 48ad76d2ad9c34acbeaaa9cdb4c0e4793ea0f28e; composite/generated compatibility work, including recorded LLM assistance."
+    },
+    {
+      "index": 30,
+      "changes": "Avoid circular network initialization during first-run unlock\n\nAI-assisted compatibility changes. Defer socket creation until the network module is initialized, preventing first-run stack overflow while preserving connection behavior.\n\nAI-Generated: true\nBased-On-Source-Commit: dd1e0f78eda6ce4c9a16e0415c47eb684553cf83",
+      "subject": "Avoid circular network startup during unlock",
+      "body": "Avoid circular network initialization during first-run unlock\n\nLLM-assisted compatibility changes. Defer socket creation until the network module is initialized, preventing first-run stack overflow while preserving connection behavior.\n\n\nBased-On-Source-Commit: dd1e0f78eda6ce4c9a16e0415c47eb684553cf83.\n\nComposite-generated: true\nLLM-Assisted: true\nOriginal-provenance: patches/ports/signal-8.35.1/provenance.json layer followups/network-initialization-cycle; original source 9e2ab1699be02aa663b2eca79702a30ce1e740b8; composite/generated compatibility work, including recorded LLM assistance."
+    },
+    {
+      "index": 31,
+      "changes": "Defer notification restoration until the database unlocks",
+      "subject": "Restore notifications after the database unlocks",
+      "body": "Defer notification restoration until the database unlocks.\n\nComposite-generated: true\nLLM-Assisted: true\nOriginal-provenance: patches/ports/signal-8.35.1/provenance.json layer followups/locked-startup-notification-restore; original source 575cbca26d012b1f6dd0f29a89b0ae023a003cf7; composite/generated compatibility work, including recorded LLM assistance."
+    },
+    {
+      "index": 32,
+      "changes": "Show Molly donation label in the moved settings screen",
+      "subject": "Restore Molly’s donation label in settings",
+      "body": "Show Molly donation label in the moved settings screen.\n\nComposite-generated: true\nLLM-Assisted: true\nOriginal-provenance: patches/ports/signal-8.35.1/provenance.json layer followups/molly-donation-label; original source 550bb27397b4c4a347bab263c5e22ee3d3de0acc; composite/generated compatibility work, including recorded LLM assistance."
+    },
+    {
+      "index": 33,
+      "changes": "Correct Arabic Molly donation label",
+      "subject": "Correct the Arabic donation label",
+      "body": "Correct Arabic Molly donation label.\n\nComposite-generated: true\nLLM-Assisted: true\nOriginal-provenance: patches/ports/signal-8.35.1/provenance.json layer followups/arabic-molly-donation; original source 05c7e9399d44aa27e6df8bef2e0cff7700364a7d; composite/generated compatibility work, including recorded LLM assistance."
+    },
+    {
+      "index": 34,
+      "changes": "Correct Persian Molly donation label",
+      "subject": "Correct the Persian donation label",
+      "body": "Correct Persian Molly donation label.\n\nComposite-generated: true\nLLM-Assisted: true\nOriginal-provenance: patches/ports/signal-8.35.1/provenance.json layer followups/persian-molly-donation; original source 485f32894fb895caac6d7ef3f37f0865698e949a; composite/generated compatibility work, including recorded LLM assistance."
+    },
+    {
+      "index": 35,
+      "changes": "Require Collie native artifact coordinates for all products",
+      "subject": "Pin and verify Collie’s native libraries",
+      "body": "Require Collie native artifact coordinates for all products.\n\nComposite-generated: true\nLLM-Assisted: true\nOriginal-provenance: patches/ports/signal-8.35.1/provenance.json layer followups/native-catalog; original source d6a8c624baf607229468820896e3e994c6827afe; composite/generated compatibility work, including recorded LLM assistance."
+    },
+    {
+      "index": 36,
+      "changes": "Add access to Network settings during registration.",
+      "subject": "Make registration network settings reachable",
+      "body": "Add access to Network settings during registration.\n\nComposite-generated: true\nLLM-Assisted: true\nOriginal-provenance: patches/ports/signal-8.35.1/provenance.json layer followups/registration-network-settings; original source 65e4a2a7ecc0e99ba3d591b6ee0564402004f2e1; composite/generated compatibility work, including recorded LLM assistance."
+    },
+    {
+      "index": 37,
+      "changes": "Add donation completion copy.",
+      "subject": "Add the donation completion message",
+      "body": "Add donation completion copy.\n\nComposite-generated: true\nLLM-Assisted: true\nOriginal-provenance: patches/ports/signal-8.35.1/provenance.json layer followups/donation-completion-copy; original source 8a988a4260f8949c327fbee4e283852f13ad6f13; composite/generated compatibility work, including recorded LLM assistance."
+    },
+    {
+      "index": 38,
+      "changes": "Recover from a failed UnifiedPush registration visibly and boundedly\n\nAI-assisted compatibility changes. A failed distributor registration only\nshowed a notification and never retried, so UnifiedPush could stay broken\nsilently. Now the failure shows in UnifiedPush settings with a Retry\nregistration action, and one automatic UnifiedPushRefreshJob runs per failure\nepisode (network constraint, three attempts, six-hour lifespan) instead of an\nendless background retry. Choosing a distributor, or a successful endpoint\ncallback, clears the failure. Nothing touches the encrypted store while the\napp is locked.\n\nAI-Generated: true\n\nBased-On-Source-Commit: 15f7295a60711b116e83fda111b120018412f7be",
+      "subject": "Make UnifiedPush registration failures visible and retryable",
+      "body": "Recover from a failed UnifiedPush registration visibly and boundedly\n\nLLM-assisted compatibility changes. A failed distributor registration only\nshowed a notification and never retried, so UnifiedPush could stay broken\nsilently. Now the failure shows in UnifiedPush settings with a Retry\nregistration action, and one automatic UnifiedPushRefreshJob runs per failure\nepisode (network constraint, three attempts, six-hour lifespan) instead of an\nendless background retry. Choosing a distributor, or a successful endpoint\ncallback, clears the failure. Nothing touches the encrypted store while the\napp is locked.\n\n\nBased-On-Source-Commit: 15f7295a60711b116e83fda111b120018412f7be.\n\nComposite-generated: true\nLLM-Assisted: true\nOriginal-provenance: patches/ports/signal-8.35.1/provenance.json layer followups/unifiedpush-registration-retry; original source ecfe29cfdfdcc265fd2b2e99c410bb2f3dcc343e; composite/generated compatibility work, including recorded LLM assistance."
+    },
+    {
+      "index": 39,
+      "changes": "Guard linked-device view-once attachment deletion. AI-assisted compatibility fix.",
+      "subject": "Guard linked-device view-once attachment deletion",
+      "body": "Guard linked-device view-once attachment deletion. LLM-assisted compatibility fix.\n\nComposite-generated: true\nLLM-Assisted: true\nOriginal-provenance: patches/ports/signal-8.35.1/provenance.json layer followups/view-once-open-guard; original source 6269897101cd0c4605c1eaac62f57e5ac94dbd44; composite/generated compatibility work, including recorded LLM assistance."
+    },
+    {
+      "index": 40,
+      "changes": "firebase free build",
+      "subject": "Keep Firebase optional in one Collie build",
+      "body": "firebase free build.\n\nComposite-generated: true\nLLM-Assisted: true\nOriginal-provenance: patches/forks/signal-foss/provenance.json; original source 49bda76d57e78957dfc7bed00cd11f4b17584b08; author 0cwa <0@none.org>; upstream credit inspired. Composite published layer; inspect original patch attribution."
+    },
+    {
+      "index": 41,
+      "changes": "collie icon",
+      "subject": "Give Collie its own launcher icon",
+      "body": "collie icon.\n\nComposite-generated: true\nLLM-Assisted: true\nOriginal-provenance: patches/forks/signal-foss/provenance.json; original source 562028d1579005bb16d653f4e2ac97f5fe9fe1ce; author 0cwa <0@none.org>; upstream credit ours. Composite published layer; inspect original patch attribution."
+    },
+    {
+      "index": 42,
+      "changes": "collie branding",
+      "subject": "Apply Collie’s name, colors and package identity",
+      "body": "collie branding.\n\nComposite-generated: true\nLLM-Assisted: true\nOriginal-provenance: patches/forks/signal-foss/provenance.json; original source 75de5d3336f3f4ff1b4dab6caaf10fabe5758d88; author 0cwa <0@none.org>; upstream credit ours. Composite published layer; inspect original patch attribution."
+    },
+    {
+      "index": 43,
+      "changes": "collie visuals",
+      "subject": "Bring Collie’s splash screen and chat colors together",
+      "body": "collie visuals.\n\nComposite-generated: true\nLLM-Assisted: true\nOriginal-provenance: patches/forks/signal-foss/provenance.json; original source 945944c54f3a1ce24f20c1cd9854f841cc11a98a; author 0cwa <0@none.org>; upstream credit ours. Composite published layer; inspect original patch attribution."
+    },
+    {
+      "index": 44,
+      "changes": "restore picker",
+      "subject": "Help Collie find backups in the selected folder",
+      "body": "restore picker.\n\nComposite-generated: true\nLLM-Assisted: true\nOriginal-provenance: patches/forks/signal-foss/provenance.json; original source e4a00a4cd9a45cf5406e85a022565dadaf1ebf65; author 0cwa <0@none.org>; upstream credit ours. Composite published layer; inspect original patch attribution."
+    },
+    {
+      "index": 45,
+      "changes": "notification default",
+      "subject": "Show notification names and messages by default",
+      "body": "notification default.\n\nComposite-generated: true\nLLM-Assisted: true\nOriginal-provenance: patches/forks/signal-foss/provenance.json; original source 5c765dd6af11ca4bbe384cca3bcde944b5890a79; author 0cwa <0@none.org>; upstream credit ours. Composite published layer; inspect original patch attribution."
+    },
+    {
+      "index": 46,
+      "changes": "Declare standalone build metadata and publish application repository layout (release blocked)",
+      "subject": "Publish Collie’s source and declare build metadata",
+      "body": "Declare standalone build metadata and publish application repository layout (release blocked).\n\nComposite-generated: true\nLLM-Assisted: true\nOriginal-provenance: source/layers/publication.py and publication.patch; preserve approved README/assets. Build metadata is explicitly declared, not byte parity. Public native inputs and direct build remain BLOCKED."
+    },
+    {
+      "index": 47,
+      "changes": "Materialize release version metadata and close aggregate native-build gate bypass",
+      "subject": "Check release versions and keep unready builds blocked",
+      "body": "Materialize release version metadata and close aggregate native-build gate bypass.\n\nComposite-generated: true\nLLM-Assisted: true\nOriginal-provenance: Reviewed S1: source/layers/release-metadata.patch; actual defaultConfig releaseVersionCode/name now source properties; all direct Android configuration blocked until reviewed public native inputs. No app Java/Kotlin/resource changes."
+    },
+    {
+      "index": 48,
+      "changes": "Materialize pinned native repository and strict verification as tracked source (not published)",
+      "subject": "Declare Collie’s native build inputs in source",
+      "body": "Materialize pinned native repository and strict verification as tracked source (not published).\n\nComposite-generated: true\nLLM-Assisted: true\nOriginal-provenance: source/layers/native_repository.py and native-repository.patch; exact accepted stage six binary/POM hashes. Exclusive NOT PUBLISHED origin, all six legacy-coordinate substitutions, source catalog pins, strict metadata bytes; remove local Maven/native includeBuild. Android gate unchanged."
+    }
+  ],
+  "integration": {
+    "subject": "Bring the reviewed Collie source into the application repository",
+    "body": "Keep prior Collie and authentic Signal history while making the complete reviewed application tree visible.\n\nComposite-generated: true\n\nLLM-Assisted: true"
+  },
+  "pr_title": "Publish Collie application source with declared build inputs",
+  "merge": {
+    "subject": "Publish Collie application source with declared build inputs",
+    "body": "Preserve both histories and adopt the complete reviewed source tree. Production activation requires its separately approved inputs and acceptance.\n\nLLM-Assisted: true"
+  }
+}

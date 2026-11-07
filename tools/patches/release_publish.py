@@ -11,6 +11,7 @@ import sys
 import tempfile
 
 import version_policy
+import runtime_receipts as runtime
 import release_artifacts as a
 from release_sign import validate_instrumentation_checklist
 
@@ -141,10 +142,13 @@ def main():
     p.add_argument('--version-ledger', type=Path, help='durable shared operator reservation ledger')
     p.add_argument('--published-inventory', type=Path, help='fresh verified production release inventory')
     p.add_argument('--published-inventory-sha256', help='independently approved inventory digest')
+    runtime.arguments(p)
     args = p.parse_args()
     identities = ({'source_commit':args.approved_commit,'engineering_revision':args.engineering_revision,'workflow_revision':args.workflow_revision}
                   if args.engineering_revision or args.workflow_revision else None)
     try:
+        context=runtime.plan(args,historical_rehearsal=args.dry_run)
+        if context and context[0]['mode']=='new-source':identities=runtime.identities(context)
         if not re.fullmatch(r'[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+', args.repo):
             raise ValueError('invalid GitHub repository')
         if not re.fullmatch(r'v[A-Za-z0-9][A-Za-z0-9._-]{0,79}', args.tag) or '..' in args.tag:
@@ -162,14 +166,12 @@ def main():
             if a.sha256(final) != args.final_manifest_sha256:
                 raise ValueError('final manifest differs from independently approved digest')
             manifest = json.loads(final.read_text())
-            if manifest.get('schema') != 1 or manifest.get('rehearsal') is not False or manifest.get('commit') != args.approved_commit:
+            runtime.check_manifest(context,manifest)
+            if manifest.get('schema') != (2 if context and context[0]['mode']=='new-source' else 1) or manifest.get('rehearsal') is not False or manifest.get('commit') != args.approved_commit:
                 raise ValueError('final manifest is not a real release of the approved commit')
             if args.repo.lower() == '0cwa/collieim-android':
                 a.require_canonical_release(manifest)
                 a.validate_version_code(manifest.get('version_code'), a.PACKAGE)
-                if not args.dry_run:
-                    version_policy.enforce(manifest, args.version_ledger, args.published_inventory, args.published_inventory_sha256)
-                    version_policy.bind_signed(args.version_ledger, manifest)
             validate_instrumentation_checklist(manifest.get('instrumentation_checklist'), args.approved_commit)
             entries = manifest['apks']
             if len(entries) != 5 or {x['profile'] for x in entries} != a.PROFILES:
@@ -205,6 +207,14 @@ def main():
                 raise ValueError('signed and unsigned artifact modes differ')
             if final_mode == 'single-collie':
                 a.validate_alias_provenance(manifest, unsigned, args.approved_commit, identities)
+            if context and context[0]['mode']=='new-source':
+                graph=runtime.publication(args,context,unsigned,manifest,final.read_bytes())
+                for name,document in zip(('source.json','build.json','release.json'),graph):
+                    receipt_path=inputs/name;runtime.write(receipt_path,document)
+                    assets.append(receipt_path);expected[name]=a.sha256(receipt_path)
+            if args.repo.lower()=='0cwa/collieim-android' and not args.dry_run:
+                version_policy.enforce(manifest,args.version_ledger,args.published_inventory,args.published_inventory_sha256)
+                version_policy.bind_signed(args.version_ledger,manifest)
             assets += [final, provenance, notes]
             expected.update({final.name: args.final_manifest_sha256,
                              provenance.name: manifest['unsigned_manifest_sha256'],

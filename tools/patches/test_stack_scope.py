@@ -429,6 +429,24 @@ class ScopeTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, 'excludes direct source change'):
                 scope.check_scope(self.repo, 'main-maintenance', base, integration_lower=base)
 
+    def test_main_maintenance_accepts_pinned_new_baseline_but_rejects_source_tamper(self):
+        config={'signal':{'commit':'a'*40},'molly':{'target':'b'*40},'native':None}
+        self.commit('molly-build.json',json.dumps(config))
+        self.commit('patches/molly/fixture','synthetic forest')
+        old=self.git('rev-parse','HEAD').strip()
+        forest=self.git('rev-parse','HEAD:patches/molly').strip()
+        self.commit('app/build.gradle.kts','accepted raw baseline')
+        accepted=self.git('rev-parse','HEAD').strip()
+        with mock.patch.object(scope,'FOREST',forest),mock.patch.object(scope,'MAIN_INTEGRATION_LOWER',old),mock.patch.object(scope,'MAIN_MAINTENANCE_BASE',accepted):
+            self.commit('tools/patches/example.py','maintenance')
+            self.assertEqual(scope.check_scope(self.repo,'main-maintenance',accepted,integration_lower=old)['scope'],'main-maintenance')
+            # A later trusted-looking base must not make a one-byte source edit
+            # acceptable. The entire source projection remains pinned to accepted.
+            self.commit('app/build.gradle.kts','accepted raw baseline!')
+            bad=self.git('rev-parse','HEAD').strip()
+            with self.assertRaisesRegex(ValueError,'main source projection differs'):
+                scope.check_scope(self.repo,'main-maintenance',bad,integration_lower=old)
+
     def test_main_maintenance_rejects_upstream_pin_and_forest_changes(self):
         config = {'signal': {'commit': 'a' * 40}, 'molly': {'target': 'b' * 40}, 'native': None}
         self.commit('molly-build.json', json.dumps(config))
