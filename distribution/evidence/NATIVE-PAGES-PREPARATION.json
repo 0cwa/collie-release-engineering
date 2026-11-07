@@ -1,0 +1,72 @@
+{
+  "schema": 1,
+  "status": "LOCAL PREPARATION ONLY; NO DEPLOYMENT AUTHORIZATION",
+  "policy_revision": "cd6dad456a82f06f11cc724df9969b0e4ac2c383",
+  "native_manifest_sha256": "637e69803bdec6aa117c9f3b85d966ef055041a2c066e4cb28447ecd29296838",
+  "input_approval_sha256": "5530a3935fe7596ae77143389c6f3421fd6e1d035438a4e1853477ce82b11541",
+  "input_bundle_sha256": "99b8560ecd6bc620a1f07fba3fa97c7696efde3485d938448a5782bea027a3fe",
+  "input_bundle_bytes": 310855680,
+  "plan_sha256": "ab32e253877b83368d6d0b12e12ba15a45509a362f405c7e23c6153a28c40538",
+  "native_files": {
+    "native-inputs/v1/maven/im/collie/native/libsignal-android/0.106.1-collie.1/libsignal-android-0.106.1-collie.1.aar": {
+      "sha256": "4247031a753f73f12753d04f14d9316436bbf07af2097c1b897feedd360dbd9a",
+      "bytes": 215587114
+    },
+    "native-inputs/v1/maven/im/collie/native/libsignal-android/0.106.1-collie.1/libsignal-android-0.106.1-collie.1.pom": {
+      "sha256": "94432b6fefcb0eeaae4622dc3d381b4ed1ae7c2a453967db6f416a636c25ad87",
+      "bytes": 1718
+    },
+    "native-inputs/v1/maven/im/collie/native/libsignal-client/0.106.1-collie.1/libsignal-client-0.106.1-collie.1.jar": {
+      "sha256": "c361b8e905c770b838535fdac5a0bdf0f995f8ed6ce0a6837cb4c7360e8c5a79",
+      "bytes": 1003356
+    },
+    "native-inputs/v1/maven/im/collie/native/libsignal-client/0.106.1-collie.1/libsignal-client-0.106.1-collie.1.pom": {
+      "sha256": "cb706c8229ba35967c285a4f28e0049769e904b9cc9fbbb6c97d37596690cd23",
+      "bytes": 1693
+    },
+    "native-inputs/v1/maven/im/collie/native/ringrtc-android/2.74.0-collie.1/ringrtc-android-2.74.0-collie.1.aar": {
+      "sha256": "51f1f9b1f2335ba1b6557b5f0810227ac66a54ec8cbf0f2c789091b0ab5d245b",
+      "bytes": 94240994
+    },
+    "native-inputs/v1/maven/im/collie/native/ringrtc-android/2.74.0-collie.1/ringrtc-android-2.74.0-collie.1.pom": {
+      "sha256": "ab10045f321d1023e3c810625a209c0c8e007db7622fa4a0fdfcf1156e115b8b",
+      "bytes": 1572
+    }
+  },
+  "native_bytes": 310836447,
+  "artifacts": {
+    "phase1": {
+      "sha256": "60d34af2ffa58d3468315ca9ae53281d519d09fd492c0255b456727bfd18a029",
+      "bytes": 310855680
+    },
+    "phase2": {
+      "sha256": "60d34af2ffa58d3468315ca9ae53281d519d09fd492c0255b456727bfd18a029",
+      "bytes": 310855680
+    }
+  },
+  "snapshot_bytes": {
+    "phase1": 310838299,
+    "phase2": 310838299
+  },
+  "checks": {
+    "cached_six_input_hashes_sizes": "PASS",
+    "data_only_unpack": "PASS",
+    "phase1_phase2_native_hashes_sizes": "PASS",
+    "phase1_phase2_no_apk_indexes_addlink_keys": "PASS",
+    "loopback_http_readback_and_retry": "PASS",
+    "public_HTTPS_Pages_CDN": "NOT RUN",
+    "independent_native_reproduction": "NOT RUN"
+  },
+  "transport": "Injected loopback HTTP for local acceptance only; not canonical HTTPS attestation",
+  "recreate": "agent-heavy -- python3 prepare-native-pages-package.py with reviewed policy and existing six native inputs",
+  "executed_commands": [
+    "PYTHONDONTWRITEBYTECODE=1 TMPDIR=SCRATCH/test-tmp agent-heavy -- python3 -m unittest discover -s distribution -p test_*.py",
+    "python distribution/pages.py unpack APPROVED_INPUT.tar NEW_BUNDLE",
+    "python distribution/pages.py prepare NEW_BUNDLE OUTPUT --policy cd6dad456a82f06f11cc724df9969b0e4ac2c383",
+    "python distribution/pages.py preflight OUTPUT/plan.json OUTPUT/journal.json (production canonical HTTPS NOT RUN; local test injected loopback fetch)",
+    "python distribution/pages.py readback OUTPUT/plan.json OUTPUT/journal.json --phase phase1; repeat for phase2 (local loopback injection)"
+  ],
+  "tests": {
+    "distribution_unittest": "49 PASS"
+  }
+}
