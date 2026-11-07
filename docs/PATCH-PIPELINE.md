@@ -673,7 +673,9 @@ approved release plan. Follow [the runtime adapter](migration/RUNTIME-RECEIPTS.m
 to prepare a `legacy` plan for this historical route or the approved source/build
 receipt graph for `new-source`. Pass `--release-plan` and
 `--approved-release-plan-sha256` to the commands below; missing receipts never
-select legacy. Historical rehearsal/dry-run remains available without production
+select legacy. Privileged signing/publication also retain the durable version
+ledger and independently authenticated current release inventory described in
+[version reservation](migration/CONTRACTS.md#version-reservation-and-local-operator-migration). Historical rehearsal/dry-run remains available without production
 authorization, but cannot admit new-source evidence. The historical five-profile
 hosted instructions below are not the current production recipe.
 
@@ -777,7 +779,9 @@ as `MOLLY_KEYSTORE`, `MOLLY_KEY_ALIAS`, and, optionally,
      --approved-commit COMMIT --approved-run RUN_ID --certificate-sha256 CERT_SHA256 \
      --apks unsigned --output signed --build-tools "$ANDROID_HOME/build-tools/VERSION" --scratch SCRATCH \
      --instrumentation-checklist instrumentation.json \
-     --release-plan legacy-plan.json --approved-release-plan-sha256 PLAN_SHA256
+     --release-plan legacy-plan.json --approved-release-plan-sha256 PLAN_SHA256 \
+     --version-ledger VERSION_LEDGER --published-inventory VERIFIED_INVENTORY \
+     --published-inventory-sha256 INVENTORY_SHA256
    ```
 
    For an existing local wrapper that does not forward this flag, explicitly
@@ -807,7 +811,9 @@ as `MOLLY_KEYSTORE`, `MOLLY_KEY_ALIAS`, and, optionally,
      --notes RELEASE_NOTES --scratch SCRATCH --signing-key SSH_PRIVATE_KEY \
      --tagger-name NAME --tagger-email VERIFIED_GITHUB_EMAIL \
      --ssh-askpass OPTIONAL_KEYCHAIN_HELPER --dry-run \
-     --release-plan legacy-plan.json --approved-release-plan-sha256 PLAN_SHA256
+     --release-plan legacy-plan.json --approved-release-plan-sha256 PLAN_SHA256 \
+     --version-ledger VERSION_LEDGER --published-inventory VERIFIED_INVENTORY \
+     --published-inventory-sha256 INVENTORY_SHA256
    ```
 
    Supply `--ssh-askpass` when an askpass helper is needed; it is optional.

@@ -9,6 +9,7 @@ import argparse
 import contextlib
 import hashlib
 import io
+import importlib.util
 import json
 import os
 from pathlib import Path
@@ -26,7 +27,7 @@ import release_publish as publish
 import migration_receipts as receipts
 import runtime_receipts as runtime
 
-p=argparse.ArgumentParser();p.add_argument('--build-tools',required=True,type=Path);p.add_argument('--android-jar',required=True,type=Path);p.add_argument('--scratch',required=True,type=Path);args=p.parse_args()
+p=argparse.ArgumentParser();p.add_argument('--build-tools',required=True,type=Path);p.add_argument('--android-jar',required=True,type=Path);p.add_argument('--scratch',required=True,type=Path);p.add_argument('--distribution-repo',type=Path,help='optional checked engineering distribution checkout for actual ingest composition');args=p.parse_args()
 args.scratch.mkdir(parents=True,exist_ok=False);root=args.scratch.resolve();tools=args.build_tools.resolve();source=root/'fixture-source';source.mkdir();unsigned=root/'unsigned';unsigned.mkdir();signed=root/'signed'
 def run(cmd,**kwargs):return subprocess.run([str(x) for x in cmd],check=True,**kwargs)
 def sha(path):return hashlib.sha256(Path(path).read_bytes()).hexdigest()
@@ -132,4 +133,32 @@ receipts.verify_release_inputs(source_receipt,b,r,approved,raw_manifest_sha256=s
 for name,doc in [('source.json',source_receipt),('build.json',b),('release.json',r)]:
  assert receipts.digest(json.loads(remote['assets'][name]))==receipts.digest(doc)
 results.append('PASS same canonical source/build/release graph exported for existing distribution ingestion')
+if args.distribution_repo:
+ path=args.distribution_repo.resolve()/'distribution/binary_repo.py'
+ assert (args.distribution_repo.resolve()/'tools/patches/migration_receipts.py').read_bytes()==(ROOT/'tools/patches/migration_receipts.py').read_bytes(), 'combined deployment must use the same exact receipt verifier'
+ spec=importlib.util.spec_from_file_location('fixture_binary_repo',path);binary_repo=importlib.util.module_from_spec(spec);spec.loader.exec_module(binary_repo)
+ bundle=root/'published-bundle';bundle.mkdir()
+ for name in ('source.json','build.json','release.json'):(bundle/name).write_bytes(remote['assets'][name])
+ approval=write('distribution-approval.json',{'schema':2,'release_id':1,'tag':'vfixture','release_manifest_sha256':sha(signed/'final-manifest.json'),'release_receipt_sha256':receipts.digest(r),'receipt_approvals':approved,'package':'im.collie.app','version_code':177703,'version_name':'fixture-next','apk_sha256':r['payload']['apk_sha256'],'apk_certificate_sha256':certsha,'aliases':{name:r['payload']['apk_sha256'] for name in receipts.ALIASES}})
+ def ingest(bundle_path):return binary_repo.ingest(approval,signed/'final-manifest.json',signed/'collie.apk',root/'feed-ingest',str(tools/'aapt2'),str(tools/'apksigner'),bundle_path)
+ try:ingest(bundle)
+ except ValueError as error:assert 'production APK signing certificate differs' in str(error)
+ else:raise AssertionError('production feed accepted disposable signer')
+ # This is deliberately fixture-scoped: production constant/code stays intact.
+ with patch.object(binary_repo,'APK_CERTIFICATE',certsha):
+  target=ingest(bundle);assert sha(target)==sha(signed/'collie.apk');assert ingest(bundle)==target
+  with patch.object(binary_repo,'inspect') as inspect:
+   try:ingest(None)
+   except ValueError as error:assert 'requires externally approved receipt bundle' in str(error)
+   else:raise AssertionError('missing graph accepted by real ingestion')
+   inspect.assert_not_called()
+  replaced=bundle/'release.json';original=replaced.read_bytes();changed=json.loads(original);changed['payload']['apk_sha256']='a'*64;replaced.write_text(json.dumps(changed))
+  try:
+   with patch.object(binary_repo,'inspect') as inspect:
+    try:ingest(bundle)
+    except ValueError:pass
+    else:raise AssertionError('substituted graph accepted by real ingestion')
+    inspect.assert_not_called()
+  finally:replaced.write_bytes(original)
+ results.append('PASS actual new-schema2 runtime output enters real distribution ingestion unchanged/idempotently; production certificate rejects test key; missing/substituted graph fails before APK inspection; exact shared verifier bytes checked')
 print(json.dumps({'scope':'Actual runtime functions, tiny resource-only fixture APK, disposable test key and mocked GH transport; NOT a Collie G Android build/native/device proof','source_commit':g,'engineering_revision':'b'*40,'workflow_revision':'c'*40,'build_receipt_sha256':receipts.digest(b),'release_receipt_sha256':receipts.digest(r),'checks':results},indent=2))

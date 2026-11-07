@@ -33,7 +33,10 @@ The report descriptor has exactly `schema: 1` and `reports`. Each report contain
 agent-heavy -- python3 tests/runtime_pipeline_smoke.py \
   --build-tools "$ANDROID_SDK_ROOT/build-tools/36.0.0" \
   --android-jar "$ANDROID_SDK_ROOT/platforms/android-36.1/android.jar" \
-  --scratch "$TASK_SCRATCH/runtime-fixture"
+  --scratch "$TASK_SCRATCH/runtime-fixture" \
+  --distribution-repo "$ENGINEERING_DISTRIBUTION_CHECKOUT"
 ```
+
+The optional distribution checkout runs actual ingestion against the exact runtime-emitted schema2 raw final manifest and exported receipt bundle, checks immutable/idempotent copying, and rejects a missing graph. Its production certificate pin first rejects the test signer; only an explicit fixture-scoped patch supplies the disposable expected certificate. Production code and pins stay intact.
 
 This uses a tiny resource-only fixture APK, synthetic Git source, disposable key, and typed fixture reports. It is **not** compilation of Collie G, production signing, account/device upgrade acceptance, public native availability, or independent native reproduction. No production API publication is exercised. Delete its generated APK, key and build directory after review, retaining only its text summary.
