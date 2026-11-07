@@ -48,3 +48,30 @@ NOT RUN: rendered landing-page acceptance. The installed trivalent launcher stri
 headless flags; direct binary inside agent-headless failed allocator initialization.
 No desktop interaction or personal profiles were used. Generated HTML/QR only
 passed static checks; no screenshot or rendered layout claim.
+
+## Independent review corrections
+
+Three valid findings fixed: promotion now requires externally approved complete
+public generation SHA256 plus explicit selected-release approval records; receipts
+recompute the generation identity; v1/v2 release tuples must agree on code, name,
+APK digest, filename and certificate; R2 and local publication share an exact
+public-path allowlist. Approval instructions explicitly use a separately reviewed
+trusted verifier before privileged operations.
+
+PASS: 12 unit tests, including stale generation rejection, signed-but-unapproved
+release refusal, v1/v2 crossed hash/code/certificate/filename rejection, unexpected
+private-file rejection and R2 plan generation without network mutation.
+
+PASS: repeated actual staging with cached dependencies and original verified APK;
+new disposable repository certificate SHA256
+`f8521fd5c24e39f4ca79c801ae7e5985bc3e61572b6594b43b1fff613b891bc9`.
+Actual v1/v2 parity, wrong-key and crossed v2 rejection, approved-generation local
+promotion/readback/retry passed. New public generation SHA256:
+`aa541a1de0388d43d25a0917832e5ad342ae26fd68e33baee76d02d2f6c2bd45`.
+Exact signed entry.jar:
+`ce93f39a1e376f30af089a848dc0b95e1100d682a1900a47d87cffd7866de954`;
+index-v1.jar `ca24b30cea5d033c16bd6d89a487b0a14949d5fb03b47da383af0e768cb7e945`;
+index-v2.json `b8dc82234de9287c7a3089ee37b2b8aa55ee3c41e6bf271df29eaa9599c983db`.
+Original acceptance hashes above remain historical test evidence, not approvals
+for this revised implementation or production. All previously noted NOT RUN
+browser/device/provider acceptance gaps remain.

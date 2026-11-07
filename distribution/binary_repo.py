@@ -99,8 +99,57 @@ def verify_indexes(generation, fingerprint):
         file=version['file']; filename=file['name'].lstrip('/')
         if Path(filename).name!=filename or not filename.endswith('.apk'): raise ValueError('unsafe APK URL')
         if sha(generation/filename)!=file['sha256']: raise ValueError('indexed APK digest mismatch')
-    if {p['packageName'] for p in v1['apps']}!={APP}: raise ValueError('v1 package mismatch')
+    validate_index_parity(data,v1)
     return data
+
+def release_tuples(data):
+    tuples=[]
+    for version in data['packages'][APP]['versions'].values():
+        manifest=version['manifest'];file=version['file']
+        signers=manifest['signer']['sha256']
+        if len(signers)!=1:raise ValueError('one APK signer required')
+        tuples.append((manifest['versionCode'],manifest['versionName'],file['sha256'],file['name'].lstrip('/'),signers[0].lower()))
+    if len({v[0] for v in tuples})!=len(tuples):raise ValueError('duplicate versionCode')
+    return set(tuples)
+
+def validate_index_parity(data,v1):
+    if {p['packageName'] for p in v1['apps']}!={APP} or set(v1['packages'])!={APP}:raise ValueError('v1 package mismatch')
+    versions=v1['packages'][APP]
+    legacy={(v['versionCode'],v['versionName'],v['hash'],v['apkName'],v['signer'].lower()) for v in versions if v['hashType']=='sha256'}
+    if len(legacy)!=len(versions) or legacy!=release_tuples(data):raise ValueError('v1/v2 release mismatch')
+
+def public_files(generation):
+    if generation.is_symlink():raise ValueError('symlink generation')
+    files=[]
+    root_files={'entry.jar','entry.json','index-v2.json','index-v1.jar','index-v1.json','index.jar','index.xml','index.html','index.css','index.png'}
+    for p in generation.rglob('*'):
+        if p.is_symlink():raise ValueError('symlink in public generation')
+        if not p.is_file():continue
+        rel=p.relative_to(generation).as_posix()
+        valid=rel in root_files or re.fullmatch(r'im\.collie\.app_[1-9][0-9]*\.apk',rel) or re.fullmatch(r'diff/[0-9]+\.json',rel) or re.fullmatch(r'(icons(?:-[0-9]+)?)/[A-Za-z0-9_.-]+\.(png|jpg|webp|svg)',rel) or rel in {'status/running.json','status/update.json'}
+        if not valid:raise ValueError('unexpected public file: '+rel)
+        files.append(p)
+    if not {'entry.jar','index-v2.json','index-v1.jar'}.issubset({p.name for p in files}):raise ValueError('missing signed indexes')
+    return sorted(files)
+
+def generation_digest(generation):
+    return hashlib.sha256(json.dumps({str(p.relative_to(generation)):sha(p) for p in public_files(generation)},sort_keys=True).encode()).hexdigest()
+
+def approved_generation(generation,fingerprint,expected_generation,approvals):
+    # Both approvals and generation digest come from the operator's reviewed record,
+    # outside the candidate. A repository signature alone is not promotion authority.
+    files=public_files(generation)
+    actual=generation_digest(generation)
+    if not re.fullmatch('[0-9a-f]{64}',expected_generation) or actual!=expected_generation:raise ValueError('approved generation mismatch')
+    data=verify_indexes(generation,fingerprint)
+    approved=[]
+    for path in approvals:
+        a=approval(path)
+        approved.append((a['version_code'],a['version_name'],a['apk_sha256'],f"{APP}_{a['version_code']}.apk",a['apk_certificate_sha256']))
+    if not approved or len(set(approved))!=len(approved) or set(approved)!=release_tuples(data):raise ValueError('unapproved indexed release')
+    apks={p.name for p in files if p.suffix=='.apk'}
+    if apks!={v[3] for v in approved}:raise ValueError('unapproved APK file')
+    return actual,data
 
 def atomic_json(path,data):
     temporary=path.with_name(path.name+'.partial')
@@ -111,21 +160,14 @@ def atomic_json(path,data):
     try:os.fsync(directory)
     finally:os.close(directory)
 
-def publish_local(generation,origin,fingerprint):
+def publish_local(generation,origin,fingerprint,expected_generation,approvals):
     """Publish a signed generation; entry.jar last. Readers verify referenced hashes.
 
     This is intentionally not called atomic: clients crossing generations retry refresh.
     Keep old immutable index payloads and APKs. Never upload private workspace/config.
     """
-    verify_indexes(generation,fingerprint)
-    files=[p for p in generation.rglob('*') if p.is_file()]
-    if any(p.is_symlink() for p in generation.rglob('*')): raise ValueError('symlink in public generation')
-    required={'entry.jar','index-v2.json','index-v1.jar'}
-    if not required.issubset({p.name for p in files}): raise ValueError('missing signed indexes')
-    # Only fdroid public file types; secrets/config cannot enter origin by accident.
-    allowed={'.apk','.jar','.json','.xml','.png','.jpg','.webp','.svg','.css','.html'}
-    if any(p.suffix not in allowed or p.name in {'config.json','approved-release.json'} for p in files): raise ValueError('unexpected public file')
-    generation_id=hashlib.sha256(json.dumps({str(p.relative_to(generation)):sha(p) for p in sorted(files)},sort_keys=True).encode()).hexdigest()
+    generation_id,_=approved_generation(generation,fingerprint,expected_generation,approvals)
+    files=public_files(generation)
     control=origin.parent/(origin.name+'.control')
     origin.mkdir(parents=True,exist_ok=True)
     with locked(control):
@@ -164,8 +206,10 @@ def main():
     i=s.add_parser('ingest')
     for name in ('approval','manifest','apk','workspace'): i.add_argument('--'+name,required=True,type=Path)
     i.add_argument('--aapt',required=True);i.add_argument('--apksigner',required=True)
-    x=s.add_parser('publish-local');x.add_argument('generation',type=Path);x.add_argument('origin',type=Path);x.add_argument('--fingerprint',required=True)
+    x=s.add_parser('publish-local');x.add_argument('generation',type=Path);x.add_argument('origin',type=Path);x.add_argument('--fingerprint',required=True);x.add_argument('--approved-generation',required=True);x.add_argument('--approval',action='append',required=True,type=Path)
+    d=s.add_parser('generation-digest');d.add_argument('generation',type=Path)
     a=p.parse_args()
+    if a.cmd=='generation-digest':print(generation_digest(a.generation));return
     if a.cmd=='ingest': print(ingest(a.approval,a.manifest,a.apk,a.workspace,a.aapt,a.apksigner))
-    else: print(publish_local(a.generation,a.origin,a.fingerprint))
+    else: print(publish_local(a.generation,a.origin,a.fingerprint,a.approved_generation,a.approval))
 if __name__=='__main__': main()

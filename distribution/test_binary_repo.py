@@ -22,38 +22,62 @@ class BinaryRepositoryTest(unittest.TestCase):
             with self.assertRaises(subprocess.CalledProcessError): b.inspect('x','aapt','apksigner')
     def test_partial_publish_resumes_same_generation(self):
         g=self.root/'generation';g.mkdir();o=self.root/'origin'
-        for f in ['a.apk','entry.jar','index-v1.jar','index-v2.json']: (g/f).write_bytes(f.encode())
+        for f in ['im.collie.app_1.apk','entry.jar','index-v1.jar','index-v2.json']: (g/f).write_bytes(f.encode())
         original=b.immutable_copy
         def stop(source,dest):
             original(source,dest)
             raise OSError('interrupted')
-        with patch('binary_repo.verify_indexes'),patch('binary_repo.immutable_copy',side_effect=stop):
-            with self.assertRaises(OSError):b.publish_local(g,o,'f'*64)
+        with patch('binary_repo.approved_generation',return_value=('f'*64,{})),patch('binary_repo.immutable_copy',side_effect=stop):
+            with self.assertRaises(OSError):b.publish_local(g,o,'f'*64,'f'*64,[])
         self.assertIsNotNone(b.load(o.parent/(o.name+'.control')/'promotion.json')['active'])
-        with patch('binary_repo.verify_indexes'): first=b.publish_local(g,o,'f'*64);second=b.publish_local(g,o,'f'*64)
-        self.assertEqual(first,second);self.assertEqual(b.sha(g/'a.apk'),b.sha(o/'a.apk'))
+        with patch('binary_repo.approved_generation',return_value=('f'*64,{})): first=b.publish_local(g,o,'f'*64,'f'*64,[]);second=b.publish_local(g,o,'f'*64,'f'*64,[])
+        self.assertEqual(first,second);self.assertEqual(b.sha(g/'im.collie.app_1.apk'),b.sha(o/'im.collie.app_1.apk'))
     def test_changed_generation_cannot_replace_interrupted(self):
         g=self.root/'g';g.mkdir();o=self.root/'o';o.mkdir()
-        for f in ['a.apk','entry.jar','index-v1.jar','index-v2.json']:(g/f).write_bytes(b'x')
+        for f in ['im.collie.app_1.apk','entry.jar','index-v1.jar','index-v2.json']:(g/f).write_bytes(b'x')
         (o.parent/(o.name+'.control')).mkdir();(o.parent/(o.name+'.control')/'promotion.json').write_text(json.dumps({'active':'other','completed':[]}))
-        with patch('binary_repo.verify_indexes'):
-            with self.assertRaisesRegex(ValueError,'resume'):b.publish_local(g,o,'f'*64)
+        with patch('binary_repo.approved_generation',return_value=('f'*64,{})):
+            with self.assertRaisesRegex(ValueError,'resume'):b.publish_local(g,o,'f'*64,'f'*64,[])
     def test_symlink_not_exported(self):
         g=self.root/'g';g.mkdir();(g/'evil.apk').symlink_to('/etc/passwd')
         with patch('binary_repo.verify_indexes'):
-            with self.assertRaisesRegex(ValueError,'symlink'):b.publish_local(g,self.root/'o','f'*64)
+            with self.assertRaisesRegex(ValueError,'symlink'):b.publish_local(g,self.root/'o','f'*64,'f'*64,[])
     def test_r2_plan_only_emits_reviewable_commands(self):
         import runpy,sys,io
         from contextlib import redirect_stdout
-        g=self.root/'g';g.mkdir();(g/'a.apk').write_bytes(b'canonical');(g/'entry.jar').write_bytes(b'signed')
+        g=self.root/'g';g.mkdir();(g/'im.collie.app_1.apk').write_bytes(b'canonical');(g/'entry.jar').write_bytes(b'signed');(g/'index-v1.jar').write_bytes(b'signed');(g/'index-v2.json').write_bytes(b'{}')
         output=io.StringIO()
-        with patch.object(sys,'argv',['r2_plan.py',str(g),'--fingerprint','f'*64,'--bucket','test-bucket','--account','testaccount']),patch('binary_repo.verify_indexes'),redirect_stdout(output):
+        with patch.object(sys,'argv',['r2_plan.py',str(g),'--fingerprint','f'*64,'--bucket','test-bucket','--account','testaccount','--approved-generation','f'*64,'--approval','fixture.json']),patch('binary_repo.approved_generation'),redirect_stdout(output):
             runpy.run_path(str(Path(b.__file__).with_name('r2_plan.py')),run_name='__main__')
         commands=output.getvalue()
         self.assertIn('max-age=31536000,immutable',commands)
         self.assertIn('no-cache,max-age=0,must-revalidate',commands)
-        self.assertLess(commands.index('/a.apk'),commands.index('/entry.jar'))
+        self.assertLess(commands.index('/im.collie.app_1.apk'),commands.index('/entry.jar'))
         self.assertIn('existing object SHA256 must equal',commands)
+    def indexes(self):
+        row={'manifest':{'versionCode':1,'versionName':'1','signer':{'sha256':['c'*64]}},'file':{'name':'/im.collie.app_1.apk','sha256':'a'*64}}
+        data={'packages':{b.APP:{'versions':{'a'*64:row}}}}
+        legacy={'apps':[{'packageName':b.APP}],'packages':{b.APP:[{'versionCode':1,'versionName':'1','signer':'c'*64,'hash':'a'*64,'hashType':'sha256','apkName':'im.collie.app_1.apk'}]}}
+        return data,legacy
+    def test_v1_v2_parity_rejects_crossed_signed_release(self):
+        data,legacy=self.indexes();b.validate_index_parity(data,legacy)
+        for field,value in [('hash','b'*64),('versionCode',2),('signer','b'*64),('apkName','wrong.apk')]:
+            import copy
+            changed=copy.deepcopy(legacy);changed['packages'][b.APP][0][field]=value
+            with self.assertRaisesRegex(ValueError,'v1/v2'):b.validate_index_parity(data,changed)
+    def test_expected_generation_cannot_be_substituted(self):
+        g=self.root/'g';g.mkdir()
+        for name in ['entry.jar','index-v1.jar','index-v2.json']:(g/name).write_bytes(b'x')
+        with self.assertRaisesRegex(ValueError,'generation mismatch'):b.approved_generation(g,'f'*64,'0'*64,[])
+    def test_signed_unapproved_release_rejected(self):
+        g=self.root/'g';g.mkdir()
+        for name in ['entry.jar','index-v1.jar','index-v2.json']:(g/name).write_bytes(b'x')
+        data,_=self.indexes()
+        with patch('binary_repo.verify_indexes',return_value=data):
+            with self.assertRaisesRegex(ValueError,'unapproved indexed'):b.approved_generation(g,'f'*64,b.generation_digest(g),[])
+    def test_private_file_rejected_before_r2_plan(self):
+        g=self.root/'g';g.mkdir();(g/'keystore.p12').write_bytes(b'private')
+        with self.assertRaisesRegex(ValueError,'unexpected public file'):b.public_files(g)
     def test_unapproved_unknown_field(self):
         p=self.root/'approval';p.write_text(json.dumps({'schema':1,'unexpected':True}))
         with self.assertRaisesRegex(ValueError,'fields'):b.approval(p)

@@ -7,12 +7,12 @@ import argparse
 from pathlib import Path
 import shlex
 import binary_repo as b
-p=argparse.ArgumentParser();p.add_argument('generation',type=Path);p.add_argument('--fingerprint',required=True);p.add_argument('--bucket',required=True);p.add_argument('--account',required=True);a=p.parse_args()
-b.verify_indexes(a.generation,a.fingerprint)
+p=argparse.ArgumentParser();p.add_argument('generation',type=Path);p.add_argument('--fingerprint',required=True);p.add_argument('--bucket',required=True);p.add_argument('--account',required=True);p.add_argument('--approved-generation',required=True);p.add_argument('--approval',action='append',required=True,type=Path);a=p.parse_args()
+b.approved_generation(a.generation,a.fingerprint,a.approved_generation,a.approval)
 # This adapter emits commands only: approval and account access remain operator tasks.
 if not all(c.isalnum() or c=='-' for c in a.bucket) or not a.account.isalnum(): raise ValueError('account/bucket')
 print('# Acquire exclusive operator lease; keep this plan + approved generation digest.')
-files=sorted((p for p in a.generation.rglob('*') if p.is_file()),key=lambda p:(p.suffix!='.apk',p.name=='entry.jar',str(p)))
+files=sorted(b.public_files(a.generation),key=lambda p:(p.suffix!='.apk',p.name=='entry.jar',str(p)))
 for file in files:
     rel=file.relative_to(a.generation)
     if file.is_symlink():raise ValueError('symlink')

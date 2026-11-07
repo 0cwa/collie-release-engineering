@@ -119,3 +119,26 @@ missing evidence is NOT RUN, not passed.
 - https://f-droid.org/en/docs/Signing_Process/
 - https://f-droid.org/en/docs/Reproducible_Builds/
 - https://fdroid.gitlab.io/fdroidserver/fdroidserver.index.html
+
+## Approval binding at promotion
+
+Use a separately reviewed trusted verifier checkout to inspect the canonical APK,
+its signature/package/version and the exact selected release approvals before any
+signing/deployment credentials are introduced. A candidate cannot replace this
+policy/verifier. The operator records the full public generation digest computed
+by `python distribution/binary_repo.py generation-digest <repo>` alongside the
+selected approval file hashes and repository certificate. The digest covers the
+complete allowed public file set, not selected source directories. This manual
+approval is external to the candidate. Do not compute and auto-approve it inside
+a privileged candidate job.
+
+`publish-local` and `r2_plan.py` require `--approved-generation <sha256>` and one
+`--approval <release-approval.json>` for each selected version. A valid repository
+signature alone is insufficient. Every indexed release must equal an explicit
+approved package/version/name/hash/certificate tuple, v1 and v2 must agree, and
+unexpected public paths (including disguised private JSON) are rejected before
+publication commands. Receipt generation recomputes the digest and rejects a
+supplied mismatch. Approval becomes invalid when any public file, release approval
+or repository signer changes. Historical staging tests dynamically compute their
+test approval digest only to exercise this interface; that is not production
+approval.
