@@ -1,0 +1,86 @@
+From 7f2453cea7a73ffb6323b6d9ca7825f41f710532 Mon Sep 17 00:00:00 2001
+From: 0cwa <0@none.org>
+Date: Wed, 4 Nov 2026 13:59:59 +0100
+Subject: [PATCH] Enable linked-device history transfer on clean registration
+
+AI-assisted compatibility changes. Match Signal 8.33 so a newly linked phone advertises history transfer while retaining the existing clean-start guard.
+
+Based-On-Source-Commit: e106c757dca5904f9adce9e332b9f69d11bd4223
+
+Carry this AI-assisted source change as its own
+reviewable patch, preserving the original source author and diff.
+The official Molly snapshot and earlier resolution patches do
+not receive regenerated provenance headers.
+
+Source-Commit: 8dfe064698e005c02abf1eeb62bddc7c50972e91
+AI-Generated: true
+
+diff --git a/app/src/main/java/org/thoughtcrime/securesms/util/Environment.kt b/app/src/main/java/org/thoughtcrime/securesms/util/Environment.kt
+index f3b148208cbbcbf38dcda973920f918ac36b8f8d..7b5803401adc06d80083d3e2df69dbd3abb44339 100644
+--- a/app/src/main/java/org/thoughtcrime/securesms/util/Environment.kt
++++ b/app/src/main/java/org/thoughtcrime/securesms/util/Environment.kt
+@@ -20,7 +20,7 @@ object Environment {
+   val USE_NEW_REGISTRATION: Boolean = true
+ 
+   @JvmField
+-  val IS_LINK_AND_SYNC_AVAILABLE: Boolean = false // MOLLY: Test before enable
++  val IS_LINK_AND_SYNC_AVAILABLE: Boolean = true
+ 
+   @JvmField
+   val PHONENUMBERLESS_REGISTRATION: Boolean = true
+diff --git a/app/src/test/java/org/thoughtcrime/securesms/registration/LinkAndSyncAvailabilityTest.kt b/app/src/test/java/org/thoughtcrime/securesms/registration/LinkAndSyncAvailabilityTest.kt
+new file mode 100644
+index 0000000000000000000000000000000000000000..7651375f9b383f8a00b5e060df5ef497721ea8b3
+--- /dev/null
++++ b/app/src/test/java/org/thoughtcrime/securesms/registration/LinkAndSyncAvailabilityTest.kt
+@@ -0,0 +1,50 @@
++package org.thoughtcrime.securesms.registration
++
++import android.content.Context
++import io.mockk.coEvery
++import io.mockk.every
++import io.mockk.mockk
++import io.mockk.verify
++import kotlinx.coroutines.flow.emptyFlow
++import kotlinx.coroutines.flow.toList
++import kotlinx.coroutines.test.runTest
++import org.junit.Test
++import org.signal.core.util.billing.OneTimePurchaseApi
++import org.signal.registration.NetworkController
++import org.signal.registration.PreExistingRegistrationData
++import org.signal.registration.RegistrationRepository
++import org.signal.registration.StorageController
++import org.thoughtcrime.securesms.util.Environment
++
++class LinkAndSyncAvailabilityTest {
++  private val network = mockk<NetworkController>(relaxed = true)
++  private val storage = mockk<StorageController>(relaxed = true)
++
++  private fun repository() = RegistrationRepository(
++    context = mockk<Context>(relaxed = true),
++    networkController = network,
++    storageController = storage,
++    isLinkAndSyncAvailable = Environment.IS_LINK_AND_SYNC_AVAILABLE,
++    signalLoginPurchaseApi = OneTimePurchaseApi.Empty
++  )
++
++  @Test
++  fun `clean linked device advertises history transfer`() = runTest {
++    coEvery { storage.getPreExistingRegistrationData() } returns null
++    every { network.startLinkDeviceProvisioning(any()) } returns emptyFlow()
++
++    repository().startLinkDeviceProvisioning().toList()
++
++    verify { network.startLinkDeviceProvisioning(true) }
++  }
++
++  @Test
++  fun `existing registration does not advertise history transfer`() = runTest {
++    coEvery { storage.getPreExistingRegistrationData() } returns mockk<PreExistingRegistrationData>(relaxed = true)
++    every { network.startLinkDeviceProvisioning(any()) } returns emptyFlow()
++
++    repository().startLinkDeviceProvisioning().toList()
++
++    verify { network.startLinkDeviceProvisioning(false) }
++  }
++}

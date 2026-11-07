@@ -1,0 +1,713 @@
+From 49bda76d57e78957dfc7bed00cd11f4b17584b08 Mon Sep 17 00:00:00 2001
+From: 0cwa <0@none.org>
+Date: Mon, 2 Nov 2026 04:05:28 +0100
+Subject: [PATCH] Add a Firebase-free build while preserving push choices
+
+Add a Firebase-free build with AI-assisted compatibility changes. Reuse
+Molly open-source services and proxy-aware maps, keep the standard Firebase
+build, and retain UnifiedPush and websocket paths.
+
+Inspired by Angus Turnbull's b13bff463547475bbe1ae55335add689f52532e0
+("Stub out Google Mobile Services and Firebase with Open Source library,
+new build flavor 'gms' to use it") in https://github.com/tw-hx/Signal-Android.
+This layer uses Molly's own open-source services instead of that commit's
+stub library.
+
+Inspired-by: Angus Turnbull <github@twinhelix.com>
+Source-Commit: 49bda76d57e78957dfc7bed00cd11f4b17584b08
+
+---
+ app/build.gradle.kts                          | 17 ++++-
+ app/src/firebase/AndroidManifest.xml          | 12 +++
+ .../securesms/gcm/FcmReceiveService.java      | 26 +------
+ .../thoughtcrime/securesms/gcm/FcmUtil.java   |  6 ++
+ .../thoughtcrime/securesms/gcm/FcmUtil.java   | 16 ++++
+ app/src/main/AndroidManifest.xml              |  8 --
+ .../receiver/UnifiedPushReceiver.kt           |  6 +-
+ .../securesms/ApplicationContext.java         |  2 +
+ .../NotificationsSettingsFragment.kt          | 18 +++--
+ .../AdvancedPrivacySettingsRepository.kt      |  5 +-
+ .../securesms/gcm/PushFetchHandler.java       | 26 +++++++
+ .../securesms/jobs/FcmRefreshJob.java         | 11 +++
+ .../securesms/keyvalue/AccountValues.kt       |  2 +-
+ .../securesms/keyvalue/SettingsValues.kt      |  9 ++-
+ .../notifications/NotificationMethodsTest.kt  | 74 +++++++++++++++++++
+ .../securesms/gcm/FirebaseClasspathTest.kt    | 32 ++++++++
+ .../securesms/gcm/PushFetchHandlerTest.kt     | 31 ++++++++
+ .../securesms/jobs/FcmRefreshJobTest.kt       | 41 ++++++++++
+ 18 files changed, 292 insertions(+), 50 deletions(-)
+ create mode 100644 app/src/firebase/AndroidManifest.xml
+ rename app/src/{main => firebase}/java/org/thoughtcrime/securesms/gcm/FcmReceiveService.java (79%)
+ rename app/src/{main => firebase}/java/org/thoughtcrime/securesms/gcm/FcmUtil.java (90%)
+ create mode 100644 app/src/firebaseFree/java/org/thoughtcrime/securesms/gcm/FcmUtil.java
+ create mode 100644 app/src/main/java/org/thoughtcrime/securesms/gcm/PushFetchHandler.java
+ create mode 100644 app/src/test/java/org/thoughtcrime/securesms/components/settings/app/notifications/NotificationMethodsTest.kt
+ create mode 100644 app/src/test/java/org/thoughtcrime/securesms/gcm/FirebaseClasspathTest.kt
+ create mode 100644 app/src/test/java/org/thoughtcrime/securesms/gcm/PushFetchHandlerTest.kt
+
+diff --git a/app/build.gradle.kts b/app/build.gradle.kts
+index cc5e6d122c..585461af8d 100644
+--- a/app/build.gradle.kts
++++ b/app/build.gradle.kts
+@@ -46,6 +46,7 @@ val selectableVariants = listOf(
+ 
+ // Override build config via env vars when project property 'CI' is set
+ val ciEnabled = project.hasProperty("CI")
++val firebaseFree = providers.gradleProperty("mollyFirebaseFree").map(String::toBoolean).getOrElse(false)
+ 
+ val baseAppTitle = getCiEnv("CI_APP_TITLE") ?: properties["baseAppTitle"] as String
+ val baseAppFileName = getCiEnv("CI_APP_FILENAME") ?: properties["baseAppFileName"] as String
+@@ -112,6 +113,7 @@ android {
+   }
+ 
+   sourceSets {
++    getByName("main").java.srcDir(if (firebaseFree) "src/firebaseFree/java" else "src/firebase/java")
+     getByName("test") {
+       kotlin.directories += "src/testShared"
+       java.directories += "src/testShared"
+@@ -341,6 +343,11 @@ android {
+     }
+   }
+ 
++  if (!firebaseFree) {
++    sourceSets.getByName("prod").manifest.srcFile("src/firebase/AndroidManifest.xml")
++    sourceSets.getByName("staging").manifest.srcFile("src/firebase/AndroidManifest.xml")
++  }
++
+   lint {
+     abortOnError = true
+     baseline = file("lint-baseline.xml")
+@@ -471,7 +478,7 @@ dependencies {
+   implementation(libs.androidx.webkit)
+   implementation(libs.androidx.paging.runtime)
+   implementation(libs.androidx.paging.compose)
+-  implementation(libs.firebase.messaging) {
++  if (!firebaseFree) implementation(libs.firebase.messaging) {
+     exclude(group = "com.google.firebase", module = "firebase-core")
+     exclude(group = "com.google.firebase", module = "firebase-analytics")
+     exclude(group = "com.google.firebase", module = "firebase-measurement-connector")
+@@ -482,7 +489,13 @@ dependencies {
+     exclude(group = "com.google.android.gms", module = "play-services-stats")
+     exclude(group = "com.google.android.gms", module = "play-services-tasks")
+   }
+-  implementation(project(":core-gms:cloud-messaging"))
++  if (firebaseFree) {
++    implementation(project(":core-gms:base"))
++    implementation(project(":core-gms:safeparcel"))
++    implementation(project(":core-gms:tasks"))
++  } else {
++    implementation(project(":core-gms:cloud-messaging"))
++  }
+   implementation(libs.androidx.media)
+   implementation(libs.bundles.media3)
+   implementation(libs.conscrypt.android)
+diff --git a/app/src/firebase/AndroidManifest.xml b/app/src/firebase/AndroidManifest.xml
+new file mode 100644
+index 0000000000..f942d4433f
+--- /dev/null
++++ b/app/src/firebase/AndroidManifest.xml
+@@ -0,0 +1,12 @@
++<manifest xmlns:android="http://schemas.android.com/apk/res/android">
++    <application>
++        <service
++            android:name=".gcm.FcmReceiveService"
++            android:exported="false">
++            <intent-filter>
++                <action android:name="com.google.firebase.MESSAGING_EVENT" />
++            </intent-filter>
++        </service>
++
++    </application>
++</manifest>
+diff --git a/app/src/main/java/org/thoughtcrime/securesms/gcm/FcmReceiveService.java b/app/src/firebase/java/org/thoughtcrime/securesms/gcm/FcmReceiveService.java
+similarity index 79%
+rename from app/src/main/java/org/thoughtcrime/securesms/gcm/FcmReceiveService.java
+rename to app/src/firebase/java/org/thoughtcrime/securesms/gcm/FcmReceiveService.java
+index 601b9c6eba..4f3038f6fa 100644
+--- a/app/src/main/java/org/thoughtcrime/securesms/gcm/FcmReceiveService.java
++++ b/app/src/firebase/java/org/thoughtcrime/securesms/gcm/FcmReceiveService.java
+@@ -1,10 +1,8 @@
+ package org.thoughtcrime.securesms.gcm;
+ 
+ import android.content.Context;
+-import android.os.Build;
+ 
+ import androidx.annotation.NonNull;
+-import androidx.annotation.Nullable;
+ 
+ import com.google.firebase.messaging.FirebaseMessagingService;
+ import com.google.firebase.messaging.RemoteMessage;
+@@ -17,7 +15,6 @@ import org.thoughtcrime.securesms.keyvalue.SignalStore;
+ import org.thoughtcrime.securesms.registration.fcm.PushChallengeRequest;
+ import org.thoughtcrime.securesms.service.KeyCachingService;
+ import org.thoughtcrime.securesms.util.NetworkUtil;
+-import org.thoughtcrime.securesms.util.SignalLocalMetrics;
+ import org.thoughtcrime.securesms.util.TextSecurePreferences;
+ 
+ import java.util.Locale;
+@@ -57,7 +54,7 @@ public class FcmReceiveService extends FirebaseMessagingService {
+     } else if (verificationCodeRequest != null && SignalStore.account().isPrimaryDevice()) {
+       handleVerificationCodeRequested(verificationCodeRequest, remoteMessage.getSentTime());
+     } else {
+-      handleReceivedNotification(AppDependencies.getApplication(), remoteMessage);
++      PushFetchHandler.handleReceivedNotification(AppDependencies.getApplication(), remoteMessage.getPriority() == RemoteMessage.PRIORITY_HIGH);
+     }
+   }
+ 
+@@ -68,7 +65,7 @@ public class FcmReceiveService extends FirebaseMessagingService {
+     }
+ 
+     Log.w(TAG, "onDeleteMessages() -- Messages may have been dropped. Doing a normal message fetch.");
+-    handleReceivedNotification(AppDependencies.getApplication(), null);
++    PushFetchHandler.handleReceivedNotification(AppDependencies.getApplication(), false);
+   }
+ 
+   @Override
+@@ -98,25 +95,6 @@ public class FcmReceiveService extends FirebaseMessagingService {
+     Log.w(TAG, "onSendError()", e);
+   }
+ 
+-  // MOLLY: Make this function public to use it from UnifiedPushReceiver
+-  public static void handleReceivedNotification(Context context, @Nullable RemoteMessage remoteMessage) {
+-    boolean highPriority = remoteMessage != null && remoteMessage.getPriority() == RemoteMessage.PRIORITY_HIGH;
+-    try {
+-      Log.d(TAG, String.format(Locale.US, "[handleReceivedNotification] API: %s, RemoteMessagePriority: %s", Build.VERSION.SDK_INT, remoteMessage != null ? remoteMessage.getPriority() : "n/a"));
+-
+-      if (highPriority) {
+-        FcmFetchManager.startForegroundService(context);
+-      } else if (Build.VERSION.SDK_INT < 26) {
+-        FcmFetchManager.startBackgroundService(context);
+-      }
+-    } catch (Exception e) {
+-      Log.w(TAG, "Failed to start service.", e);
+-      SignalLocalMetrics.FcmServiceStartFailure.onFcmFailedToStart();
+-    }
+-
+-    FcmFetchManager.enqueueFetch(context, highPriority);
+-  }
+-
+   private static void handleRegistrationPushChallenge(@NonNull String challenge) {
+     Log.d(TAG, "Got a registration push challenge.");
+     PushChallengeRequest.postChallengeResponse(challenge);
+diff --git a/app/src/main/java/org/thoughtcrime/securesms/gcm/FcmUtil.java b/app/src/firebase/java/org/thoughtcrime/securesms/gcm/FcmUtil.java
+similarity index 90%
+rename from app/src/main/java/org/thoughtcrime/securesms/gcm/FcmUtil.java
+rename to app/src/firebase/java/org/thoughtcrime/securesms/gcm/FcmUtil.java
+index 445c56d9fc..2e3d16366a 100644
+--- a/app/src/main/java/org/thoughtcrime/securesms/gcm/FcmUtil.java
++++ b/app/src/firebase/java/org/thoughtcrime/securesms/gcm/FcmUtil.java
+@@ -23,6 +23,12 @@ public final class FcmUtil {
+ 
+   private static final String TAG = Log.tag(FcmUtil.class);
+ 
++  public static boolean isSupported() { return true; }
++
++  public static void deleteInstallationForPrivacySettings() throws InterruptedException, ExecutionException {
++    Tasks.await(FirebaseInstallations.getInstance().delete());
++  }
++
+   /**
+    * Retrieves the current FCM token. If one isn't available, it'll be generated.
+    */
+diff --git a/app/src/firebaseFree/java/org/thoughtcrime/securesms/gcm/FcmUtil.java b/app/src/firebaseFree/java/org/thoughtcrime/securesms/gcm/FcmUtil.java
+new file mode 100644
+index 0000000000..293ea785a7
+--- /dev/null
++++ b/app/src/firebaseFree/java/org/thoughtcrime/securesms/gcm/FcmUtil.java
+@@ -0,0 +1,16 @@
++package org.thoughtcrime.securesms.gcm;
++
++import android.content.Context;
++import java.io.IOException;
++import java.util.Optional;
++import java.util.concurrent.ExecutionException;
++
++/** Firebase is absent from this build. No Firebase installation is created here. */
++public final class FcmUtil {
++  private FcmUtil() {}
++  public static boolean isSupported() { return false; }
++  public static Optional<String> getToken(Context context) { return Optional.empty(); }
++  public static Optional<String> getTokenWithoutAvailCheck(Context context) { return Optional.empty(); }
++  public static void deleteFirebaseInstallationId(Context context) throws IOException {}
++  public static void deleteInstallationForPrivacySettings() throws InterruptedException, ExecutionException {}
++}
+diff --git a/app/src/main/AndroidManifest.xml b/app/src/main/AndroidManifest.xml
+index f7218514a3..58c8a1a40e 100644
+--- a/app/src/main/AndroidManifest.xml
++++ b/app/src/main/AndroidManifest.xml
+@@ -1358,14 +1358,6 @@
+             android:exported="false"
+             android:foregroundServiceType="remoteMessaging" />
+ 
+-        <service
+-            android:name=".gcm.FcmReceiveService"
+-            android:exported="false">
+-            <intent-filter>
+-                <action android:name="com.google.firebase.MESSAGING_EVENT" />
+-            </intent-filter>
+-        </service>
+-
+         <service
+             android:name=".gcm.FcmJobService"
+             android:exported="false"
+diff --git a/app/src/main/java/im/molly/unifiedpush/receiver/UnifiedPushReceiver.kt b/app/src/main/java/im/molly/unifiedpush/receiver/UnifiedPushReceiver.kt
+index f382303f15..a0a22f6bc3 100644
+--- a/app/src/main/java/im/molly/unifiedpush/receiver/UnifiedPushReceiver.kt
++++ b/app/src/main/java/im/molly/unifiedpush/receiver/UnifiedPushReceiver.kt
+@@ -1,8 +1,6 @@
+ package im.molly.unifiedpush.receiver
+ 
+ import android.content.Context
+-import androidx.core.os.bundleOf
+-import com.google.firebase.messaging.RemoteMessage
+ import im.molly.unifiedpush.UnifiedPushNotificationBuilder
+ import org.signal.core.util.concurrent.SignalExecutors
+ import org.signal.core.util.logging.Log
+@@ -10,7 +8,7 @@ import org.signal.core.util.eventbus.EventBus
+ import org.thoughtcrime.securesms.dependencies.AppDependencies
+ import org.thoughtcrime.securesms.events.PushServiceEvent
+ import org.thoughtcrime.securesms.gcm.FcmFetchManager
+-import org.thoughtcrime.securesms.gcm.FcmReceiveService
++import org.thoughtcrime.securesms.gcm.PushFetchHandler
+ import org.thoughtcrime.securesms.jobs.UnifiedPushRefreshJob
+ import org.thoughtcrime.securesms.keyvalue.SignalStore
+ import org.thoughtcrime.securesms.service.KeyCachingService
+@@ -113,7 +111,7 @@ class UnifiedPushReceiver : MessagingReceiver() {
+         if (SignalStore.account.isRegistered && SignalStore.unifiedpush.enabled) {
+           Log.d(TAG, "New message")
+           executor.enqueue {
+-            FcmReceiveService.handleReceivedNotification(context, RemoteMessage(bundleOf("google.delivered_priority" to "high")))
++            PushFetchHandler.handleReceivedNotification(context, true)
+           }
+         }
+       }
+diff --git a/app/src/main/java/org/thoughtcrime/securesms/ApplicationContext.java b/app/src/main/java/org/thoughtcrime/securesms/ApplicationContext.java
+index a2d200020a..be255a9d63 100644
+--- a/app/src/main/java/org/thoughtcrime/securesms/ApplicationContext.java
++++ b/app/src/main/java/org/thoughtcrime/securesms/ApplicationContext.java
+@@ -312,6 +312,7 @@ public class ApplicationContext extends Application implements AppForegroundObse
+     AppDependencies.getMegaphoneRepository().onAppForegrounded();
+     AppDependencies.getDeadlockDetector().start();
+     FcmFetchManager.onForeground(this);
++    FcmRefreshJob.enqueueUnsupportedCleanupIfNeeded();
+ 
+     SignalExecutors.BOUNDED.execute(() -> {
+       SealedSenderConstraint.refreshAndRotateIfNeeded();
+@@ -609,6 +610,7 @@ public class ApplicationContext extends Application implements AppForegroundObse
+         updateFcmStatus(false);
+       } else {
+         Log.d(TAG, "FCM is already disabled.");
++        FcmRefreshJob.enqueueUnsupportedCleanupIfNeeded();
+       }
+       if (method == NotificationDeliveryMethod.UNIFIEDPUSH) {
+         if (SignalStore.account().isLinkedDevice()) {
+diff --git a/app/src/main/java/org/thoughtcrime/securesms/components/settings/app/notifications/NotificationsSettingsFragment.kt b/app/src/main/java/org/thoughtcrime/securesms/components/settings/app/notifications/NotificationsSettingsFragment.kt
+index 08e46edba4..63adf09383 100644
+--- a/app/src/main/java/org/thoughtcrime/securesms/components/settings/app/notifications/NotificationsSettingsFragment.kt
++++ b/app/src/main/java/org/thoughtcrime/securesms/components/settings/app/notifications/NotificationsSettingsFragment.kt
+@@ -72,6 +72,7 @@ import org.signal.appsettings.routes.AppSettingsRoute
+ import org.thoughtcrime.securesms.components.settings.app.routes.AppSettingsRouter
+ import org.thoughtcrime.securesms.components.settings.models.Banner
+ import org.thoughtcrime.securesms.events.PushServiceEvent
++import org.thoughtcrime.securesms.gcm.FcmUtil
+ import org.thoughtcrime.securesms.keyvalue.SettingsValues.NotificationDeliveryMethod
+ import org.thoughtcrime.securesms.notifications.NotificationChannels
+ import org.thoughtcrime.securesms.notifications.TurnOnNotificationsBottomSheet
+@@ -780,13 +781,7 @@ fun NotificationsSettingsScreen(
+         )
+       }
+ 
+-      val notificationMethods = NotificationDeliveryMethod.entries.filter { method ->
+-        when (method) {
+-          NotificationDeliveryMethod.FCM -> true
+-          NotificationDeliveryMethod.WEBSOCKET -> true
+-          NotificationDeliveryMethod.UNIFIEDPUSH -> !state.isLinkedDevice
+-        }
+-      }
++      val notificationMethods = availableNotificationMethods(state.isLinkedDevice, FcmUtil.isSupported())
+ 
+       val showAlertIcon = when (state.preferredNotificationMethod) {
+         NotificationDeliveryMethod.FCM -> !state.canReceiveFcm
+@@ -832,6 +827,15 @@ fun NotificationsSettingsScreen(
+   }
+ }
+ 
++internal fun availableNotificationMethods(isLinkedDevice: Boolean, isFcmSupported: Boolean): List<NotificationDeliveryMethod> =
++  NotificationDeliveryMethod.entries.filter { method ->
++    when (method) {
++      NotificationDeliveryMethod.FCM -> isFcmSupported
++      NotificationDeliveryMethod.WEBSOCKET -> true
++      NotificationDeliveryMethod.UNIFIEDPUSH -> !isLinkedDevice
++    }
++  }
++
+ @Composable
+ private fun getWhileMutedString(state: NotificationsSettingsState): String {
+   val body = mutableListOf<String>()
+diff --git a/app/src/main/java/org/thoughtcrime/securesms/components/settings/app/privacy/advanced/AdvancedPrivacySettingsRepository.kt b/app/src/main/java/org/thoughtcrime/securesms/components/settings/app/privacy/advanced/AdvancedPrivacySettingsRepository.kt
+index e7e2f5b9ef..034f613b1a 100644
+--- a/app/src/main/java/org/thoughtcrime/securesms/components/settings/app/privacy/advanced/AdvancedPrivacySettingsRepository.kt
++++ b/app/src/main/java/org/thoughtcrime/securesms/components/settings/app/privacy/advanced/AdvancedPrivacySettingsRepository.kt
+@@ -1,7 +1,5 @@
+ package org.thoughtcrime.securesms.components.settings.app.privacy.advanced
+ 
+-import com.google.android.gms.tasks.Tasks
+-import com.google.firebase.installations.FirebaseInstallations
+ import kotlinx.coroutines.Dispatchers
+ import kotlinx.coroutines.withContext
+ import org.signal.core.util.concurrent.SignalExecutors
+@@ -10,6 +8,7 @@ import org.signal.libsignal.net.DeviceDeregisteredException
+ import org.signal.libsignal.net.RequestResult
+ import org.thoughtcrime.securesms.database.SignalDatabase
+ import org.thoughtcrime.securesms.dependencies.AppDependencies
++import org.thoughtcrime.securesms.gcm.FcmUtil
+ import org.thoughtcrime.securesms.jobs.MultiDeviceConfigurationUpdateJob
+ import org.thoughtcrime.securesms.keyvalue.SignalStore
+ import org.thoughtcrime.securesms.net.SignalNetwork
+@@ -38,7 +37,7 @@ class AdvancedPrivacySettingsRepository {
+ 
+     try {
+       if (SignalStore.account.fcmEnabled) {
+-        Tasks.await(FirebaseInstallations.getInstance().delete())
++        FcmUtil.deleteInstallationForPrivacySettings()
+       }
+       DisablePushMessagesResult.SUCCESS
+     } catch (ioe: IOException) {
+diff --git a/app/src/main/java/org/thoughtcrime/securesms/gcm/PushFetchHandler.java b/app/src/main/java/org/thoughtcrime/securesms/gcm/PushFetchHandler.java
+new file mode 100644
+index 0000000000..7ba9a7cfa0
+--- /dev/null
++++ b/app/src/main/java/org/thoughtcrime/securesms/gcm/PushFetchHandler.java
+@@ -0,0 +1,26 @@
++package org.thoughtcrime.securesms.gcm;
++
++import android.content.Context;
++import android.os.Build;
++import org.signal.core.util.logging.Log;
++import org.thoughtcrime.securesms.util.SignalLocalMetrics;
++
++/** Shared message-fetch scheduling for FCM and UnifiedPush. */
++public final class PushFetchHandler {
++  private static final String TAG = Log.tag(PushFetchHandler.class);
++  private PushFetchHandler() {}
++
++  public static void handleReceivedNotification(Context context, boolean highPriority) {
++    try {
++      if (highPriority) {
++        FcmFetchManager.startForegroundService(context);
++      } else if (Build.VERSION.SDK_INT < 26) {
++        FcmFetchManager.startBackgroundService(context);
++      }
++    } catch (Exception e) {
++      Log.w(TAG, "Failed to start service.", e);
++      SignalLocalMetrics.FcmServiceStartFailure.onFcmFailedToStart();
++    }
++    FcmFetchManager.enqueueFetch(context, highPriority);
++  }
++}
+diff --git a/app/src/main/java/org/thoughtcrime/securesms/jobs/FcmRefreshJob.java b/app/src/main/java/org/thoughtcrime/securesms/jobs/FcmRefreshJob.java
+index 9792351049..83642d8171 100644
+--- a/app/src/main/java/org/thoughtcrime/securesms/jobs/FcmRefreshJob.java
++++ b/app/src/main/java/org/thoughtcrime/securesms/jobs/FcmRefreshJob.java
+@@ -73,6 +73,13 @@ public class FcmRefreshJob extends BaseJob {
+     super(parameters);
+   }
+ 
++  /** Retry cleanup on later app starts or foregrounds until the server confirms removal. */
++  public static void enqueueUnsupportedCleanupIfNeeded() {
++    if (!FcmUtil.isSupported() && SignalStore.account().isRegistered() && SignalStore.account().getFcmTokenLastSetTime() > 0) {
++      AppDependencies.getJobManager().add(new FcmRefreshJob());
++    }
++  }
++
+   @Override
+   public @Nullable byte[] serialize() {
+     return null;
+@@ -85,6 +92,10 @@ public class FcmRefreshJob extends BaseJob {
+ 
+   @Override
+   public void onRun() throws Exception {
++    if (!FcmUtil.isSupported() && SignalStore.account().isFcmEnabled()) {
++      SignalStore.account().setFcmEnabled(false);
++    }
++
+     if (!SignalStore.account().isFcmEnabled()) {
+       boolean wasFcmTokenSet = SignalStore.account().getFcmTokenLastSetTime() > 0;
+       if (wasFcmTokenSet) {
+diff --git a/app/src/main/java/org/thoughtcrime/securesms/keyvalue/AccountValues.kt b/app/src/main/java/org/thoughtcrime/securesms/keyvalue/AccountValues.kt
+index 39cb488446..89955b92c2 100644
+--- a/app/src/main/java/org/thoughtcrime/securesms/keyvalue/AccountValues.kt
++++ b/app/src/main/java/org/thoughtcrime/securesms/keyvalue/AccountValues.kt
+@@ -470,7 +470,7 @@ class AccountValues internal constructor(store: KeyValueStore, context: Context)
+   var fcmEnabled: Boolean by booleanValue(KEY_FCM_ENABLED, false)
+ 
+   val canReceiveFcm: Boolean
+-    get() = fcmEnabled && fcmToken != null
++    get() = org.thoughtcrime.securesms.gcm.FcmUtil.isSupported() && fcmEnabled && fcmToken != null
+ 
+   @get:JvmName("isPushAvailable")
+   val pushAvailable: Boolean
+diff --git a/app/src/main/java/org/thoughtcrime/securesms/keyvalue/SettingsValues.kt b/app/src/main/java/org/thoughtcrime/securesms/keyvalue/SettingsValues.kt
+index f2dc186b36..496e495605 100644
+--- a/app/src/main/java/org/thoughtcrime/securesms/keyvalue/SettingsValues.kt
++++ b/app/src/main/java/org/thoughtcrime/securesms/keyvalue/SettingsValues.kt
+@@ -23,6 +23,7 @@ import org.signal.storage.keyvalue.stringValue
+ import org.signal.storage.protos.SignalStoreList
+ import org.thoughtcrime.securesms.R
+ import org.thoughtcrime.securesms.backup.proto.SharedPreference
++import org.thoughtcrime.securesms.gcm.FcmUtil
+ import org.thoughtcrime.securesms.preferences.widgets.NotificationPrivacyPreference
+ import org.thoughtcrime.securesms.util.DynamicTheme
+ import org.thoughtcrime.securesms.util.Environment
+@@ -491,13 +492,19 @@ class SettingsValues internal constructor(store: KeyValueStore, private val cont
+ 
+   var preferredNotificationMethod: NotificationDeliveryMethod
+     get() {
+-      return if (store.containsKey(MOLLY_NOTIFICATION_METHOD)) {
++      val method = if (store.containsKey(MOLLY_NOTIFICATION_METHOD)) {
+         NotificationDeliveryMethod.deserialize(getString(MOLLY_NOTIFICATION_METHOD, NotificationDeliveryMethod.FCM.serialize()) ?: NotificationDeliveryMethod.FCM.serialize())
+       } else if (SignalStore.account.fcmEnabled) {
+         NotificationDeliveryMethod.FCM
+       } else {
+         NotificationDeliveryMethod.WEBSOCKET
+       }
++      if (method == NotificationDeliveryMethod.FCM && !FcmUtil.isSupported()) {
++        // Preserve the inferred choice before the Firebase-free build disables FCM.
++        if (!store.containsKey(MOLLY_NOTIFICATION_METHOD)) preferredNotificationMethod = method
++        return NotificationDeliveryMethod.WEBSOCKET
++      }
++      return method
+     }
+     set(value) {
+       putString(MOLLY_NOTIFICATION_METHOD, value.serialize())
+diff --git a/app/src/test/java/org/thoughtcrime/securesms/components/settings/app/notifications/NotificationMethodsTest.kt b/app/src/test/java/org/thoughtcrime/securesms/components/settings/app/notifications/NotificationMethodsTest.kt
+new file mode 100644
+index 0000000000..4176acf26c
+--- /dev/null
++++ b/app/src/test/java/org/thoughtcrime/securesms/components/settings/app/notifications/NotificationMethodsTest.kt
+@@ -0,0 +1,74 @@
++package org.thoughtcrime.securesms.components.settings.app.notifications
++
++import android.content.Context
++import io.mockk.every
++import io.mockk.mockk
++import io.mockk.mockkStatic
++import io.mockk.unmockkStatic
++import org.junit.After
++import org.junit.Assert.assertEquals
++import org.junit.Before
++import org.junit.Rule
++import org.junit.Test
++import org.signal.core.util.logging.Log
++import org.thoughtcrime.securesms.gcm.FcmUtil
++import org.signal.storage.keyvalue.KeyValueDataSet
++import org.signal.storage.keyvalue.KeyValueStore
++import org.signal.storage.keyvalue.MockKeyValuePersistentStorage
++import org.thoughtcrime.securesms.keyvalue.SettingsValues
++import org.thoughtcrime.securesms.keyvalue.SettingsValues.NotificationDeliveryMethod
++import org.thoughtcrime.securesms.testutil.DirectExecutor
++import org.thoughtcrime.securesms.testutil.EmptyLogger
++import org.thoughtcrime.securesms.testutil.MockSignalStoreRule
++
++class NotificationMethodsTest {
++  @get:Rule val signalStore = MockSignalStoreRule()
++
++  @Before fun setup() {
++    Log.initialize(EmptyLogger())
++    mockkStatic(FcmUtil::class)
++    every { FcmUtil.isSupported() } returns false
++    every { signalStore.account.fcmEnabled } returns true
++  }
++
++  @After fun cleanup() = unmockkStatic(FcmUtil::class)
++
++  @Test fun `Firebase-free primary device offers websocket and UnifiedPush`() {
++    assertEquals(listOf(NotificationDeliveryMethod.WEBSOCKET, NotificationDeliveryMethod.UNIFIEDPUSH), availableNotificationMethods(false, false))
++  }
++
++  @Test fun `default linked device offers FCM and websocket`() {
++    assertEquals(listOf(NotificationDeliveryMethod.FCM, NotificationDeliveryMethod.WEBSOCKET), availableNotificationMethods(true, true))
++  }
++
++  @Test fun `implicit FCM choice survives Firebase-free disabling FCM and returning to Firebase`() {
++    val store = existingSettingsStore()
++    val context = mockk<Context>()
++    val settings = SettingsValues(store, context)
++
++    assertEquals(NotificationDeliveryMethod.WEBSOCKET, settings.preferredNotificationMethod)
++    every { signalStore.account.fcmEnabled } returns false
++    every { FcmUtil.isSupported() } returns true
++
++    assertEquals(NotificationDeliveryMethod.FCM, SettingsValues(store, context).preferredNotificationMethod)
++  }
++
++  @Test fun `explicit websocket and UnifiedPush choices survive Firebase-free round trip`() {
++    listOf(NotificationDeliveryMethod.WEBSOCKET, NotificationDeliveryMethod.UNIFIEDPUSH).forEach { method ->
++      val store = existingSettingsStore()
++      val settings = SettingsValues(store, mockk<Context>())
++      settings.preferredNotificationMethod = method
++      every { FcmUtil.isSupported() } returns false
++      assertEquals(method, settings.preferredNotificationMethod)
++      every { signalStore.account.fcmEnabled } returns false
++      every { FcmUtil.isSupported() } returns true
++      assertEquals(method, settings.preferredNotificationMethod)
++    }
++  }
++
++  private fun existingSettingsStore(): KeyValueStore {
++    // Model an installed app whose Molly preference migration already ran.
++    val data = KeyValueDataSet().apply { putBoolean(SettingsValues.SCREEN_SECURITY_ENABLED, true) }
++    return KeyValueStore(MockKeyValuePersistentStorage.withDataSet(data), DirectExecutor())
++  }
++}
+diff --git a/app/src/test/java/org/thoughtcrime/securesms/gcm/FirebaseClasspathTest.kt b/app/src/test/java/org/thoughtcrime/securesms/gcm/FirebaseClasspathTest.kt
+new file mode 100644
+index 0000000000..9fc1159812
+--- /dev/null
++++ b/app/src/test/java/org/thoughtcrime/securesms/gcm/FirebaseClasspathTest.kt
+@@ -0,0 +1,32 @@
++package org.thoughtcrime.securesms.gcm
++
++import io.mockk.mockk
++import org.junit.Assert.assertEquals
++import org.junit.Assert.assertFalse
++import org.junit.Test
++
++class FirebaseClasspathTest {
++  @Test fun `Firebase class availability matches the selected build`() {
++    val classNames = listOf(
++      "com.google.firebase.messaging.FirebaseMessaging",
++      "com.google.firebase.FirebaseException",
++      "com.google.firebase.iid.internal.FirebaseInstanceIdInternal"
++    )
++    classNames.forEach { name ->
++      val present = try {
++        Class.forName(name, false, javaClass.classLoader)
++        true
++      } catch (_: ClassNotFoundException) {
++        false
++      }
++      assertEquals(name, FcmUtil.isSupported(), present)
++    }
++  }
++
++  @Test fun `Firebase-free build does not return an FCM token`() {
++    if (!FcmUtil.isSupported()) {
++      assertFalse(FcmUtil.getToken(mockk()).isPresent)
++      assertFalse(FcmUtil.getTokenWithoutAvailCheck(mockk()).isPresent)
++    }
++  }
++}
+diff --git a/app/src/test/java/org/thoughtcrime/securesms/gcm/PushFetchHandlerTest.kt b/app/src/test/java/org/thoughtcrime/securesms/gcm/PushFetchHandlerTest.kt
+new file mode 100644
+index 0000000000..9d03eabf3b
+--- /dev/null
++++ b/app/src/test/java/org/thoughtcrime/securesms/gcm/PushFetchHandlerTest.kt
+@@ -0,0 +1,31 @@
++package org.thoughtcrime.securesms.gcm
++
++import android.content.Context
++import io.mockk.Runs
++import io.mockk.every
++import io.mockk.just
++import io.mockk.mockk
++import io.mockk.mockkStatic
++import io.mockk.unmockkStatic
++import io.mockk.verify
++import org.junit.After
++import org.junit.Before
++import org.junit.Test
++
++class PushFetchHandlerTest {
++  private val context = mockk<Context>()
++
++  @Before fun setup() {
++    mockkStatic(FcmFetchManager::class)
++    every { FcmFetchManager.startForegroundService(context) } just Runs
++    every { FcmFetchManager.enqueueFetch(context, true) } just Runs
++  }
++
++  @After fun cleanup() = unmockkStatic(FcmFetchManager::class)
++
++  @Test fun `high priority push starts service and schedules fetch`() {
++    PushFetchHandler.handleReceivedNotification(context, true)
++    verify(exactly = 1) { FcmFetchManager.startForegroundService(context) }
++    verify(exactly = 1) { FcmFetchManager.enqueueFetch(context, true) }
++  }
++}
+diff --git a/app/src/test/java/org/thoughtcrime/securesms/jobs/FcmRefreshJobTest.kt b/app/src/test/java/org/thoughtcrime/securesms/jobs/FcmRefreshJobTest.kt
+index 922fc601e7..072d1677c3 100644
+--- a/app/src/test/java/org/thoughtcrime/securesms/jobs/FcmRefreshJobTest.kt
++++ b/app/src/test/java/org/thoughtcrime/securesms/jobs/FcmRefreshJobTest.kt
+@@ -13,6 +13,8 @@ import io.mockk.every
+ import io.mockk.just
+ import io.mockk.mockk
+ import io.mockk.mockkStatic
++import io.mockk.mockkObject
++import io.mockk.unmockkObject
+ import io.mockk.unmockkStatic
+ import io.mockk.verify
+ import org.junit.After
+@@ -26,6 +28,8 @@ import org.junit.Test
+ import org.signal.core.util.logging.Log
+ import org.signal.libsignal.net.RequestResult
+ import org.thoughtcrime.securesms.gcm.FcmUtil
++import org.thoughtcrime.securesms.dependencies.AppDependencies
++import org.thoughtcrime.securesms.jobmanager.JobManager
+ import org.thoughtcrime.securesms.keyvalue.SettingsValues.NotificationDeliveryMethod
+ import org.thoughtcrime.securesms.net.SignalNetwork
+ import org.thoughtcrime.securesms.testutil.MockSignalStoreRule
+@@ -50,6 +54,7 @@ class FcmRefreshJobTest {
+     SignalNetwork.init(network)
+ 
+     mockkStatic(FcmUtil::class)
++    every { FcmUtil.isSupported() } returns true
+     every { FcmUtil.deleteFirebaseInstallationId(context) } just Runs
+     every { signalStore.account.fcmEnabled } returns false
+     every { signalStore.account.fcmTokenLastSetTime } answers { tokenLastSetTime }
+@@ -105,6 +110,42 @@ class FcmRefreshJobTest {
+     verify(exactly = 0) { signalStore.account.fcmEnabled = any() }
+   }
+ 
++  @Test
++  fun `pending unsupported FCM token is scheduled again after a failed cleanup`() {
++    val jobManager = mockk<JobManager>(relaxed = true)
++    mockkObject(AppDependencies)
++    mockkStatic(AppDependencies::class)
++    try {
++      every { AppDependencies.jobManager } returns jobManager
++      every { FcmUtil.isSupported() } returns false
++      every { signalStore.account.isRegistered } returns true
++      every { signalStore.account.fcmEnabled } returns false
++      tokenLastSetTime = 1234L
++
++      FcmRefreshJob.enqueueUnsupportedCleanupIfNeeded()
++
++      verify(exactly = 1) { jobManager.add(any<FcmRefreshJob>()) }
++    } finally {
++      unmockkStatic(AppDependencies::class)
++      unmockkObject(AppDependencies)
++    }
++  }
++
++  @Test
++  fun `unsupported FCM disables it and clears an existing server token`() {
++    var enabled = true
++    every { FcmUtil.isSupported() } returns false
++    every { signalStore.account.fcmEnabled } answers { enabled }
++    every { signalStore.account.fcmEnabled = any() } answers { enabled = firstArg() }
++    coEvery { accountApi.clearFcmToken() } returns RequestResult.Success(Unit)
++
++    FcmRefreshJob().apply { setContext(context) }.onRun()
++
++    assertTrue(!enabled)
++    coVerify(exactly = 1) { accountApi.clearFcmToken() }
++    verify(exactly = 1) { signalStore.account.fcmToken = null }
++  }
++
+   @Test
+   fun `disabled FCM without a previously set token skips network and Firebase cleanup`() {
+     tokenLastSetTime = 0
+-- 
+2.56.0
+

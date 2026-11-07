@@ -1,0 +1,11 @@
+// Keep release task outputs in a new job-local cache and never use a remote cache.
+def cachePath = System.getProperty('collie.releaseTaskCache')
+if (!cachePath || !new File(cachePath).absolute) {
+  throw new GradleException('collie.releaseTaskCache must be an absolute path')
+}
+gradle.settingsEvaluated { settings ->
+  settings.buildCache.local.directory = new File(cachePath)
+  if (settings.buildCache.remote != null) {
+    settings.buildCache.remote.enabled = false
+  }
+}

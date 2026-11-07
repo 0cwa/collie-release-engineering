@@ -1,0 +1,206 @@
+From e106c757dca5904f9adce9e332b9f69d11bd4223 Mon Sep 17 00:00:00 2001
+From: 0cwa <0@none.org>
+Date: Tue, 3 Nov 2026 14:25:02 +0100
+Subject: [PATCH] Restore Molly's badges, locked debug log details and dynamic
+ colors
+
+AI-assisted compatibility changes. The port lost three Molly 8.19.2-4
+behaviors that a later fix on another branch restored but that never
+reached this release: contact settings show the recipient's badges again,
+with their names for accessibility; the debug log's system information no
+longer reads the locked SignalStore for the first installed version; and
+dynamic-color themes use Molly's light extended-color base again.
+
+AI-Generated: true
+
+Based-On-Source-Commit: 538be6ced48eae839052e17e30a24bae380c54f9
+Source-Commit: e106c757dca5904f9adce9e332b9f69d11bd4223
+---
+ .../individual/IndividualSettingsScreen.kt    | 38 ++++++++++++
+ .../logsubmit/LogSectionSystemInfo.kt         |  3 +-
+ .../logsubmit/LogSectionSystemInfoTest.kt     | 62 +++++++++++++++++++
+ .../core/ui/compose/theme/SignalTheme.kt      |  2 +-
+ 4 files changed, 103 insertions(+), 2 deletions(-)
+ create mode 100644 app/src/test/java/org/thoughtcrime/securesms/logsubmit/LogSectionSystemInfoTest.kt
+
+diff --git a/app/src/main/java/org/thoughtcrime/securesms/components/settings/conversation/individual/IndividualSettingsScreen.kt b/app/src/main/java/org/thoughtcrime/securesms/components/settings/conversation/individual/IndividualSettingsScreen.kt
+index 5d44022f..9ac39e6b 100644
+--- a/app/src/main/java/org/thoughtcrime/securesms/components/settings/conversation/individual/IndividualSettingsScreen.kt
++++ b/app/src/main/java/org/thoughtcrime/securesms/components/settings/conversation/individual/IndividualSettingsScreen.kt
+@@ -6,6 +6,12 @@
+ package org.thoughtcrime.securesms.components.settings.conversation.individual
+ 
+ import android.view.View
++import androidx.compose.foundation.layout.Arrangement
++import androidx.compose.foundation.layout.ExperimentalLayoutApi
++import androidx.compose.foundation.layout.FlowRow
++import androidx.compose.foundation.layout.fillMaxWidth
++import androidx.compose.foundation.layout.padding
++import androidx.compose.foundation.layout.size
+ import androidx.compose.foundation.lazy.LazyListScope
+ import androidx.compose.foundation.lazy.items
+ import androidx.compose.runtime.Composable
+@@ -14,12 +20,16 @@ import androidx.compose.ui.platform.LocalContext
+ import androidx.compose.ui.res.painterResource
+ import androidx.compose.ui.res.pluralStringResource
+ import androidx.compose.ui.res.stringResource
++import androidx.compose.ui.unit.dp
++import androidx.compose.ui.viewinterop.AndroidView
+ import org.signal.core.ui.compose.AllDevicePreviews
+ import org.signal.core.ui.compose.Dividers
+ import org.signal.core.ui.compose.Previews
+ import org.signal.core.ui.compose.Rows
+ import org.signal.core.ui.compose.Texts
+ import org.thoughtcrime.securesms.R
++import org.thoughtcrime.securesms.badges.BadgeImageView
++import org.thoughtcrime.securesms.components.settings.app.subscription.BadgeImageSize
+ import org.thoughtcrime.securesms.components.settings.conversation.individual.IndividualSettingsState.Dialog
+ import org.thoughtcrime.securesms.components.settings.conversation.shared.BlockRow
+ import org.thoughtcrime.securesms.components.settings.conversation.shared.CallBar
+@@ -176,6 +186,7 @@ fun IndividualSettingsScreen(
+       onEvent = { onEvent(IndividualSettingsEvent.MediaRailEvent(it)) }
+     )
+ 
++    badgeSection(state)
+     groupsInCommonSection(state, onEvent)
+ 
+     if (state.canModifyBlockedState) {
+@@ -204,6 +215,33 @@ fun IndividualSettingsScreen(
+   )
+ }
+ 
++@OptIn(ExperimentalLayoutApi::class)
++private fun LazyListScope.badgeSection(state: IndividualSettingsState) {
++  if (state.recipient.isSelf || state.recipient.badges.isEmpty()) return
++
++  item { Dividers.Default() }
++  item { Texts.SectionHeader(text = stringResource(R.string.ManageProfileFragment_badges)) }
++  item {
++    FlowRow(
++      horizontalArrangement = Arrangement.spacedBy(16.dp),
++      verticalArrangement = Arrangement.spacedBy(8.dp),
++      modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 8.dp)
++    ) {
++      state.recipient.badges.forEach { badge ->
++        AndroidView(
++          factory = { context -> BadgeImageView(context, BadgeImageSize.BADGE_64) },
++          modifier = Modifier.size(64.dp),
++          update = {
++            it.setBadge(badge)
++            it.contentDescription = badge.name
++            it.isClickable = false
++          }
++        )
++      }
++    }
++  }
++}
++
+ /** Groups the two of you are both in. */
+ private fun LazyListScope.groupsInCommonSection(
+   state: IndividualSettingsState,
+diff --git a/app/src/main/java/org/thoughtcrime/securesms/logsubmit/LogSectionSystemInfo.kt b/app/src/main/java/org/thoughtcrime/securesms/logsubmit/LogSectionSystemInfo.kt
+index ed5b105c..bd971601 100644
+--- a/app/src/main/java/org/thoughtcrime/securesms/logsubmit/LogSectionSystemInfo.kt
++++ b/app/src/main/java/org/thoughtcrime/securesms/logsubmit/LogSectionSystemInfo.kt
+@@ -30,6 +30,7 @@ import org.thoughtcrime.securesms.service.webrtc.AndroidTelecomUtil.telecomSuppo
+ import org.thoughtcrime.securesms.util.AppSignatureUtil
+ import org.thoughtcrime.securesms.util.NetworkUtil
+ import org.thoughtcrime.securesms.util.PowerManagerCompat
++import org.thoughtcrime.securesms.util.TextSecurePreferences
+ import org.thoughtcrime.securesms.util.VersionTracker.getDaysSinceFirstInstalled
+ import java.util.Locale
+ import kotlin.math.roundToLong
+@@ -76,7 +77,7 @@ class LogSectionSystemInfo : LogSection {
+       UnifiedPush       : ${if (locked) LOCKED else SignalStore.unifiedpush.enabled}
+       Locale            : ${Locale.getDefault()}
+       Linked Devices    : ${if (locked) LOCKED else SignalStore.account.isMultiDevice}
+-      First Version     : ${SignalStore.misc.firstInstallVersion}
++      First Version     : ${if (locked) TextSecurePreferences.getFirstInstallVersion(context) else SignalStore.misc.firstInstallVersion}
+       Days Installed    : ${getDaysSinceFirstInstalled(context)}
+       Last Registration : ${if (locked) LOCKED else getTimeRegistered()}
+       Build Variant     : ${BuildConfig.FLAVOR}
+diff --git a/app/src/test/java/org/thoughtcrime/securesms/logsubmit/LogSectionSystemInfoTest.kt b/app/src/test/java/org/thoughtcrime/securesms/logsubmit/LogSectionSystemInfoTest.kt
+new file mode 100644
+index 00000000..e209f1ee
+--- /dev/null
++++ b/app/src/test/java/org/thoughtcrime/securesms/logsubmit/LogSectionSystemInfoTest.kt
+@@ -0,0 +1,62 @@
++package org.thoughtcrime.securesms.logsubmit
++
++import android.app.Application
++import android.app.usage.StorageStatsManager
++import android.content.Context
++import android.os.storage.StorageManager
++import androidx.test.core.app.ApplicationProvider
++import com.google.android.gms.common.ConnectionResult
++import com.google.android.gms.common.GoogleApiAvailability
++import io.mockk.every
++import io.mockk.mockk
++import io.mockk.mockkStatic
++import io.mockk.unmockkStatic
++import org.junit.After
++import org.junit.Assert.assertTrue
++import org.junit.Before
++import org.junit.Test
++import org.junit.runner.RunWith
++import org.robolectric.RobolectricTestRunner
++import org.robolectric.Shadows.shadowOf
++import org.robolectric.annotation.Config
++import org.thoughtcrime.securesms.util.AppSignatureUtil
++import org.thoughtcrime.securesms.util.SecurePreferenceManager
++import org.thoughtcrime.securesms.util.TextSecurePreferences
++import java.util.UUID
++
++@RunWith(RobolectricTestRunner::class)
++@Config(manifest = Config.NONE, application = Application::class, sdk = [28])
++class LogSectionSystemInfoTest {
++  private val context: Application = ApplicationProvider.getApplicationContext()
++
++  @Before
++  fun setUp() {
++    val preferences = context.getSharedPreferences("locked-sysinfo-test", 0)
++    preferences.edit().clear().putInt(TextSecurePreferences.FIRST_INSTALL_VERSION, 123).commit()
++    mockkStatic(SecurePreferenceManager::class, GoogleApiAvailability::class, AppSignatureUtil::class)
++    every { SecurePreferenceManager.getSecurePreferences(any()) } returns preferences
++    val availability = mockk<GoogleApiAvailability>()
++    every { GoogleApiAvailability.getInstance() } returns availability
++    every { availability.isGooglePlayServicesAvailable(any()) } returns ConnectionResult.SERVICE_MISSING
++    every { AppSignatureUtil.getAppSignature(any()) } returns "test"
++    val storage = mockk<StorageManager>()
++    val stats = mockk<StorageStatsManager>()
++    every { storage.getUuidForPath(any()) } returns UUID(0, 0)
++    every { stats.getTotalBytes(any()) } returns 1000L
++    every { stats.getFreeBytes(any()) } returns 500L
++    shadowOf(context).setSystemService(Context.STORAGE_SERVICE, storage)
++    shadowOf(context).setSystemService(Context.STORAGE_STATS_SERVICE, stats)
++  }
++
++  @After
++  fun tearDown() {
++    unmockkStatic(SecurePreferenceManager::class, GoogleApiAvailability::class, AppSignatureUtil::class)
++  }
++
++  @Test
++  fun `locked system info reads the first install version without SignalStore`() {
++    val content = LogSectionSystemInfo().getContentLocked(context).toString()
++
++    assertTrue(content.contains("First Version     : 123"))
++  }
++}
+diff --git a/core/ui/src/main/java/org/signal/core/ui/compose/theme/SignalTheme.kt b/core/ui/src/main/java/org/signal/core/ui/compose/theme/SignalTheme.kt
+index 0f69d2e3..06763d59 100644
+--- a/core/ui/src/main/java/org/signal/core/ui/compose/theme/SignalTheme.kt
++++ b/core/ui/src/main/java/org/signal/core/ui/compose/theme/SignalTheme.kt
+@@ -356,7 +356,7 @@ private fun isThemeUsingDynamicColors(context: Context): Boolean {
+ 
+ private fun extendedColors(colorScheme: ColorScheme, isDarkMode: Boolean, isDynamic: Boolean): ExtendedColors {
+   return when {
+-    isDynamic -> (if (isDarkMode) darkExtendedColors else lightExtendedColors).copy(
++    isDynamic -> lightExtendedColors.copy(
+       colorSurface1 = colorScheme.surfaceContainerLow,
+       colorSurface2 = colorScheme.surfaceContainer,
+       colorSurface3 = colorScheme.surfaceContainerHigh,
+-- 
+2.56.0
+

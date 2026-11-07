@@ -1,0 +1,2253 @@
+From 5c3a70f3c55192fe783e5ad2ceeb9da389cb3b39 Mon Sep 17 00:00:00 2001
+From: Molly Patch Reconstruction <molly-patch-reconstruction@example.invalid>
+Date: Fri, 6 Nov 2026 10:40:24 +0100
+Subject: [PATCH] Port resources-and-branding to Signal 8.35.1, part 2
+
+Resolve shared resource conflicts and relocated resources, retaining the port source's Molly branding and translations.
+
+These are AI-assisted compatibility changes from the recorded
+source checkpoint, exported after Git has performed its deterministic
+three-way merge of the unchanged official Molly 8.19.2-4 snapshot
+with Signal 8.35.1. The original Molly mailboxes remain unchanged.
+Offset-only movement and conflict-free automatic merges are already
+in the parent tree and are not re-exported as patch rewrites.
+
+This batch owns 25 whole-file changes. It records AI-assisted
+compatibility changes in the pinned source tree.
+The source commit records a derived candidate, not an official
+Molly release or a claim of upstream authorship.
+
+Source-Commit: f2a6b716b37cf8816223f392dc127dde319be968
+Origin-Base: c47a74ba0961903eeaeda6d22347a990056c3e83
+Origin-Target: 0e202dda90785771ff8c87526eaaf30c655f54f3
+Signal-Base: a74583b01e260944f699c4da03ba4e8ce04de32b
+Mechanical-Merge-Tree: d1b1951155a3e600a1c9af606e440ed25fc4b11d
+AI-Generated: true
+
+diff --git a/app/src/main/res/layout/preference_storage_category.xml b/app/src/main/res/layout/preference_storage_category.xml
+deleted file mode 100644
+index 739fa1c74491d2e93ae5ed04ee0ad5661e0d855f..0000000000000000000000000000000000000000
+--- a/app/src/main/res/layout/preference_storage_category.xml
++++ /dev/null
+@@ -1,95 +0,0 @@
+-<?xml version="1.0" encoding="utf-8"?>
+-<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+-    xmlns:app="http://schemas.android.com/apk/res-auto"
+-    tools:viewBindingIgnore="true"
+-    xmlns:tools="http://schemas.android.com/tools"
+-    android:layout_width="match_parent"
+-    android:layout_height="wrap_content">
+-
+-    <TextView
+-        android:id="@+id/total_size"
+-        android:layout_width="wrap_content"
+-        android:layout_height="wrap_content"
+-        android:textSize="28sp"
+-        app:layout_constraintEnd_toEndOf="@+id/storageGraphView"
+-        app:layout_constraintTop_toTopOf="parent"
+-        tools:text="1.2GB" />
+-
+-    <org.thoughtcrime.securesms.preferences.widgets.StorageGraphView
+-        android:id="@+id/storageGraphView"
+-        android:layout_width="0dp"
+-        android:layout_height="28dp"
+-        android:layout_marginStart="32dp"
+-        android:layout_marginTop="16dp"
+-        android:layout_marginEnd="32dp"
+-        app:layout_constraintEnd_toEndOf="parent"
+-        app:layout_constraintHorizontal_bias="0.5"
+-        app:layout_constraintStart_toStartOf="parent"
+-        app:layout_constraintTop_toBottomOf="@+id/total_size" />
+-
+-    <TextView
+-        android:id="@+id/legend_photos"
+-        android:layout_width="wrap_content"
+-        android:layout_height="wrap_content"
+-        android:layout_marginTop="8dp"
+-        android:drawableStart="@drawable/storage_legend_photos"
+-        android:drawablePadding="4dp"
+-        android:text="@string/preferences_storage__photos"
+-        android:textSize="12sp"
+-        app:layout_constraintEnd_toStartOf="@+id/legend_videos"
+-        app:layout_constraintHorizontal_bias="0.5"
+-        app:layout_constraintStart_toStartOf="@+id/storageGraphView"
+-        app:layout_constraintTop_toBottomOf="@+id/storageGraphView" />
+-
+-    <TextView
+-        android:id="@+id/legend_videos"
+-        android:layout_width="wrap_content"
+-        android:layout_height="wrap_content"
+-        android:drawableStart="@drawable/storage_legend_videos"
+-        android:drawablePadding="4dp"
+-        android:text="@string/preferences_storage__videos"
+-        android:textSize="12sp"
+-        app:layout_constraintEnd_toStartOf="@+id/legend_audio"
+-        app:layout_constraintHorizontal_bias="0.5"
+-        app:layout_constraintStart_toEndOf="@+id/legend_photos"
+-        app:layout_constraintTop_toTopOf="@+id/legend_photos" />
+-
+-    <TextView
+-        android:id="@+id/legend_audio"
+-        android:layout_width="wrap_content"
+-        android:layout_height="wrap_content"
+-        android:drawableStart="@drawable/storage_legend_files"
+-        android:drawablePadding="4dp"
+-        android:text="@string/preferences_storage__files"
+-        android:textSize="12sp"
+-        app:layout_constraintEnd_toStartOf="@+id/legend_files"
+-        app:layout_constraintHorizontal_bias="0.5"
+-        app:layout_constraintStart_toEndOf="@+id/legend_videos"
+-        app:layout_constraintTop_toTopOf="@+id/legend_videos" />
+-
+-    <TextView
+-        android:id="@+id/legend_files"
+-        android:layout_width="wrap_content"
+-        android:layout_height="wrap_content"
+-        android:drawableStart="@drawable/storage_legend_audio"
+-        android:drawablePadding="4dp"
+-        android:text="@string/preferences_storage__audio"
+-        android:textSize="12sp"
+-        app:layout_constraintEnd_toEndOf="@+id/storageGraphView"
+-        app:layout_constraintHorizontal_bias="0.5"
+-        app:layout_constraintStart_toEndOf="@+id/legend_audio"
+-        app:layout_constraintTop_toTopOf="@+id/legend_audio" />
+-
+-    <com.google.android.material.button.MaterialButton
+-        android:id="@+id/free_up_space"
+-        style="@style/Signal.Widget.Button.Medium.Tonal"
+-        android:layout_width="wrap_content"
+-        android:layout_height="wrap_content"
+-        android:layout_marginTop="16dp"
+-        android:text="@string/preferences_storage__review_storage"
+-        app:layout_constraintBottom_toBottomOf="parent"
+-        app:layout_constraintEnd_toEndOf="parent"
+-        app:layout_constraintStart_toStartOf="parent"
+-        app:layout_constraintTop_toBottomOf="@+id/legend_photos" />
+-
+-</androidx.constraintlayout.widget.ConstraintLayout>
+\ No newline at end of file
+diff --git a/app/src/main/res/layout/react_with_any_emoji_bottom_sheet_dialog_fragment.xml b/app/src/main/res/layout/react_with_any_emoji_bottom_sheet_dialog_fragment.xml
+deleted file mode 100644
+index d28664e69c8e458cc4a9020f63be98f2ee150bdc..0000000000000000000000000000000000000000
+--- a/app/src/main/res/layout/react_with_any_emoji_bottom_sheet_dialog_fragment.xml
++++ /dev/null
+@@ -1,56 +0,0 @@
+-<?xml version="1.0" encoding="utf-8"?>
+-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+-    xmlns:app="http://schemas.android.com/apk/res-auto"
+-    tools:viewBindingIgnore="true"
+-    xmlns:tools="http://schemas.android.com/tools"
+-    android:id="@+id/react_with_any_emoji_layout"
+-    android:layout_width="match_parent"
+-    android:layout_height="match_parent"
+-    android:orientation="vertical">
+-
+-    <ImageView
+-        android:id="@+id/react_with_any_emoji_pull_bar"
+-        android:layout_width="wrap_content"
+-        android:layout_height="wrap_content"
+-        android:layout_marginTop="12dp"
+-        android:layout_gravity="center_horizontal"
+-        android:src="@drawable/bottom_sheet_handle"
+-        tools:ignore="ContentDescription" />
+-
+-    <org.thoughtcrime.securesms.keyboard.emoji.KeyboardPageSearchView
+-        android:id="@+id/react_with_any_emoji_search"
+-        android:layout_width="match_parent"
+-        android:layout_height="wrap_content"
+-        android:layout_gravity="center"
+-        android:paddingTop="12dp"
+-        android:paddingBottom="8dp"
+-        app:search_bar_tint="?attr/react_with_any_search_background"
+-        app:search_hint="@string/KeyboardPagerFragment_search_emoji"
+-        app:search_icon_tint="?attr/react_with_any_search_hint"
+-        app:show_always="true" />
+-
+-    <FrameLayout
+-        android:layout_width="match_parent"
+-        android:layout_height="0dp"
+-        android:layout_weight="1"
+-        android:minHeight="1000dp">
+-
+-        <org.thoughtcrime.securesms.components.emoji.EmojiPageView
+-            android:id="@+id/react_with_any_emoji_page_view"
+-            android:layout_width="match_parent"
+-            android:layout_height="match_parent"
+-            android:layout_marginTop="-2dp"
+-            android:clipToPadding="false"
+-            android:paddingStart="5dp"
+-            android:paddingEnd="5dp"
+-            android:paddingBottom="64dp" />
+-
+-        <View
+-            android:id="@+id/react_with_any_emoji_top_shadow"
+-            android:layout_width="match_parent"
+-            android:layout_height="2dp"
+-            android:alpha="0"
+-            android:background="@drawable/toolbar_shadow" />
+-    </FrameLayout>
+-
+-</LinearLayout>
+diff --git a/app/src/main/res/layout/react_with_any_emoji_tabs.xml b/app/src/main/res/layout/react_with_any_emoji_tabs.xml
+deleted file mode 100644
+index 7da63c55e9a140b505e20066083ed649b6a316ef..0000000000000000000000000000000000000000
+--- a/app/src/main/res/layout/react_with_any_emoji_tabs.xml
++++ /dev/null
+@@ -1,69 +0,0 @@
+-<?xml version="1.0" encoding="utf-8"?>
+-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+-    xmlns:app="http://schemas.android.com/apk/res-auto"
+-    tools:viewBindingIgnore="true"
+-    xmlns:tools="http://schemas.android.com/tools"
+-    android:id="@+id/tab_bar"
+-    android:layout_width="match_parent"
+-    android:layout_height="wrap_content"
+-    android:layout_gravity="bottom"
+-    android:orientation="vertical">
+-
+-    <View
+-        android:id="@+id/react_with_any_emoji_bottom_shadow"
+-        android:layout_width="match_parent"
+-        android:layout_height="2dp"
+-        android:background="@drawable/bottom_toolbar_shadow" />
+-
+-    <LinearLayout
+-        android:layout_width="match_parent"
+-        android:layout_height="?actionBarSize"
+-        android:layout_gravity="bottom"
+-        android:background="?attr/react_with_any_background"
+-        android:clickable="true"
+-        android:focusable="true"
+-        android:gravity="center_vertical"
+-        android:orientation="horizontal">
+-
+-        <FrameLayout
+-            android:id="@+id/customize_reactions_frame"
+-            android:layout_width="32dp"
+-            android:layout_height="32dp"
+-            android:layout_gravity="center_vertical"
+-            android:layout_marginStart="12dp"
+-            android:layout_marginEnd="12dp"
+-            android:background="@drawable/circle_tintable"
+-            android:backgroundTint="?attr/react_with_any_customize_background"
+-            android:clipChildren="false"
+-            android:elevation="1dp"
+-            android:visibility="gone"
+-            tools:ignore="UnusedAttribute"
+-            tools:visibility="visible">
+-
+-            <androidx.appcompat.widget.AppCompatImageView
+-                android:id="@+id/customize_reactions"
+-                android:layout_width="32dp"
+-                android:layout_height="32dp"
+-                android:layout_gravity="center"
+-                android:background="?attr/selectableItemBackgroundBorderless"
+-                android:contentDescription="@string/EditReactionsFragment__customize_reactions"
+-                android:padding="5dp"
+-                app:layout_constraintEnd_toEndOf="parent"
+-                app:layout_constraintTop_toTopOf="parent"
+-                app:srcCompat="@drawable/ic_settings_24"
+-                app:tint="?attr/signal_icon_tint_tab_unselected"
+-                tools:ignore="UnusedAttribute" />
+-
+-        </FrameLayout>
+-
+-        <androidx.recyclerview.widget.RecyclerView
+-            android:id="@+id/emoji_categories_recycler"
+-            android:layout_width="0dp"
+-            android:layout_height="wrap_content"
+-            android:layout_weight="1"
+-            android:orientation="horizontal"
+-            app:layoutManager="androidx.recyclerview.widget.LinearLayoutManager"
+-            tools:itemCount="10"
+-            tools:listitem="@layout/keyboard_pager_category_icon" />
+-    </LinearLayout>
+-</LinearLayout>
+\ No newline at end of file
+diff --git a/app/src/main/res/layout/reminder_action_button.xml b/app/src/main/res/layout/reminder_action_button.xml
+deleted file mode 100644
+index eebc388fdd1f264fedf5e9a8c3331fdf485dd010..0000000000000000000000000000000000000000
+--- a/app/src/main/res/layout/reminder_action_button.xml
++++ /dev/null
+@@ -1,14 +0,0 @@
+-<?xml version="1.0" encoding="utf-8"?>
+-<Button xmlns:android="http://schemas.android.com/apk/res/android"
+-    xmlns:tools="http://schemas.android.com/tools"
+-    tools:viewBindingIgnore="true"
+-    style="@style/Widget.AppCompat.Button.Borderless"
+-    android:layout_width="wrap_content"
+-    android:layout_height="match_parent"
+-    android:textAllCaps="false"
+-    android:textColor="?attr/colorPrimary"
+-    android:textSize="14sp"
+-    android:paddingStart="12dp"
+-    android:paddingEnd="12dp"
+-    android:layout_marginStart="3dp"
+-    tools:text="Action" />
+\ No newline at end of file
+diff --git a/app/src/main/res/layout/review_banner_view.xml b/app/src/main/res/layout/review_banner_view.xml
+index 1779c124b4c78135c140a17fa2fa230ef27ccd03..f2e81e22ccbd8dec1918f9d31e673af3d5a0a332 100644
+--- a/app/src/main/res/layout/review_banner_view.xml
++++ b/app/src/main/res/layout/review_banner_view.xml
+@@ -14,17 +14,9 @@
+         android:layout_marginVertical="11dp"
+         android:background="?attr/signal_background_primary"
+         android:minHeight="66dp"
+-<<<<<<< MOLLY
+-        app:cardCornerRadius="12dp"
+-        app:cardBackgroundColor="?attr/colorSurfaceContainer"
+-        app:cardElevation="0dp"
+-        app:strokeColor="@color/signal_colorOutline_38"
+-        app:strokeWidth="1dp">
+-=======
+         app:cardCornerRadius="24dp"
+-        app:cardBackgroundColor="@color/signal_colorSurface2"
++        app:cardBackgroundColor="?attr/colorSurfaceContainer"
+         app:cardElevation="0dp">
+->>>>>>> SIGNAL
+ 
+         <androidx.constraintlayout.widget.ConstraintLayout
+             android:layout_width="match_parent"
+@@ -89,7 +81,7 @@
+                 android:layout_marginStart="16dp"
+                 android:layout_marginVertical="16dp"
+                 android:text="@string/ReviewBannerView__name_conflict_found"
+-                android:textColor="@color/signal_colorOnSurface"
++                android:textColor="?attr/colorOnSurface"
+                 android:textAppearance="@style/Signal.Text.BodyMedium"
+                 app:layout_constraintBottom_toBottomOf="parent"
+                 app:layout_constraintEnd_toStartOf="@id/banner_tap_to_review"
+@@ -105,7 +97,7 @@
+                 app:layout_constraintBottom_toBottomOf="parent"
+                 app:layout_constraintEnd_toEndOf="parent"
+                 android:layout_marginEnd="16dp"
+-                app:tint="@color/signal_colorOnSurface"
++                app:tint="?attr/colorOnSurface"
+                 app:layout_constraintTop_toTopOf="parent"
+                 app:srcCompat="@drawable/symbol_x_24" />
+ 
+@@ -117,13 +109,8 @@
+                 android:layout_marginHorizontal="8dp"
+                 android:minWidth="0dp"
+                 android:text="@string/ReviewBannerView__view"
+-<<<<<<< MOLLY
+-                android:textColor="?attr/colorOnSecondaryContainer"
+-                app:backgroundTint="?attr/colorSurfaceContainer"
+-=======
+-                android:textColor="@color/signal_colorOnSurface"
+-                app:backgroundTint="@color/signal_colorSurface5"
+->>>>>>> SIGNAL
++                android:textColor="?attr/colorOnSurface"
++                app:backgroundTint="?attr/colorSurfaceContainerHighest"
+                 app:layout_constraintBottom_toBottomOf="parent"
+                 app:layout_constraintEnd_toStartOf="@id/banner_close"
+                 app:layout_constraintStart_toEndOf="@id/banner_message"
+diff --git a/app/src/main/res/layout/safety_number_bottom_sheet.xml b/app/src/main/res/layout/safety_number_bottom_sheet.xml
+deleted file mode 100644
+index fac052f496294b732d0adc7d2df90ced344e4276..0000000000000000000000000000000000000000
+--- a/app/src/main/res/layout/safety_number_bottom_sheet.xml
++++ /dev/null
+@@ -1,61 +0,0 @@
+-<?xml version="1.0" encoding="utf-8"?>
+-<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+-    xmlns:app="http://schemas.android.com/apk/res-auto"
+-    tools:viewBindingIgnore="true"
+-    xmlns:tools="http://schemas.android.com/tools"
+-    android:layout_width="match_parent"
+-    android:layout_height="wrap_content"
+-    tools:minHeight="508dp">
+-
+-    <ImageView
+-        android:id="@+id/handle"
+-        android:layout_width="wrap_content"
+-        android:layout_height="wrap_content"
+-        android:layout_marginTop="10dp"
+-        android:importantForAccessibility="no"
+-        app:layout_constraintEnd_toEndOf="parent"
+-        app:layout_constraintStart_toStartOf="parent"
+-        app:layout_constraintTop_toTopOf="parent"
+-        app:srcCompat="@drawable/bottom_sheet_handle" />
+-
+-    <androidx.recyclerview.widget.RecyclerView
+-        android:id="@+id/recycler"
+-        android:layout_width="match_parent"
+-        android:layout_height="wrap_content"
+-        android:layout_marginTop="20dp"
+-        android:orientation="vertical"
+-        android:paddingBottom="76dp"
+-        app:layoutManager="androidx.recyclerview.widget.LinearLayoutManager"
+-        app:layout_constrainedHeight="true"
+-        app:layout_constraintBottom_toBottomOf="parent"
+-        app:layout_constraintEnd_toEndOf="parent"
+-        app:layout_constraintStart_toStartOf="parent"
+-        app:layout_constraintTop_toBottomOf="@id/handle"
+-        app:layout_constraintVertical_bias="0" />
+-
+-    <com.google.android.material.button.MaterialButton
+-        android:id="@+id/send_anyway"
+-        style="@style/Signal.Widget.Button.Medium.Tonal"
+-        android:layout_width="wrap_content"
+-        android:layout_height="wrap_content"
+-        android:layout_marginEnd="16dp"
+-        android:layout_marginBottom="16dp"
+-        android:text="@string/SafetyNumberBottomSheetFragment__send_anyway"
+-        app:layout_constraintBottom_toBottomOf="parent"
+-        app:layout_constraintEnd_toEndOf="parent" />
+-
+-    <com.google.android.material.button.MaterialButton
+-        android:id="@+id/review_connections"
+-        style="@style/Widget.Signal.Button.TextButton"
+-        android:layout_width="wrap_content"
+-        android:layout_height="wrap_content"
+-        android:layout_marginStart="16dp"
+-        android:layout_marginBottom="16dp"
+-        android:text="@string/SafetyNumberBottomSheetFragment__review_connections"
+-        android:textColor="?attr/colorPrimary"
+-        android:visibility="gone"
+-        app:layout_constraintBottom_toBottomOf="parent"
+-        app:layout_constraintStart_toStartOf="parent"
+-        tools:visibility="visible" />
+-
+-</androidx.constraintlayout.widget.ConstraintLayout>
+\ No newline at end of file
+diff --git a/app/src/main/res/layout/safety_number_bucket_row_item.xml b/app/src/main/res/layout/safety_number_bucket_row_item.xml
+deleted file mode 100644
+index 2b57e9ba10a4c530afd5423480a41cf169ddd3c2..0000000000000000000000000000000000000000
+--- a/app/src/main/res/layout/safety_number_bucket_row_item.xml
++++ /dev/null
+@@ -1,44 +0,0 @@
+-<?xml version="1.0" encoding="utf-8"?>
+-<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+-    xmlns:app="http://schemas.android.com/apk/res-auto"
+-    tools:viewBindingIgnore="true"
+-    xmlns:tools="http://schemas.android.com/tools"
+-    android:layout_width="match_parent"
+-    android:layout_height="wrap_content">
+-
+-    <FrameLayout
+-        android:id="@+id/safety_number_bucket_header_wrapper"
+-        android:layout_width="0dp"
+-        android:layout_height="wrap_content"
+-        android:minHeight="48dp"
+-        android:paddingStart="@dimen/dsl_settings_gutter"
+-        android:paddingTop="16dp"
+-        android:paddingEnd="@dimen/dsl_settings_gutter"
+-        android:paddingBottom="12dp"
+-        app:layout_constraintEnd_toStartOf="@id/safety_number_bucket_menu"
+-        app:layout_constraintStart_toStartOf="parent"
+-        app:layout_constraintTop_toTopOf="parent">
+-
+-        <org.thoughtcrime.securesms.components.emoji.EmojiTextView
+-            android:id="@+id/safety_number_bucket_header"
+-            android:layout_width="match_parent"
+-            android:layout_height="wrap_content"
+-            android:ellipsize="end"
+-            android:lines="1"
+-            android:textAppearance="@style/Signal.Text.TitleSmall"
+-            tools:text="Section Header" />
+-    </FrameLayout>
+-
+-    <ImageView
+-        android:id="@+id/safety_number_bucket_menu"
+-        android:layout_width="48dp"
+-        android:layout_height="48dp"
+-        android:contentDescription="@string/SafetyNumberRecipientRowItem__open_context_menu"
+-        android:scaleType="centerInside"
+-        app:layout_constraintBottom_toBottomOf="parent"
+-        app:layout_constraintEnd_toEndOf="parent"
+-        app:layout_constraintTop_toTopOf="parent"
+-        app:srcCompat="@drawable/ic_more_vert_24"
+-        app:tint="?attr/colorOnSurfaceVariant" />
+-
+-</androidx.constraintlayout.widget.ConstraintLayout>
+\ No newline at end of file
+diff --git a/app/src/main/res/layout/safety_number_recipient_row_item.xml b/app/src/main/res/layout/safety_number_recipient_row_item.xml
+deleted file mode 100644
+index d679313097557fb6d149ec1aa2af02e758746a2f..0000000000000000000000000000000000000000
+--- a/app/src/main/res/layout/safety_number_recipient_row_item.xml
++++ /dev/null
+@@ -1,66 +0,0 @@
+-<?xml version="1.0" encoding="utf-8"?>
+-<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+-    xmlns:app="http://schemas.android.com/apk/res-auto"
+-    tools:viewBindingIgnore="true"
+-    xmlns:tools="http://schemas.android.com/tools"
+-    android:layout_width="match_parent"
+-    android:layout_height="wrap_content"
+-    android:layout_marginStart="12dp"
+-    android:layout_marginEnd="12dp"
+-    android:background="@drawable/selectable_list_item_background"
+-    android:minHeight="64dp">
+-
+-    <org.thoughtcrime.securesms.components.AvatarImageView
+-        android:id="@+id/safety_number_recipient_avatar"
+-        android:layout_width="40dp"
+-        android:layout_height="40dp"
+-        android:layout_marginStart="12dp"
+-        app:layout_constraintBottom_toBottomOf="parent"
+-        app:layout_constraintStart_toStartOf="parent"
+-        app:layout_constraintTop_toTopOf="parent" />
+-
+-    <ImageView
+-        android:id="@+id/safety_number_recipient_menu"
+-        android:layout_width="wrap_content"
+-        android:layout_height="wrap_content"
+-        android:layout_marginEnd="4dp"
+-        android:contentDescription="@string/SafetyNumberRecipientRowItem__open_context_menu"
+-        android:scaleType="centerInside"
+-        app:layout_constraintBottom_toBottomOf="parent"
+-        app:layout_constraintEnd_toEndOf="parent"
+-        app:layout_constraintTop_toTopOf="parent"
+-        app:srcCompat="@drawable/ic_more_vert_24"
+-        app:tint="?attr/colorOnSurfaceVariant" />
+-
+-    <org.thoughtcrime.securesms.components.emoji.EmojiTextView
+-        android:id="@+id/safety_number_recipient_name"
+-        android:layout_width="0dp"
+-        android:layout_height="wrap_content"
+-        android:layout_marginStart="16dp"
+-        android:ellipsize="end"
+-        android:lines="1"
+-        android:textAppearance="@style/Signal.Text.BodyLarge"
+-        android:textColor="?attr/colorOnSurface"
+-        app:layout_constraintBottom_toTopOf="@id/safety_number_recipient_identifier"
+-        app:layout_constraintEnd_toStartOf="@id/safety_number_recipient_menu"
+-        app:layout_constraintStart_toEndOf="@id/safety_number_recipient_avatar"
+-        app:layout_constraintTop_toTopOf="parent"
+-        app:layout_constraintVertical_chainStyle="packed"
+-        tools:text="@tools:sample/full_names" />
+-
+-    <TextView
+-        android:id="@+id/safety_number_recipient_identifier"
+-        android:layout_width="0dp"
+-        android:layout_height="wrap_content"
+-        android:layout_marginStart="16dp"
+-        android:ellipsize="end"
+-        android:lines="1"
+-        android:textAppearance="@style/Signal.Text.BodyMedium"
+-        android:textColor="?attr/colorOnSurfaceVariant"
+-        app:layout_constraintBottom_toBottomOf="parent"
+-        app:layout_constraintEnd_toStartOf="@id/safety_number_recipient_menu"
+-        app:layout_constraintStart_toEndOf="@id/safety_number_recipient_avatar"
+-        app:layout_constraintTop_toBottomOf="@id/safety_number_recipient_name"
+-        tools:text="@tools:sample/us_phones" />
+-
+-</androidx.constraintlayout.widget.ConstraintLayout>
+\ No newline at end of file
+diff --git a/app/src/main/res/layout/sticker_grid_header.xml b/app/src/main/res/layout/sticker_grid_header.xml
+deleted file mode 100644
+index 47adf3e8d8720e967a9b7798686a42d988e2665b..0000000000000000000000000000000000000000
+--- a/app/src/main/res/layout/sticker_grid_header.xml
++++ /dev/null
+@@ -1,14 +0,0 @@
+-<?xml version="1.0" encoding="utf-8"?>
+-<androidx.appcompat.widget.AppCompatTextView xmlns:android="http://schemas.android.com/apk/res/android"
+-    xmlns:tools="http://schemas.android.com/tools"
+-    tools:viewBindingIgnore="true"
+-    android:id="@+id/sticker_grid_header_title"
+-    android:layout_width="match_parent"
+-    android:layout_height="wrap_content"
+-    android:ellipsize="end"
+-    android:gravity="center_vertical"
+-    android:minHeight="36dp"
+-    android:singleLine="true"
+-    android:textAppearance="@style/Signal.Text.LabelLarge"
+-    android:textColor="?attr/colorOnSurfaceVariant"
+-    tools:text="@string/ReactWithAnyEmojiBottomSheetDialogFragment__activities" />
+diff --git a/app/src/main/res/layout/sticker_search_dialog_fragment.xml b/app/src/main/res/layout/sticker_search_dialog_fragment.xml
+deleted file mode 100644
+index aecab0ef9a2d6d0b174d6e6afa607e9b9a0e65a7..0000000000000000000000000000000000000000
+--- a/app/src/main/res/layout/sticker_search_dialog_fragment.xml
++++ /dev/null
+@@ -1,60 +0,0 @@
+-<?xml version="1.0" encoding="utf-8"?>
+-<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+-    xmlns:app="http://schemas.android.com/apk/res-auto"
+-    tools:viewBindingIgnore="true"
+-    xmlns:tools="http://schemas.android.com/tools"
+-    android:layout_width="match_parent"
+-    android:layout_height="match_parent"
+-    android:background="?attr/signal_background_primary">
+-
+-    <FrameLayout
+-        android:id="@+id/sticker_search_text_frame"
+-        android:layout_width="match_parent"
+-        android:layout_height="wrap_content"
+-        android:minHeight="?attr/actionBarSize"
+-        app:layout_constraintEnd_toEndOf="parent"
+-        app:layout_constraintStart_toStartOf="parent"
+-        app:layout_constraintTop_toTopOf="parent">
+-
+-        <org.thoughtcrime.securesms.keyboard.emoji.KeyboardPageSearchView
+-            android:id="@+id/sticker_search_text"
+-            android:layout_width="match_parent"
+-            android:layout_height="wrap_content"
+-            android:layout_gravity="center"
+-            app:search_bar_tint="?attr/signal_background_secondary"
+-            app:search_hint="@string/StickerSearchDialogFragment_search_stickers"
+-            app:search_icon_tint="?attr/signal_icon_tint_secondary"
+-            app:show_always="true" />
+-    </FrameLayout>
+-
+-    <androidx.recyclerview.widget.RecyclerView
+-        android:id="@+id/sticker_search_list"
+-        android:layout_width="match_parent"
+-        android:layout_height="0dp"
+-        android:clipToPadding="false"
+-        android:paddingStart="8dp"
+-        android:paddingTop="12dp"
+-        android:paddingEnd="8dp"
+-        android:scrollIndicators="top|bottom"
+-        app:layout_constraintBottom_toBottomOf="parent"
+-        app:layout_constraintEnd_toEndOf="parent"
+-        app:layout_constraintStart_toStartOf="parent"
+-        app:layout_constraintTop_toBottomOf="@+id/sticker_search_text_frame"
+-        tools:listitem="@layout/sticker_keyboard_page_list_item"
+-        tools:ignore="UnusedAttribute" />
+-
+-    <org.thoughtcrime.securesms.components.emoji.EmojiTextView
+-        android:id="@+id/sticker_search_no_results"
+-        android:layout_width="wrap_content"
+-        android:layout_height="wrap_content"
+-        android:text="@string/StickerSearchDialogFragment_no_results_found"
+-        android:textAppearance="@style/TextAppearance.Signal.Body1"
+-        android:textColor="?attr/signal_text_secondary"
+-        android:visibility="gone"
+-        app:layout_constraintBottom_toBottomOf="parent"
+-        app:layout_constraintEnd_toEndOf="parent"
+-        app:layout_constraintStart_toStartOf="parent"
+-        app:layout_constraintTop_toBottomOf="@+id/sticker_search_text_frame"
+-        tools:visibility="visible" />
+-
+-</androidx.constraintlayout.widget.ConstraintLayout>
+\ No newline at end of file
+diff --git a/app/src/main/res/layout/stories_text_post_creation_fragment.xml b/app/src/main/res/layout/stories_text_post_creation_fragment.xml
+index 9b375d3fa03b06a98bd6b8575fe3fdd475254aa6..b2aa869b346f2a408a8788a9608233aaf697b8e0 100644
+--- a/app/src/main/res/layout/stories_text_post_creation_fragment.xml
++++ b/app/src/main/res/layout/stories_text_post_creation_fragment.xml
+@@ -28,32 +28,23 @@
+         android:id="@+id/send"
+         android:layout_width="48dp"
+         android:layout_height="48dp"
+-<<<<<<< MOLLY
+-        android:layout_marginEnd="10dp"
+-        android:background="?attr/colorOnSecondaryContainer"
+-=======
+         android:layout_marginEnd="@dimen/gutter"
+         android:layout_marginBottom="16dp"
+-        android:background="@color/signal_dark_colorOnSecondaryContainer"
+->>>>>>> SIGNAL
++        android:background="?attr/colorOnSecondaryContainer"
+         android:padding="4dp"
+         android:scaleType="centerInside"
+         app:layout_constraintBottom_toBottomOf="parent"
+         app:layout_constraintEnd_toEndOf="parent"
+         app:shapeAppearanceOverlay="@style/ShapeAppearanceOverlay.Signal.Circle"
+         app:srcCompat="@drawable/ic_arrow_end_24"
+-<<<<<<< MOLLY
+         app:tint="?attr/colorSecondaryContainer" />
+-=======
+-        app:tint="@color/signal_dark_colorSecondaryContainer" />
+->>>>>>> SIGNAL
+ 
+     <com.google.android.material.card.MaterialCardView
+         android:id="@+id/send_in_progress_indicator"
+         android:layout_width="wrap_content"
+         android:layout_height="wrap_content"
+         android:visibility="gone"
+-        app:cardBackgroundColor="@color/signal_dark_colorSurface"
++        app:cardBackgroundColor="?attr/colorSurface"
+         app:cardCornerRadius="18dp"
+         app:layout_constraintBottom_toBottomOf="parent"
+         app:layout_constraintEnd_toEndOf="parent"
+@@ -66,11 +57,7 @@
+             android:layout_height="wrap_content"
+             android:layout_margin="24dp"
+             android:indeterminate="true"
+-<<<<<<< MOLLY
+             app:indicatorColor="?attr/colorPrimary" />
+-=======
+-            app:indicatorColor="@color/signal_dark_colorPrimary" />
+->>>>>>> SIGNAL
+     </com.google.android.material.card.MaterialCardView>
+ 
+-</androidx.constraintlayout.widget.ConstraintLayout>
+\ No newline at end of file
++</androidx.constraintlayout.widget.ConstraintLayout>
+diff --git a/app/src/main/res/layout/unverified_banner_view.xml b/app/src/main/res/layout/unverified_banner_view.xml
+index ee2758ab6b338e90d7026ab26ffadf220535f934..8ceb3b8cbe44c49a5672730b5917eb0c65192b00 100644
+--- a/app/src/main/res/layout/unverified_banner_view.xml
++++ b/app/src/main/res/layout/unverified_banner_view.xml
+@@ -18,43 +18,13 @@
+         android:layout_marginStart="16dp"
+         android:layout_gravity="center_vertical"
+         android:src="@drawable/ic_warning_40"
+-        app:tint="@color/signal_icon_tint_primary" />
++        app:tint="?attr/signal_icon_tint_primary" />
+ 
+-<<<<<<< MOLLY
+-    <ImageView android:layout_width="wrap_content"
+-               android:layout_height="wrap_content"
+-               android:layout_marginStart="16dp"
+-               android:layout_gravity="center_vertical"
+-               android:src="@drawable/ic_warning_40"
+-               app:tint="?attr/signal_icon_tint_primary"/>
+-
+-    <TextView android:id="@+id/unverified_text"
+-              android:layout_width="0dp"
+-              android:layout_height="wrap_content"
+-              android:textColor="?attr/signal_text_primary"
+-              android:textSize="16sp"
+-              android:layout_weight="1"
+-              android:layout_margin="16dp"
+-              tools:text="Your safety number with Jules Bonnot has changed and is no longer verified"/>
+-
+-    <ImageButton
+-            android:id="@+id/cancel"
+-            android:layout_width="48dp"
+-            android:layout_height="48dp"
+-            android:layout_marginTop="2dp"
+-            android:background="?selectableItemBackgroundBorderless"
+-            android:focusable="true"
+-            android:nextFocusLeft="@+id/container"
+-            android:nextFocusRight="@+id/container"
+-            android:src="@drawable/ic_x_24"
+-            app:tint="?attr/signal_icon_tint_primary"
+-            android:contentDescription="@string/InviteActivity_cancel"/>
+-=======
+     <TextView
+         android:id="@+id/unverified_text"
+         android:layout_width="0dp"
+         android:layout_height="wrap_content"
+-        android:textColor="@color/signal_text_primary"
++        android:textColor="?attr/signal_text_primary"
+         android:textSize="16sp"
+         android:layout_weight="1"
+         android:layout_margin="16dp"
+@@ -71,7 +41,6 @@
+         android:nextFocusLeft="@+id/container"
+         android:nextFocusRight="@+id/container"
+         android:src="@drawable/ic_x_24"
+-        app:tint="@color/signal_icon_tint_primary" />
+->>>>>>> SIGNAL
++        app:tint="?attr/signal_icon_tint_primary" />
+ 
+ </LinearLayout>
+diff --git a/app/src/main/res/layout/username_edit_fragment.xml b/app/src/main/res/layout/username_edit_fragment.xml
+deleted file mode 100644
+index 0a2d4e5b2db512dd03b5434c90120717bb9700b1..0000000000000000000000000000000000000000
+--- a/app/src/main/res/layout/username_edit_fragment.xml
++++ /dev/null
+@@ -1,258 +0,0 @@
+-<?xml version="1.0" encoding="utf-8"?>
+-<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+-    xmlns:app="http://schemas.android.com/apk/res-auto"
+-    xmlns:tools="http://schemas.android.com/tools"
+-    android:id="@+id/root"
+-    android:layout_width="match_parent"
+-    android:layout_height="match_parent"
+-    android:orientation="vertical">
+-
+-    <androidx.appcompat.widget.Toolbar
+-        android:id="@+id/toolbar"
+-        android:layout_width="match_parent"
+-        android:layout_height="@dimen/signal_m3_toolbar_height"
+-        android:minHeight="@dimen/signal_m3_toolbar_height"
+-        android:visibility="visible"
+-        app:layout_constraintEnd_toEndOf="parent"
+-        app:layout_constraintStart_toStartOf="parent"
+-        app:layout_constraintTop_toTopOf="parent"
+-        app:navigationIcon="@drawable/symbol_arrow_start_24"
+-        app:title="@string/UsernameEditFragment_username"
+-        app:titleTextAppearance="@style/Signal.Text.TitleLarge" />
+-
+-    <ImageView
+-        android:id="@+id/icon"
+-        android:layout_width="64dp"
+-        android:layout_height="64dp"
+-        android:layout_marginTop="32dp"
+-        android:background="@drawable/circle_tintable"
+-        android:importantForAccessibility="no"
+-        android:padding="14dp"
+-        app:backgroundTint="?attr/colorSurfaceContainer"
+-        app:layout_constraintEnd_toEndOf="parent"
+-        app:layout_constraintStart_toStartOf="parent"
+-        app:layout_constraintTop_toBottomOf="@id/toolbar"
+-        app:srcCompat="@drawable/symbol_at_24"
+-        app:tint="?attr/colorOnSurface" />
+-
+-    <View
+-        android:id="@+id/username_box_fill"
+-        android:layout_width="0dp"
+-        android:layout_height="0dp"
+-        android:layout_marginRight="@dimen/dsl_settings_gutter"
+-        android:background="@drawable/username_edit_box_fill"
+-        app:layout_constraintBottom_toBottomOf="@id/username_text_wrapper"
+-        app:layout_constraintLeft_toLeftOf="@id/username_text_wrapper"
+-        app:layout_constraintRight_toRightOf="parent"
+-        app:layout_constraintTop_toTopOf="@id/username_text_wrapper" />
+-
+-    <com.google.android.material.textfield.TextInputLayout
+-        android:id="@+id/username_text_wrapper"
+-        style="@style/Widget.Signal.TextInputLayout"
+-        android:layout_width="0dp"
+-        android:layout_height="wrap_content"
+-        android:layout_marginLeft="@dimen/dsl_settings_gutter"
+-        android:layout_marginTop="24dp"
+-        android:layout_marginRight="16dp"
+-        android:theme="@style/Signal.ThemeOverlay.TextInputLayout"
+-        app:boxStrokeColor="?attr/colorPrimary"
+-        app:boxStrokeWidth="0dp"
+-        app:boxStrokeWidthFocused="0dp"
+-        app:errorTextAppearance="@style/Signal.Text.Zero"
+-        app:expandedHintEnabled="false"
+-        app:layout_constrainedWidth="true"
+-        app:layout_constraintLeft_toLeftOf="parent"
+-        app:layout_constraintRight_toLeftOf="@id/suffix_progress"
+-        app:layout_constraintTop_toBottomOf="@id/summary"
+-        app:suffixTextColor="?attr/colorOnSurface">
+-
+-        <EditText
+-            android:id="@+id/username_text"
+-            style="@style/Signal.Text.BodyLarge"
+-            android:layout_width="match_parent"
+-            android:layout_height="wrap_content"
+-            android:hint="@string/UsernameEditFragment_username"
+-            android:imeOptions="actionNext"
+-            android:importantForAutofill="no"
+-            android:inputType="text"
+-            android:layoutDirection="ltr"
+-            android:maxLines="1"
+-            android:minHeight="56dp">
+-
+-            <requestFocus />
+-        </EditText>
+-
+-    </com.google.android.material.textfield.TextInputLayout>
+-
+-    <EditText
+-        android:id="@+id/discriminator_text"
+-        style="@style/Signal.Text.BodyLarge"
+-        android:layout_width="wrap_content"
+-        android:layout_height="wrap_content"
+-        android:background="@null"
+-        android:hint="@string/UsernameEditFragment__00"
+-        android:imeOptions="actionDone"
+-        android:importantForAutofill="no"
+-        android:inputType="number"
+-        android:maxLength="9"
+-        android:maxLines="1"
+-        android:minHeight="48dp"
+-        android:paddingHorizontal="16dp"
+-        app:layout_constrainedWidth="true"
+-        app:layout_constraintBottom_toBottomOf="@id/username_text_wrapper"
+-        app:layout_constraintRight_toRightOf="@id/username_box_fill"
+-        tools:text="21" />
+-
+-    <com.google.android.material.progressindicator.CircularProgressIndicator
+-        android:id="@+id/suffix_progress"
+-        android:layout_width="16dp"
+-        android:layout_height="16dp"
+-        android:layout_marginRight="16dp"
+-        android:layout_marginBottom="10dp"
+-        app:indicatorColor="?attr/colorOnSurfaceVariant"
+-        app:indicatorSize="16dp"
+-        app:layout_constraintBottom_toBottomOf="@id/username_text_wrapper"
+-        app:layout_constraintRight_toLeftOf="@id/discriminator_text"
+-        app:trackColor="@color/transparent"
+-        app:trackThickness="1.75dp" />
+-
+-    <View
+-        android:id="@+id/divider"
+-        android:layout_width="1dp"
+-        android:layout_height="20dp"
+-        android:background="?attr/colorOutline"
+-        app:layout_constraintBottom_toBottomOf="@id/discriminator_text"
+-        app:layout_constraintLeft_toLeftOf="@id/discriminator_text"
+-        app:layout_constraintTop_toTopOf="@id/discriminator_text" />
+-
+-    <View
+-        android:id="@+id/username_text_focused_stroke"
+-        android:layout_width="0dp"
+-        android:layout_height="2dp"
+-        android:background="?attr/colorPrimary"
+-        app:layout_constraintBottom_toBottomOf="@id/username_text_wrapper"
+-        app:layout_constraintLeft_toLeftOf="@id/username_text_wrapper"
+-        app:layout_constraintRight_toRightOf="@id/discriminator_text" />
+-
+-    <TextView
+-        android:id="@+id/username_error"
+-        style="@style/Signal.Text.BodyMedium"
+-        android:layout_width="0dp"
+-        android:layout_height="wrap_content"
+-        android:layout_marginHorizontal="16dp"
+-        android:layout_marginTop="4dp"
+-        android:textColor="?attr/colorError"
+-        android:visibility="gone"
+-        app:layout_constraintLeft_toLeftOf="@id/username_description"
+-        app:layout_constraintRight_toRightOf="@id/username_description"
+-        app:layout_constraintTop_toBottomOf="@id/username_text_wrapper"
+-        tools:text="Error something bad happened. Very super long error message that wraps"
+-        tools:visibility="visible" />
+-
+-    <TextView
+-        android:id="@+id/summary"
+-        android:layout_width="match_parent"
+-        android:layout_height="wrap_content"
+-        android:layout_marginStart="@dimen/dsl_settings_gutter"
+-        android:layout_marginTop="12dp"
+-        android:layout_marginEnd="@dimen/dsl_settings_gutter"
+-        android:gravity="center"
+-        android:text="@string/UsernameEditFragment__choose_your_username"
+-        android:textAppearance="@style/Signal.Text.BodyLarge"
+-        android:textColor="?attr/colorOnSurfaceVariant"
+-        app:layout_constraintLeft_toLeftOf="parent"
+-        app:layout_constraintRight_toRightOf="parent"
+-        app:layout_constraintTop_toBottomOf="@id/icon" />
+-
+-    <org.thoughtcrime.securesms.util.views.LearnMoreTextView
+-        android:id="@+id/username_description"
+-        style="@style/Signal.Text.BodyMedium"
+-        android:layout_width="0dp"
+-        android:layout_height="wrap_content"
+-        android:layout_marginStart="@dimen/dsl_settings_gutter"
+-        android:layout_marginTop="16dp"
+-        android:layout_marginEnd="@dimen/dsl_settings_gutter"
+-        android:layout_marginBottom="24dp"
+-        android:text="@string/UsernameEditFragment__usernames_let_others_message"
+-        android:textColor="?attr/colorOnSurfaceVariant"
+-        app:layout_constraintBottom_toTopOf="@id/username_button_barrier"
+-        app:layout_constraintEnd_toEndOf="parent"
+-        app:layout_constraintStart_toStartOf="parent"
+-        app:layout_constraintTop_toBottomOf="@id/username_error"
+-        app:layout_constraintVertical_bias="0" />
+-
+-    <com.google.android.material.button.MaterialButton
+-        android:id="@+id/username_skip_button"
+-        style="@style/Widget.Signal.Button.TextButton"
+-        android:layout_width="wrap_content"
+-        android:layout_height="wrap_content"
+-        android:layout_marginStart="@dimen/dsl_settings_gutter"
+-        android:layout_marginBottom="16dp"
+-        android:minWidth="48dp"
+-        android:text="@string/UsernameEditFragment__skip"
+-        android:visibility="gone"
+-        app:layout_constraintBottom_toBottomOf="parent"
+-        app:layout_constraintStart_toStartOf="parent"
+-        tools:visibility="visible" />
+-
+-    <com.google.android.material.floatingactionbutton.FloatingActionButton
+-        android:id="@+id/username_done_button"
+-        style="@style/ThemeOverlay.Material3.FloatingActionButton.Primary"
+-        android:layout_width="wrap_content"
+-        android:layout_height="wrap_content"
+-        android:layout_marginEnd="@dimen/dsl_settings_gutter"
+-        android:layout_marginBottom="16dp"
+-        android:contentDescription="@string/UsernameEditFragment__done"
+-        android:visibility="gone"
+-        app:backgroundTint="?attr/colorPrimaryContainer"
+-        app:fabCustomSize="48dp"
+-        app:layout_constraintBottom_toBottomOf="parent"
+-        app:layout_constraintEnd_toEndOf="parent"
+-        app:srcCompat="@drawable/ic_arrow_end_24"
+-        app:tint="?attr/colorOnPrimaryContainer"
+-        tools:visibility="visible" />
+-
+-    <org.thoughtcrime.securesms.util.views.CircularProgressMaterialButton
+-        android:id="@+id/username_submit_button"
+-        android:layout_width="wrap_content"
+-        android:layout_height="wrap_content"
+-        android:layout_marginStart="16dp"
+-        android:layout_marginEnd="16dp"
+-        android:layout_marginBottom="16dp"
+-        android:visibility="gone"
+-        app:circularProgressMaterialButton__label="@string/save"
+-        app:layout_constraintBottom_toBottomOf="parent"
+-        app:layout_constraintEnd_toEndOf="parent" />
+-
+-    <org.thoughtcrime.securesms.util.views.CircularProgressMaterialButton
+-        android:id="@+id/username_delete_button"
+-        android:layout_width="wrap_content"
+-        android:layout_height="wrap_content"
+-        android:layout_marginStart="16dp"
+-        android:layout_marginEnd="16dp"
+-        android:layout_marginBottom="16dp"
+-        android:visibility="gone"
+-        app:circularProgressMaterialButton__label="@string/UsernameEditFragment_delete"
+-        app:layout_constraintBottom_toBottomOf="parent"
+-        app:layout_constraintEnd_toEndOf="parent" />
+-
+-    <org.thoughtcrime.securesms.components.ProgressCard
+-        android:id="@+id/username_progress_card"
+-        android:layout_width="wrap_content"
+-        android:layout_height="wrap_content"
+-        android:visibility="gone"
+-        app:cardCornerRadius="18dp"
+-        app:layout_constraintBottom_toBottomOf="parent"
+-        app:layout_constraintEnd_toEndOf="parent"
+-        app:layout_constraintStart_toStartOf="parent"
+-        app:layout_constraintTop_toTopOf="parent"
+-        tools:visibility="visible" />
+-
+-    <androidx.constraintlayout.widget.Barrier
+-        android:id="@+id/username_button_barrier"
+-        android:layout_width="wrap_content"
+-        android:layout_height="wrap_content"
+-        app:barrierDirection="top"
+-        app:constraint_referenced_ids="username_submit_button,username_delete_button,username_skip_button,username_done_button" />
+-
+-</androidx.constraintlayout.widget.ConstraintLayout>
+\ No newline at end of file
+diff --git a/app/src/main/res/layout/v2_media_review_fragment.xml b/app/src/main/res/layout/v2_media_review_fragment.xml
+deleted file mode 100644
+index 7da9110925f4fdc83debc568ce90dfe724f2bb4a..0000000000000000000000000000000000000000
+--- a/app/src/main/res/layout/v2_media_review_fragment.xml
++++ /dev/null
+@@ -1,341 +0,0 @@
+-<?xml version="1.0" encoding="utf-8"?>
+-<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+-    xmlns:app="http://schemas.android.com/apk/res-auto"
+-    xmlns:tools="http://schemas.android.com/tools"
+-    android:layout_width="match_parent"
+-    android:layout_height="match_parent"
+-    tools:viewBindingIgnore="true">
+-
+-    <androidx.viewpager2.widget.ViewPager2
+-        android:id="@+id/media_pager"
+-        android:layout_width="match_parent"
+-        android:layout_height="match_parent" />
+-
+-    <androidx.constraintlayout.widget.ConstraintLayout
+-        android:id="@+id/controls"
+-        android:layout_width="match_parent"
+-        android:layout_height="match_parent"
+-        android:clipChildren="false">
+-
+-        <View
+-            android:id="@+id/controls_shade"
+-            android:layout_width="match_parent"
+-            android:layout_height="0dp"
+-            android:alpha="0"
+-            android:background="?attr/colorSurface"
+-            android:visibility="gone"
+-            app:layout_constraintBottom_toBottomOf="parent"
+-            app:layout_constraintTop_toTopOf="@id/timeline_placeholder"
+-            tools:alpha="1"
+-            tools:background="@color/black"
+-            tools:visibility="visible" />
+-
+-        <View
+-            android:id="@+id/timeline_placeholder"
+-            android:layout_width="match_parent"
+-            android:layout_height="@dimen/video_timeline_height_collapsed"
+-            android:background="@color/transparent"
+-            app:layout_constraintBottom_toBottomOf="@id/timeline_guideline" />
+-
+-        <org.thoughtcrime.securesms.components.emoji.SimpleEmojiTextView
+-            android:id="@+id/recipient"
+-            android:layout_width="wrap_content"
+-            android:layout_height="wrap_content"
+-            android:layout_marginTop="15dp"
+-            android:layout_marginEnd="16dp"
+-            android:alpha="0"
+-            android:background="@drawable/image_editor_hud_clear_all_background"
+-            android:backgroundTint="?attr/conversation_compose_background"
+-            android:drawablePadding="4dp"
+-            android:maxLines="1"
+-            android:paddingStart="14dp"
+-            android:paddingTop="8dp"
+-            android:paddingEnd="14dp"
+-            android:paddingBottom="8dp"
+-            android:gravity="center"
+-            android:textAppearance="@style/TextAppearance.Signal.Body2"
+-            android:textColor="?attr/colorOnSurface"
+-            android:visibility="gone"
+-            app:drawableStartCompat="@drawable/symbol_arrow_right_24"
+-            app:drawableTint="?attr/colorOnSurface"
+-            app:layout_constraintEnd_toEndOf="parent"
+-            app:layout_constraintTop_toTopOf="parent"
+-            tools:alpha="1"
+-            tools:text="Sam"
+-            tools:visibility="visible" />
+-
+-        <androidx.recyclerview.widget.RecyclerView
+-            android:id="@+id/selection_recycler"
+-            android:layout_width="match_parent"
+-            android:layout_height="wrap_content"
+-            android:layout_marginBottom="15dp"
+-            android:alpha="0"
+-            android:clipToPadding="false"
+-            android:orientation="horizontal"
+-            android:paddingStart="8dp"
+-            android:paddingEnd="8dp"
+-            android:visibility="gone"
+-            app:layoutManager="androidx.recyclerview.widget.LinearLayoutManager"
+-            app:layout_constraintBottom_toTopOf="@id/controls_shade"
+-            tools:alpha="1"
+-            tools:listitem="@layout/v2_media_review_selected_item"
+-            tools:visibility="visible" />
+-
+-        <com.google.android.material.imageview.ShapeableImageView
+-            android:id="@+id/add_media"
+-            android:layout_width="48dp"
+-            android:layout_height="48dp"
+-            android:layout_marginStart="10dp"
+-            android:layout_marginBottom="15dp"
+-            android:alpha="0"
+-            android:background="@drawable/media_gallery_button_background"
+-            android:contentDescription="@string/MediaReviewFragment__add_media_accessibility_label"
+-            android:padding="4dp"
+-            android:scaleType="centerInside"
+-            android:visibility="gone"
+-            app:layout_constraintBottom_toTopOf="@id/controls_shade"
+-            app:layout_constraintStart_toStartOf="parent"
+-            app:shapeAppearanceOverlay="@style/ShapeAppearanceOverlay.Signal.Circle"
+-            app:srcCompat="@drawable/ic_add_media_22"
+-            tools:alpha="1"
+-            tools:visibility="visible" />
+-
+-        <org.thoughtcrime.securesms.components.emoji.EmojiTextView
+-            android:id="@+id/add_a_message"
+-            android:layout_width="0dp"
+-            android:layout_height="44dp"
+-            android:layout_marginStart="16dp"
+-            android:layout_marginEnd="16dp"
+-            android:layout_marginBottom="16dp"
+-            android:alpha="0"
+-            android:background="@drawable/rounded_rectangle_surface_variant_32"
+-            android:ellipsize="end"
+-            android:gravity="center_vertical"
+-            android:maxLines="1"
+-            android:minHeight="48dp"
+-            android:paddingStart="48dp"
+-            android:paddingEnd="48dp"
+-            android:text="@string/MediaReviewFragment__add_a_message"
+-            android:textAppearance="@style/Signal.Text.Body"
+-            android:textColor="?attr/colorOnSurfaceVariant"
+-            app:layout_constraintBottom_toBottomOf="parent"
+-            app:layout_constraintEnd_toStartOf="@id/send"
+-            app:layout_constraintStart_toStartOf="parent"
+-            tools:alpha="1" />
+-
+-        <ViewSwitcher
+-            android:id="@+id/view_once_toggle"
+-            android:layout_width="48dp"
+-            android:layout_height="48dp"
+-            android:alpha="0"
+-            android:animateFirstView="false"
+-            android:contentDescription="@string/MediaReviewFragment__view_once_toggle_accessibility_label"
+-            android:inAnimation="@anim/fade_in"
+-            android:outAnimation="@anim/fade_out"
+-            android:visibility="gone"
+-            app:layout_constraintBottom_toBottomOf="@id/add_a_message"
+-            app:layout_constraintEnd_toEndOf="@id/add_a_message"
+-            app:layout_constraintTop_toTopOf="@id/add_a_message"
+-            tools:alpha="1"
+-            tools:visibility="visible">
+-
+-            <com.google.android.material.imageview.ShapeableImageView
+-                android:layout_width="40dp"
+-                android:layout_height="40dp"
+-                android:layout_gravity="center"
+-                android:scaleType="centerInside"
+-                app:srcCompat="@drawable/symbol_view_once_infinite_24"
+-                app:tint="?attr/colorOnSurface" />
+-
+-            <com.google.android.material.imageview.ShapeableImageView
+-                android:layout_width="40dp"
+-                android:layout_height="40dp"
+-                android:layout_gravity="center"
+-                android:scaleType="centerInside"
+-                app:srcCompat="@drawable/symbol_view_once_24"
+-                app:tint="?attr/colorOnSurface" />
+-
+-        </ViewSwitcher>
+-
+-        <com.google.android.material.imageview.ShapeableImageView
+-            android:id="@+id/emoji_button"
+-            android:layout_width="48dp"
+-            android:layout_height="48dp"
+-            android:layout_gravity="center"
+-            android:background="@color/transparent"
+-            android:contentDescription="@string/MediaReviewFragment__emoji_toggle_accessibility_label"
+-            android:scaleType="centerInside"
+-            android:src="@drawable/symbol_emoji_24"
+-            android:visibility="gone"
+-            app:layout_constraintBottom_toBottomOf="@id/add_a_message"
+-            app:layout_constraintStart_toStartOf="@id/add_a_message"
+-            app:layout_constraintTop_toTopOf="@id/add_a_message"
+-            app:tint="?attr/colorOnSurface"
+-            tools:visibility="visible" />
+-
+-        <org.signal.mediasend.edit.video.VideoThumbnailsRangeSelectorView
+-            android:id="@+id/video_timeline"
+-            android:layout_width="match_parent"
+-            android:layout_height="44dp"
+-            android:layout_marginStart="16dp"
+-            android:layout_marginEnd="16dp"
+-            android:alpha="0"
+-            android:paddingTop="8dp"
+-            android:visibility="gone"
+-            app:layout_constraintBottom_toTopOf="@id/timeline_guideline"
+-            app:layout_constraintEnd_toEndOf="parent"
+-            app:layout_constraintHorizontal_bias="0.5"
+-            app:layout_constraintStart_toStartOf="parent"
+-            app:thumbColor="@color/signal_light_colorOnPrimary"
+-            app:thumbColorEdited="#ff0"
+-            app:thumbHintBackgroundColor="?attr/colorSurfaceVariant"
+-            app:thumbHintTextColor="@color/signal_light_colorOnPrimary"
+-            app:thumbHintTextSize="14sp"
+-            app:thumbTouchRadius="24dp"
+-            app:thumbWidth="6dp"
+-            tools:targetApi="23"
+-            tools:visibility="visible" />
+-
+-        <TextView
+-            android:id="@+id/video_size_hint"
+-            android:layout_width="wrap_content"
+-            android:layout_height="wrap_content"
+-            android:layout_marginTop="4dp"
+-            android:textAppearance="@style/Signal.Text.BodySmall"
+-            android:textColor="?attr/colorOnSurfaceVariant"
+-            app:layout_constraintEnd_toEndOf="@id/video_timeline"
+-            app:layout_constraintTop_toBottomOf="@id/video_timeline"
+-            tools:text="0:04 · 399 KB" />
+-
+-        <androidx.constraintlayout.widget.Guideline
+-            android:id="@+id/timeline_guideline"
+-            android:layout_width="wrap_content"
+-            android:layout_height="wrap_content"
+-            android:orientation="horizontal"
+-            app:layout_constraintGuide_end="148dp" />
+-
+-        <com.google.android.material.imageview.ShapeableImageView
+-            android:id="@+id/draw_tool"
+-            android:layout_width="48dp"
+-            android:layout_height="48dp"
+-            android:layout_marginStart="10dp"
+-            android:layout_marginBottom="16dp"
+-            android:alpha="0"
+-            android:background="@drawable/media_gallery_button_background"
+-            android:contentDescription="@string/MediaReviewFragment__brush_pen_accessibility_label"
+-            android:padding="6dp"
+-            android:scaleType="centerInside"
+-            android:visibility="gone"
+-            app:layout_constraintBottom_toTopOf="@id/add_a_message"
+-            app:layout_constraintStart_toStartOf="parent"
+-            app:shapeAppearanceOverlay="@style/ShapeAppearanceOverlay.Signal.Circle"
+-            app:srcCompat="@drawable/symbol_brush_pen_24"
+-            app:tint="?attr/colorOnSurface"
+-            tools:alpha="1"
+-            tools:visibility="visible" />
+-
+-        <com.google.android.material.imageview.ShapeableImageView
+-            android:id="@+id/crop_and_rotate_tool"
+-            android:layout_width="48dp"
+-            android:layout_height="48dp"
+-            android:layout_marginStart="12dp"
+-            android:layout_marginBottom="16dp"
+-            android:alpha="0"
+-            android:background="@drawable/media_gallery_button_background"
+-            android:contentDescription="@string/MediaReviewFragment__crop_rotate_accessibility_label"
+-            android:padding="4dp"
+-            android:scaleType="centerInside"
+-            android:visibility="gone"
+-            app:layout_constraintBottom_toTopOf="@id/add_a_message"
+-            app:layout_constraintStart_toEndOf="@id/draw_tool"
+-            app:layout_goneMarginStart="10dp"
+-            app:shapeAppearanceOverlay="@style/ShapeAppearanceOverlay.Signal.Circle"
+-            app:srcCompat="@drawable/symbol_crop_rotate_24"
+-            app:tint="?attr/colorOnSurface"
+-            tools:alpha="1"
+-            tools:visibility="visible" />
+-
+-        <com.google.android.material.imageview.ShapeableImageView
+-            android:id="@+id/quality_selector"
+-            android:layout_width="48dp"
+-            android:layout_height="48dp"
+-            android:layout_marginStart="12dp"
+-            android:layout_marginBottom="16dp"
+-            android:alpha="0"
+-            android:background="@drawable/media_gallery_button_background"
+-            android:contentDescription="@string/MediaReviewFragment__change_media_quality_accessibility_label"
+-            android:padding="4dp"
+-            android:scaleType="centerInside"
+-            android:visibility="gone"
+-            app:layout_constraintBottom_toTopOf="@id/add_a_message"
+-            app:layout_constraintStart_toEndOf="@id/crop_and_rotate_tool"
+-            app:layout_goneMarginStart="10dp"
+-            app:shapeAppearanceOverlay="@style/ShapeAppearanceOverlay.Signal.Circle"
+-            app:srcCompat="@drawable/symbol_quality_high_slash_24"
+-            app:tint="?attr/colorOnSurface"
+-            tools:alpha="1"
+-            tools:visibility="visible" />
+-
+-        <com.google.android.material.imageview.ShapeableImageView
+-            android:id="@+id/save_to_media"
+-            android:layout_width="48dp"
+-            android:layout_height="48dp"
+-            android:layout_marginStart="12dp"
+-            android:layout_marginBottom="16dp"
+-            android:background="@drawable/media_gallery_button_background"
+-            android:contentDescription="@string/MediaReviewFragment__save_media_accessibility_label"
+-            android:padding="4dp"
+-            android:scaleType="centerInside"
+-            android:visibility="gone"
+-            app:layout_constraintBottom_toTopOf="@id/add_a_message"
+-            app:layout_constraintStart_toEndOf="@id/quality_selector"
+-            app:layout_goneMarginStart="10dp"
+-            app:shapeAppearanceOverlay="@style/ShapeAppearanceOverlay.Signal.Circle"
+-            app:srcCompat="@drawable/symbol_save_android_24"
+-            app:tint="?attr/colorOnSurface"
+-            tools:visibility="visible" />
+-
+-        <com.google.android.material.imageview.ShapeableImageView
+-            android:id="@+id/send"
+-            android:layout_width="48dp"
+-            android:layout_height="48dp"
+-            android:layout_marginStart="12dp"
+-            android:layout_marginEnd="10dp"
+-            android:layout_marginBottom="13dp"
+-            android:background="@color/signal_light_colorPrimary"
+-            android:contentDescription="@string/MediaReviewFragment__send_media_accessibility_label"
+-            android:padding="5dp"
+-            android:scaleType="centerInside"
+-            android:visibility="gone"
+-            app:layout_constraintBottom_toBottomOf="parent"
+-            app:layout_constraintEnd_toEndOf="parent"
+-            app:layout_constraintHorizontal_bias="1"
+-            app:layout_constraintStart_toEndOf="@id/save_to_media"
+-            app:layout_goneMarginStart="10dp"
+-            app:shapeAppearanceOverlay="@style/ShapeAppearanceOverlay.Signal.Circle"
+-            app:srcCompat="@drawable/symbol_send_fill_24"
+-            app:tint="?attr/colorOnSurface"
+-            tools:visibility="visible" />
+-
+-    </androidx.constraintlayout.widget.ConstraintLayout>
+-
+-    <org.thoughtcrime.securesms.util.views.TouchInterceptingFrameLayout
+-        android:id="@+id/progress_wrapper"
+-        android:layout_width="match_parent"
+-        android:layout_height="match_parent"
+-        android:alpha="0"
+-        android:background="@color/transparent_black_60"
+-        android:visibility="gone"
+-        tools:alpha="0"
+-        tools:visibility="gone">
+-
+-        <ProgressBar
+-            android:id="@+id/progress"
+-            android:layout_width="wrap_content"
+-            android:layout_height="wrap_content"
+-            android:layout_gravity="center"
+-            android:indeterminate="true"
+-            android:indeterminateBehavior="cycle" />
+-    </org.thoughtcrime.securesms.util.views.TouchInterceptingFrameLayout>
+-
+-</FrameLayout>
+\ No newline at end of file
+diff --git a/app/src/main/res/layout/v2_media_review_quality_popup_window.xml b/app/src/main/res/layout/v2_media_review_quality_popup_window.xml
+deleted file mode 100644
+index f1f06bd4671cdf7d276c6ee052f31958ec627072..0000000000000000000000000000000000000000
+--- a/app/src/main/res/layout/v2_media_review_quality_popup_window.xml
++++ /dev/null
+@@ -1,45 +0,0 @@
+-<?xml version="1.0" encoding="utf-8"?><!--
+-  ~ Copyright 2024 Signal Messenger, LLC
+-  ~ SPDX-License-Identifier: AGPL-3.0-only
+-  -->
+-
+-<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+-    xmlns:app="http://schemas.android.com/apk/res-auto"
+-    xmlns:tools="http://schemas.android.com/tools"
+-    android:layout_width="wrap_content"
+-    android:layout_height="wrap_content"
+-    android:background="@drawable/rounded_rectangle_surface_2_18"
+-    android:elevation="8dp"
+-    android:minHeight="44dp">
+-
+-    <androidx.appcompat.widget.AppCompatImageView
+-        android:id="@+id/media_review_toast_popup_icon"
+-        android:layout_width="wrap_content"
+-        android:layout_height="wrap_content"
+-        android:layout_marginStart="21dp"
+-        android:paddingBottom="1dp"
+-        app:layout_constraintBottom_toBottomOf="parent"
+-        app:layout_constraintEnd_toStartOf="@id/media_review_toast_popup_description"
+-        app:layout_constraintStart_toStartOf="parent"
+-        app:layout_constraintTop_toTopOf="parent"
+-        app:srcCompat="@drawable/symbol_quality_high_24"
+-        app:tint="?attr/colorOnSurface" />
+-
+-    <TextView
+-        android:id="@+id/media_review_toast_popup_description"
+-        android:layout_width="wrap_content"
+-        android:layout_height="wrap_content"
+-        android:layout_marginStart="8dp"
+-        android:layout_marginEnd="21dp"
+-        android:gravity="center_vertical"
+-        android:paddingBottom="2dp"
+-        android:textAppearance="@style/TextAppearance.Signal.Body2"
+-        android:textColor="?attr/colorOnSurface"
+-        app:layout_constrainedWidth="true"
+-        app:layout_constraintBottom_toBottomOf="parent"
+-        app:layout_constraintEnd_toEndOf="parent"
+-        app:layout_constraintStart_toEndOf="@id/media_review_toast_popup_icon"
+-        app:layout_constraintTop_toTopOf="parent"
+-        tools:text="@tools:sample/first_names" />
+-
+-</androidx.constraintlayout.widget.ConstraintLayout>
+\ No newline at end of file
+diff --git a/app/src/main/res/layout/v2_media_review_selected_item.xml b/app/src/main/res/layout/v2_media_review_selected_item.xml
+deleted file mode 100644
+index b3edc634646d8fb1bdd36ef6d180fde5e91d86d7..0000000000000000000000000000000000000000
+--- a/app/src/main/res/layout/v2_media_review_selected_item.xml
++++ /dev/null
+@@ -1,48 +0,0 @@
+-<?xml version="1.0" encoding="utf-8"?>
+-<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+-    xmlns:app="http://schemas.android.com/apk/res-auto"
+-    tools:viewBindingIgnore="true"
+-    xmlns:tools="http://schemas.android.com/tools"
+-    android:layout_width="48dp"
+-    android:layout_height="48dp"
+-    android:layout_marginStart="12dp"
+-    tools:background="?attr/colorSurface">
+-
+-    <com.google.android.material.imageview.ShapeableImageView
+-        android:id="@+id/media_review_selected_image"
+-        android:layout_width="match_parent"
+-        android:layout_height="match_parent"
+-        android:importantForAccessibility="no"
+-        android:padding="1dp"
+-        android:scaleType="centerCrop"
+-        app:shapeAppearanceOverlay="@style/ShapeAppearanceOverlay.Signal.MediaSelection.Selected"
+-        app:strokeColor="@color/core_white"
+-        app:strokeWidth="2dp"
+-        tools:background="@drawable/test_gradient" />
+-
+-    <ImageView
+-        android:id="@+id/media_review_play_overlay"
+-        android:layout_width="24dp"
+-        android:layout_height="24dp"
+-        android:layout_gravity="center"
+-        android:background="@drawable/circle_tintable"
+-        android:importantForAccessibility="no"
+-        app:srcCompat="@drawable/exo_icon_play_ultramarine" />
+-
+-    <com.google.android.material.imageview.ShapeableImageView
+-        android:id="@+id/media_review_trash_overlay"
+-        android:layout_width="match_parent"
+-        android:layout_height="match_parent"
+-        android:layout_gravity="center"
+-        android:background="@color/signal_dark_colorTransparentInverse4"
+-        android:padding="1dp"
+-        android:scaleType="centerInside"
+-        android:visibility="gone"
+-        app:shapeAppearanceOverlay="@style/ShapeAppearanceOverlay.Signal.MediaSelection.Selected"
+-        app:srcCompat="@drawable/ic_trash_24"
+-        app:strokeColor="@color/signal_light_colorPrimary"
+-        app:strokeWidth="2dp"
+-        app:tint="@color/core_white"
+-        tools:visibility="visible" />
+-
+-</FrameLayout>
+\ No newline at end of file
+diff --git a/app/src/main/res/menu/conversation_callable_groupv2.xml b/app/src/main/res/menu/conversation_callable_groupv2.xml
+index 0fa2c5006149a4e87d696f849c6887afefbafb41..315381b4744566eb8c897c155df6c0bd554ff069 100644
+--- a/app/src/main/res/menu/conversation_callable_groupv2.xml
++++ b/app/src/main/res/menu/conversation_callable_groupv2.xml
+@@ -1,16 +1,6 @@
+ <?xml version="1.0" encoding="utf-8"?>
+-<menu xmlns:android="http://schemas.android.com/apk/res/android"
+-      xmlns:app="http://schemas.android.com/apk/res-auto">
++<menu xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto">
+ 
+-    <item android:title="@string/conversation_callable_secure__menu_video"
+-          android:id="@+id/menu_video_secure"
+-<<<<<<< MOLLY
+-          android:icon="@drawable/ic_video_call_24"
+-          app:iconTint="?attr/signal_icon_tint_primary"
+-=======
+-          android:icon="@drawable/symbol_video_24"
+-          app:iconTint="@color/signal_icon_tint_primary"
+->>>>>>> SIGNAL
+-          app:showAsAction="always" />
++    <item android:title="@string/conversation_callable_secure__menu_video" android:id="@+id/menu_video_secure" android:icon="@drawable/symbol_video_24" app:iconTint="?attr/signal_icon_tint_primary" app:showAsAction="always"/>
+ 
+-</menu>
+\ No newline at end of file
++</menu>
+diff --git a/app/src/main/res/menu/conversation_callable_secure.xml b/app/src/main/res/menu/conversation_callable_secure.xml
+index d47d5d1e5bc06e9a980ed5fe7786ceafeeb840e6..0f6ad7576242059222dfa9398cc44698358f7553 100644
+--- a/app/src/main/res/menu/conversation_callable_secure.xml
++++ b/app/src/main/res/menu/conversation_callable_secure.xml
+@@ -1,27 +1,8 @@
+ <?xml version="1.0" encoding="utf-8"?>
+-<menu xmlns:android="http://schemas.android.com/apk/res/android"
+-      xmlns:app="http://schemas.android.com/apk/res-auto">
++<menu xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto">
+ 
+-    <item android:title="@string/conversation_callable_secure__menu_video"
+-          android:id="@+id/menu_video_secure"
+-<<<<<<< MOLLY
+-          android:icon="@drawable/ic_video_call_24"
+-          app:iconTint="?attr/signal_icon_tint_primary"
+-=======
+-          android:icon="@drawable/symbol_video_24"
+-          app:iconTint="@color/signal_icon_tint_primary"
+->>>>>>> SIGNAL
+-          app:showAsAction="always" />
++    <item android:title="@string/conversation_callable_secure__menu_video" android:id="@+id/menu_video_secure" android:icon="@drawable/symbol_video_24" app:iconTint="?attr/signal_icon_tint_primary" app:showAsAction="always"/>
+ 
+-    <item android:title="@string/conversation_callable_secure__menu_call"
+-          android:id="@+id/menu_call_secure"
+-<<<<<<< MOLLY
+-          android:icon="@drawable/ic_phone_right_24"
+-          app:iconTint="?attr/signal_icon_tint_primary"
+-=======
+-          android:icon="@drawable/symbol_phone_24"
+-          app:iconTint="@color/signal_icon_tint_primary"
+->>>>>>> SIGNAL
+-          app:showAsAction="always" />
++    <item android:title="@string/conversation_callable_secure__menu_call" android:id="@+id/menu_call_secure" android:icon="@drawable/symbol_phone_24" app:iconTint="?attr/signal_icon_tint_primary" app:showAsAction="always"/>
+ 
+-</menu>
+\ No newline at end of file
++</menu>
+diff --git a/app/src/main/res/menu/enter_phone_number.xml b/app/src/main/res/menu/enter_phone_number.xml
+deleted file mode 100644
+index 040f6d466ae87043c1cccc9d8dbb15aa3ce035c0..0000000000000000000000000000000000000000
+--- a/app/src/main/res/menu/enter_phone_number.xml
++++ /dev/null
+@@ -1,7 +0,0 @@
+-<?xml version="1.0" encoding="utf-8"?>
+-<menu xmlns:android="http://schemas.android.com/apk/res/android">
+-  <item
+-      android:id="@+id/phone_menu_use_proxy"
+-      android:title="@string/RegistrationActivity_network_settings"/>
+-
+-</menu>
+\ No newline at end of file
+diff --git a/app/src/main/res/menu/text_secure_normal.xml b/app/src/main/res/menu/text_secure_normal.xml
+deleted file mode 100644
+index 527a73f3d6e727a3e3854a459890ab59f972bf95..0000000000000000000000000000000000000000
+--- a/app/src/main/res/menu/text_secure_normal.xml
++++ /dev/null
+@@ -1,26 +0,0 @@
+-<?xml version="1.0" encoding="utf-8"?>
+-<menu xmlns:android="http://schemas.android.com/apk/res/android">
+-
+-    <item android:title="@string/text_secure_normal__menu_clear_passphrase"
+-            android:id="@+id/menu_clear_passphrase" />
+-
+-    <item android:title="@string/text_secure_normal__menu_new_group"
+-          android:id="@+id/menu_new_group" />
+-
+-    <item android:title="@string/text_secure_normal__mark_all_as_read"
+-          android:id="@+id/menu_mark_all_read" />
+-
+-    <item android:title="@string/text_secure_normal__filter_unread_chats"
+-          android:id="@+id/menu_filter_unread_chats" />
+-
+-    <item android:title="@string/text_secure_normal__clear_unread_filter"
+-          android:id="@+id/menu_clear_unread_filter"
+-          android:visible="false" />
+-
+-    <item android:title="@string/text_secure_normal__menu_settings"
+-          android:id="@+id/menu_settings" />
+-
+-    <item android:title="@string/ConversationListFragment__notification_profile"
+-          android:id="@+id/menu_notification_profile" />
+-
+-</menu>
+diff --git a/app/src/main/res/navigation/app_settings_with_change_number.xml b/app/src/main/res/navigation/app_settings_with_change_number.xml
+index 0f8de649e31ac3e7314266cf6e544804758b302f..1fc06c6f297553dc04ed0f982f6f40d9ed3d2e41 100644
+--- a/app/src/main/res/navigation/app_settings_with_change_number.xml
++++ b/app/src/main/res/navigation/app_settings_with_change_number.xml
+@@ -100,13 +100,6 @@
+             app:popEnterAnim="@anim/fragment_close_enter"
+             app:popExitAnim="@anim/fragment_close_exit" />
+         <action
+-            android:id="@+id/action_appSettingsFragment_to_networkPreferenceFragment"
+-            app:destination="@id/networkPreferenceFragment"
+-            app:enterAnim="@anim/fragment_open_enter"
+-            app:exitAnim="@anim/fragment_open_exit"
+-            app:popEnterAnim="@anim/fragment_close_enter"
+-            app:popExitAnim="@anim/fragment_close_exit"  />
+-        <action
+             android:id="@+id/action_appSettingsFragment_to_dataAndStorageSettingsFragment"
+             app:destination="@id/dataAndStorageSettingsFragment"
+             app:enterAnim="@anim/fragment_open_enter"
+@@ -175,7 +168,8 @@
+                 app:argType="integer"
+                 app:nullable="false" />
+         </action>
+-    </fragment>
++    <action android:id="@+id/action_appSettingsFragment_to_networkPreferenceFragment" app:destination="@id/networkPreferenceFragment" app:enterAnim="@anim/fragment_open_enter" app:exitAnim="@anim/fragment_open_exit" app:popEnterAnim="@anim/fragment_close_enter" app:popExitAnim="@anim/fragment_close_exit"/>
++        </fragment>
+ 
+     <activity
+         android:id="@+id/manageProfileActivity"
+@@ -660,38 +654,22 @@
+             app:popExitAnim="@anim/fragment_close_exit" />
+ 
+         <action
+-<<<<<<< MOLLY
+-            android:id="@+id/action_notificationsSettingsFragment_to_unifiedPushFragment"
+-            app:destination="@id/notificationUnifiedPushFragment"
+-=======
+             android:id="@+id/action_notificationsSettingsFragment_to_mutedNotificationsFragment"
+             app:destination="@id/mutedNotificationsFragment"
+->>>>>>> SIGNAL
+             app:enterAnim="@anim/fragment_open_enter"
+             app:exitAnim="@anim/fragment_open_exit"
+             app:popEnterAnim="@anim/fragment_close_enter"
+             app:popExitAnim="@anim/fragment_close_exit" />
+ 
+-<<<<<<< MOLLY
+-        <argument
+-            android:name="play_services_error_code"
+-            android:defaultValue="0"
+-            app:argType="integer" />
++    <action android:id="@+id/action_notificationsSettingsFragment_to_unifiedPushFragment" app:destination="@id/notificationUnifiedPushFragment" app:enterAnim="@anim/fragment_open_enter" app:exitAnim="@anim/fragment_open_exit" app:popEnterAnim="@anim/fragment_close_enter" app:popExitAnim="@anim/fragment_close_exit"/>
++
++        <argument android:name="play_services_error_code" android:defaultValue="0" app:argType="integer"/>
+ 
+-=======
+->>>>>>> SIGNAL
+     </fragment>
+ 
+     <!-- region Privacy -->
+ 
+-    <include app:graph="@navigation/privacy_settings" />
+-
+-    <!-- region Network -->
+-
+-    <fragment
+-        android:id="@+id/networkPreferenceFragment"
+-        android:name="org.thoughtcrime.securesms.preferences.NetworkPreferenceFragment"
+-        android:label="network_preference_fragment" />
++    <include app:graph="@navigation/privacy_settings"/>
+ 
+     <!-- region Data and Storage -->
+ 
+@@ -852,16 +830,6 @@
+         app:popUpToInclusive="true" />
+ 
+     <action
+-        android:id="@+id/action_direct_to_networkPreferenceFragment"
+-        app:destination="@id/networkPreferenceFragment"
+-        app:popUpTo="@id/appSettingsFragment"
+-        app:popUpToInclusive="true"
+-        app:enterAnim="@anim/fragment_open_enter"
+-        app:exitAnim="@anim/fragment_open_exit"
+-        app:popEnterAnim="@anim/fragment_close_enter"
+-        app:popExitAnim="@anim/fragment_close_exit" />
+-
+-    <action
+         android:id="@+id/action_direct_to_notificationsSettingsFragment"
+         app:destination="@id/notificationsSettingsFragment"
+         app:enterAnim="@anim/fragment_open_enter"
+@@ -1278,11 +1246,6 @@
+             app:popExitAnim="@anim/fragment_close_exit" />
+     </fragment>
+ 
+-    <!-- UnifiedPush -->
+-    <fragment
+-        android:id="@+id/notificationUnifiedPushFragment"
+-        android:name="im.molly.unifiedpush.components.settings.app.notifications.UnifiedPushSettingsFragment" />
+-
+     <fragment
+         android:id="@+id/editNotificationProfileFragment"
+         android:name="org.thoughtcrime.securesms.components.settings.app.notifications.profiles.edit.EditNotificationProfileFragment">
+@@ -1511,7 +1474,13 @@
+             android:defaultValue="false" />
+     </fragment>
+ 
+-    <include app:graph="@navigation/username_link_settings" />
+-    <include app:graph="@navigation/story_privacy_settings" />
++    <include app:graph="@navigation/username_link_settings"/>
++    <include app:graph="@navigation/story_privacy_settings"/>
++
++<fragment android:id="@+id/networkPreferenceFragment" android:name="org.thoughtcrime.securesms.preferences.NetworkPreferenceFragment" android:label="network_preference_fragment"/>
++
++    <action android:id="@+id/action_direct_to_networkPreferenceFragment" app:destination="@id/networkPreferenceFragment" app:popUpTo="@id/appSettingsFragment" app:popUpToInclusive="true" app:enterAnim="@anim/fragment_open_enter" app:exitAnim="@anim/fragment_open_exit" app:popEnterAnim="@anim/fragment_close_enter" app:popExitAnim="@anim/fragment_close_exit"/>
++
++    <fragment android:id="@+id/notificationUnifiedPushFragment" android:name="im.molly.unifiedpush.components.settings.app.notifications.UnifiedPushSettingsFragment"/>
+ 
+-</navigation>
+\ No newline at end of file
++    </navigation>
+diff --git a/app/src/main/res/navigation/edit_profile.xml b/app/src/main/res/navigation/edit_profile.xml
+deleted file mode 100644
+index 04191a98c3cbc39e2b7043030c5b3c640db4004b..0000000000000000000000000000000000000000
+--- a/app/src/main/res/navigation/edit_profile.xml
++++ /dev/null
+@@ -1,99 +0,0 @@
+-<?xml version="1.0" encoding="utf-8"?>
+-<navigation xmlns:android="http://schemas.android.com/apk/res/android"
+-    xmlns:app="http://schemas.android.com/apk/res-auto"
+-    xmlns:tools="http://schemas.android.com/tools"
+-    android:id="@+id/manage_profile"
+-    app:startDestination="@id/manageProfileFragment">
+-
+-    <fragment
+-        android:id="@+id/manageProfileFragment"
+-        android:name="org.thoughtcrime.securesms.profiles.manage.EditProfileFragment"
+-        android:label="fragment_manage_profile"
+-        tools:layout="@layout/edit_profile_fragment">
+-
+-        <action
+-            android:id="@+id/action_manageUsername"
+-            app:destination="@id/usernameManageFragment"
+-            app:enterAnim="@anim/fragment_open_enter"
+-            app:exitAnim="@anim/fragment_open_exit"
+-            app:popEnterAnim="@anim/fragment_close_enter"
+-            app:popExitAnim="@anim/fragment_close_exit" />
+-
+-        <action
+-            android:id="@+id/action_manageProfileName"
+-            app:destination="@id/profileNameManageFragment"
+-            app:enterAnim="@anim/fragment_open_enter"
+-            app:exitAnim="@anim/fragment_open_exit"
+-            app:popEnterAnim="@anim/fragment_close_enter"
+-            app:popExitAnim="@anim/fragment_close_exit" />
+-
+-        <action
+-            android:id="@+id/action_manageAbout"
+-            app:destination="@id/aboutManageFragment"
+-            app:enterAnim="@anim/fragment_open_enter"
+-            app:exitAnim="@anim/fragment_open_exit"
+-            app:popEnterAnim="@anim/fragment_close_enter"
+-            app:popExitAnim="@anim/fragment_close_exit" />
+-
+-        <action
+-            android:id="@+id/action_manageProfileFragment_to_avatar_picker"
+-            app:destination="@id/avatar_picker"
+-            app:enterAnim="@anim/fragment_open_enter"
+-            app:exitAnim="@anim/fragment_open_exit"
+-            app:popEnterAnim="@anim/fragment_close_enter"
+-            app:popExitAnim="@anim/fragment_close_exit">
+-
+-            <argument
+-                android:name="group_id"
+-                app:argType="org.thoughtcrime.securesms.groups.GroupId"
+-                app:nullable="true" />
+-
+-            <argument
+-                android:name="group_avatar_media"
+-                app:argType="org.signal.core.models.media.Media"
+-                app:nullable="true" />
+-
+-        </action>
+-
+-        <action
+-            android:id="@+id/action_manageProfileFragment_to_shareUsernameDialog"
+-            app:destination="@id/shareUsernameDialog" />
+-
+-        <action
+-            android:id="@+id/action_manageProfileFragment_to_usernameLinkFragment"
+-            app:destination="@id/username_link_settings"
+-            app:enterAnim="@anim/fragment_open_enter"
+-            app:exitAnim="@anim/fragment_open_exit"
+-            app:popEnterAnim="@anim/fragment_close_enter"
+-            app:popExitAnim="@anim/fragment_close_exit" />
+-
+-    </fragment>
+-
+-    <fragment
+-        android:id="@+id/usernameManageFragment"
+-        android:name="org.thoughtcrime.securesms.profiles.manage.UsernameEditFragment"
+-        android:label="fragment_manage_username"
+-        tools:layout="@layout/username_edit_fragment" />
+-
+-    <fragment
+-        android:id="@+id/profileNameManageFragment"
+-        android:name="org.thoughtcrime.securesms.profiles.manage.EditProfileNameFragment"
+-        android:label="fragment_manage_profile_name"
+-        tools:layout="@layout/edit_profile_name_fragment" />
+-
+-    <fragment
+-        android:id="@+id/aboutManageFragment"
+-        android:name="org.thoughtcrime.securesms.profiles.manage.EditAboutFragment"
+-        android:label="fragment_manage_about"
+-        tools:layout="@layout/edit_about_fragment" />
+-
+-    <include app:graph="@navigation/avatar_picker" />
+-
+-    <include app:graph="@navigation/username_link_settings" />
+-
+-    <dialog
+-        android:id="@+id/shareUsernameDialog"
+-        android:name="org.thoughtcrime.securesms.profiles.manage.UsernameShareBottomSheet"
+-        android:label="fragment_username_share" />
+-
+-</navigation>
+\ No newline at end of file
+diff --git a/app/src/main/res/navigation/manage_badges.xml b/app/src/main/res/navigation/manage_badges.xml
+deleted file mode 100644
+index bd327863ef1d74b608713ee6a565fc5e37055c7d..0000000000000000000000000000000000000000
+--- a/app/src/main/res/navigation/manage_badges.xml
++++ /dev/null
+@@ -1,24 +0,0 @@
+-<?xml version="1.0" encoding="utf-8"?>
+-<navigation xmlns:android="http://schemas.android.com/apk/res/android"
+-    xmlns:app="http://schemas.android.com/apk/res-auto"
+-    android:id="@+id/manage_badges"
+-    app:startDestination="@id/badgeManageFragment">
+-    <fragment
+-        android:id="@+id/badgeManageFragment"
+-        android:name="org.thoughtcrime.securesms.badges.self.overview.BadgesOverviewFragment"
+-        android:label="fragment_manage_badges">
+-
+-        <action
+-            android:id="@+id/action_badgeManageFragment_to_featuredBadgeFragment"
+-            app:destination="@id/featuredBadgeFragment"
+-            app:enterAnim="@anim/fragment_open_enter"
+-            app:exitAnim="@anim/fragment_open_exit"
+-            app:popEnterAnim="@anim/fragment_close_enter"
+-            app:popExitAnim="@anim/fragment_close_exit" />
+-    </fragment>
+-
+-    <fragment
+-        android:id="@+id/featuredBadgeFragment"
+-        android:name="org.thoughtcrime.securesms.badges.self.featured.SelectFeaturedBadgeFragment"
+-        android:label="fragment_featured_badge" />
+-</navigation>
+\ No newline at end of file
+diff --git a/app/src/main/res/navigation/privacy_settings.xml b/app/src/main/res/navigation/privacy_settings.xml
+index a03d8f3478291ca85c1a55f6a68a2ccdd3c565c9..b0448cd860b5fa054ba3a569a01fc441ecae8e13 100644
+--- a/app/src/main/res/navigation/privacy_settings.xml
++++ b/app/src/main/res/navigation/privacy_settings.xml
+@@ -42,13 +42,6 @@
+             app:exitAnim="@anim/fragment_open_exit"
+             app:popEnterAnim="@anim/fragment_close_enter"
+             app:popExitAnim="@anim/fragment_close_exit" />
+-        <action
+-            android:id="@+id/action_privacySettingsFragment_to_screenLockSettingsFragment"
+-            app:destination="@id/screenLockSettingsFragment"
+-            app:enterAnim="@anim/fragment_open_enter"
+-            app:exitAnim="@anim/fragment_open_exit"
+-            app:popEnterAnim="@anim/fragment_close_enter"
+-            app:popExitAnim="@anim/fragment_close_exit" />
+ 
+     </fragment>
+ 
+@@ -67,11 +60,6 @@
+         android:name="org.thoughtcrime.securesms.components.settings.app.privacy.pnp.PhoneNumberPrivacySettingsFragment"
+         android:label="phone_number_privacy_settings_fragment" />
+ 
+-    <fragment
+-        android:id="@+id/screenLockSettingsFragment"
+-        android:name="org.thoughtcrime.securesms.components.settings.app.privacy.screenlock.ScreenLockSettingsFragment"
+-        android:label="screen_lock_settings_fragment" />
+-
+     <include app:graph="@navigation/app_settings_expire_timer" />
+ 
+ </navigation>
+diff --git a/app/src/main/res/navigation/registration_v3.xml b/app/src/main/res/navigation/registration_v3.xml
+deleted file mode 100644
+index b16989f704887bae9a781a62e5e69426bb1d4155..0000000000000000000000000000000000000000
+--- a/app/src/main/res/navigation/registration_v3.xml
++++ /dev/null
+@@ -1,398 +0,0 @@
+-<?xml version="1.0" encoding="utf-8"?>
+-<navigation xmlns:android="http://schemas.android.com/apk/res/android"
+-    xmlns:app="http://schemas.android.com/apk/res-auto"
+-    xmlns:tools="http://schemas.android.com/tools"
+-    android:id="@+id/signup"
+-    app:startDestination="@id/welcomeFragment">
+-
+-    <fragment
+-        android:id="@+id/welcomeFragment"
+-        android:name="org.thoughtcrime.securesms.registration.ui.welcome.WelcomeFragment"
+-        android:label="fragment_welcome"
+-        tools:layout="@layout/fragment_registration_welcome_v3">
+-
+-        <action
+-            android:id="@+id/go_to_enterPhoneNumber"
+-            app:destination="@id/enterPhoneNumberFragment"
+-            app:enterAnim="@anim/nav_default_enter_anim"
+-            app:exitAnim="@anim/nav_default_exit_anim"
+-            app:popEnterAnim="@anim/nav_default_pop_enter_anim"
+-            app:popExitAnim="@anim/nav_default_pop_exit_anim" />
+-
+-        <action
+-            android:id="@+id/action_welcomeFragment_to_grantPermissionsFragment"
+-            app:destination="@id/grantPermissionsFragment"
+-            app:enterAnim="@anim/nav_default_enter_anim"
+-            app:exitAnim="@anim/nav_default_exit_anim"
+-            app:popEnterAnim="@anim/nav_default_pop_enter_anim"
+-            app:popExitAnim="@anim/nav_default_pop_exit_anim" />
+-
+-        <action
+-            android:id="@+id/go_to_selectRestoreMethod"
+-            app:destination="@id/selectRestoreMethod"
+-            app:enterAnim="@anim/nav_default_enter_anim"
+-            app:exitAnim="@anim/nav_default_exit_anim"
+-            app:popEnterAnim="@anim/nav_default_pop_enter_anim"
+-            app:popExitAnim="@anim/nav_default_pop_exit_anim" />
+-
+-        <action
+-            android:id="@+id/go_to_restoreViaQr"
+-            app:destination="@id/restoreViaQr"
+-            app:enterAnim="@anim/nav_default_enter_anim"
+-            app:exitAnim="@anim/nav_default_exit_anim"
+-            app:popEnterAnim="@anim/nav_default_pop_enter_anim"
+-            app:popExitAnim="@anim/nav_default_pop_exit_anim" />
+-
+-        <action
+-            android:id="@+id/go_to_linkViaQr"
+-            app:destination="@id/linkViaQr"
+-            app:enterAnim="@anim/nav_default_enter_anim"
+-            app:exitAnim="@anim/nav_default_exit_anim"
+-            app:popEnterAnim="@anim/nav_default_pop_enter_anim"
+-            app:popExitAnim="@anim/nav_default_pop_exit_anim" />
+-
+-        <action
+-            android:id="@+id/action_editProxy"
+-            app:destination="@+id/networkPreferenceFragment"
+-            app:enterAnim="@anim/nav_default_enter_anim"
+-            app:exitAnim="@anim/nav_default_exit_anim"
+-            app:popEnterAnim="@anim/nav_default_pop_enter_anim"
+-            app:popExitAnim="@anim/nav_default_pop_exit_anim" />
+-
+-    </fragment>
+-
+-    <fragment
+-        android:id="@+id/grantPermissionsFragment"
+-        android:name="org.thoughtcrime.securesms.registration.ui.permissions.GrantPermissionsFragment"
+-        android:label="fragment_grant_permissions"
+-        tools:ignore="NewApi">
+-
+-        <argument
+-            android:name="welcomeUserSelection"
+-            app:argType="org.thoughtcrime.securesms.registration.ui.welcome.WelcomeUserSelection" />
+-
+-    </fragment>
+-
+-    <fragment
+-        android:id="@+id/restoreViaQr"
+-        android:name="org.thoughtcrime.securesms.registration.ui.restore.RestoreViaQrFragment">
+-
+-        <action
+-            android:id="@+id/go_to_noBackupToRestore"
+-            app:destination="@id/noBackupToRestore"
+-            app:enterAnim="@anim/nav_default_enter_anim"
+-            app:exitAnim="@anim/nav_default_exit_anim"
+-            app:popEnterAnim="@anim/nav_default_pop_enter_anim"
+-            app:popExitAnim="@anim/nav_default_pop_exit_anim"
+-            app:popUpTo="@id/signup"/>
+-
+-        <action
+-            android:id="@+id/go_to_accountLocked"
+-            app:destination="@id/accountLockedFragment"
+-            app:enterAnim="@anim/nav_default_enter_anim"
+-            app:exitAnim="@anim/nav_default_exit_anim"
+-            app:popEnterAnim="@anim/nav_default_pop_enter_anim"
+-            app:popExitAnim="@anim/nav_default_pop_exit_anim"
+-            app:popUpTo="@+id/welcomeFragment"
+-            app:popUpToInclusive="true" />
+-
+-        <action
+-            android:id="@+id/go_to_editProxy"
+-            app:destination="@+id/edit_proxy"
+-            app:enterAnim="@anim/nav_default_enter_anim"
+-            app:exitAnim="@anim/nav_default_exit_anim"
+-            app:popEnterAnim="@anim/nav_default_pop_enter_anim"
+-            app:popExitAnim="@anim/nav_default_pop_exit_anim" />
+-    </fragment>
+-
+-    <fragment
+-        android:id="@+id/linkViaQr"
+-        android:name="org.thoughtcrime.securesms.registration.ui.link.RegisterLinkDeviceQrFragment">
+-    </fragment>
+-
+-    <fragment
+-        android:id="@+id/noBackupToRestore"
+-        android:name="org.thoughtcrime.securesms.registration.ui.restore.NoBackupToRestoreFragment">
+-
+-        <action
+-            android:id="@+id/restart_registration_flow"
+-            app:destination="@id/signup"
+-            app:enterAnim="@anim/nav_default_enter_anim"
+-            app:exitAnim="@anim/nav_default_exit_anim"
+-            app:popEnterAnim="@anim/nav_default_pop_enter_anim"
+-            app:popExitAnim="@anim/nav_default_pop_exit_anim"
+-            app:popUpTo="@id/signup"/>
+-
+-    </fragment>
+-
+-
+-    <fragment
+-        android:id="@+id/selectRestoreMethod"
+-        android:name="org.thoughtcrime.securesms.registration.ui.restore.SelectManualRestoreMethodFragment">
+-
+-        <action
+-            android:id="@+id/go_to_enterPhoneNumber"
+-            app:destination="@id/enterPhoneNumberFragment"
+-            app:enterAnim="@anim/nav_default_enter_anim"
+-            app:exitAnim="@anim/nav_default_exit_anim"
+-            app:popEnterAnim="@anim/nav_default_pop_enter_anim"
+-            app:popExitAnim="@anim/nav_default_pop_exit_anim" />
+-
+-        <argument
+-            android:name="welcomeUserSelection"
+-            app:argType="org.thoughtcrime.securesms.registration.ui.welcome.WelcomeUserSelection" />
+-
+-    </fragment>
+-
+-    <fragment
+-        android:id="@+id/countryPickerFragment"
+-        android:name="org.thoughtcrime.securesms.registration.ui.countrycode.CountryCodeFragment"
+-        tools:layout="@layout/fragment_registration_country_picker">
+-
+-        <argument
+-            android:name="country"
+-            app:argType="org.thoughtcrime.securesms.registration.ui.countrycode.Country"
+-            app:nullable="true" />
+-    </fragment>
+-
+-
+-    <fragment
+-        android:id="@+id/enterPhoneNumberFragment"
+-        android:name="org.thoughtcrime.securesms.registration.ui.phonenumber.EnterPhoneNumberFragment"
+-        android:label="fragment_enter_phone_number"
+-        tools:layout="@layout/fragment_registration_enter_phone_number">
+-
+-        <action
+-            android:id="@+id/action_countryPicker"
+-            app:destination="@id/countryPickerFragment"
+-            app:enterAnim="@anim/nav_default_enter_anim"
+-            app:exitAnim="@anim/nav_default_exit_anim"
+-            app:popEnterAnim="@anim/nav_default_pop_enter_anim"
+-            app:popExitAnim="@anim/nav_default_pop_exit_anim" />
+-
+-        <action
+-            android:id="@+id/action_enterVerificationCode"
+-            app:destination="@id/enterCodeFragment"
+-            app:enterAnim="@anim/nav_default_enter_anim"
+-            app:exitAnim="@anim/nav_default_exit_anim"
+-            app:popEnterAnim="@anim/nav_default_pop_enter_anim"
+-            app:popExitAnim="@anim/nav_default_pop_exit_anim" />
+-
+-        <action
+-            android:id="@+id/action_requestCaptcha"
+-            app:destination="@id/captchaFragment"
+-            app:enterAnim="@anim/nav_default_enter_anim"
+-            app:exitAnim="@anim/nav_default_exit_anim"
+-            app:popEnterAnim="@anim/nav_default_pop_enter_anim"
+-            app:popExitAnim="@anim/nav_default_pop_exit_anim" />
+-
+-        <action
+-            android:id="@+id/action_editProxy"
+-            app:destination="@+id/networkPreferenceFragment"
+-            app:enterAnim="@anim/nav_default_enter_anim"
+-            app:exitAnim="@anim/nav_default_exit_anim"
+-            app:popEnterAnim="@anim/nav_default_pop_enter_anim"
+-            app:popExitAnim="@anim/nav_default_pop_exit_anim" />
+-
+-        <action
+-            android:id="@+id/action_reRegisterWithPinFragment"
+-            app:destination="@id/reRegisterWithPinFragment"
+-            app:enterAnim="@anim/nav_default_enter_anim"
+-            app:exitAnim="@anim/nav_default_exit_anim"
+-            app:popEnterAnim="@anim/nav_default_pop_enter_anim"
+-            app:popExitAnim="@anim/nav_default_pop_exit_anim"
+-            app:popUpTo="@id/enterPhoneNumberFragment"
+-            app:popUpToInclusive="true" />
+-
+-        <action
+-            android:id="@+id/action_phoneNumberRegistrationLock"
+-            app:destination="@id/registrationLockFragment"
+-            app:enterAnim="@anim/nav_default_enter_anim"
+-            app:exitAnim="@anim/nav_default_exit_anim"
+-            app:popEnterAnim="@anim/nav_default_pop_enter_anim"
+-            app:popExitAnim="@anim/nav_default_pop_exit_anim"
+-            app:popUpTo="@id/enterPhoneNumberFragment"
+-            app:popUpToInclusive="true" />
+-
+-        <action
+-            android:id="@+id/action_phoneNumberAccountLocked"
+-            app:destination="@id/accountLockedFragment"
+-            app:enterAnim="@anim/nav_default_enter_anim"
+-            app:exitAnim="@anim/nav_default_exit_anim"
+-            app:popEnterAnim="@anim/nav_default_pop_enter_anim"
+-            app:popExitAnim="@anim/nav_default_pop_exit_anim" />
+-
+-        <action
+-            android:id="@+id/go_to_enterBackupKey"
+-            app:destination="@id/enterBackupKey"
+-            app:enterAnim="@anim/nav_default_enter_anim"
+-            app:exitAnim="@anim/nav_default_exit_anim"
+-            app:popEnterAnim="@anim/nav_default_pop_enter_anim"
+-            app:popExitAnim="@anim/nav_default_pop_exit_anim" />
+-
+-        <action
+-            android:id="@+id/go_to_internalNewLocalBackupRestore"
+-            app:destination="@id/internalNewLocalBackupRestore"
+-            app:enterAnim="@anim/nav_default_enter_anim"
+-            app:exitAnim="@anim/nav_default_exit_anim"
+-            app:popEnterAnim="@anim/nav_default_pop_enter_anim"
+-            app:popExitAnim="@anim/nav_default_pop_exit_anim" />
+-
+-        <action
+-            android:id="@+id/go_to_restoreLocalBackupFragment"
+-            app:destination="@id/restoreLocalBackupFragment"
+-            app:enterAnim="@anim/nav_default_enter_anim"
+-            app:exitAnim="@anim/nav_default_exit_anim"
+-            app:popEnterAnim="@anim/nav_default_pop_enter_anim"
+-            app:popExitAnim="@anim/nav_default_pop_exit_anim" />
+-
+-        <action
+-            android:id="@+id/go_to_linkViaQr"
+-            app:destination="@id/linkViaQr"
+-            app:enterAnim="@anim/nav_default_enter_anim"
+-            app:exitAnim="@anim/nav_default_exit_anim"
+-            app:popEnterAnim="@anim/nav_default_pop_enter_anim"
+-            app:popExitAnim="@anim/nav_default_pop_exit_anim" />
+-
+-        <argument
+-            android:name="enterPhoneNumberMode"
+-            app:argType="org.thoughtcrime.securesms.registration.ui.phonenumber.EnterPhoneNumberMode" />
+-
+-    </fragment>
+-
+-    <fragment
+-        android:id="@+id/enterBackupKey"
+-        android:name="org.thoughtcrime.securesms.registration.ui.restore.EnterBackupKeyFragment">
+-
+-        <action
+-            android:id="@+id/go_to_enterPhoneNumber"
+-            app:destination="@id/enterPhoneNumberFragment"
+-            app:enterAnim="@anim/nav_default_enter_anim"
+-            app:exitAnim="@anim/nav_default_exit_anim"
+-            app:popEnterAnim="@anim/nav_default_pop_enter_anim"
+-            app:popExitAnim="@anim/nav_default_pop_exit_anim"
+-            app:popUpTo="@id/welcomeFragment"/>
+-
+-    </fragment>
+-
+-    <fragment
+-        android:id="@+id/internalNewLocalBackupRestore"
+-        android:name="org.thoughtcrime.securesms.registration.ui.restore.local.InternalNewLocalBackupRestore" />
+-
+-    <fragment
+-        android:id="@+id/restoreLocalBackupFragment"
+-        android:name="org.thoughtcrime.securesms.registration.ui.restore.local.RestoreLocalBackupFragment">
+-
+-        <action
+-            android:id="@+id/go_to_enterPhoneNumber"
+-            app:destination="@id/enterPhoneNumberFragment"
+-            app:enterAnim="@anim/nav_default_enter_anim"
+-            app:exitAnim="@anim/nav_default_exit_anim"
+-            app:popEnterAnim="@anim/nav_default_pop_enter_anim"
+-            app:popExitAnim="@anim/nav_default_pop_exit_anim"
+-            app:popUpTo="@id/welcomeFragment"/>
+-    </fragment>
+-
+-    <fragment
+-        android:id="@+id/enterCodeFragment"
+-        android:name="org.thoughtcrime.securesms.registration.ui.entercode.EnterCodeFragment"
+-        android:label="fragment_enter_code"
+-        tools:layout="@layout/fragment_registration_enter_code">
+-
+-        <action
+-            android:id="@+id/action_requireKbsLockPin"
+-            app:destination="@id/registrationLockFragment"
+-            app:enterAnim="@anim/nav_default_enter_anim"
+-            app:exitAnim="@anim/nav_default_exit_anim"
+-            app:popEnterAnim="@anim/nav_default_pop_enter_anim"
+-            app:popExitAnim="@anim/nav_default_pop_exit_anim"
+-            app:popUpTo="@+id/welcomeFragment"
+-            app:popUpToInclusive="true" />
+-
+-        <action
+-            android:id="@+id/action_requestCaptcha"
+-            app:destination="@id/captchaFragment"
+-            app:enterAnim="@anim/nav_default_enter_anim"
+-            app:exitAnim="@anim/nav_default_exit_anim"
+-            app:popEnterAnim="@anim/nav_default_pop_enter_anim"
+-            app:popExitAnim="@anim/nav_default_pop_exit_anim" />
+-
+-        <action
+-            android:id="@+id/action_accountLocked"
+-            app:destination="@id/accountLockedFragment"
+-            app:enterAnim="@anim/nav_default_enter_anim"
+-            app:exitAnim="@anim/nav_default_exit_anim"
+-            app:popEnterAnim="@anim/nav_default_pop_enter_anim"
+-            app:popExitAnim="@anim/nav_default_pop_exit_anim"
+-            app:popUpTo="@+id/welcomeFragment"
+-            app:popUpToInclusive="true" />
+-
+-    </fragment>
+-
+-    <fragment
+-        android:id="@+id/registrationLockFragment"
+-        android:name="org.thoughtcrime.securesms.registration.ui.registrationlock.RegistrationLockFragment"
+-        android:label="fragment_kbs_lock"
+-        tools:layout="@layout/fragment_registration_lock">
+-
+-        <action
+-            android:id="@+id/action_accountLocked"
+-            app:destination="@id/accountLockedFragment"
+-            app:enterAnim="@anim/nav_default_enter_anim"
+-            app:exitAnim="@anim/nav_default_exit_anim"
+-            app:popEnterAnim="@anim/nav_default_pop_enter_anim"
+-            app:popExitAnim="@anim/nav_default_pop_exit_anim"
+-            app:popUpTo="@+id/welcomeFragment"
+-            app:popUpToInclusive="true" />
+-
+-        <argument
+-            android:name="timeRemaining"
+-            app:argType="long" />
+-
+-    </fragment>
+-
+-    <fragment
+-        android:id="@+id/reRegisterWithPinFragment"
+-        android:name="org.thoughtcrime.securesms.registration.ui.reregisterwithpin.ReRegisterWithPinFragment"
+-        tools:layout="@layout/fragment_registration_lock">
+-
+-        <action
+-            android:id="@+id/action_reRegisterWithPinFragment_to_enterPhoneNumberFragment"
+-            app:destination="@id/enterPhoneNumberFragment"
+-            app:enterAnim="@anim/nav_default_enter_anim"
+-            app:exitAnim="@anim/nav_default_exit_anim"
+-            app:popEnterAnim="@anim/nav_default_pop_enter_anim"
+-            app:popExitAnim="@anim/nav_default_pop_exit_anim"
+-            app:popUpTo="@+id/reRegisterWithPinFragment"
+-            app:popUpToInclusive="true" />
+-
+-    </fragment>
+-
+-    <fragment
+-        android:id="@+id/accountLockedFragment"
+-        android:name="org.thoughtcrime.securesms.registration.ui.accountlocked.AccountLockedFragment"
+-        android:label="fragment_account_locked"
+-        tools:layout="@layout/account_locked_fragment" />
+-
+-    <fragment
+-        android:id="@+id/captchaFragment"
+-        android:name="org.thoughtcrime.securesms.registration.ui.captcha.RegistrationCaptchaFragment"
+-        android:label="fragment_captcha"
+-        tools:layout="@layout/fragment_registration_captcha" />
+-
+-    <action
+-        android:id="@+id/action_restart_to_welcomeFragment"
+-        app:destination="@id/welcomeFragment"
+-        app:enterAnim="@anim/nav_default_enter_anim"
+-        app:exitAnim="@anim/nav_default_exit_anim"
+-        app:popEnterAnim="@anim/nav_default_pop_enter_anim"
+-        app:popExitAnim="@anim/nav_default_pop_exit_anim"
+-        app:popUpTo="@id/welcomeFragment"
+-        app:popUpToInclusive="true" />
+-
+-    <fragment
+-        android:id="@+id/networkPreferenceFragment"
+-        android:name="org.thoughtcrime.securesms.preferences.NetworkPreferenceFragment"
+-        android:label="NetworkPreferenceFragment" />
+-
+-</navigation>
+\ No newline at end of file

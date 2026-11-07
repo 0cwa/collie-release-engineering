@@ -1,0 +1,83 @@
+{
+  "schema": 1,
+  "source_provenance": {
+    "libsignal": "904c8dc8216073b078a5f2f5090e3da8382e6a92",
+    "ringrtc": "bdbb0dd1b9f418850dfe1fa3cd4b1c2b1123436f",
+    "webrtc": "d7dbd6fdddac949e89501e6ea947a344e9ffde72"
+  },
+  "input_group": "org.signal",
+  "output_group": "im.collie.native",
+  "modules": [
+    {
+      "name": "libsignal-android",
+      "input_version": "0.106.1",
+      "output_version": "0.106.1-collie.1",
+      "extension": "aar",
+      "binary_sha256": "4247031a753f73f12753d04f14d9316436bbf07af2097c1b897feedd360dbd9a",
+      "pom_sha256": "1f126e627c035d8fa2e3c2caca29a5af87f4013b8b9c430bfea9ab5d2aa7347d",
+      "native_libraries": [
+        "libsignal_jni.so"
+      ]
+    },
+    {
+      "name": "libsignal-client",
+      "input_version": "0.106.1",
+      "output_version": "0.106.1-collie.1",
+      "extension": "jar",
+      "binary_sha256": "c361b8e905c770b838535fdac5a0bdf0f995f8ed6ce0a6837cb4c7360e8c5a79",
+      "pom_sha256": "0d3570391d1594c4a91d67e899cded9bdcee7cc95468cf511cbb0619ee0368f4",
+      "native_libraries": []
+    },
+    {
+      "name": "ringrtc-android",
+      "input_version": "2.74.0",
+      "output_version": "2.74.0-collie.1",
+      "extension": "aar",
+      "binary_sha256": "51f1f9b1f2335ba1b6557b5f0810227ac66a54ec8cbf0f2c789091b0ab5d245b",
+      "pom_sha256": "81b7212da6206aa0159c19befe3cd8732d788df11a99edc9a2e03eb4286f5b92",
+      "native_libraries": [
+        "libringrtc.so",
+        "libringrtc_rffi.so"
+      ]
+    }
+  ],
+  "required_abis": [
+    "arm64-v8a",
+    "armeabi-v7a",
+    "x86",
+    "x86_64"
+  ],
+  "source_patches": [
+    {
+      "path": "patches/libsignal-0.106.1-attributed.mbox",
+      "sha256": "56db63aafe770da39e249fcce6f9bac47cdffafa3734dab980ac85e0715e555e"
+    },
+    {
+      "path": "patches/ringrtc-2.74-attributed.mbox",
+      "sha256": "0cbff85c66e3a9d77d1fef20c20161431238b3db98f23290c9315e37137c1501"
+    },
+    {
+      "path": "patches/webrtc-8037b-molly-proxy-UNTESTED.patch",
+      "sha256": "a89d9a7066e677fedc3aff5c25818b1e11c676425beb17097e61bfd360c62593"
+    },
+    {
+      "path": "patches/webrtc-unknown-proxy-fix.patch",
+      "sha256": "de6a410c3098fe150a13ecc14f971fbae6fbc64b708383cd94f6e9073bfebb42"
+    },
+    {
+      "path": "patches/webrtc-socks-ipv6-fix.patch",
+      "sha256": "308b2485a73280bc4666b0ed852982e1396b68453efd249e6f421b2be01a08f5"
+    }
+  ],
+  "toolchain_reference": {
+    "webrtc_deps_sha256": "3091dc4f260c6eedbfd5058dc3f53b8f9511c890d51bf7c056a2c78852245bcd",
+    "webrtc_depot_tools_revision": "ce5a30784f7323ee224f3a6e7d4ae208dd6d17fe",
+    "webrtc_linux_jdk_cipd_instance": "Ac1SdNGLeE0dSBE6mDm4oq8NvcHCLDgYMWYZki0QkVAC",
+    "webrtc_siso_revision": "bc45e8f67ae0f37d337190ad64aa8bb440c791eb",
+    "webrtc_gn_android_ndk_version": "2@30.0.15729638",
+    "ringrtc_aar_android_ndk_revision": "28.0.13004108",
+    "rust_version": "1.98.1",
+    "opus_model": "a5177ec6fb7d15058e99e57029746100121f68e4890b1467d4094aa336b6013e",
+    "verification_status": "reference only; bootstrap depot_tools, complete dependency closure, role of both NDK versions and reproducibility remain unverified"
+  }
+}

@@ -1,0 +1,17 @@
+{
+  "schema": 1,
+  "origin": "https://github.com/0cwa/collieim-android.git",
+  "commit": "f6f68cdee08fb8d9acb6a866b1673deb10525f20",
+  "paths": [
+    "tools/patches",
+    "tools/native",
+    "patches",
+    "docs/PATCH-PIPELINE.md",
+    "docs/PORT-REPORT.md",
+    "molly-build.json",
+    "LICENSE",
+    "NOTICE"
+  ],
+  "method": "git archive; byte-preserving tracked-file export; original history retained at origin",
+  "attribution": "Original authors and layer provenance are retained in patch headers, series manifests and source origin history."
+}
