@@ -142,7 +142,7 @@ class NativePagesTest(unittest.TestCase):
         with patch('binary_repo.verify_indexes',side_effect=AssertionError('no index verifier needed')):plan=p.prepare(self.bundle,self.output,'c'*40)
         self.assertEqual(plan['mode'],'native-only');self.assertIsNone(plan['repository_certificate_sha256'])
         for phase in ('phase1','phase2'):
-            site=self.output/phase/'site';self.assertIn('not active',(site/'index.html').read_text());self.assertFalse((site/'fdroid').exists());self.assertFalse((site/'add-repository.svg').exists())
+            site=self.output/phase/'site';text=(site/'index.html').read_text();self.assertIn('not active',text);self.assertIn('native inputs',text);self.assertNotIn('signed index',text);self.assertNotIn('href=',text);self.assertFalse((site/'fdroid').exists());self.assertFalse((site/'add-repository.svg').exists())
             self.assertEqual({n:e for n,e in plan['manifests'][phase].items() if n.startswith('native-inputs/')},files)
         self.assertEqual(plan['artifacts']['phase1'],plan['artifacts']['phase2'])
     def test_native_feed_both_phases_same_six_files(self):

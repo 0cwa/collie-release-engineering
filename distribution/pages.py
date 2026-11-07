@@ -165,7 +165,8 @@ def prepare(bundle,output,expected_policy):
                 if phase=='phase2' or immutable(name):mapping[name]=(path,entry)
             if phase=='phase2' and not native_only:mapping.update({name:(landing/name,entry) for name,entry in landing_files.items()})
             if not old_files and (phase=='phase1' or native_only):
-                (site/'index.html').write_text('<!doctype html><html lang="en"><title>Collie repository preparation</title><h1>Repository preparation</h1><p>The feed is not active. Approved assets and signed index previews are being verified.</p></html>')
+                placeholder=('<!doctype html><html lang="en"><title>Collie native inputs</title><h1>Native inputs preparation</h1><p>Collie native inputs are being prepared. The F-Droid feed is not active.</p></html>' if native_only else '<!doctype html><html lang="en"><title>Collie repository preparation</title><h1>Repository preparation</h1><p>The feed is not active. Approved assets and signed index previews are being verified.</p></html>')
+                (site/'index.html').write_text(placeholder)
             for name,(path,entry) in mapping.items():copy_pinned(path,site/name,entry)
             if receipt_bytes is not None:
                 archive_dir=site/prefix;archive_dir.mkdir(parents=True,exist_ok=True)
