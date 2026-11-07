@@ -243,7 +243,14 @@ def collect(repository, base_sha, output):
                   base_sha, "--", SCREENSHOT_PATHSPEC)
     untracked = git(repository, "ls-files", "--others", "--exclude-standard", "-z",
                     "--", SCREENSHOT_PATHSPEC)
-    paths = sorted({name.decode("utf-8") for name in (tracked + untracked).split(b"\0") if name})
+    path_set = set()
+    for name in (tracked + untracked).split(b"\0"):
+        if not name:
+            continue
+        path_set.add(name.decode("utf-8"))
+        if len(path_set) > MAX_FILES:
+            raise InvalidScreenshot("Screenshot collection exceeds the file count limit")
+    paths = sorted(path_set)
     changes, total = [], 0
     for path in paths:
         reference_source_set(path)

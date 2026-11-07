@@ -125,6 +125,13 @@ class ArtifactBoundaryTests(unittest.TestCase):
             with mock.patch.object(screenshots, constant, value), self.assertRaises(screenshots.InvalidScreenshot):
                 screenshots.decode_manifest(manifest(), BASE)
 
+    def test_collection_rejects_file_count_before_reading_paths(self):
+        paths=[f'feature/{index}/src/screenshotTestDebug/reference/example.png'.encode() for index in range(1001)]
+        with mock.patch.object(screenshots,'git',side_effect=[BASE.encode(),b'\0'.join(paths)+b'\0',b'']) as git:
+            with self.assertRaisesRegex(screenshots.InvalidScreenshot,'file count'):
+                screenshots.collect(Path('/nonexistent'),BASE,Path('/unused'))
+            self.assertEqual(git.call_count,3)
+
     def test_artifact_identity_is_checked_before_download(self):
         metadata = {"id": 19, "name": "screenshot-changes-42-2", "workflow_run": {"id": 42},
                     "expired": False, "size_in_bytes": 512}
