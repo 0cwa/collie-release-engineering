@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
-"""Import an ordinary reviewed application commit as a complete checked overlay.
+"""Recover historical source-first changes with exact patch/tree verification.
 
-Maintainers run this before publication, never during a production Gradle build.
+This helper does not authorize new code-first application contributions.
+New application work must follow the canonical patch-first development policy.
 """
 import argparse
 import hashlib

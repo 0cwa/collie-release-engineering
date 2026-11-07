@@ -177,7 +177,7 @@ def verify(repo, plan, generated, integration, expected_main, *, messages=None):
 
 
 def round_trip(repo, before, reviewed, destination):
-    """Export every changed byte/mode for a reviewed ordinary application commit."""
+    """Export a reviewed scratch delta or historical source commit, never authoring permission."""
     plain(repo)
     if destination.exists():
         raise ValueError('refusing to overwrite an existing patch')

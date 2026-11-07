@@ -1,7 +1,10 @@
 # Source publication and contributor round trip
 
-The application is intended to contain the code Gradle compiles. Engineering
-construction is a maintainer operation before compilation. Publication is
+The application repository contains the source Gradle compiles, but its authoring
+authority remains the canonical layered patch recipe in engineering. Published
+application source is a generated view: never manually edit it, on any branch or
+worktree, and never merge a source change first and export a patch afterward.
+Engineering construction precedes publication and compilation. Publication is
 currently a draft until public native inputs and direct build acceptance pass.
 
 ## Identities and approval
@@ -36,21 +39,39 @@ APKs: Git history, paths, timestamps and dependency/native inputs can change
 build metadata. Old RC1 reconstruction and merged-main reconstruction are
 separate identities. A new G is never retroactively called RC1's original input.
 
-## Ordinary contributions
+## Patch-first application changes
 
-Contributors edit application files and open normal source PRs. Maintainers
-export an approved single-parent delta using `round_trip(repo, before, reviewed,
-patch_path)` from `source/publish.py`; the output records whole before/after trees
-and patch digest. `git diff --binary --full-index` preserves binary files, modes,
-symlinks, deletions and renamed-file content without rename ambiguity.
+1. Resolve the approved recipe and inputs. Classify the change in the existing
+   compatibility, behavior-fix/addition or attributed-fork layer structure;
+   pipeline/tool changes remain separate. Follow `docs/PATCH-PIPELINE.md` rather
+   than choosing a new layer position to avoid replaying later checkpoints.
+2. Diagnose and implement only in a disposable reconstruction. A reviewed
+   single-parent scratch commit may be exported with `round_trip(repo, before,
+   reviewed, patch_path)` from `source/publish.py`. This records complete
+   before/after trees and patch digest. The binary full-index/no-renames delta
+   preserves binary files, modes, symlinks, deletions and renamed-file content.
+3. Commit the patch, source provenance and tests in its proper canonical
+   engineering layer before proposing a published application change. Preserve
+   immutable upstream mailboxes and credits; replay affected downstream layers
+   and compute their checkpoint trees, bundle prerequisites and hashes. Do not
+   hand-edit digests or regenerate unrelated layers.
+4. Run the applicable scope/provenance, complete-tree, report/line-origin,
+   native-input, build and test gates, reporting missing evidence explicitly.
+   Append or update the reviewed publication plan only after the canonical
+   layer chain is established; regenerate G/I and compare complete trees.
+5. Publish the generated source update with its bound engineering-layer and
+   receipt references. No manually authored application-code PR is the primary
+   contribution. A parity mismatch blocks publication; code review, a successful
+   APK or layout-only CI does not replace this proof.
 
-Commit that patch and its provenance as a new engineering feature layer. In a
-fresh reconstruction apply with `git apply --index --binary`, require its before
-tree and full resulting after tree, append it to the approved plan, regenerate G,
-and compare the complete reviewed application tree. A mismatch blocks release.
-Do not regenerate unrelated layers or silently choose one divergent copy. Future
-upgrades integrate old Collie main and the new Signal-based generated endpoint;
-synthetic upgrade coverage checks both histories and exact final tree.
+The published root `AGENTS.md` comes from
+`source/policies/application-AGENTS.md` via `source/layers/publication.py`.
+Change generated policy/build/verification guidance in that producer as well;
+regeneration must preserve the patch-first rule and the user's README wording.
+A changed layer or plan requires fresh externally bound approval under the
+identities and approval rules above. Future upgrades integrate old Collie main
+and the new Signal-based generated endpoint while checking both histories and
+exact final-tree equality.
 
 ## Recovery
 
@@ -83,16 +104,20 @@ signing, index signing and production publication. A candidate cannot select its
 own trusted verifier. Required-check/ruleset administration remains an operator
 item; no policy protection is claimed merely because this command exists.
 
-## Import after an ordinary source PR merges
+## Historical source-first recovery
 
-`source/import_contribution.py` consumes a reviewed single-parent application
-commit and exports/replays the exact binary/mode delta against the complete
-approved source tree. Supply `--current-main` from an independent remote read,
+`source/import_contribution.py` is retained to validate or recover historical
+source-first contributions. It does not authorize new code-first application
+work. Any exceptional use needs an explicit user decision, rather than an
+inference from the helper's existence. It consumes a reviewed single-parent
+application commit and exports/replays the exact binary/mode delta against the
+complete approved source tree. Supply `--current-main` from an independent remote read,
 not the old cutover base: after a normal source contribution merges, that base
 has moved. The helper requires the old application history and the reviewed
 contributor commit to remain ancestors of current main, rebinds plan.old_main,
 then emits a plan for full publication regeneration. Approval must be renewed
 for changed current main/plan/G/I. This preserves actual contributor authorship
 in the integration ancestry as well as explicit attribution in generated
-layers. No contributor edits the engineering patch forest. Fixture roundtrips
-against actual candidate G/I are test evidence, not production contributions.
+layers. The immutable historical Molly forest remains unchanged; new work
+belongs in its documented canonical layer. Fixture roundtrips against actual
+candidate G/I are test evidence, not production contributions.

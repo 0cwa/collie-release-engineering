@@ -1,0 +1,92 @@
+diff --git a/AGENTS.md b/AGENTS.md
+new file mode 100644
+index 0000000000000000000000000000000000000000..18f4b8b93b38dcf439ac7e4ba00df763b3af6742
+--- /dev/null
++++ b/AGENTS.md
+@@ -0,0 +1,29 @@
++# Collie: mandatory patch-first development
++
++Collie uses a layered, patch-based release system. A checkout may contain pristine upstream source on a legacy patch branch or reconstructed application source on a publication branch. Neither layout permits manually authoring application changes in those source files; the approved patch chain is the authority.
++
++## Hard rule
++
++**Never manually edit application code in this repository.** This includes source, resources, native code, dependency inputs and build logic, on every branch, fork, worktree and source-publication candidate. A checkout containing ordinary application files, or lacking patch tools, does not waive this rule.
++
++Do not open or merge an application-code change here first and promise to export a patch later. Do not treat a direct-source contribution guide, an unmerged migration PR, passing tests or green layout CI as permission to do so.
++
++Reading, diagnosis and testing are allowed. Temporary implementation work belongs in a disposable reconstruction outside this published checkout, as part of producing the canonical patch. Its source edits are not the deliverable.
++
++## Required route for application changes
++
++1. Resolve the approved patch recipe and input revisions before editing. Legacy patch branches keep the canonical forest, `molly-build.json`, tools and `docs/PATCH-PIPELINE.md` here. After an approved extraction, use [collie-release-engineering](https://github.com/0cwa/collie-release-engineering) and read its root instructions, layer workflow, `source/README.md` and `source/PUBLICATION.md`. An unmerged source-publication branch or missing patch directory does not transfer authoring authority; verify the current approved location and publication plan rather than choosing a nearby staging checkout.
++2. Classify the change in the documented layer structure: upstream snapshot, compatibility adaptation, behavior-preserving fix, behavior addition, or attributed fork change. Keep pipeline/tool changes separate. Do not choose a layer to avoid replaying later layers; clarify an ambiguous classification before proceeding.
++3. Author and retain the canonical patch and its tests in that layer. Preserve the immutable upstream forest, layer order, dependencies, source authorship and attribution. Record source commits, exact before/after trees and computed patch/bundle hashes and prerequisites. Never hand-edit hashes to make a check pass or refresh unrelated patches for line offsets.
++4. Replay the affected chain from its pinned inputs. Run the applicable scope, provenance, complete-tree, port-report/line-origin, native-input, build and test checks. Report unmeasured, failed and not-run checks accurately. A source-tree proof, successful compilation, native reproduction, signing and live-device acceptance are separate claims.
++5. Regenerate published source from the reviewed engineering layers. Verify the complete generated tree and the approved publication plan/receipt, including generated endpoint and integration parents. Only that generated source update may carry application changes into this repository. A source-only layout check is not patch-parity or publication approval.
++
++If the patch route or its required inputs cannot be verified, retain the candidate in scratch and report the missing dependency. Do not fall back to manual application edits here.
++
++## Documentation and coordination
++
++- User-requested documentation and policy corrections may be prepared here. Update their canonical producer as well when the publication layer generates them; regeneration must not restore contradictory instructions.
++- The published `AGENTS.md` is emitted from engineering's `source/policies/application-AGENTS.md`. Keep that template and the generated copy identical.
++- Collie currently ships one consolidated application. Legacy filenames and historical profile APIs are not separate current editions or an instruction to run their old build matrix.
++- Preserve the user's README introduction and tone. Put brief source/build links near the bottom; keep detailed agent and developer instructions in their own documents.
++- Respect the owners and order of existing PRs. Read their scope before changing shared pipeline rules, and do not rewrite another agent's branch or candidate approvals. A changed recipe, layer or publication base requires fresh bound evidence.
+diff --git a/BUILD.md b/BUILD.md
+index 98e7efeed6cb0bde656bb82e8aa35755905d48ad..e64300916565f691d13cdd564637b6379d950ec8 100644
+--- a/BUILD.md
++++ b/BUILD.md
+@@ -1,5 +1,9 @@
+ # Building Collie
+ 
++Development is patch-first. Do not manually edit application code in this checkout.
++Author changes in the canonical engineering patch layers, then reconstruct and
++verify the published source. Read [AGENTS.md](AGENTS.md) before application work.
++
+ This checkout contains the reconstructed application source; Gradle does not run
+ an assembler or inject source from another worktree. JDK/Gradle/SDK/NDK and strict
+ dependency inputs are declared in this tree. Canonical identity is im.collie.app,
+diff --git a/README.md b/README.md
+index 5dbb27d1c67ab00f24f9f8bb0a6d2f4f1ce63e95..3f6594ddc9e1664b8e570dd757ef5cfb451bca00 100644
+--- a/README.md
++++ b/README.md
+@@ -22,7 +22,7 @@
+   <a href="https://github.com/0cwa/collieim-android/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0--only-687E59?style=flat&amp;labelColor=5A4033" alt="AGPL 3.0 only"></a>
+ </p>
+ 
+-Welcome!  Collie is an independent Android messenger built on [Signal](https://signal.org/) and [Molly](https://molly.im/). It uses the Signal network for private messages and calls, with Molly's protections for data stored on your device.  Published application source is inspected here; reconstruction and release engineering live in [collie-release-engineering](https://github.com/0cwa/collie-release-engineering). See [BUILD.md](BUILD.md) and [VERIFY.md](VERIFY.md).  [We contribute](https://github.com/mollyim/mollyim-android/pull/852) [back upstream](https://github.com/mollyim/mollyim-android/pull/853).
++Welcome!  Collie is an independent Android messenger built on [Signal](https://signal.org/) and [Molly](https://molly.im/). It uses the Signal network for private messages and calls, with Molly's protections for data stored on your device.  We use a patch-based release system for maximum code auditability, fast security updates ⚡, and interoperability.  [We contribute](https://github.com/mollyim/mollyim-android/pull/852) [back upstream](https://github.com/mollyim/mollyim-android/pull/853).
+ 
+ <b>🌟 Stars! 🧡</b>
+ 
+@@ -86,6 +86,10 @@ Collie supports local Signal-format backups. Restoring a backup requires an app
+ 
+ [Report bugs or suggest changes](https://github.com/0cwa/collieim-android/issues) in this repository.
+ 
++## Source and development
++
++Collie is developed through a layered, patch-based release system in [collie-release-engineering](https://github.com/0cwa/collie-release-engineering). For source and build details, see [BUILD.md](BUILD.md) and [VERIFY.md](VERIFY.md).
++
+ ## License
+ 
+ Licensed under the GNU Affero General Public License, version 3 only ([AGPL-3.0-only](LICENSE)). See [LEGAL.md](LEGAL.md) for legal and copyright information.
+diff --git a/VERIFY.md b/VERIFY.md
+index 8433696190a3ca62ce27870f3b7c5940c772f954..4fecf2615b13dc271f19dc0d47f6a10367a57709 100644
+--- a/VERIFY.md
++++ b/VERIFY.md
+@@ -16,7 +16,10 @@ not contain its own hash. Source inspection is not signed provenance or proof
+ that native binaries were independently rebuilt. Historical RC1's tag is retained
+ unchanged; this source checkpoint is not retroactively its build input.
+ 
+-Contribute normal application changes here. Maintainers export a full binary
+-Git delta, commit it as an engineering layer, regenerate and compare the whole
+-reviewed tree before release (source/PUBLICATION.md in engineering). The two
+-representations may not silently diverge.
++Application changes must originate as reviewed patch layers in
++[collie-release-engineering](https://github.com/0cwa/collie-release-engineering).
++Do not manually edit application code in this published checkout, or merge a
++source PR first and export its patch later. Reconstruct from the canonical
++layers, verify the complete generated tree and publication receipt, and publish
++only that generated update. See [AGENTS.md](AGENTS.md) and engineering's
++`source/PUBLICATION.md`. Source inspection does not waive patch-first authoring.

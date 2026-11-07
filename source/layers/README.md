@@ -14,3 +14,11 @@ verification metadata, then test direct compilation from a clean checkout.
 Independent native reproduction is a separate follow-up: complete source/toolchain
 provenance, reproduce four ABI outputs, compare packaged libraries and execute
 proxy/call/device checks. Existing trusted-local evidence is not reproduction.
+
+The proposed `patch-first-policy.patch` publication overlay is accompanied by
+its exact before/after trees and SHA-256 in `patch-first-policy.json`. It carries
+only the user-requested agent policy and documentation corrections. Existing
+plans/G/I approvals are unchanged. Before adoption, the priority owner must
+replay it from trusted complete history, integrate the layer and refresh the
+publication plan and approvals. The producer and policy template must travel
+with the overlay so regeneration does not restore code-first instructions.

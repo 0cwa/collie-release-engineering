@@ -22,9 +22,6 @@ def apply(app, engineering, previous_application):
         import io, tarfile
         with tarfile.open(fileobj=io.BytesIO(data)) as archive:
             archive.extractall(app, filter='data')
-    readme = app / 'README.md'
-    readme.write_text(readme.read_text().replace('We use a patch-based release system for maximum code auditability, fast security updates ⚡, and interoperability.',
-        'Published application source is inspected here; reconstruction and release engineering live in [collie-release-engineering](https://github.com/0cwa/collie-release-engineering). See [BUILD.md](BUILD.md) and [VERIFY.md](VERIFY.md).'))
     shutil.rmtree(app / '.github/workflows')
     (app / '.github/workflows').mkdir()
     (app / '.github/workflows/source.yml').write_text('''name: Direct source checks
@@ -103,7 +100,27 @@ fun requireCommitTag(): String = providers.gradleProperty("releaseVersionName").
 throw GradleException("Direct Android builds BLOCKED: publish and verify locked native inputs first; see BUILD.md")
 '''
     gradle.write_text(text)
+    write_publication_docs(app, engineering)
+
+
+def write_publication_docs(app, engineering):
+    """Emit patch-first policy with the published view and preserve user copy."""
+    app, engineering = map(Path, (app, engineering))
+    shutil.copyfile(engineering / 'source/policies/application-AGENTS.md', app / 'AGENTS.md')
+    readme = app / 'README.md'
+    content = readme.read_text()
+    section = "\n## Source and development\n\nCollie is developed through a layered, patch-based release system in [collie-release-engineering](https://github.com/0cwa/collie-release-engineering). For source and build details, see [BUILD.md](BUILD.md) and [VERIFY.md](VERIFY.md).\n"
+    if "\n## Source and development\n" not in content:
+        if "\n## License\n" in content:
+            content = content.replace("\n## License\n", section + "\n## License\n", 1)
+        else:
+            content = content.rstrip() + "\n" + section
+        readme.write_text(content)
     (app/'BUILD.md').write_text('''# Building Collie
+
+Development is patch-first. Do not manually edit application code in this checkout.
+Author changes in the canonical engineering patch layers, then reconstruct and
+verify the published source. Read [AGENTS.md](AGENTS.md) before application work.
 
 This checkout contains the reconstructed application source; Gradle does not run
 an assembler or inject source from another worktree. JDK/Gradle/SDK/NDK and strict
@@ -150,8 +167,11 @@ not contain its own hash. Source inspection is not signed provenance or proof
 that native binaries were independently rebuilt. Historical RC1's tag is retained
 unchanged; this source checkpoint is not retroactively its build input.
 
-Contribute normal application changes here. Maintainers export a full binary
-Git delta, commit it as an engineering layer, regenerate and compare the whole
-reviewed tree before release (source/PUBLICATION.md in engineering). The two
-representations may not silently diverge.
+Application changes must originate as reviewed patch layers in
+[collie-release-engineering](https://github.com/0cwa/collie-release-engineering).
+Do not manually edit application code in this published checkout, or merge a
+source PR first and export its patch later. Reconstruct from the canonical
+layers, verify the complete generated tree and publication receipt, and publish
+only that generated update. See [AGENTS.md](AGENTS.md) and engineering's
+`source/PUBLICATION.md`. Source inspection does not waive patch-first authoring.
 ''')

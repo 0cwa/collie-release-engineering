@@ -1,0 +1,18 @@
+{
+  "schema": 1,
+  "kind": "publication",
+  "before_tree": "b5fbed355186be1e728d556a48718e7158e7ab8f",
+  "after_tree": "7ebf5000fa3dca8fc23631e0c2c4ad3c9e3516d5",
+  "patch_sha256": "bc1436f20569deb95866adbb421fd1a613968cdd46b91ded6aa122fe9aa70265",
+  "base_application_candidate": "8b119e357d1c9c6863eff31756660bc07d6cfb8b",
+  "patch": "patch-first-policy.patch",
+  "paths": [
+    "AGENTS.md",
+    "BUILD.md",
+    "README.md",
+    "VERIFY.md"
+  ],
+  "provenance": "User-required patch-first workflow; AI-assisted documentation and publication-policy implementation.",
+  "source_history_verification": "BLOCKED: grafts, alternates and shallow history are forbidden; this proposal is tree/patch replay evidence only",
+  "integration_status": "PROPOSED: priority owner must replay this layer from trusted complete source history and obtain fresh plan/G/I approval; existing candidate plans and refs are unchanged."
+}
