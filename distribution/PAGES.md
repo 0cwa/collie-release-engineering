@@ -196,9 +196,15 @@ or deployment occurred. The test journal's injected loopback transport is labele
 it is not a production readback attestation. Private test key and bulky artifacts
 are removed after independent inspection; only text hashes/receipts persist.
 
-Forty standalone tests pass, including explicit repository/generation/previous-site
+Forty-three standalone tests pass, including explicit repository/generation/previous-site
 substitution rejection, current-live manifest mismatch, every previous URL
 verification, cache-failure retry, mixed generation failure, byte-identical output
 from the same approved bundle in different directories, safe extraction, restricted
 public paths and manual-only workflow/action pins. Actual initial Pages activation
 and endpoint client acceptance remain NOT RUN.
+
+The downloader rejects existing/dangling output and partial paths before network
+access, removes only its own created partial on failure, and uses exclusive
+publication so a concurrently created destination is preserved. Regression tests
+cover both preexisting and raced paths; the actual Pages artifact bytes above are
+unchanged by this download-helper correction.

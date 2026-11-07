@@ -25,3 +25,26 @@ class InputDownloadTest(unittest.TestCase):
             for value in ('latest','1;echo-token','-1','1\n2'):
                 with self.assertRaises(ValueError):d.download(value,self.expected,self.output)
             fetch.assert_not_called()
+
+    def test_preexisting_partial_preserved_without_network(self):
+        temporary=self.output.with_suffix('.tar.partial');temporary.write_bytes(b'preexisting data')
+        with patch('urllib.request.urlopen') as fetch:
+            with self.assertRaisesRegex(ValueError,'fresh input'):d.download('1',self.expected,self.output)
+            fetch.assert_not_called()
+        self.assertEqual(temporary.read_bytes(),b'preexisting data')
+    def test_dangling_output_and_partial_links_preserved_without_network(self):
+        for path in (self.output,self.output.with_suffix('.tar.partial')):
+            path.symlink_to(self.output.parent/'absent-target')
+            with patch('urllib.request.urlopen') as fetch:
+                with self.assertRaisesRegex(ValueError,'fresh input'):d.download('1',self.expected,self.output)
+                fetch.assert_not_called()
+            self.assertTrue(path.is_symlink());path.unlink()
+    def test_raced_partial_and_destination_are_never_deleted_or_overwritten(self):
+        for path in (self.output.with_suffix('.tar.partial'),self.output):
+            responses=iter(self.responses())
+            def raced(*args,**kwargs):
+                if not path.exists():path.write_bytes(b'other job data')
+                return next(responses)
+            with patch('urllib.request.urlopen',side_effect=raced):
+                with self.assertRaises(FileExistsError):d.download('1',self.expected,self.output)
+            self.assertEqual(path.read_bytes(),b'other job data');path.unlink()

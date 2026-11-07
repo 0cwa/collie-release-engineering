@@ -36,12 +36,13 @@
   "journal_sha256": "7fced351d7b02bc9e50980865cf391e3fa01160cf76e9bf16496b9d45c00c3c6",
   "transport_scope": "Loopback HTTP mapping only; NOT real Pages/TLS/CDN readback",
   "actual_pages_deployment": "NOT RUN; Pages/environment/DNS/index-production-key activation not authorized",
-  "tests": "PASS 40 standalone distribution/Pages tests; includes authoritative existing-origin preflight and deterministic artifacts across output directories",
+  "tests": "PASS 43 standalone distribution/Pages tests, including existing-origin preflight, deterministic artifacts and downloader preexisting/raced file preservation",
   "workflow_yaml": "Parsed with PyYAML6.0.3 and all external actionrefs40hex; hosted execution NOT RUN",
   "native_storage": "Separate proposed native.collie.im/maven/v1 R2 origin; NOT PROVISIONED/PUBLISHED",
   "infrastructure": {
     "pages_api_engineering": "404 read-only",
     "pages_api_application": "404 read-only",
     "engineering_environments": "empty list; no protection claimed"
-  }
+  },
+  "downloader_followup": "Reviewed data-preservation fix after snapshot implementation3da: rejects preexisting/dangling output or partial before fetch; preserves raced files, and publishes exclusively. Snapshot/tar generation code and measured bytes unchanged."
 }

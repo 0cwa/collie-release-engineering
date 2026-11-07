@@ -5,7 +5,8 @@ from pages import MAX_BYTES
 
 def download(asset_id,expected,destination):
     if not re.fullmatch('[1-9][0-9]*',asset_id) or not re.fullmatch('[0-9a-f]{64}',expected):raise ValueError('asset identity/digest')
-    if destination.exists():raise ValueError('fresh input destination required')
+    temporary=destination.with_suffix(destination.suffix+'.partial')
+    if any(path.exists() or path.is_symlink() for path in (destination,temporary)):raise ValueError('fresh input destination and partial required')
     headers={'Accept':'application/vnd.github+json','User-Agent':'Collie-Pages-preparer'}
     token=os.environ.get('GITHUB_TOKEN')
     if token:headers['Authorization']='Bearer '+token
@@ -15,17 +16,23 @@ def download(asset_id,expected,destination):
     if metadata['id']!=int(asset_id) or not url.startswith('https://github.com/0cwa/collie-release-engineering/releases/download/'):raise ValueError('asset repository differs')
     if metadata['size']>2*MAX_BYTES:raise ValueError('input archive budget')
     # No token is forwarded to public release-asset redirects.
-    temporary=destination.with_suffix(destination.suffix+'.partial');h=hashlib.sha256();size=0
+    h=hashlib.sha256();size=0;created=False
     try:
         with urllib.request.urlopen(url,timeout=60) as response,open(temporary,'xb') as stream:
+            created=True
             for block in iter(lambda:response.read(1024*1024),b''):
                 size+=len(block)
                 if size>2*MAX_BYTES:raise ValueError('input archive budget')
                 h.update(block);stream.write(block)
         if size!=metadata['size'] or h.hexdigest()!=expected:raise ValueError('approved input archive differs')
-        temporary.rename(destination)
+        # Exclusive atomic publication: a concurrently created destination or
+        # dangling link is never overwritten. Unlinking our temporary leaves1link.
+        os.link(temporary,destination)
+        temporary.unlink()
+        created=False
     except Exception:
-        temporary.unlink(missing_ok=True);raise
+        if created:temporary.unlink(missing_ok=True)
+        raise
 
 def main():
     p=argparse.ArgumentParser();p.add_argument('--asset-id',required=True);p.add_argument('--sha256',required=True);p.add_argument('--output',type=Path,required=True);a=p.parse_args();download(a.asset_id,a.sha256,a.output)
