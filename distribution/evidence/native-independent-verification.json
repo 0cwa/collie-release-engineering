@@ -1,0 +1,46 @@
+{
+  "status": "PASS",
+  "code_head": "390443afeaf7bad8c0aee58fa37cf6ced2d6c95a",
+  "archives": {
+    "phase1": {
+      "sha256": "38aa1feae9b6aad9e6690f9b25f4e610e34752b51ef8dd1460fc366e186fa5d4",
+      "bytes": 310855680
+    },
+    "phase2": {
+      "sha256": "38aa1feae9b6aad9e6690f9b25f4e610e34752b51ef8dd1460fc366e186fa5d4",
+      "bytes": 310855680
+    }
+  },
+  "native_policy_sha256": "637e69803bdec6aa117c9f3b85d966ef055041a2c066e4cb28447ecd29296838",
+  "six_file_bytes": 310836447,
+  "matches_existing_source_plan": true,
+  "source_plan_verification_sha256": "687fb1544cc1600748129ced52932b8ff8867f0e11bc70f008690a94854f5401",
+  "library_summary": {
+    "libsignal-android-0.106.1-collie.1.aar": {
+      "jni_entries": 8,
+      "existing_android_testing_entries": 4
+    },
+    "libsignal-client-0.106.1-collie.1.jar": {
+      "jni_entries": 0,
+      "existing_android_testing_entries": 0
+    },
+    "ringrtc-android-2.74.0-collie.1.aar": {
+      "jni_entries": 8,
+      "existing_android_testing_entries": 0
+    }
+  },
+  "scope": "Existing accepted six native files; no additional host-JVM file, APK/index/key/add-link payload. Android AAR testing JNI is existing input, distinct from production APK packaging. Public HTTPS/CDN/reproduction NOT RUN.",
+  "evidence_trust": "Unsigned independent agent observation of exact existing native bytes and test archives; not a signed attestation or independent native build reproduction.",
+  "persisted_receipts": {
+    "NATIVE-PAGES-PREPARATION.json": {
+      "raw_sha256": "dfe5957bd89c3ef5bf9804b11d25f11e5baef6cc11aecc16dd6e33890d26bf7f"
+    },
+    "native-pages-plan.json": {
+      "raw_sha256": "42e03cc70705df6ef455fd96d2b9ef30973d5acf1e7638164587e2587a5fdefb",
+      "canonical_sha256": "a9c824e0ea45ffbc46ced6c358f734004e11e769c7d4f62fc63813d069343ac0"
+    },
+    "native-pages-journal.json": {
+      "raw_sha256": "4e1b79d24e8bcfef9a0c1416d1091306a84761c6da36427224c2f98ea12f26bd"
+    }
+  }
+}

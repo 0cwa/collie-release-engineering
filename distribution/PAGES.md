@@ -252,3 +252,19 @@ of the retained site. The native-only placeholder names native inputs and the
 inactive feed without claiming signed indexes. Ingestion also keeps the externally
 approved APK digest pinned after signer/metadata inspection, rejecting mutation
 before the target URL is staged. Both integrity regressions pass.
+
+An independent agent audited code390443afeaf7bad8c0aee58fa37cf6ced2d6c95a,
+ran19focused Pages/ingestion checks, hashed both real archives and every member,
+and matched all six native inputs to the existing source plan. The native-only
+page was also rendered and visually checked in an isolated cached headless TEST
+runtime without networking: native inputs named, feed inactive, no add link or
+signed-index claim. Unsigned observations and raw/canonical receipt references
+are preserved in native-independent-verification.json and
+native-maintenance-headless.json. The cached browser is not an application build
+dependency or public hosting proof. Existing Android testing JNI inside the
+accepted AAR remains unchanged; absence of test JNI was checked separately on
+the production APK, not asserted for these native inputs. No extra host-JVM
+artifact or private payload is included. Large generated package copies were
+removed after review; exact native policy inputs and documented commands recreate
+the package for a newly approved final policy. Independent native reproduction
+and canonical public HTTPS/Pages/CDN acceptance remain NOT RUN.
