@@ -1,0 +1,216 @@
+name: Build unsigned release
+
+on:
+  workflow_dispatch:
+    inputs:
+      approved_commit:
+        description: Full commit SHA approved for release (dispatch this workflow at that commit)
+        required: true
+        type: string
+      version_name:
+        description: Release version name
+        required: true
+        type: string
+      version_code:
+        description: Shared Android version code
+        required: true
+        type: string
+      certificate_sha256:
+        description: Expected signing certificate SHA-256 (lowercase hex)
+        required: true
+        type: string
+      instrumentation:
+        description: Optional hosted instrumentation profiles
+        type: choice
+        required: true
+        default: 'off'
+        options:
+          - 'off'
+          - both
+          - collie
+          - collie-foss
+
+permissions:
+  contents: read
+
+env:
+  GIT_LFS_SKIP_SMUDGE: '1'
+  GIT_TERMINAL_PROMPT: '0'
+
+jobs:
+  # Instrumentation remains visible as its own job but does not block APK collection.
+  unsigned-release:
+    environment: unsigned-release
+    runs-on: ubuntu-24.04
+    timeout-minutes: 360
+    steps:
+      - name: Check out the approved workflow and source
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+          lfs: false
+      - name: Validate the dispatch and prepare proof
+        env:
+          APPROVED: ${{ inputs.approved_commit }}
+          WORKFLOW_REVISION: ${{ github.workflow_sha }}
+          VERSION_CODE: ${{ inputs.version_code }}
+        run: |
+          [[ "$APPROVED" =~ ^[0-9a-f]{40}$ && "$APPROVED" == "$GITHUB_SHA" && "$WORKFLOW_REVISION" == "$APPROVED" ]]
+          python3 -c 'import os,sys; sys.path.insert(0,"tools/patches"); import release_artifacts as a; a.validate_version_code(int(os.environ["VERSION_CODE"]), a.PACKAGE)'
+          python3 -c 'import json,sys; sys.exit("Signal 8.35.1 release blocked: native integration and port review incomplete") if json.load(open("molly-build.json"))["signal"]["commit"] == "a74583b01e260944f699c4da03ba4e8ce04de32b" else None'
+          git fetch --no-tags origin refs/heads/private/release-base-5:refs/remotes/origin/private/release-base-5
+          git fetch --no-tags https://github.com/mollyim/mollyim-android.git 0e202dda90785771ff8c87526eaaf30c655f54f3
+          python3 -m unittest discover -s tools/patches -p 'test_*.py'
+          python3 tools/patches/prepare_port_report.py
+          python3 tools/patches/scope.py --scope forks --base refs/remotes/origin/private/release-base-5
+          python3 tools/patches/verify_source_bundles.py
+          python3 tools/patches/port_report.py --check
+      - name: Set up JDK 21
+        uses: actions/setup-java@1bcf9fb12cf4aa7d266a90ae39939e61372fe520 # v5
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@3f131e8634966bd73d06cc69884922b02e6faf92 # v6
+        with:
+          cache-disabled: true
+      - name: Prove, build, and test all five profiles
+        env:
+          VERSION_NAME: ${{ inputs.version_name }}
+          VERSION_CODE: ${{ inputs.version_code }}
+        run: |
+          set -euo pipefail
+          unset CI_KEYSTORE_PATH CI_KEYSTORE_PASSWORD CI_KEYSTORE_ALIAS
+          export GRADLE_USER_HOME="$RUNNER_TEMP/release-gradle-user-home"
+          mkdir -p "$GRADLE_USER_HOME" "$RUNNER_TEMP/release-task-cache" "$RUNNER_TEMP/release-apks" "$RUNNER_TEMP/release-proofs"
+          for profile in molly-minimal molly-continued molly-foss-continued collie collie-foss; do
+            worktree="$RUNNER_TEMP/source-$profile"
+            report="$RUNNER_TEMP/release-proofs/$profile"
+            python3 tools/patches/release.py --repo . --config molly-build.json --worktree "$worktree" --report "$report/source.json" --scope forks --base refs/remotes/origin/private/release-base-5 --profile "$profile"
+            for phase in native-prepare native-build native-integrate sdk; do
+              python3 tools/patches/build.py "$phase" --worktree "$worktree" --report-dir "$report" --profile "$profile"
+            done
+            python3 tools/patches/build.py assemble-release --worktree "$worktree" --report-dir "$report" --profile "$profile" --release-version-name "$VERSION_NAME" --release-version-code "$VERSION_CODE" --workers 2 --build-cache --release-cache-dir "$RUNNER_TEMP/release-task-cache"
+            python3 tools/patches/build.py test --worktree "$worktree" --report-dir "$report" --profile "$profile" --workers 2 --build-cache --release-cache-dir "$RUNNER_TEMP/release-task-cache"
+            mapfile -t apks < <(find "$worktree/app/build/outputs/apk/prodWebsite/release" -maxdepth 1 -type f -name '*.apk')
+            [[ ${#apks[@]} == 1 ]]
+            cp -- "${apks[0]}" "$RUNNER_TEMP/release-apks/$profile.apk"
+            git worktree remove --force "$worktree"
+          done
+      - name: Verify APKs and write manifest
+        env:
+          APPROVED: ${{ inputs.approved_commit }}
+          VERSION_NAME: ${{ inputs.version_name }}
+          VERSION_CODE: ${{ inputs.version_code }}
+          CERTIFICATE: ${{ inputs.certificate_sha256 }}
+          WORKFLOW_REVISION: ${{ github.workflow_sha }}
+        run: |
+          build_tools=$(python3 -c 'import json; print(json.load(open("molly-build.json"))["android"]["build_tools"])')
+          python3 tools/patches/release_collect.py --directory "$RUNNER_TEMP/release-apks" --build-tools "$ANDROID_HOME/build-tools/$build_tools" --config molly-build.json --commit "$APPROVED" --workflow-revision "$WORKFLOW_REVISION" --run-id "$GITHUB_RUN_ID" --run-attempt "$GITHUB_RUN_ATTEMPT" --version-name "$VERSION_NAME" --version-code "$VERSION_CODE" --certificate-sha256 "$CERTIFICATE"
+      - name: Upload unsigned APKs and manifest
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: unsigned-release-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/release-apks
+          if-no-files-found: error
+      - name: Upload source and build proofs
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: release-proofs-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/release-proofs
+          if-no-files-found: error
+
+  instrumentation:
+    name: Instrumentation on reconstructed ${{ matrix.profile }}
+    if: inputs.instrumentation == 'both' || inputs.instrumentation == 'collie' || inputs.instrumentation == 'collie-foss'
+    strategy:
+      fail-fast: false
+      matrix:
+        profile: ${{ fromJSON(inputs.instrumentation == 'both' && '["collie","collie-foss"]' || inputs.instrumentation == 'collie-foss' && '["collie-foss"]' || '["collie"]') }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 360
+    steps:
+      - name: Free space for the instrumentation emulator
+        run: |
+          # Hosted runners are disposable; retain their Android SDK and Java tools.
+          df -h "$RUNNER_TEMP"
+          sudo rm -rf /usr/share/dotnet /usr/share/swift /usr/local/.ghcup /usr/local/julia*
+          df -h "$RUNNER_TEMP"
+      - name: Check out the exact head
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+          lfs: false
+      - name: Record instrumentation inputs
+        run: |
+          mkdir -p "$RUNNER_TEMP/instrumentation"
+          printf 'commit=%s\nprofile=%s\napi=%s\nsuites=%s\n' "$(git rev-parse HEAD)" '${{ matrix.profile }}' '35' 'default,imo' | tee "$RUNNER_TEMP/instrumentation/run-context.txt"
+      - name: Reconstruct the selected actual fork source
+        env:
+          APPROVED: ${{ inputs.approved_commit }}
+          WORKFLOW_REVISION: ${{ github.workflow_sha }}
+        run: |
+          [[ "$APPROVED" =~ ^[0-9a-f]{40}$ && "$APPROVED" == "$GITHUB_SHA" && "$WORKFLOW_REVISION" == "$APPROVED" ]]
+          python3 -c 'import json,sys; sys.exit("Signal 8.35.1 release blocked: native integration and port review incomplete") if json.load(open("molly-build.json"))["signal"]["commit"] == "a74583b01e260944f699c4da03ba4e8ce04de32b" else None'
+          git fetch --no-tags origin refs/heads/private/release-base-5:refs/remotes/origin/private/release-base-5
+          git fetch --no-tags https://github.com/mollyim/mollyim-android.git 0e202dda90785771ff8c87526eaaf30c655f54f3
+          python3 tools/patches/prepare_port_report.py
+          python3 tools/patches/release.py --repo . --config molly-build.json \
+            --worktree "$RUNNER_TEMP/molly-instrumentation" --report "$RUNNER_TEMP/instrumentation/source.json" \
+            --scope forks --base refs/remotes/origin/private/release-base-5 --profile '${{ matrix.profile }}'
+          python3 tools/patches/build.py native-prepare --worktree "$RUNNER_TEMP/molly-instrumentation" --report-dir "$RUNNER_TEMP/instrumentation" --profile '${{ matrix.profile }}'
+          python3 tools/patches/build.py native-build --worktree "$RUNNER_TEMP/molly-instrumentation" --report-dir "$RUNNER_TEMP/instrumentation" --profile '${{ matrix.profile }}'
+          python3 tools/patches/build.py native-integrate --worktree "$RUNNER_TEMP/molly-instrumentation" --report-dir "$RUNNER_TEMP/instrumentation" --profile '${{ matrix.profile }}'
+      - name: Set up JDK 21
+        uses: actions/setup-java@1bcf9fb12cf4aa7d266a90ae39939e61372fe520 # v5
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@3f131e8634966bd73d06cc69884922b02e6faf92 # v6
+        with:
+          cache-read-only: true
+      - name: Install Android SDK
+        run: |
+          python3 tools/patches/build.py sdk --worktree "$RUNNER_TEMP/molly-instrumentation" --report-dir "$RUNNER_TEMP/instrumentation" --profile '${{ matrix.profile }}'
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null || true
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" 'platform-tools' 'emulator' 'system-images;android-35;google_apis;x86_64'
+      - name: Run default and IMO instrumentation on a disposable emulator
+        run: |
+          export PATH="$ANDROID_HOME/platform-tools:$PATH"
+          export ANDROID_AVD_HOME="$RUNNER_TEMP/android-avd"
+          mkdir -p "$ANDROID_AVD_HOME"
+          test -w /dev/kvm || sudo chmod a+rw /dev/kvm
+          echo 'no' | "$ANDROID_HOME/cmdline-tools/latest/bin/avdmanager" create avd -n instrumentation -k 'system-images;android-35;google_apis;x86_64' --force
+          test -s "$ANDROID_AVD_HOME/instrumentation.ini"
+          source tools/patches/emulator_startup.sh
+          check_avd_disk_space
+          "$ANDROID_HOME/emulator/emulator" -avd instrumentation -no-window -no-audio -no-boot-anim -gpu swangle &
+          emulator_pid=$!
+          diagnostics_pid=
+          cleanup() {
+            if [[ -n "$diagnostics_pid" ]]; then
+              kill "$diagnostics_pid" 2>/dev/null || true
+              wait "$diagnostics_pid" || true
+            fi
+            kill "$emulator_pid" 2>/dev/null || true
+          }
+          trap cleanup EXIT
+          wait_for_emulator_boot "$emulator_pid"
+          # This fresh CI emulator contains synthetic test data only; do not use real accounts.
+          python3 tools/patches/instrumentation_diagnostics.py "$RUNNER_TEMP/instrumentation" emulator-5554 &
+          diagnostics_pid=$!
+          tools/patches/instrumentation_gate.sh "$RUNNER_TEMP/molly-instrumentation" "$RUNNER_TEMP/instrumentation" '${{ matrix.profile }}'
+      - name: Upload instrumentation results
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: ${{ matrix.profile }}-instrumentation-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/instrumentation
+            !${{ runner.temp }}/instrumentation/**/*.tmp
+          if-no-files-found: warn

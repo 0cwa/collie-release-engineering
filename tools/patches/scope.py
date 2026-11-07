@@ -256,6 +256,9 @@ def check_reviewed_profile_snapshot(current, provenance, snapshot):
 # Exact legacy-main files deliberately retained when the release-base is integrated.
 # No other source projection difference is accepted for the main-based fork PR.
 MAIN_INTEGRATION_LOWER = '7f0eb01a0ab472deeef3b528e7f508425044fa6a'
+# PR38's merged raw baseline is a separate trusted maintenance projection.
+# Older release reconstruction/transition scopes keep their original oracle.
+MAIN_MAINTENANCE_BASE = 'f6f68cdee08fb8d9acb6a866b1673deb10525f20'
 MAIN_CLEAN_ENTRIES_BLOB = 'b06a83f6e4584f27811c3f406579b7db296f4b59'
 
 MAIN_PROJECTION_EXCEPTIONS = frozenset({
@@ -523,10 +526,14 @@ def check_main_maintenance(repo, base, head, integration_lower):
             raise ValueError('main maintenance excludes direct source change: ' + path)
     if git(repo, 'rev-parse', head + ':patches/molly').decode().strip() != FOREST:
         raise ValueError('Molly forest does not match the official snapshot')
+    projection_lower = integration_lower
+    present = subprocess.run(['git','-C',str(repo),'cat-file','-e',MAIN_MAINTENANCE_BASE+'^{commit}'],stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL).returncode == 0
+    if present and subprocess.run(['git','-C',str(repo),'merge-base','--is-ancestor',MAIN_MAINTENANCE_BASE,base],stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL).returncode == 0:
+        projection_lower = MAIN_MAINTENANCE_BASE
     # Compare the maintained tree to the trusted upstream source projection as
     # well as checking the PR diff. This also makes a trusted main snapshot
     # verifiable after earlier maintenance commits have landed.
-    projected = git(repo, 'diff', '--no-renames', '--name-only', '-z', integration_lower, head).split(b'\0')
+    projected = git(repo, 'diff', '--no-renames', '--name-only', '-z', projection_lower, head).split(b'\0')
     for raw in filter(None, projected):
         path = raw.decode('utf-8', 'surrogateescape')
         if not (metadata(path) or path in MAIN_PROJECTION_EXCEPTIONS or
@@ -537,7 +544,7 @@ def check_main_maintenance(repo, base, head, integration_lower):
     try:
         prior = json.loads(git(repo, 'show', base + ':molly-build.json'))
         current = json.loads(git(repo, 'show', head + ':molly-build.json'))
-        trusted = json.loads(git(repo, 'show', integration_lower + ':molly-build.json'))
+        trusted = json.loads(git(repo, 'show', projection_lower + ':molly-build.json'))
         for key in ('signal', 'molly', 'native'):
             if prior[key] != current[key] or current[key] != trusted[key]:
                 raise ValueError('main maintenance cannot change upstream source pin: ' + key)

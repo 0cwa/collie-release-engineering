@@ -1,0 +1,405 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Collie migration receipt v2",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "kind",
+    "payload",
+    "evidence"
+  ],
+  "properties": {
+    "schema": {
+      "const": 2
+    },
+    "kind": {
+      "enum": [
+        "source",
+        "build",
+        "release",
+        "repository"
+      ]
+    },
+    "payload": {
+      "type": "object"
+    },
+    "evidence": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "status",
+          "description",
+          "sha256"
+        ],
+        "properties": {
+          "status": {
+            "enum": [
+              "PASS",
+              "FAIL",
+              "NOT RUN",
+              "BLOCKED",
+              "UNKNOWN"
+            ]
+          },
+          "description": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2048
+          },
+          "sha256": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "if": {
+          "properties": {
+            "status": {
+              "const": "PASS"
+            }
+          }
+        },
+        "then": {
+          "properties": {
+            "sha256": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            }
+          }
+        }
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "kind": {
+            "const": "source"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "payload": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "upstream_commit",
+              "engineering_revision",
+              "generator_revision",
+              "verifier_revision",
+              "layers",
+              "reconstructed_tree",
+              "overlays",
+              "published_commit",
+              "published_tree"
+            ],
+            "properties": {
+              "upstream_commit": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{40}$"
+              },
+              "engineering_revision": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{40}$"
+              },
+              "generator_revision": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{40}$"
+              },
+              "verifier_revision": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{40}$"
+              },
+              "layers": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{64}$"
+                }
+              },
+              "reconstructed_tree": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{40}$"
+              },
+              "overlays": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{64}$"
+                }
+              },
+              "published_commit": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{40}$"
+              },
+              "published_tree": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{40}$"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "kind": {
+            "const": "build"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "payload": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "source_receipt_sha256",
+              "source_commit",
+              "source_tree",
+              "recipe_revision",
+              "toolchain_sha256",
+              "dependencies_sha256",
+              "native_inputs_sha256",
+              "unsigned_apk_sha256",
+              "trust_level"
+            ],
+            "properties": {
+              "source_receipt_sha256": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              },
+              "source_commit": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{40}$"
+              },
+              "source_tree": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{40}$"
+              },
+              "recipe_revision": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{40}$"
+              },
+              "toolchain_sha256": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              },
+              "dependencies_sha256": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              },
+              "native_inputs_sha256": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              },
+              "unsigned_apk_sha256": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              },
+              "trust_level": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "kind": {
+            "const": "release"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "payload": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "source_receipt_sha256",
+              "build_receipt_sha256",
+              "source_commit",
+              "engineering_revision",
+              "workflow_revision",
+              "package",
+              "version_code",
+              "version_name",
+              "apk_sha256",
+              "apk_certificate_sha256",
+              "aliases",
+              "release_manifest_sha256"
+            ],
+            "properties": {
+              "source_receipt_sha256": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              },
+              "build_receipt_sha256": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              },
+              "source_commit": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{40}$"
+              },
+              "engineering_revision": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{40}$"
+              },
+              "workflow_revision": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{40}$"
+              },
+              "package": {
+                "const": "im.collie.app"
+              },
+              "version_code": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 2100000000
+              },
+              "version_name": {
+                "type": "string",
+                "minLength": 1
+              },
+              "apk_sha256": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              },
+              "apk_certificate_sha256": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              },
+              "aliases": {
+                "type": "array",
+                "uniqueItems": true,
+                "minItems": 5,
+                "maxItems": 5,
+                "items": {
+                  "enum": [
+                    "collie-foss.apk",
+                    "collie.apk",
+                    "molly-continued.apk",
+                    "molly-foss-continued.apk",
+                    "molly-minimal.apk"
+                  ]
+                }
+              },
+              "release_manifest_sha256": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "kind": {
+            "const": "repository"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "payload": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "release_manifest_sha256",
+              "apk_sha256",
+              "apk_certificate_sha256",
+              "repository_certificate_sha256",
+              "fdroidserver_revision",
+              "metadata_revision",
+              "indexes",
+              "generation",
+              "release_receipt_sha256"
+            ],
+            "properties": {
+              "release_manifest_sha256": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              },
+              "apk_sha256": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              },
+              "apk_certificate_sha256": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              },
+              "repository_certificate_sha256": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              },
+              "fdroidserver_revision": {
+                "type": "string",
+                "minLength": 1
+              },
+              "metadata_revision": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{40}$"
+              },
+              "indexes": {
+                "type": "array",
+                "minItems": 1,
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "file",
+                    "sha256"
+                  ],
+                  "properties": {
+                    "file": {
+                      "type": "string",
+                      "pattern": "^[A-Za-z0-9_.-]+$"
+                    },
+                    "sha256": {
+                      "type": "string",
+                      "pattern": "^[0-9a-f]{64}$"
+                    }
+                  }
+                }
+              },
+              "generation": {
+                "type": "string",
+                "minLength": 1
+              },
+              "release_receipt_sha256": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{64}$"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

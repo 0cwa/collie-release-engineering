@@ -1,0 +1,13 @@
+{
+  "scope": "Independent actual emitted Gradle Kotlin expressions and gate in synthetic fixture; not Android build or native verification",
+  "source": "856a394df23168ef08e651b551edb660b79cefb9",
+  "script_sha256": "bd45077447a18129bdd24af065fe4d756e50c6b381c6c4d73818a1fc2c0f0f9e",
+  "gradle": "Cached Gradle9.6.0 distribution",
+  "checks": {
+    "assembleProdWebsiteRelease": "PASS blocked",
+    "assemble": "PASS blocked",
+    "build": "PASS blocked",
+    "releaseVersionCode=177703/name=fixture-next": "PASS applied",
+    "releaseVersionCode=177702": "PASS rejected"
+  }
+}

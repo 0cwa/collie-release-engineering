@@ -1,0 +1,2423 @@
+diff --git a/.github/workflows/build-artifacts.yml b/.github/workflows/build-artifacts.yml
+deleted file mode 100644
+index 9f5377a75b1d1e04dcaa4e7b3189e36dade32652..0000000000000000000000000000000000000000
+--- a/.github/workflows/build-artifacts.yml
++++ /dev/null
+@@ -1,127 +0,0 @@
+-name: Build artifacts
+-
+-# Builds unsigned APKs / bundles of various types inside the reproducible-builds
+-# Docker image and uploads them as a workflow artifact. No credentials are
+-# available here; the only secrets are the two nightly update-check URLs, and
+-# they are only handed to nightly builds. It only ever runs when dispatched;
+-# never on push or pull_request.
+-#
+-# Whoever dispatches it can pass an opaque `correlation` id and find the run by
+-# this name, since the dispatch API doesn't return a run id.
+-run-name: "Build ${{ inputs.kind }} ${{ inputs.type }} @ ${{ inputs.ref }} [${{ inputs.correlation }}]"
+-
+-on:
+-  workflow_dispatch:
+-    inputs:
+-      repo:
+-        description: Which repo to build from
+-        type: choice
+-        options: [private, public]
+-        default: private
+-      ref:
+-        description: Commit sha or tag to build
+-        type: string
+-        required: true
+-      kind:
+-        description: What to build
+-        type: choice
+-        options: [release, instrumentation, benchmark, reproducible]
+-        default: release
+-      type:
+-        description: "Release type (release kind only): play | website | nightly | nightlyStaging | github"
+-        type: string
+-        default: ""
+-      indexes:
+-        description: "JSON list; one independent build per entry (reproducible uses [0,1,2])"
+-        type: string
+-        default: "[0]"
+-      correlation:
+-        description: Opaque id echoed in the run name so the run can be found afterwards
+-        type: string
+-        default: ""
+-
+-permissions:
+-  contents: read # to fetch code (actions/checkout)
+-
+-jobs:
+-  build:
+-    name: "Build #${{ matrix.index }}"
+-    runs-on: ubuntu-latest-8-cores
+-    timeout-minutes: 50
+-    strategy:
+-      fail-fast: false
+-      matrix:
+-        index: ${{ fromJSON(inputs.indexes) }}
+-
+-    steps:
+-      - name: Free up disk space
+-        run: |
+-          # The build runs entirely inside the Docker container, which ships its
+-          # own JDK, Android SDK, and NDK. None of the host toolchains are needed.
+-          sudo rm -rf /usr/lib/jvm
+-          sudo rm -rf /usr/share/dotnet
+-          sudo rm -rf /usr/share/swift
+-          sudo rm -rf /usr/local/.ghcup
+-          sudo rm -rf /usr/local/julia*
+-          sudo rm -rf /usr/local/lib/android
+-          sudo rm -rf /usr/local/share/chromium
+-          sudo rm -rf /opt/microsoft /opt/google
+-          sudo rm -rf /opt/az
+-          sudo rm -rf /usr/local/share/powershell
+-          sudo rm -rf /opt/hostedtoolcache
+-          docker system prune -af || true
+-          docker builder prune -af || true
+-
+-      # Two checkouts: the ref the workflow was dispatched on (main) for this
+-      # workflow and .github/scripts/build.sh, and the commit to build under src/.
+-      # Keeping them apart means any tag can be built, including ones that
+-      # predate this workflow.
+-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+-        # gh api repos/actions/checkout/commits/v6 --jq '.sha'
+-      - name: Check out the source to build
+-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+-        with:
+-          repository: ${{ inputs.repo == 'public' && 'signalapp/Signal-Android' || github.repository }}
+-          ref: ${{ inputs.ref }}
+-          path: src
+-
+-      - name: Set up Docker Buildx
+-        uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4.2.0
+-
+-      # Same image a verifier would build from reproducible-builds/ at this
+-      # commit. Layers are cached in the Actions cache, so unless the Dockerfile
+-      # or its context changed this is a cache hit.
+-      - name: Build the reproducible-builds image
+-        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
+-        with:
+-          context: src/reproducible-builds
+-          tags: signal-android
+-          load: true
+-          cache-from: type=gha
+-          cache-to: type=gha,mode=max
+-
+-      - name: Build
+-        env:
+-          BUILD_KIND: ${{ inputs.kind }}
+-          TYPE: ${{ inputs.type }}
+-          INDEX: ${{ matrix.index }}
+-          # The URL the app polls for nightly updates, baked into nightly-url.txt.
+-          # Repository secrets NIGHTLY_URL_PROD / NIGHTLY_URL_STAGING; empty for every other type.
+-          NIGHTLY_URL: ${{ (inputs.type == 'nightly' && secrets.NIGHTLY_URL_PROD) || (inputs.type == 'nightlyStaging' && secrets.NIGHTLY_URL_STAGING) || '' }}
+-        run: |
+-          mkdir -p out
+-          docker run --rm \
+-            --user "$(id -u):$(id -g)" \
+-            -v "$PWD/src:/project" -w /project \
+-            -v "$PWD/out:/out" \
+-            -v "$PWD/.github/scripts:/scripts:ro" \
+-            -e BUILD_KIND -e TYPE -e INDEX -e NIGHTLY_URL -e OUT=/out \
+-            signal-android /scripts/build.sh
+-
+-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+-        # gh api repos/actions/upload-artifact/commits/v7 --jq '.sha'
+-        with:
+-          name: out-${{ matrix.index }}
+-          path: out/
+-          if-no-files-found: error
+-          retention-days: 7
+diff --git a/.github/workflows/release.yml b/.github/workflows/release.yml
+deleted file mode 100644
+index 773591a9b880bf88f758467d9a9e568655563a17..0000000000000000000000000000000000000000
+--- a/.github/workflows/release.yml
++++ /dev/null
+@@ -1,181 +0,0 @@
+-name: Release
+-
+-on:
+-  push:
+-    tags:
+-      - "v*"
+-  workflow_call:
+-    inputs:
+-      version:
+-        required: true
+-        type: string
+-
+-permissions:
+-  contents: read # to fetch code (actions/checkout)
+-
+-env:
+-  TAG_REF: "${{ inputs.version || github.ref_name }}"
+-  BUILD_ENV_FILE: ${{ vars.BUILD_ENV_FILE || 'beta-stable.env' }}
+-  HAVE_KEYSTORE: ${{ secrets.SECRET_KEYSTORE != '' }}
+-
+-jobs:
+-  build:
+-    name: Build
+-    if: "github.event.base_ref != 'refs/heads/upstream-main'"
+-    runs-on: ubuntu-24.04
+-
+-    steps:
+-      - uses: actions/checkout@v6
+-        with:
+-          ref: "${{ env.TAG_REF }}"
+-
+-      - name: Free up disk space in runner
+-        uses: ./.github/actions/disk-cleanup
+-
+-      - name: Set up JDK 21
+-        uses: actions/setup-java@v5
+-        with:
+-          distribution: temurin
+-          java-version: 21
+-
+-      - name: Setup Gradle
+-        uses: gradle/actions/setup-gradle@v6
+-        with:
+-          cache-read-only: true
+-
+-      - name: Build Docker image
+-        run: docker compose build
+-        working-directory: reproducible-builds
+-
+-      - name: Export CI environment variables
+-        run: |
+-          cp -v "ci/$BUILD_ENV_FILE" .env
+-          for var in APP_TITLE APP_FILENAME PACKAGE_ID \
+-                     BUILD_VARIANTS FORCE_INTERNAL_USER_FLAG \
+-                     MAPS_API_KEY; do
+-            if [ -n "${!var}" ]; then
+-              echo "Setting CI_$var=${!var}"
+-              echo "CI_$var=${!var}" >> $GITHUB_ENV
+-            fi
+-          done
+-        working-directory: reproducible-builds
+-        env:
+-          APP_TITLE: ${{ vars.CI_APP_TITLE }}
+-          APP_FILENAME: ${{ vars.CI_APP_FILENAME }}
+-          PACKAGE_ID: ${{ vars.CI_PACKAGE_ID }}
+-          BUILD_VARIANTS: ${{ vars.CI_BUILD_VARIANTS }}
+-          FORCE_INTERNAL_USER_FLAG: ${{ vars.CI_FORCE_INTERNAL_USER_FLAG }}
+-
+-      - name: Extract signing keys
+-        if: "env.HAVE_KEYSTORE == 'true'"
+-        run: printenv KEYSTORE | base64 -d > certs/keystore.jks
+-        working-directory: reproducible-builds
+-        env:
+-          KEYSTORE: ${{ secrets.SECRET_KEYSTORE }}
+-
+-      - name: Build without signing
+-        if: "env.HAVE_KEYSTORE == 'false'"
+-        run: docker compose run -v "$GRADLE_USER_HOME/caches:/.gradle-ro-cache:ro" assemble
+-        working-directory: reproducible-builds
+-
+-      - name: Build and sign
+-        if: "env.HAVE_KEYSTORE == 'true'"
+-        run: docker compose run -v "$GRADLE_USER_HOME/caches:/.gradle-ro-cache:ro" assemble
+-        working-directory: reproducible-builds
+-        env:
+-          CI_KEYSTORE_PATH: certs/keystore.jks
+-          CI_KEYSTORE_ALIAS: ${{ secrets.SECRET_KEYSTORE_ALIAS }}
+-          CI_KEYSTORE_PASSWORD: ${{ secrets.SECRET_KEYSTORE_PASSWORD }}
+-
+-      - name: Clean up keystore
+-        if: "always()"
+-        run: rm -f certs/keystore.jks
+-        working-directory: reproducible-builds
+-
+-      - name: Log APK and AAB checksums
+-        run: find outputs \( -name "*.aab" -o -name "*.apk" \) -exec sha256sum '{}' +
+-        working-directory: reproducible-builds
+-
+-      - name: Upload APKs
+-        uses: actions/upload-artifact@v7
+-        with:
+-          name: apk
+-          path: reproducible-builds/outputs/apk/*/release/*.apk
+-          if-no-files-found: error
+-
+-      - name: Upload Bundles
+-        uses: actions/upload-artifact@v7
+-        with:
+-          name: bundle
+-          path: reproducible-builds/outputs/bundle/*Release/*.aab
+-          if-no-files-found: error
+-
+-  prepare_release:
+-    name: Prepare release
+-    if: "github.event.base_ref != 'refs/heads/upstream-main'"
+-    runs-on: ubuntu-24.04
+-
+-    steps:
+-      - uses: actions/checkout@v6
+-        with:
+-          ref: "${{ env.TAG_REF }}"
+-
+-      - name: Check if release exists
+-        id: check_release
+-        run: |
+-          if gh release view "$TAG_REF"; then
+-            echo "release_exists=true" >> $GITHUB_OUTPUT
+-          else
+-            echo "release_exists=false" >> $GITHUB_OUTPUT
+-          fi
+-        env:
+-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+-
+-      - name: Create release draft
+-        if: "steps.check_release.outputs.release_exists == 'false'"
+-        run: gh release create -d --verify-tag -t "$TAG_REF" "$TAG_REF"
+-        env:
+-          GITHUB_TOKEN: ${{ secrets.PUBLISH_PAT || secrets.GITHUB_TOKEN }}
+-
+-  upload:
+-    name: Upload
+-    runs-on: ubuntu-24.04
+-    needs:
+-      - build
+-      - prepare_release
+-
+-    steps:
+-      - uses: actions/checkout@v6
+-        with:
+-          ref: "${{ env.TAG_REF }}"
+-
+-      - name: Download artifacts
+-        uses: actions/download-artifact@v4
+-
+-      - name: Check version for upgrade compatibility
+-        run: |
+-          echo "Listing latest APKs"
+-          gh release list --exclude-drafts --limit 10
+-          gh release download --pattern '*.apk' --dir latest || exit 0
+-          latest_apks=(latest/*.apk)
+-          build_apks=(apk/*/release/*.apk)
+-          aapt=($ANDROID_HOME/build-tools/*/aapt)
+-          version_code() {
+-            $aapt d badging "$1" | gawk 'match($0, /^package:.*versionCode=.([0-9]+)/, v) {print v[1]}'
+-          }
+-          echo "Using aapt: $aapt"
+-          latest_version_code=$(version_code "$latest_apks")
+-          build_version_code=$(version_code "$build_apks")
+-          echo "Latest version code: $latest_version_code"
+-          echo "Build version code: $build_version_code"
+-          if [ "$build_version_code" -le "$latest_version_code" ]; then
+-            echo "Build version code must be greater than the latest version code" >&2
+-            exit 1
+-          fi
+-        env:
+-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+-
+-      - name: Upload APKs to GitHub release
+-        run: gh release upload "$TAG_REF" ./apk/*/release/*.apk --clobber
+-        env:
+-          GITHUB_TOKEN: ${{ secrets.PUBLISH_PAT || secrets.GITHUB_TOKEN }}
+diff --git a/.github/workflows/reprocheck.yml b/.github/workflows/reprocheck.yml
+deleted file mode 100644
+index 719733f27741a6e95f566417efa66bb9192aea91..0000000000000000000000000000000000000000
+--- a/.github/workflows/reprocheck.yml
++++ /dev/null
+@@ -1,136 +0,0 @@
+-name: Reproducible Build
+-
+-on:
+-  workflow_dispatch:
+-    inputs:
+-      version:
+-        description: "Enter the version to check"
+-        required: true
+-  release:
+-    types:
+-      - published
+-
+-permissions:
+-  contents: read # to fetch code (actions/checkout)
+-
+-env:
+-  TAG_REF: "${{ github.event.inputs.version || github.event.release.tag_name }}"
+-  BUILD_ENV_FILE: ${{ vars.BUILD_ENV_FILE || 'beta-stable.env' }}
+-
+-jobs:
+-  build:
+-    name: Build new
+-    runs-on: ubuntu-24.04
+-
+-    steps:
+-      - uses: actions/checkout@v6
+-        with:
+-          ref: "${{ env.TAG_REF }}"
+-
+-      - name: Free up disk space in runner
+-        uses: ./.github/actions/disk-cleanup
+-
+-      - name: Set up builder image
+-        run: docker compose build
+-        working-directory: reproducible-builds
+-
+-      - name: Export CI environment variables
+-        run: |
+-          cp -v "ci/$BUILD_ENV_FILE" .env
+-          for var in APP_TITLE APP_FILENAME PACKAGE_ID \
+-                     BUILD_VARIANTS FORCE_INTERNAL_USER_FLAG \
+-                     MAPS_API_KEY; do
+-            if [ -n "${!var}" ]; then
+-              echo "Setting CI_$var=${!var}"
+-              echo "CI_$var=${!var}" >> $GITHUB_ENV
+-            fi
+-          done
+-        working-directory: reproducible-builds
+-        env:
+-          APP_TITLE: ${{ vars.CI_APP_TITLE }}
+-          APP_FILENAME: ${{ vars.CI_APP_FILENAME }}
+-          PACKAGE_ID: ${{ vars.CI_PACKAGE_ID }}
+-          BUILD_VARIANTS: ${{ vars.CI_BUILD_VARIANTS }}
+-          FORCE_INTERNAL_USER_FLAG: ${{ vars.CI_FORCE_INTERNAL_USER_FLAG }}
+-
+-      - name: Build release
+-        run: docker compose run assemble
+-        working-directory: reproducible-builds
+-
+-      - uses: actions/upload-artifact@v7
+-        with:
+-          name: new
+-          path: reproducible-builds/outputs/apk/*/release/*.apk
+-          if-no-files-found: error
+-
+-      - uses: actions/upload-artifact@v7
+-        with:
+-          name: apkdiff
+-          path: reproducible-builds/apkdiff/apkdiff.py
+-          if-no-files-found: error
+-
+-  download:
+-    name: Download original
+-    runs-on: ubuntu-24.04
+-    outputs:
+-      apks: "${{ steps.set.outputs.apks }}"
+-
+-    steps:
+-      - uses: actions/checkout@v6
+-        with:
+-          ref: "${{ env.TAG_REF }}"
+-
+-      - name: Download published APKs
+-        run: gh release download --pattern '*.apk' "$TAG_REF"
+-        env:
+-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+-
+-      - uses: actions/upload-artifact@v7
+-        with:
+-          name: original
+-          path: "*.apk"
+-          if-no-files-found: error
+-
+-      - name: Output filenames to compare
+-        id: set
+-        run: |
+-          apks=$(jq -c -n '[$ARGS.positional[] | sub("-unsigned-";"-")]' --args *.apk)
+-          echo "apks=$apks" >> $GITHUB_OUTPUT
+-
+-  compare:
+-    name: Compare
+-    runs-on: ubuntu-24.04
+-    needs:
+-      - build
+-      - download
+-    strategy:
+-      fail-fast: false
+-      matrix:
+-        apk-file: ${{ fromJSON(needs.download.outputs.apks) }}
+-
+-    steps:
+-      - uses: actions/download-artifact@v4
+-
+-      - name: Install diffuse
+-        run: |
+-          curl -o diffuse.jar -L https://github.com/JakeWharton/diffuse/releases/download/0.1.0/diffuse-0.1.0-binary.jar
+-          echo "$SHA256" diffuse.jar | sha256sum -c -
+-        env:
+-          SHA256: 60d619373c46a5d06b8126c1d61e0adc18b72f2cbb9245ef920d3387e44b86cf
+-
+-      - name: Normalize APK filenames
+-        run: |
+-          mv -v new/*/release/*.apk new/
+-          for fn in */*-unsigned-*.apk; do
+-            mv -v "$fn" "$(sed 's/-unsigned-/-/' <<< $fn)"
+-          done
+-
+-      - name: Log diffuse full output
+-        run: java -jar diffuse.jar diff "original/$APK_FILE" "new/$APK_FILE"
+-        env:
+-          APK_FILE: "${{ matrix.apk-file }}"
+-
+-      - name: Check for reproducibility
+-        run: python apkdiff/apkdiff.py "original/$APK_FILE" "new/$APK_FILE"
+-        env:
+-          APK_FILE: "${{ matrix.apk-file }}"
+diff --git a/.github/workflows/retarget-main-prs.yml b/.github/workflows/retarget-main-prs.yml
+deleted file mode 100644
+index 144c71f6910b4ecead9712ffe0175fc7a005ac47..0000000000000000000000000000000000000000
+--- a/.github/workflows/retarget-main-prs.yml
++++ /dev/null
+@@ -1,63 +0,0 @@
+-name: Retarget PRs from main
+-
+-# Pull requests should target the newest release branch (e.g. 8.31), not main. If a pull request targets
+-# main, this retargets it to the newest release branch. If that fails, it comments with the correct
+-# branch and fails the check.
+-
+-on:
+-  pull_request:
+-    types: [opened, reopened, edited, synchronize]
+-
+-permissions: {}
+-
+-concurrency:
+-  group: retarget-main-prs-${{ github.event.pull_request.number }}
+-  cancel-in-progress: true
+-
+-jobs:
+-  retarget:
+-    if: ${{ github.repository != 'signalapp/Signal-Android' }}
+-
+-    runs-on: ubuntu-latest
+-
+-    permissions:
+-      contents: read # to list branches
+-      pull-requests: write # to change the base branch and comment
+-
+-    steps:
+-    - name: Retarget to newest release branch
+-      env:
+-        GH_TOKEN: ${{ github.token }}
+-        REPO: ${{ github.repository }}
+-        PR_NUMBER: ${{ github.event.pull_request.number }}
+-        BASE_REF: ${{ github.event.pull_request.base.ref }}
+-      run: |
+-        set -euo pipefail
+-
+-        if [ "$BASE_REF" != "main" ]; then
+-          echo "Pull request targets $BASE_REF."
+-          exit 0
+-        fi
+-
+-        TARGET="$(gh api --paginate "repos/$REPO/branches?per_page=100" --jq '.[].name' | { grep -E '^[0-9]+\.[0-9]+$' || true; } | sort -V | tail -n 1)"
+-        if [ -z "$TARGET" ]; then
+-          echo "::error::Pull requests should not target main, and no release branch was found to retarget to."
+-          exit 1
+-        fi
+-
+-        if gh api -X PATCH "repos/$REPO/pulls/$PR_NUMBER" -f base="$TARGET" > /dev/null; then
+-          echo "Retargeted from main to $TARGET."
+-          gh pr comment "$PR_NUMBER" --repo "$REPO" --body "This pull request targeted \`main\`, so it was retargeted to \`$TARGET\`, the newest release branch." || true
+-          exit 0
+-        fi
+-
+-        echo "::error::Pull requests should target $TARGET, not main. Change the base branch to $TARGET."
+-
+-        MARKER="<!-- retarget-main-prs -->"
+-        EXISTING="$(gh api --paginate "repos/$REPO/issues/$PR_NUMBER/comments" --jq ".[] | select(.body | contains(\"$MARKER\")) | .id")"
+-        if [ -z "$EXISTING" ]; then
+-          gh pr comment "$PR_NUMBER" --repo "$REPO" --body "$MARKER
+-        This pull request targets \`main\`, but should target \`$TARGET\`, the newest release branch. Automatic retargeting failed, so please change the base branch to \`$TARGET\`."
+-        fi
+-
+-        exit 1
+diff --git a/.github/workflows/source.yml b/.github/workflows/source.yml
+new file mode 100644
+index 0000000000000000000000000000000000000000..c9eaef98c12e3dd53557e48cb064d84973ba7922
+--- /dev/null
++++ b/.github/workflows/source.yml
+@@ -0,0 +1,15 @@
++name: Direct source checks
++on: [push, pull_request, workflow_dispatch]
++permissions:
++  contents: read
++jobs:
++  source:
++    runs-on: ubuntu-latest
++    steps:
++      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
++        with:
++          ref: ${{ github.event.pull_request.head.sha || github.sha }}
++          persist-credentials: false
++      - run: git diff --check && test -f app/build.gradle.kts && test ! -d tools/patches
++      - name: Report direct-build gate
++        run: python3 -c 'import json; x=json.load(open("build-inputs/native-publication.json")); assert x["status"] == "BLOCKED"; print("Direct Android build acceptance BLOCKED pending public immutable native inputs; this source check is not build approval")'
+diff --git a/.github/workflows/sync.yml b/.github/workflows/sync.yml
+deleted file mode 100644
+index ae7f1e6d8cd27ba1fcb1f76c2af5428038858ec4..0000000000000000000000000000000000000000
+--- a/.github/workflows/sync.yml
++++ /dev/null
+@@ -1,36 +0,0 @@
+-name: Sync Upstream
+-
+-on:
+-  workflow_dispatch:
+-  schedule:
+-    - cron: '0 0 * * *'
+-
+-permissions:
+-  contents: read
+-
+-jobs:
+-  sync:
+-    name: Sync
+-    runs-on: ubuntu-24.04
+-
+-    steps:
+-      - uses: actions/checkout@v6
+-        with:
+-          ref: upstream-main
+-          fetch-depth: 0
+-          lfs: true
+-          persist-credentials: false
+-
+-      - run: gh auth setup-git
+-        env:
+-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+-
+-      - run: git remote add upstream https://github.com/signalapp/Signal-Android.git
+-      - run: git pull --ff-only upstream main
+-        env:
+-          GIT_LFS_SKIP_SMUDGE: 1
+-
+-      - run: git lfs fetch --all upstream
+-      - run: git push origin upstream-main
+-        env:
+-          GH_TOKEN: ${{ secrets.SYNC_PAT }}
+diff --git a/.github/workflows/tagrelease.yml b/.github/workflows/tagrelease.yml
+deleted file mode 100644
+index 47a0bc2d05f4d1d4cccaf93564aafcd6d6cf75a0..0000000000000000000000000000000000000000
+--- a/.github/workflows/tagrelease.yml
++++ /dev/null
+@@ -1,49 +0,0 @@
+-name: Tag Commit for Release
+-
+-on:
+-  workflow_dispatch:
+-
+-jobs:
+-  push_tag:
+-    name: Push version tag
+-    runs-on: ubuntu-24.04
+-    outputs:
+-      version: ${{ steps.extract_version.outputs.version }}
+-      should_call_release: ${{ steps.release_trigger.outputs.should_call_release }}
+-
+-    steps:
+-      - uses: actions/checkout@v6
+-        with:
+-          token: ${{ secrets.PUBLISH_PAT || secrets.GITHUB_TOKEN }}
+-
+-      - name: Set up JDK 21
+-        uses: actions/setup-java@v5
+-        with:
+-          distribution: temurin
+-          java-version: 21
+-
+-      - name: Extract version from source
+-        id: extract_version
+-        run: |
+-          ver=$(./gradlew -q :app:printVersion | jq -r .android.versionName)
+-          echo "version=v$ver" >> $GITHUB_OUTPUT
+-
+-      - name: Tag current commit and push
+-        run: |
+-          git tag -f "${{ steps.extract_version.outputs.version }}"
+-          git push -f origin "${{ steps.extract_version.outputs.version }}"
+-
+-      - name: Determine release trigger
+-        id: release_trigger
+-        run: echo "should_call_release=$IS_PAT_MISSING" >> $GITHUB_OUTPUT
+-        env:
+-          IS_PAT_MISSING: ${{ secrets.PUBLISH_PAT == '' }}
+-
+-  call_release_workflow:
+-    name: Release workflow
+-    if: "needs.push_tag.outputs.should_call_release == 'true'"
+-    needs: push_tag
+-    uses: ./.github/workflows/release.yml
+-    with:
+-      version: ${{ needs.push_tag.outputs.version }}
+-    secrets: inherit
+diff --git a/.github/workflows/test.yml b/.github/workflows/test.yml
+deleted file mode 100644
+index 7289311ce3b5cb265e929b3b325c297bb1814563..0000000000000000000000000000000000000000
+--- a/.github/workflows/test.yml
++++ /dev/null
+@@ -1,51 +0,0 @@
+-name: Test
+-
+-on:
+-  pull_request:
+-  push:
+-    branches:
+-      - '**'
+-    paths-ignore:
+-      - '**/README*.md'
+-      - '**/BUILDING.md'
+-      - '.github/FUNDING.yml'
+-      - '.github/ISSUE_TEMPLATE/**'
+-
+-permissions:
+-  contents: read # to fetch code (actions/checkout)
+-
+-jobs:
+-  test:
+-    name: Run tests
+-    runs-on: ubuntu-24.04
+-
+-    steps:
+-      - uses: actions/checkout@v6
+-
+-      - name: Free up disk space in runner
+-        uses: ./.github/actions/disk-cleanup
+-
+-      - name: Set up JDK 21
+-        uses: actions/setup-java@v5
+-        with:
+-          distribution: temurin
+-          java-version: 21
+-
+-      - name: Setup Gradle
+-        uses: gradle/actions/setup-gradle@v6
+-
+-      - name: Copy Docker gradle.properties
+-        run: cp gradle.properties.docker "$GRADLE_USER_HOME/gradle.properties"
+-
+-      - name: Build and run tests
+-        run: ./gradlew build
+-
+-      - name: Archive reports for failed build
+-        if: "failure()"
+-        uses: actions/upload-artifact@v7
+-        with:
+-          name: reports-${{ github.run_id }}
+-          path: |
+-            **/build/reports
+-            **/build/test-results
+-          if-no-files-found: ignore
+diff --git a/.github/workflows/update-screenshots.yml b/.github/workflows/update-screenshots.yml
+deleted file mode 100644
+index 922a5d21de2a367a6ea3a5f53529fdeb44b5fa2e..0000000000000000000000000000000000000000
+--- a/.github/workflows/update-screenshots.yml
++++ /dev/null
+@@ -1,170 +0,0 @@
+-name: Update Screenshots
+-
+-# Regenerates Compose screenshot reference images on Linux (matching the renderer used by Android CI)
+-# and commits them to the branch. Trigger it by commenting `!screenshots` on a pull request, or with
+-# `gh workflow run update-screenshots.yml --ref <branch>`.
+-
+-on:
+-  workflow_dispatch:
+-  issue_comment:
+-    types: [created]
+-
+-permissions: {}
+-
+-jobs:
+-  resolve:
+-    if: >-
+-      github.event_name == 'workflow_dispatch' ||
+-      (github.event_name == 'issue_comment' &&
+-       github.event.issue.pull_request &&
+-       github.event.comment.body == '!screenshots' &&
+-       contains(fromJSON('["OWNER", "MEMBER", "COLLABORATOR"]'), github.event.comment.author_association))
+-
+-    runs-on: ubuntu-latest
+-
+-    permissions:
+-      pull-requests: write # to react to the comment
+-
+-    outputs:
+-      branch: ${{ steps.branch.outputs.name }}
+-      sha: ${{ steps.branch.outputs.sha }}
+-
+-    steps:
+-    - name: Acknowledge comment
+-      if: ${{ github.event_name == 'issue_comment' }}
+-      env:
+-        GH_TOKEN: ${{ github.token }}
+-      run: gh api "repos/${{ github.repository }}/issues/comments/${{ github.event.comment.id }}/reactions" -f content=rocket
+-
+-    - name: Resolve branch
+-      id: branch
+-      env:
+-        GH_TOKEN: ${{ github.token }}
+-        EVENT_NAME: ${{ github.event_name }}
+-        REF_NAME: ${{ github.ref_name }}
+-        REF_TYPE: ${{ github.ref_type }}
+-        SHA: ${{ github.sha }}
+-        PR_NUMBER: ${{ github.event.issue.number }}
+-      run: |
+-        case "$EVENT_NAME" in
+-          workflow_dispatch)
+-            if [ "$REF_TYPE" != "branch" ]; then
+-              echo "Refusing to update screenshots for non-branch ref $REF_NAME."
+-              exit 1
+-            fi
+-            BRANCH="$REF_NAME"
+-            ;;
+-          issue_comment)
+-            PR="$(gh pr view "$PR_NUMBER" --repo "${{ github.repository }}" --json isCrossRepository,headRefName,headRefOid,state)"
+-            if [ "$(jq -r .isCrossRepository <<< "$PR")" = "true" ]; then
+-              echo "Refusing to update screenshots for a pull request from a fork."
+-              exit 1
+-            fi
+-            if [ "$(jq -r .state <<< "$PR")" != "OPEN" ]; then
+-              echo "Refusing to update screenshots for a pull request that is not open."
+-              exit 1
+-            fi
+-            BRANCH="$(jq -r .headRefName <<< "$PR")"
+-            SHA="$(jq -r .headRefOid <<< "$PR")"
+-            ;;
+-        esac
+-
+-        if [ "$BRANCH" = "main" ] || [[ "$BRANCH" == 8.* ]]; then
+-          echo "Refusing to push screenshots directly to $BRANCH."
+-          exit 1
+-        fi
+-
+-        echo "name=$BRANCH" >> "$GITHUB_OUTPUT"
+-        echo "sha=$SHA" >> "$GITHUB_OUTPUT"
+-
+-  update:
+-    needs: resolve
+-
+-    runs-on: ubuntu-latest-8-cores
+-
+-    permissions:
+-      contents: write # to push the updated reference images
+-
+-    concurrency:
+-      group: update-screenshots-${{ needs.resolve.outputs.branch }}
+-      cancel-in-progress: true
+-
+-    steps:
+-    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+-      # gh api repos/actions/checkout/commits/v7.0.1 --jq '.sha'
+-      with:
+-        ref: ${{ needs.resolve.outputs.sha }}
+-        submodules: true
+-        lfs: true
+-        persist-credentials: false
+-
+-    - name: set up JDK 21
+-      uses: actions/setup-java@03ad4de0992f5dab5e18fcb136590ce7c4a0ac95 # v5
+-      # gh api repos/actions/setup-java/commits/v5 --jq '.sha'
+-      with:
+-        distribution: temurin
+-        java-version: 21
+-
+-    - name: Validate Gradle Wrapper
+-      uses: gradle/actions/wrapper-validation@3f131e8634966bd73d06cc69884922b02e6faf92 # v6
+-      # gh api repos/gradle/actions/commits/v6 --jq '.sha'
+-
+-    - name: Set up Gradle
+-      uses: gradle/actions/setup-gradle@3f131e8634966bd73d06cc69884922b02e6faf92 # v6
+-      # gh api repos/gradle/actions/commits/v6 --jq '.sha'
+-      with:
+-        cache-read-only: true
+-        cache-encryption-key: ${{ secrets.GRADLE_ENCRYPTION_KEY }}
+-
+-    - name: Update screenshots
+-      env:
+-        SIGNAL_BUILD_CACHE_URL: ${{ secrets.SIGNAL_BUILD_CACHE_URL }}
+-        SIGNAL_BUILD_CACHE_USER: ${{ secrets.SIGNAL_BUILD_CACHE_USER }}
+-        SIGNAL_BUILD_CACHE_PASSWORD: ${{ secrets.SIGNAL_BUILD_CACHE_PASSWORD }}
+-        SIGNAL_BUILD_CACHE_PUSH: false
+-      run: ./gradlew updateScreenshots
+-
+-    - name: Commit and push
+-      env:
+-        BRANCH: ${{ needs.resolve.outputs.branch }}
+-        GH_TOKEN: ${{ github.token }}
+-      run: |
+-        git add -A -- ':(glob)**/src/screenshotTest*/reference/**'
+-        if git diff --cached --quiet; then
+-          echo "Screenshots are already up to date."
+-          exit 0
+-        fi
+-        git diff --cached --stat
+-        git config user.name "github-actions[bot]"
+-        git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+-        git commit -m "Update screenshot reference images."
+-
+-        AUTH_HEADER="http.${{ github.server_url }}/.extraheader=AUTHORIZATION: basic $(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)"
+-        git -c "$AUTH_HEADER" push origin "HEAD:refs/heads/$BRANCH"
+-
+-    - name: Archive reports for failed build
+-      if: ${{ failure() }}
+-      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+-      # gh api repos/actions/upload-artifact/commits/v7 --jq '.sha'
+-      with:
+-        name: reports
+-        path: |
+-          **/build/reports
+-          **/build/test-results
+-        if-no-files-found: ignore
+-
+-  report-failure:
+-    needs: [resolve, update]
+-    if: ${{ failure() && github.event_name == 'issue_comment' }}
+-
+-    runs-on: ubuntu-latest
+-
+-    permissions:
+-      pull-requests: write # to reply on the pull request
+-
+-    steps:
+-    - name: Report failure
+-      env:
+-        GH_TOKEN: ${{ github.token }}
+-        PR_NUMBER: ${{ github.event.issue.number }}
+-      run: gh pr comment "$PR_NUMBER" --repo "${{ github.repository }}" --body "Updating screenshots failed. See ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+diff --git a/BUILD.md b/BUILD.md
+new file mode 100644
+index 0000000000000000000000000000000000000000..2d2b79e09b024efe2ebea4660fa1c141e3db9290
+--- /dev/null
++++ b/BUILD.md
+@@ -0,0 +1,28 @@
++# Building Collie
++
++This checkout contains the reconstructed application source; Gradle does not run
++an assembler or inject source from another worktree. JDK/Gradle/SDK/NDK and strict
++dependency inputs are declared in this tree. Canonical identity is im.collie.app,
++Collie backup names and optional FCM; legacy filename aliases are one product.
++
++**Direct build readiness: BLOCKED.** `build-inputs/native-lock.json` identifies
++accepted native bytes. Their public immutable repository has not been supplied
++or independently downloaded. `native-publication.json` records this gap. Do not
++substitute upstream native libraries or disable strict dependency verification.
++A direct release task deliberately fails until the required publication layer
++and clean-checkout build acceptance are reviewed. This draft is not releasable.
++
++The retained local operator route is in collie-release-engineering and still
++requires its explicit trusted-local native acceptance. That is not independent
++native reproduction. Obtain the three locked artifacts and POMs from approved
++public immutable URLs, verify all hashes, materialize their exclusive repository
++and verification entries in source, then run a fresh controlled Gradle build.
++The expected canonical task is `./gradlew --dependency-verification=strict
++:app:assembleProdWebsiteRelease`; it is currently BLOCKED as described above.
++
++Release versions must be externally reserved above 177702 and all later published
++or reserved codes using engineering's serialized version policy. RC1 ingestion
++reuses its existing signed bytes/code. No build has been performed from this G.
++No parity with historical APK bytes is claimed after changing build metadata.
++Instrumentation remains opt-in. Physical-device/account/attachment/database
++upgrade acceptance and independently reproduced native outputs are NOT RUN.
+diff --git a/README.md b/README.md
+index 942122811c2a3b88657ea5c24697fb31ca7fd49d..5dbb27d1c67ab00f24f9f8bb0a6d2f4f1ce63e95 100644
+--- a/README.md
++++ b/README.md
+@@ -1,153 +1,95 @@
+-# Molly
++# Collie - The Signal Fork
+ 
+-[![Test](https://github.com/mollyim/mollyim-android/workflows/Test/badge.svg)](https://github.com/mollyim/mollyim-android/actions)
+-[![Reproducible build](https://github.com/mollyim/mollyim-android/actions/workflows/reprocheck.yml/badge.svg)](https://github.com/mollyim/mollyim-android/actions/workflows/reprocheck.yml)
+-[![Translation status](https://hosted.weblate.org/widgets/molly-instant-messenger/-/svg-badge.svg)](https://hosted.weblate.org/engage/molly-instant-messenger/?utm_source=widget)
+-[![Financial contributors](https://opencollective.com/mollyim/tiers/badge.svg)](https://opencollective.com/mollyim#category-CONTRIBUTE)
+-[![Cloudsmith](https://img.shields.io/badge/OSS%20hosting%20by-cloudsmith-blue?logo=cloudsmith&style=flat-square)](https://cloudsmith.com)
++<p align="center">
++  <img src="assets/collie-icon.svg" alt="Collie icon" width="240">
++</p>
+ 
+-Molly is a hardened version of [Signal](https://github.com/signalapp/Signal-Android) for Android, the fast simple yet secure messaging app by [Signal Foundation](https://signal.org).
+-
+-## Introduction
+-
+-Back in 2018, Signal allowed the user to set a passphrase to secure the local message database. But this option was removed with the introduction of file-based encryption on Android. Molly brings it back again with additional security features.
+-
+-Molly connects to Signal's servers, so you can chat with your Signal contacts seamlessly. Before signing up, please remember to review the [Signal Terms & Privacy Policy](https://signal.org/legal/).
+-
+-We update Molly every two weeks to include the latest Signal features and fixes. The exceptions are security patches, which are applied as soon as they are available.
+-
+-## Download
+-
+-You can download the app from GitHub's [Releases](https://github.com/mollyim/mollyim-android/releases/latest) page or install it from the [Molly F-Droid Repo](https://molly.im/fdroid/):
+-
+-[<img src="https://fdroid.gitlab.io/artwork/badge/get-it-on.png"
+-    alt="Get it on F-Droid"
+-    height="80">](https://molly.im/fdroid/)
+-
+-There are two versions available: **Molly** or **Molly-FOSS**. Learn the differences [below](#free-and-open-source) and download the right one for you.
+-
+-You can also get **Molly-FOSS** from [Accrescent](https://accrescent.app/):
+-
+-<a href="https://accrescent.app/app/im.molly.app">
+-   <img alt="Get it on Accrescent"
+-      src="https://accrescent.app/badges/get-it-on.png"
+-      height="80">
++<p align="center">
++  <a href="https://apps.obtainium.imranr.dev/redirect?r=obtainium://app/%7B%22id%22%3A%22im.collie.app%22%2C%22url%22%3A%22https%3A%2F%2Fgithub.com%2F0cwa%2Fcollieim-android%22%2C%22author%22%3A%220cwa%22%2C%22name%22%3A%22Collie%22%2C%22additionalSettings%22%3A%22%7B%5C%22includePrereleases%5C%22%3Afalse%2C%5C%22apkFilterRegEx%5C%22%3A%5C%22%5Ecollie%5C%5C%5C%5C.apk%24%5C%22%7D%22%7D"><img src="assets/badge_obtainium.png" alt="Get it on Obtainium" height="80"></a> <a href="https://liberapay.com/Collie/">
++  <img src="https://raw.githubusercontent.com/aha999/DonateButtons/master/LiberaPay.png" alt="Donate via Liberapay" height="80">
+ </a>
++</p>
+ 
+-To [verify](https://developer.android.com/studio/command-line/apksigner#usage-verify) the APK, use the following signing certificate fingerprints:
+-```
+-SHA-256: 6aa80fdf4a8cc13737cfb434fc0cde486f09cf8fcda21a67bea5ee1ca2700886
+-SHA-1: 49ce310cdd0c09c8c34eb31a8005c6bf13f5a4f1
+-```
++<p align="center">
++<a href="https://matrix.to/#/#collieim:worldethicaldataforum.org">
++  <img height="60" alt="matrix-banner" src="assets/collie-matrix-invite.svg">
++</a>
++</p>
+ 
+-## Features
++<p align="center">
++  <a href="https://github.com/0cwa/collieim-android/releases/latest"><img src="https://img.shields.io/github/downloads/0cwa/collieim-android/total?style=flat&amp;label=release%20downloads&amp;color=687E59&amp;labelColor=5A4033" alt="Total release asset downloads"></a>
++  <a href="https://github.com/0cwa/collieim-android/releases/tag/v8.35.1-1-rc1"><img src="https://img.shields.io/badge/Android-8.1%2B-2F4F3A?style=flat&amp;labelColor=5A4033" alt="Android 8.1 or newer"></a>
++  <a href="https://github.com/0cwa/collieim-android/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0--only-687E59?style=flat&amp;labelColor=5A4033" alt="AGPL 3.0 only"></a>
++</p>
+ 
+-Molly has unique features compared to Signal:
++Welcome!  Collie is an independent Android messenger built on [Signal](https://signal.org/) and [Molly](https://molly.im/). It uses the Signal network for private messages and calls, with Molly's protections for data stored on your device.  Published application source is inspected here; reconstruction and release engineering live in [collie-release-engineering](https://github.com/0cwa/collie-release-engineering). See [BUILD.md](BUILD.md) and [VERIFY.md](VERIFY.md).  [We contribute](https://github.com/mollyim/mollyim-android/pull/852) [back upstream](https://github.com/mollyim/mollyim-android/pull/853).
+ 
+-- **Data encryption at rest** - Protect your app database with [passphrase encryption](https://github.com/mollyim/mollyim-android/wiki/Data-Encryption-At-Rest)
+-- **Secure RAM wiper** - Securely shred sensitive data from device memory
+-- **Automatic lock** - Lock the app automatically under user-defined conditions
+-- **Multi-device support** - Link multiple devices to a single Signal account, including Android tablets
+-- **UnifiedPush** - Receive push notifications without Google through the UnifiedPush protocol
+-- **Block unknown contacts** - Block messages and calls from unknown senders for security and anti-spam
+-- **Disappearing call history** - Clear call logs together with expiring messages
+-- **Custom backup scheduling** - Set daily or weekly interval and the number of backups to retain
+-- **SOCKS proxy and Tor support** - Tunnel app network traffic via proxy and Orbot
+-- **Debug logs are optional** - Android logging can be disabled
++<b>🌟 Stars! 🧡</b>
+ 
+-Additionally, you will find all the features of Signal, along with some minor tweaks and improvements.
++<a href="https://www.star-history.com/?repos=0cwa%2Fcollieim-android&type=date&releases=&legend=bottom-right">
++ <picture>
++   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/chart?repos=0cwa/collieim-android&type=date&theme=dark&legend=bottom-right" />
++   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/chart?repos=0cwa/collieim-android&type=date&legend=bottom-right" />
++   <img alt="Star History Chart" src="https://api.star-history.com/chart?repos=0cwa/collieim-android&type=date&legend=bottom-right" width="600" />
++ </picture>
++</a>
+ 
+-## Free and Open-Source
++Collie builds on the work of [Molly](https://github.com/mollyim-android), supporting newer Signal releases, and develops new functionality independently.
+ 
+-Molly is open-source just like Signal. But Signal depends on proprietary Google software for some features.
++## Download
+ 
+-To support a 100% free and auditable app, Molly comes in two versions: one with proprietary blobs like Signal, and one without. They are called Molly and Molly-FOSS, respectively. You can install the flavor of your choice at any time, and it will replace any previously installed version. The data and settings will be preserved so that you do not have to re-register.
++Use the Obtainium link above to stay updated.  Our apk `collie.apk` is on the [Releases page](https://github.com/0cwa/collieim-android/releases)  All APK files in the latest release contain the same Collie app; the older names are available for existing Obtainium filters. All are FOSS and all use the package `im.collie.app` and can be installed alongside Signal or Molly.  *F-droid-compatible repo coming soon.*
+ 
+-### Feature Comparison
++_[Throw the dog a bone? 🐶🦴](https://liberapay.com/Collie)_ - It helps me speed up development - I want to work on a desktop client too.
+ 
+-Here's how some key features work in different versions of the app:
++## Features
+ 
+-| Feature                           | Molly-FOSS       | Molly                | Signal               |
+-| --------------------------------- | ---------------- | -------------------- | -------------------- |
+-| Push notifications <sup>(1)</sup> | ✔ WebSocket<br>✔ UnifiedPush | ⚠ FCM<br>✔ WebSocket<br>✔ UnifiedPush | ⚠ FCM<br>✔ WebSocket |
+-| Location sharing                 | ✔ OpenStreetMap  | ⚠ Google Maps        | ⚠ Google Maps        |
++The releases retain Signal's messaging and calling features and Molly's additions, including:
+ 
+-<sup>(1)</sup> You might need to turn off system-level battery restrictions for the app to receive messages when the app isn't open.
++- Passphrase encryption for the local message database and automatic locking.
++- Clearing sensitive data from memory and the option to disable debug logging.
++- Linked devices, including Android tablets.
++- Blocking messages and calls from unknown contacts.
++- Disappearing call history and scheduled local backups.
++- Proxy and Tor support.
++- WebSocket and UnifiedPush notifications as alternatives to Google's push service.
+ 
+-### UnifiedPush
++> [!CAUTION]
++> ***If you use Unifiedpush only do so with a server you entrust your entire account and all the metadata of your account.*** (I found, reported, and verified this new major security risk to the Mollysocket developer - more details will be disclosed at a later date.)
+ 
+-[UnifiedPush](https://unifiedpush.org/) is an open standard for delivering push notifications, offering a privacy-friendly alternative to Google's proprietary FCM service. It allows users to choose their own notification distributor.
++## Free and open source
+ 
+-> [!IMPORTANT]
+-> To use UnifiedPush notifications, you need access to a [MollySocket](https://github.com/mollyim/mollysocket) server to link your Signal account to UnifiedPush. You can either run MollySocket on a server you control (strongly advised) or use a public instance.
++Collie is free and open-source software. Optional FCM notifications use an open-source client and Google's FCM service; WebSocket and [UnifiedPush](https://unifiedpush.org/) are alternatives.
+ 
+-Currently, UnifiedPush is unavailable for linked devices.
++UnifiedPush lets you choose a notification provider. It requires access to a [MollySocket](https://github.com/mollyim/mollysocket) server, *use your own!* **Do not use a public one!** UnifiedPush has never been available on linked devices, [this is a planned Collie feature.](https://github.com/0cwa/collieim-android/issues/21) Android battery restrictions can affect notification delivery.
+ 
+ ## Compatibility with Signal
+ 
+-Molly and Signal apps can be installed on the same device. If you need a second number for messaging, you can register Molly with a different number while keeping Signal active. Any phone number capable of receiving SMS or calls can be used during registration.
++Collie connects to Signal's servers and can communicate with Signal contacts. You can install Collie alongside Signal or Molly.
+ 
+-If you wish to use the same phone number for both Molly and Signal, you must register Molly as a linked device. Registering the same number independently on both apps will result in only the most recently registered app staying active, while the other will go offline.
++To use the same Signal account in two apps, one must be linked as a secondary device. Registering the same phone number independently in a second app will disconnect the first. You can also use separate numbers for separate accounts.
+ 
+-For Signal users looking to switch to Molly without changing the phone number, please refer to the [Migrating From Signal](https://github.com/mollyim/mollyim-android/wiki/Migrating-From-Signal) guide on the wiki.
++Signal's [Terms and Privacy Policy](https://signal.org/legal/) apply when using its service.
+ 
+ ## Backups
+ 
+-Backups are fully compatible. Signal [backups](https://support.signal.org/hc/en-us/articles/360007059752-Backup-and-Restore-Messages) can be restored in Molly, and the other way around, simply by choosing the backup folder and file. However, to import a backup from Signal, you must use a matching or newer version of Molly.
++Collie supports local Signal-format backups. Restoring a backup requires an app version that supports the version of the backup being imported.
+ 
+ ## Feedback
+ 
+-- [Submit bugs and feature requests](https://github.com/mollyim/mollyim-android/issues) on GitHub
+-- Join us at [#mollyim:matrix.org](https://matrix.to/#/#mollyim:matrix.org) on Matrix (via space: [#mollyim-space:matrix.org](https://matrix.to/#/#mollyim-space:matrix.org))
+-- For news, tips, and tricks, follow [@mollyim](https://fosstodon.org/@mollyim) on Mastodon
++<p align="left">
++  <a href="https://github.com/0cwa/collieim-android/commits/main/"><img src="https://img.shields.io/github/last-commit/0cwa/collieim-android?style=flat&amp;labelColor=5A4033&amp;label=last%20commit" alt="Last commit on main"></a>
++  <a href="https://github.com/0cwa/collieim-android/issues"><img src="https://img.shields.io/github/issues/0cwa/collieim-android?style=flat&amp;labelColor=5A4033&amp;label=issues" alt="Open GitHub issues"></a>
++  <a href="https://github.com/0cwa/collieim-android/pulls"><img src="https://img.shields.io/github/issues-pr/0cwa/collieim-android?style=flat&amp;labelColor=5A4033&amp;label=PRs" alt="Open pull requests"></a>
++  <a href="https://github.com/0cwa/collieim-android/security/advisories/new"><img src="https://img.shields.io/badge/security-report%20privately-687E59?style=flat&amp;labelColor=5A4033" alt="Report vulnerabilities privately"></a>
++</p>
+ 
+-## Reproducible Builds
+-
+-Molly supports reproducible builds, so that anyone can run the build process to reproduce the same APK as the original release.
+-
+-Please check the guide in the [reproducible-builds](https://github.com/mollyim/mollyim-android/blob/master/reproducible-builds) directory.
+-
+-## Changelog
+-
+-See the [Changelog](https://github.com/mollyim/mollyim-android/wiki/Changelog) to view recent changes.
++[Report bugs or suggest changes](https://github.com/0cwa/collieim-android/issues) in this repository.
+ 
+ ## License
+ 
+-Licensed under the GNU Affero General Public License, version 3 only
+-([`AGPL-3.0-only`](LICENSE)).
+-
+-See [LEGAL.md](LEGAL.md) for legal and copyright information.
++Licensed under the GNU Affero General Public License, version 3 only ([AGPL-3.0-only](LICENSE)). See [LEGAL.md](LEGAL.md) for legal and copyright information.
+ 
+ ## Acknowledgements
+ 
+-Molly is an independent project built on code published by Signal. We are
+-deeply grateful to the Signal contributors for the work we build on.
+-
+-Thanks to the following organizations for supporting the **Molly** project.
+-
+-<div align="center">
+-<table>
+-<tr>
+-  <td>
+-    <a href="https://nlnet.nl/" target="_blank">
+-      <img src="https://nlnet.nl/logo/banner.svg" alt="NLnet logo" height="56" />
+-    </a>
+-  </td>
+-  <td>
+-    <a href="https://bahnhof.cloud/en/" target="_blank">
+-      <img src="https://upload.wikimedia.org/wikipedia/de/c/c0/Bahnhof_AB_logo.svg" alt="Bahnhof logo" height="56" />
+-    </a>
+-  </td>
+-  <td>
+-    <a href="https://cloudsmith.com/blog/cloudsmith-loves-opensource/" target="_blank">
+-      <img src="https://raw.githubusercontent.com/opswithranjan/CloudsmithLogo/main/CloudsmithLogoCropped.jpeg" alt="Cloudsmith logo" height="32" />
+-    </a>
+-  </td>
+-  <td>
+-    <a href="https://www.jetbrains.com/community/opensource/" target="_blank">
+-      <img src="https://resources.jetbrains.com/storage/products/company/brand/logos/jetbrains.svg" alt="JetBrains logo" height="32" />
+-    </a>
+-  </td>
+-</tr>
+-</table>
+-</div>
++Collie is independent of Signal and Molly and builds on the work of their contributors.
+diff --git a/VERIFY.md b/VERIFY.md
+new file mode 100644
+index 0000000000000000000000000000000000000000..8433696190a3ca62ce27870f3b7c5940c772f954
+--- /dev/null
++++ b/VERIFY.md
+@@ -0,0 +1,22 @@
++# Git-only source inspection
++
++Use a clean Git environment with replace refs and grafts disabled. Review the
++exact Signal commit `a74583b01e260944f699c4da03ba4e8ce04de32b`, generated endpoint G,
++and integration I from the externally approved source receipt. Do not substitute
++GitHub's synthetic pull-request merge. `git merge-base --is-ancestor SIGNAL G`
++checks upstream ancestry; `git diff SIGNAL G` reviews every changed path.
++`git diff OLD_MAIN I` exposes the complete cutover. `git rev-parse G^{tree}
++I^{tree}` must print identical complete trees, and `git show -s --format=%P I`
++must name OLD_MAIN and G, in that order. Clear GIT_* overrides and reject
++.git/info/grafts, refs/replace, alternates and shallow history before checking.
++
++Reconstruction lives in the separately reviewed collie-release-engineering
++recipe. Its receipt records inputs/layers and final trees after G exists; G does
++not contain its own hash. Source inspection is not signed provenance or proof
++that native binaries were independently rebuilt. Historical RC1's tag is retained
++unchanged; this source checkpoint is not retroactively its build input.
++
++Contribute normal application changes here. Maintainers export a full binary
++Git delta, commit it as an engineering layer, regenerate and compare the whole
++reviewed tree before release (source/PUBLICATION.md in engineering). The two
++representations may not silently diverge.
+diff --git a/app/build.gradle.kts b/app/build.gradle.kts
+index 6605bfd7dd416ed29a214dd0e1194c1c3697370e..c7d5ad88724379d290ad1271032c54f63fb35f37 100644
+--- a/app/build.gradle.kts
++++ b/app/build.gradle.kts
+@@ -48,9 +48,9 @@ val selectableVariants = listOf(
+ val ciEnabled = project.hasProperty("CI")
+ val firebaseFree = providers.gradleProperty("mollyFirebaseFree").map(String::toBoolean).getOrElse(false)
+ 
+-val baseAppTitle = getCiEnv("CI_APP_TITLE") ?: properties["baseAppTitle"] as String
+-val baseAppFileName = getCiEnv("CI_APP_FILENAME") ?: properties["baseAppFileName"] as String
+-val basePackageId = getCiEnv("CI_PACKAGE_ID") ?: properties["basePackageId"] as String
++val baseAppTitle = "Collie"
++val baseAppFileName = "Collie"
++val basePackageId = "im.collie.app"
+ val buildVariants = getCiEnv("CI_BUILD_VARIANTS") ?: properties["buildVariants"] as String
+ val forceInternalUserFlag = getCiEnv("CI_FORCE_INTERNAL_USER_FLAG") ?: properties["forceInternalUserFlag"] as String
+ 
+@@ -634,30 +634,14 @@ licensee {
+   }
+ }
+ 
+-fun getLastCommitTimestamp(): String {
+-  return try {
+-    git("log", "-1", "--pretty=format:%ct000")
+-  } catch (e: Exception) {
+-    logger.warn("Failed to get Git commit timestamp: ${e.message}. Using mtime of current build script.")
+-    buildFile.lastModified().toString()
+-  }
+-}
++fun getLastCommitTimestamp(): String = providers.gradleProperty("collieBuildTimestamp").get() + "000"
+ 
+-fun getGitHash(): String {
+-  return try {
+-    git("rev-parse", "--short=12", "HEAD")
+-  } catch (e: Exception) {
+-    logger.warn("Failed to get Git commit hash: ${e.message}. Using default value.")
+-    "abc123def456"
+-  }
+-}
++fun getGitHash(): String = providers.gradleProperty("collieBuildRevision").get()
+ 
+-fun requireCommitTag(): String {
+-  val tag = git("describe", "--tags", "--exact-match")
+-  return tag.takeIf { it.isNotEmpty() } ?: "untagged"
+-}
++fun requireCommitTag(): String = providers.gradleProperty("releaseVersionName").getOrElse("8.35.1-1-port-unvalidated")
+ 
+-private fun git(vararg args: String): String =
+-  providers.exec {
+-    commandLine("git", *args)
+-  }.standardOutput.asText.get().trim()
++// Publication migration gate: remove only with reviewed public native inputs and
++// direct-source acceptance. The legacy operator route is retained in engineering.
++if (gradle.startParameter.taskNames.any { it.contains("Release", ignoreCase = true) }) {
++  throw GradleException("Direct release build BLOCKED: publish and verify locked native inputs first; see BUILD.md")
++}
+diff --git a/assets/badge_obtainium.png b/assets/badge_obtainium.png
+new file mode 100644
+index 0000000000000000000000000000000000000000..6972dfce0c53c771613eac3b39f117c6286e86ff
+GIT binary patch
+literal 23773
+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
+KN(cpuSN{WYAb2tW
+
+literal 0
+HcmV?d00001
+
+diff --git a/assets/collie-foreground.svg b/assets/collie-foreground.svg
+new file mode 100644
+index 0000000000000000000000000000000000000000..84a52ead814cd088baca5872220965b3c2dce829
+--- /dev/null
++++ b/assets/collie-foreground.svg
+@@ -0,0 +1,86 @@
++<?xml version='1.0' encoding='UTF-8'?>
++<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="1254" height="1254" viewBox="0 0 1254 1254" version="1.1" id="svg40"><title id="title1">Border Collie — corrected overlapping details, vivid gradient</title>
++  <desc id="desc1">Editable SVG master retaining original geometric speech bubble and Collie silhouette. White face and chest markings are clipped to the body; compact inner ear fold; exact circle-arc dashes.</desc>
++  <defs xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape" id="defs33">
++    <linearGradient id="bgGradient" x1="0" y1="0" x2="0" y2="1">
++      <stop offset="0" stop-color="#FFF3DF" stop-opacity="1" id="stop1"/>
++      <stop offset="0.42" stop-color="#F8B563" stop-opacity="1" id="stop2"/>
++      <stop offset="1" stop-color="#D94819" stop-opacity="1" id="stop3"/>
++    </linearGradient>
++    <linearGradient id="sheen" x1="0" y1="0" x2="0" y2="1">
++      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.12" id="stop4"/>
++      <stop offset="35%" stop-color="#fff8f0" stop-opacity="0.04" id="stop5"/>
++      <stop offset="100%" stop-color="#ffffff" stop-opacity="0.00" id="stop6"/>
++    </linearGradient>
++    <linearGradient id="contour" gradientUnits="userSpaceOnUse" x1="140" y1="180" x2="990" y2="1050">
++      <stop offset="0" stop-color="#8A200A" stop-opacity="1" id="stop7"/>
++      <stop offset="0.55" stop-color="#811A08" stop-opacity="1" id="stop8"/>
++      <stop offset="1" stop-color="#771A08" stop-opacity="1" id="stop9"/>
++    </linearGradient>
++    <linearGradient id="crest" gradientUnits="userSpaceOnUse" x1="560" y1="540" x2="700" y2="235">
++      <stop offset="0" stop-color="#DE6410" stop-opacity="1" id="stop10"/>
++      <stop offset="0.48" stop-color="#F79824" stop-opacity="1" id="stop11"/>
++      <stop offset="1" stop-color="#FFA83C" stop-opacity="1" id="stop12"/>
++    </linearGradient>
++    <linearGradient id="upperFur" gradientUnits="userSpaceOnUse" x1="260" y1="740" x2="560" y2="605">
++      <stop offset="0" stop-color="#F8B33E" stop-opacity="1" id="stop13"/>
++      <stop offset="0.45" stop-color="#EE9024" stop-opacity="1" id="stop14"/>
++      <stop offset="1" stop-color="#D85B09" stop-opacity="1" id="stop15"/>
++    </linearGradient>
++    <linearGradient id="lowerFur" gradientUnits="userSpaceOnUse" x1="370" y1="940" x2="780" y2="825">
++      <stop offset="0" stop-color="#F8AD38" stop-opacity="1" id="stop16"/>
++      <stop offset="0.5" stop-color="#F2982B" stop-opacity="1" id="stop17"/>
++      <stop offset="1" stop-color="#DB6711" stop-opacity="1" id="stop18"/>
++    </linearGradient>
++    <linearGradient id="peach" gradientUnits="userSpaceOnUse" x1="380" y1="780" x2="690" y2="985">
++      <stop offset="0" stop-color="#FFF9EF" stop-opacity="1" id="stop19"/>
++      <stop offset="0.6" stop-color="#FFF4E5" stop-opacity="1" id="stop20"/>
++      <stop offset="1" stop-color="#F8E2C0" stop-opacity="1" id="stop21"/>
++    </linearGradient>
++    <linearGradient id="earDepth" gradientUnits="userSpaceOnUse" x1="560" y1="260" x2="800" y2="640">
++      <stop offset="0" stop-color="#3C1207" stop-opacity="0" id="stop22"/>
++      <stop offset="0.18" stop-color="#401508" stop-opacity="0.24" id="stop23"/>
++      <stop offset="0.42" stop-color="#441808" stop-opacity="0.24" id="stop24"/>
++      <stop offset="0.8" stop-color="#552410" stop-opacity="0.12" id="stop25"/>
++      <stop offset="1" stop-color="#542410" stop-opacity="0" id="stop26"/>
++    </linearGradient>
++    <linearGradient id="ivoryPatch" x1="0.15" y1="0.0" x2="0.9" y2="1">
++      <stop offset="0" stop-color="#FFFDF5" id="stop27"/>
++      <stop offset="0.62" stop-color="#FFF4E3" id="stop28"/>
++      <stop offset="1" stop-color="#FFE0B9" id="stop29"/>
++    </linearGradient>
++    <clipPath id="collieBodyClip" clipPathUnits="userSpaceOnUse">
++      <path d="M 343.00,237.00 C 343.00,237.00 340.11,247.85 338.00,250.00 C 331.29,256.84 299.96,281.62 290.00,291.00 C 281.30,299.20 259.47,321.67 252.00,331.00 C 240.85,344.93 211.37,386.43 202.00,401.00 C 196.02,410.29 182.72,436.01 178.00,446.00 C 173.60,455.32 163.38,480.27 160.00,490.00 C 156.22,500.88 147.73,529.81 145.00,541.00 C 142.96,549.34 139.04,571.48 138.00,580.00 C 136.87,589.27 135.10,613.66 135.00,623.00 C 134.88,634.92 135.56,666.16 137.00,678.00 C 138.60,691.16 145.83,725.46 149.00,738.00 C 151.18,746.64 158.60,768.77 162.00,777.00 C 166.81,788.65 180.92,818.85 187.00,830.00 C 192.64,840.34 209.28,866.33 216.00,876.00 C 221.64,884.11 237.44,904.61 244.00,912.00 C 252.85,921.97 287.00,956.00 287.00,956.00 C 287.00,956.00 245.21,1050.80 239.00,1066.00 C 238.18,1068.02 238.00,1076.00 238.00,1076.00 C 238.00,1076.00 245.08,1079.75 247.00,1079.00 C 263.59,1072.54 344.93,1028.04 369.00,1025.00 C 384.98,1022.98 421.72,1049.91 437.00,1055.00 C 451.76,1059.92 491.67,1068.72 507.00,1071.00 C 517.94,1072.63 546.96,1073.66 558.00,1073.00 C 572.41,1072.14 609.95,1067.29 624.00,1064.00 C 636.94,1060.97 669.95,1049.61 682.00,1044.00 C 695.21,1037.85 728.35,1018.74 740.00,1010.00 C 751.03,1001.72 776.95,976.41 786.00,966.00 C 792.86,958.11 813.00,926.00 813.00,926.00 C 813.00,926.00 819.00,938.35 820.00,942.00 C 820.98,945.58 822.16,955.29 822.00,959.00 C 821.75,964.70 818.00,982.82 818.00,987.00 C 818.00,988.39 820.76,991.38 822.00,992.00 C 823.16,992.58 827.07,992.90 828.00,992.00 C 832.05,988.07 849.45,968.49 854.00,961.00 C 859.29,952.30 869.96,926.74 873.00,918.00 C 874.88,912.58 877.47,897.71 878.00,892.00 C 878.56,885.96 878.84,870.01 878.00,864.00 C 876.88,856.04 869.00,828.00 869.00,828.00 C 869.00,828.00 885.28,834.04 889.00,837.00 C 893.93,840.92 908.00,859.00 908.00,859.00 C 908.00,859.00 918.00,855.00 918.00,855.00 C 918.00,855.00 919.84,824.25 918.00,816.00 C 915.34,804.09 899.53,770.12 897.00,761.00 C 896.01,757.44 897.13,747.59 898.00,744.00 C 899.10,739.47 903.48,727.93 906.00,724.00 C 908.98,719.35 918.60,708.34 923.00,705.00 C 928.71,700.65 945.15,691.14 952.00,689.00 C 966.57,684.44 1023.94,673.05 1038.00,669.00 C 1043.77,667.34 1057.97,660.28 1063.00,657.00 C 1068.02,653.73 1079.88,643.35 1084.00,639.00 C 1087.73,635.07 1096.72,623.69 1099.00,619.00 C 1100.64,615.64 1102.73,605.67 1102.00,602.00 C 1101.33,598.64 1095.51,591.33 1093.00,589.00 C 1089.58,585.83 1077.66,579.28 1075.00,577.00 C 1073.90,576.05 1072.11,572.45 1072.00,571.00 C 1071.75,567.58 1073.00,550.00 1073.00,550.00 C 1073.00,550.00 1052.21,539.57 1046.00,538.00 C 1035.99,535.47 1004.64,532.53 994.00,530.00 C 986.80,528.28 968.35,521.81 962.00,518.00 C 955.15,513.89 939.28,499.99 934.00,494.00 C 925.51,484.37 904.25,452.51 895.00,442.00 C 888.42,434.51 869.17,416.71 861.00,411.00 C 853.22,405.56 830.93,394.23 822.00,391.00 C 810.44,386.82 777.64,380.55 767.00,377.00 C 760.38,374.79 742.94,366.29 738.00,363.00 C 735.18,361.12 729.74,353.90 728.00,351.00 C 726.45,348.41 723.14,341.01 723.00,338.00 C 722.75,332.55 726.00,308.00 726.00,308.00 C 726.00,308.00 720.71,303.62 719.00,304.00 C 715.58,304.76 702.63,310.79 699.00,314.00 C 693.43,318.94 679.18,336.16 675.00,343.00 C 672.00,347.91 667.08,362.35 666.00,368.00 C 664.35,376.61 663.71,401.80 662.00,411.00 C 660.23,420.51 653.61,445.03 650.00,454.00 C 646.85,461.83 635.74,481.02 631.00,488.00 C 627.03,493.86 615.05,508.04 610.00,513.00 C 603.09,519.78 583.91,536.41 576.00,542.00 C 567.59,547.94 544.25,561.49 535.00,566.00 C 527.29,569.75 506.28,577.80 498.00,580.00 C 489.08,582.37 456.00,587.00 456.00,587.00 C 456.00,587.00 511.27,555.03 525.00,544.00 C 536.83,534.50 566.79,500.22 573.00,493.00 C 573.86,492.00 574.00,487.00 574.00,487.00 C 574.00,487.00 568.86,482.07 567.00,482.00 C 563.45,481.87 550.63,485.91 546.00,486.00 C 539.68,486.13 517.00,483.00 517.00,483.00 C 517.00,483.00 543.28,465.54 550.00,460.00 C 555.67,455.32 569.69,441.57 574.00,436.00 C 576.96,432.17 584.00,416.00 584.00,416.00 C 584.00,416.00 579.53,412.31 578.00,412.00 C 571.79,410.73 542.85,408.03 535.00,406.00 C 530.50,404.84 519.42,398.41 516.00,396.00 C 513.87,394.50 508.00,387.00 508.00,387.00 C 508.00,387.00 537.37,374.43 545.00,370.00 C 550.88,366.58 565.33,355.95 570.00,351.00 C 578.49,342.01 603.51,308.37 612.00,299.00 C 616.84,293.65 633.83,280.42 637.00,277.00 C 637.74,276.21 637.60,272.90 637.00,272.00 C 636.24,270.86 632.55,268.18 631.00,268.00 C 593.76,263.57 343.00,237.00 343.00,237.00 Z" id="path29"/>
++    </clipPath>
++    <clipPath id="earManeClip" clipPathUnits="userSpaceOnUse">
++      <path d="M 755 238 C 754 237.3 745.27 234.49 742 234 C 715.74 230.06 687.49 238.83 665 252 C 651.76 259.75 639.89 270.31 630 282 C 615.33 299.35 605.41 319.89 588 335 C 583.45 338.95 570.09 348.23 564 352 C 557.91 355.77 536 367 536 367 L 537 372 C 537 372 561.93 383.95 565 385 C 568.07 386.05 574.77 387.71 578 388 C 581.23 388.29 600 387 600 387 L 601 390 C 601 390 593.9 406.89 591 412 C 581.87 428.08 569.73 443.57 556 456 C 553.04 458.68 543 466 543 466 C 543 466 554.28 468.84 558 469 C 561.72 469.16 576 467 576 467 C 576 467 577.86 469.92 578 471 C 578.14 472.08 575.97 482.51 575 486 C 574.03 489.49 571.5 496.71 570 500 C 568.5 503.29 554.41 528.4 552 532 C 549.59 535.6 543.91 542.79 541 546 C 538.09 549.21 515 571 515 571 C 515 571 544.11 557.56 552 553 C 574.74 539.86 595.82 522.92 614 504 C 637.48 479.56 657.18 450.03 666 417 C 667.53 411.27 671.85 389.09 673 380 C 676.12 355.3 672.78 330.14 684 307 C 692.3 289.88 708.77 276.25 725 267 C 728.81 264.83 750.22 255.37 752 254 C 753.78 252.63 758 247 758 247 C 758 247 758.38 243.15 758 242 C 757.62 240.85 756 238.7 755 238 Z" id="path30"/>
++    </clipPath>
++    <linearGradient id="innerEarAccent" gradientUnits="userSpaceOnUse" x1="734" y1="272" x2="576" y2="542">
++      <stop offset="0" stop-color="#4C1A0B" stop-opacity="0.83" id="stop30"/>
++      <stop offset="0.32" stop-color="#6F270F" stop-opacity="0.78" id="stop31"/>
++      <stop offset="0.72" stop-color="#71310E" stop-opacity="0.44" id="stop32"/>
++      <stop offset="1" stop-color="#96390C" stop-opacity="0" id="stop33"/>
++    </linearGradient>
++    <linearGradient xlink:href="#peach" id="linearGradient40" gradientUnits="userSpaceOnUse" x1="380" y1="780" x2="690" y2="985" gradientTransform="translate(116.02742,18.569351)"/>
++    <linearGradient xlink:href="#crest" id="linearGradient41" gradientUnits="userSpaceOnUse" x1="560" y1="540" x2="700" y2="235" gradientTransform="translate(-4.8618785e-8,-2.2099448)"/>
++  </defs>
++  <path xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd" d="m 805,415 c 33,15 68,44 76,81 5.81085,33 -12.68569,59.00528 -44,50 -48,-14 -73,20 -88,56 -11,29 -15,46 -14,58 11,-21 26,-40 37,-42 -17,60 -41,101 -89,135 -44,29 -103,54 -148,75 118,-35 189,-36 225,-22 44,20 61,49 69,72 33,-43 50,-81 36,-125 -19,-36 13,-60 56,-79 74,-27 150,0 224,-52 51,-38 55,-58 63,-90 C 1033,527 966,521 911,492 860,455 840,424 805,415 Z M 421,973 c 86,6 162,-20 226,-59 58,-36 109,-67 143,-39 32,29 17,88 -37,132 -65,44 -139,56 -221,46 -62,-8 -99,-34 -111,-80 z" fill="url(#ivoryPatch)" id="collie-ivory" clip-path="url(#collieBodyClip)"/>
++  <g xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd" transform="translate(59.565,59.565) scale(0.90500)" id="g40">
++    <circle cx="870" cy="506" r="29.5" fill="url(#contour)" id="circle34"/>
++    <path d="M 1110.8753 423.2064 A 540 540 0 0 1 1126.6444 464.3154" fill="none" fill-rule="evenodd" stroke="#891E07" stroke-width="34" stroke-linecap="round" id="circular-dash-1"/>
++    <path d="M 1045.6100 311.1549 A 540 540 0 0 1 1078.0595 359.1946" fill="none" fill-rule="evenodd" stroke="#891E07" stroke-width="34" stroke-linecap="round" id="circular-dash-2"/>
++    <path d="M 956.2447 218.4883 A 540 540 0 0 1 999.9504 258.3007" fill="none" fill-rule="evenodd" stroke="#891E07" stroke-width="34" stroke-linecap="round" id="circular-dash-3"/>
++    <path d="m 291,190 c -2.02,0.97 -37.11,29.13 -46,37 -28.74,25.45 -54.8,54.46 -78,85 -21.03,27.68 -39.63,57.83 -55,89 -41.41,84.02 -66.04,176.82 -58,271 8.76,102.65 51.41,199.29 116,279 9.1,11.23 44,49 44,49 0,0 -56.47,140.86 -57,143 -2.27,9.17 0.36,19.95 10,24 2.38,1 9.87,1.49 13,1 3.13,-0.49 158.04,-64.81 159,-65 0.96,-0.19 3.05,-0.2 4,0 0.95,0.2 48.6,22.16 56,25 21.42,8.22 44.35,14.42 67,18 59.97,9.48 121.33,7.15 180,-9 41.6,-11.45 82.32,-29.65 118,-54 11.43,-7.8 44,-36 44,-36 0,0 1.02,4.52 1,6 -0.02,1.48 -7,36 -7,36 0,0 12.23,-3.44 16,-5 35.52,-14.7 65.54,-42.53 87,-74 3.13,-4.59 8.65,-14.97 11,-20 2.35,-5.03 9.93,-23.18 12,-31 2.07,-7.82 6,-40 6,-40 h 3 c 0,0 10.05,21.95 11,23 0.95,1.05 5,3 5,3 0,0 9.52,-11.04 12,-15 2.48,-3.96 8.94,-17.15 11,-23 11.27,-32.01 12.88,-65.72 2,-98 -2.47,-7.33 -15.28,-31.67 -16,-35 -5.53,-25.57 19.13,-43.27 39,-53 19.48,-9.54 42.3,-9.77 63,-15 34.49,-8.72 67.11,-23.89 89,-53 4.24,-5.64 39.03,-65.57 41,-70 5.97,-13.43 10.6,-32.5 2,-46 -5.27,-8.26 -13.83,-13.35 -23,-16 -3.04,-0.88 -39.42,-6.44 -52,-9 -12.58,-2.56 -57.57,-13.14 -64,-15 -15.71,-4.55 -31.77,-10.06 -45,-20 -27.4,-20.6 -42.09,-52.5 -64,-78 -18.03,-20.97 -38.8,-38.55 -63,-52 -8.44,-4.69 -36.74,-15.07 -44,-20 -14.52,-9.86 -23.61,-27.56 -40,-35 -3.81,-1.73 -30,-7 -30,-7 0,0 1.14,-6.93 2,-9 3.16,-7.61 9.62,-14.91 16,-20 2.42,-1.93 19,-12 19,-12 -9.29575,-12.98892 -23.33708,-19.6859 -38,-25 -47.62,-16.86 -102.01,-7.78 -142,23 -4.6,3.54 -16.33,13.93 -21,19 -4.67,5.07 -28.01,37.31 -33,43 -13.63,15.54 -28.64,28.35 -47,38 -6.39,3.36 -38,16 -38,16 0,0 1.01,6.25 2,8 0.99,1.75 7.98,8.71 11,11 12.37,9.38 28.96,14.37 44,17 6.97,1.22 29,2 29,2 0,0 -9.42,14.69 -13,19 -3.58,4.31 -16.21,17.12 -22,22 -5.79,4.88 -48,34 -48,34 0,0 14.21,5.26 19,6 4.79,0.74 26.54,0.49 31,0 4.46,-0.49 21,-2 21,-2 0,0 -12.38,17.79 -17,23 -4.62,5.21 -27.4,26.83 -35,33 -7.6,6.17 -24.63,17.92 -33,23 -8.37,5.08 -61,32 -61,32 l 1,2 c 0,0 15.89,1.17 21,1 5.11,-0.17 19.76,-1.71 26,-3 52.62,-10.88 102.14,-36.9 141,-74 21.17,-20.22 40.65,-44.79 52,-72 3.65,-8.75 10.7,-33.84 13,-45 2.3,-11.16 4.9,-48.33 7,-56 5.12,-18.71 15.69,-38.6 31,-51 4.74,-3.84 22,-12 22,-12 0,0 -3.68,12 -4,16 -1.58,19.69 5.68,38.42 22,50 3.65,2.59 20.16,10.48 27,13 6.84,2.52 52.18,12.85 61,16 8.82,3.15 31.93,14.29 35,16 3.07,1.71 9.23,5.84 12,8 2.77,2.16 24.87,21.28 32,29 27.63,29.92 44.82,71.28 83,90 4.12,2.02 22.48,9.01 30,11 7.52,1.99 53.74,8.37 60,10 6.26,1.63 25,9 25,9 0,0 -1.32,18.95 -1,21 0.98,6.25 5.23,12.05 10,16 9.05,7.5 24.28,9.32 23,24 -0.17,1.95 -2.45,10.07 -4,13 -1.55,2.93 -15.21,20.43 -20,25 -17.09,16.3 -40.63,25.71 -63,32 -24.33,6.84 -50.25,6.53 -74,16 -6.8,2.71 -27.11,13.49 -32,17 -20.83,14.95 -35.09,39.9 -33,66 1.43,17.82 12.12,32.65 18,49 3.7,10.29 6.76,21.99 7,33 0.08,3.68 -2,22 -2,22 l -2,1 c 0,0 -10.37,-14.26 -13,-17 -7.82,-8.14 -18.44,-15.07 -29,-19 -3.04,-1.13 -13,-3 -13,-3 0,0 11.22,42.7 12,48 3.61,24.54 -1.26,51.01 -10,74 -5.92,15.57 -13.84,30.76 -24,44 -3.53,4.6 -18,20 -18,20 l -2,-4 c 0,0 3.59,-12.77 4,-17 1.49,-15.4 0.06,-34.31 -8,-48 -1.49,-2.53 -8,-9 -8,-9 0,0 -24.17,38.35 -31,47 -6.83,8.65 -26.61,28.84 -31,33 -4.39,4.16 -14.15,12.4 -19,16 -33.92,25.18 -71.42,44.23 -112,56 -38.64,11.21 -78.84,15.36 -119,14 -5.61,-0.19 -17.44,-1.21 -23,-2 -5.56,-0.79 -49.28,-8.75 -61,-12 -11.72,-3.25 -36.28,-12.46 -47,-17 -10.72,-4.54 -41.81,-20.73 -43,-21 -1.19,-0.27 -3.81,-0.25 -5,0 -1.19,0.25 -137,60 -137,60 l -1,-2 c 0,0 49.56,-110.19 51,-114 1.44,-3.81 5,-16 5,-16 0,0 -36.98,-36.91 -45,-46 -8.02,-9.09 -23.94,-29.14 -31,-39 C 151.64,861.2 125.93,813.6 110,762 98.95,726.2 91.42,688.51 90,651 c -0.5,-13.21 1.23,-47.71 2,-57 3.51,-42.31 14.12,-84.3 29,-124 3.86,-10.3 14.49,-35.86 20,-47 29.46,-59.56 68,-113.95 116,-160 10.81,-10.37 57,-49 57,-49 0,0 2.32,-9.85 2,-12 -1.64,-11.02 -15.64,-16.49 -25,-12 z" fill="url(#contour)" fill-rule="evenodd" id="path34"/>
++    <path d="M 836.3584 144.4551 A 540 540 0 0 1 896.4015 176.1169" fill="none" fill-rule="evenodd" stroke="#891E07" stroke-width="34" stroke-linecap="round" id="circular-dash-5"/>
++    <path d="M 345.5062 169.0544 A 540 540 0 0 1 438.6230 126.6167" fill="none" fill-rule="evenodd" stroke="#891E07" stroke-width="34" stroke-linecap="round" id="circular-dash-6"/>
++    <path d="M 690.9654 102.3700 A 540 540 0 0 1 764.3696 118.0696" fill="none" fill-rule="evenodd" stroke="#891E07" stroke-width="34" stroke-linecap="round" id="circular-dash-7"/>
++    <path d="M 511.8799 106.9375 A 540 540 0 0 1 610.4196 97.0194" fill="none" fill-rule="evenodd" stroke="#891E07" stroke-width="34" stroke-linecap="round" id="circular-dash-8"/>
++    <path d="M 782.35122,242.02847 C 783.54289,241.76404 745.27,234.49 742,234 c -26.26,-3.94 -54.51,4.83 -77,18 -13.24,7.75 -25.11,18.31 -35,30 -14.67,17.35 -24.59,37.89 -42,53 -4.55,3.95 -17.91,13.23 -24,17 -6.09,3.77 -39.23957,10.28663 -39.23957,10.28663 0,0 37.16957,20.29869 40.23957,21.34869 3.07,1.05 9.77,3.01326 13,3.30326 3.23,0.29 22,0.0614 22,0.0614 2.06994,7.41652 -5.47811,18.35561 -9,25 -9.13,16.08 -21.27,31.57 -35,44 -2.96,2.68 -13,10 -13,10 0,0 11.28,2.84 15,3 3.72,0.16 19.86,0.92 20,2 0.14,1.08 -2.03,11.51 -3,15 -0.97,3.49 -3.5,10.71 -5,14 -1.5,3.29 -15.59,28.4 -18,32 -2.41,3.6 -8.09,10.79 -11,14 -2.91,3.21 -26,25 -26,25 0,0 29.11,-13.44 37,-18 22.74,-13.14 43.82,-30.08 62,-49 23.48,-24.44 36.46647,-34.99398 52,-87 17.53218,-58.69746 1.85399,-76.70065 18,-110 8.3,-17.12 24.77,-30.75 41,-40 8.98759,-4.95735 34.98611,-20.00867 57.35122,-24.97151 z" fill="url(#crest)" fill-rule="evenodd" id="path35"/>
++    <path id="clean-ear-fold" d="m 741,276 c -36,17 -52,53 -64,98 46.98272,64.30876 -30.69643,140.68779 -119,179 79.99827,-14.23502 83.85253,-72.77189 112.15783,-127.61578 C 688.15783,380.38422 701,323 741,276 Z" fill="url(#innerEarAccent)" clip-path="url(#earManeClip)"/>
++    <path d="m 771,310.79006 c 0,0 -3.37243,1.48622 -4,5 -2.12,5.99 1.73,14.25 5,19 6,8.69 17,16.59 28,14 6.47,-1.53 9.51,-10.05 8,-16 -2.47,-9.72 -11.53,-16.67 -20,-21 -5.38484,-3.00215 -10.08528,-3.28985 -17,-1 z" fill="url(#crest)" fill-rule="evenodd" id="path36" style="fill:url(#linearGradient41)"/>
++    <path d="M 571 597 C 571 597 513.88 619.34 495 625 C 476.12 630.66 390.2 649.16 384 651 C 342.97 663.18 304.33 686.81 276 719 C 261.66 735.29 249.2 754.41 242 775 C 239.29 782.75 235 808 235 808 L 237 809 C 237 809 262.47 781.21 268 776 C 283.61 761.29 301.29 748.48 320 738 C 326.84 734.17 345.46 725.31 349 724 C 352.54 722.69 362.23 719.98 364 720 C 365.77 720.02 371 722 371 722 L 368 754 L 373 754 C 373 754 443.54 691.3 466 674 C 488.46 656.7 559.45 610.34 562 608 C 564.55 605.66 571 597 571 597 Z" fill="url(#upperFur)" fill-rule="evenodd" id="path37"/>
++    <path d="M 850.19945,904.32866 C 833.41183,834.21567 772.20565,818.59756 734.1401,815.98823 697.2101,813.45823 645.29,818.15 612,834 c -7.79,3.71 -35.09,19.2 -46,26 -10.91,6.8 -45.06,32.04 -57,39 -37.92,22.1 -80.98,38.88 -125,43 -7.37,0.69 -37.58,1.54 -44,1 -12.99503,-1.09304 -23.15385,-6.4648 -29,-4 0,0 17.8,12.01 24,15 35.89,17.31 78.81,21.07 118,17 32.29,-3.35 64.03,-11.64 94,-24 9.53,-3.93 34.97,-16.32 46,-22 11.03,-5.68 56.88,-32.48 67,-37 63.20886,-28.2353 131.21561,-32.29831 190.25929,16.43799 0,0 0.11016,0.60067 -0.0598,-0.10933 z" fill="url(#lowerFur)" fill-rule="evenodd" id="path38"/>
++    <path d="M 562 663 L 559 662 C 559 662 500.98 691.52 488 699 C 475.02 706.48 439.27 729.71 436 732 C 432.73 734.29 426.02 739.39 423 742 C 419.98 744.61 392.95 770.63 389 775 C 385.05 779.37 376.26 790.54 374 794 C 371.74 797.46 366 809 366 809 C 366 809 378.95 804.7 383 803 C 387.05 801.3 418.85 786.15 430 780 C 441.15 773.85 466.22 759.03 477 751 C 487.78 742.97 516.86 716.03 523 710 C 529.14 703.97 543.04 688.87 547 684 C 550.96 679.13 562 663 562 663 Z" fill="url(#peach)" fill-rule="evenodd" id="path39"/>
++    <path d="m 794.02742,967.56935 -2,-1 c 0,0 -59.65,33.18996 -72,38.99995 -33.42,15.72 -68.54,27.73 -105,34 -13.09,2.25 -70,7 -70,7 l -1,2 c 0,0 19.41,9.07 26,11 33.41,9.78 71.07,6.83 104,-3 5.76,-1.72 17.57,-6.42 23,-9 22.6,-10.74 44.42,-24.17 63,-41 5.52,-5 25.04,-25.50999 27,-27.99999 1.96,-2.49 7,-10.99996 7,-10.99996 z" fill="url(#peach)" fill-rule="evenodd" id="path40" style="opacity:1;fill:url(#linearGradient40)"/>
++  </g>
++</svg>
+\ No newline at end of file
+diff --git a/assets/collie-icon.svg b/assets/collie-icon.svg
+new file mode 100644
+index 0000000000000000000000000000000000000000..e25657dfeea8d446b8e72de14235241367841cbb
+--- /dev/null
++++ b/assets/collie-icon.svg
+@@ -0,0 +1,459 @@
++<?xml version="1.0" encoding="UTF-8" standalone="no"?>
++<svg
++   width="1254"
++   height="1254"
++   viewBox="0 0 1254 1254"
++   version="1.1"
++   id="svg40"
++   sodipodi:docname="collie_icon_gradient.svg"
++   inkscape:version="1.4.4 (dcaf3e7d9e, 2026-05-05)"
++   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
++   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
++   xmlns:xlink="http://www.w3.org/1999/xlink"
++   xmlns="http://www.w3.org/2000/svg"
++   xmlns:svg="http://www.w3.org/2000/svg">
++  <sodipodi:namedview
++     id="namedview40"
++     pagecolor="#ffffff"
++     bordercolor="#000000"
++     borderopacity="0.25"
++     inkscape:showpageshadow="2"
++     inkscape:pageopacity="0.0"
++     inkscape:pagecheckerboard="0"
++     inkscape:deskcolor="#d1d1d1"
++     inkscape:zoom="0.21164465"
++     inkscape:cx="207.89564"
++     inkscape:cy="297.66876"
++     inkscape:window-width="1436"
++     inkscape:window-height="837"
++     inkscape:window-x="0"
++     inkscape:window-y="0"
++     inkscape:window-maximized="0"
++     inkscape:current-layer="g40" />
++  <title
++     id="title1">Border Collie — corrected overlapping details, vivid gradient</title>
++  <desc
++     id="desc1">Editable SVG master retaining original geometric speech bubble and Collie silhouette. White face and chest markings are clipped to the body; compact inner ear fold; exact circle-arc dashes.</desc>
++  <defs
++     id="defs33">
++    <linearGradient
++       id="bgGradient"
++       x1="0"
++       y1="0"
++       x2="0"
++       y2="1">
++      <stop
++         offset="0"
++         stop-color="#FFF3DF"
++         stop-opacity="1"
++         id="stop1" />
++      <stop
++         offset="0.42"
++         stop-color="#F8B563"
++         stop-opacity="1"
++         id="stop2" />
++      <stop
++         offset="1"
++         stop-color="#D94819"
++         stop-opacity="1"
++         id="stop3" />
++    </linearGradient>
++    <linearGradient
++       id="sheen"
++       x1="0"
++       y1="0"
++       x2="0"
++       y2="1">
++      <stop
++         offset="0%"
++         stop-color="#ffffff"
++         stop-opacity="0.12"
++         id="stop4" />
++      <stop
++         offset="35%"
++         stop-color="#fff8f0"
++         stop-opacity="0.04"
++         id="stop5" />
++      <stop
++         offset="100%"
++         stop-color="#ffffff"
++         stop-opacity="0.00"
++         id="stop6" />
++    </linearGradient>
++    <linearGradient
++       id="contour"
++       gradientUnits="userSpaceOnUse"
++       x1="140"
++       y1="180"
++       x2="990"
++       y2="1050">
++      <stop
++         offset="0"
++         stop-color="#8A200A"
++         stop-opacity="1"
++         id="stop7" />
++      <stop
++         offset="0.55"
++         stop-color="#811A08"
++         stop-opacity="1"
++         id="stop8" />
++      <stop
++         offset="1"
++         stop-color="#771A08"
++         stop-opacity="1"
++         id="stop9" />
++    </linearGradient>
++    <linearGradient
++       id="crest"
++       gradientUnits="userSpaceOnUse"
++       x1="560"
++       y1="540"
++       x2="700"
++       y2="235">
++      <stop
++         offset="0"
++         stop-color="#DE6410"
++         stop-opacity="1"
++         id="stop10" />
++      <stop
++         offset="0.48"
++         stop-color="#F79824"
++         stop-opacity="1"
++         id="stop11" />
++      <stop
++         offset="1"
++         stop-color="#FFA83C"
++         stop-opacity="1"
++         id="stop12" />
++    </linearGradient>
++    <linearGradient
++       id="upperFur"
++       gradientUnits="userSpaceOnUse"
++       x1="260"
++       y1="740"
++       x2="560"
++       y2="605">
++      <stop
++         offset="0"
++         stop-color="#F8B33E"
++         stop-opacity="1"
++         id="stop13" />
++      <stop
++         offset="0.45"
++         stop-color="#EE9024"
++         stop-opacity="1"
++         id="stop14" />
++      <stop
++         offset="1"
++         stop-color="#D85B09"
++         stop-opacity="1"
++         id="stop15" />
++    </linearGradient>
++    <linearGradient
++       id="lowerFur"
++       gradientUnits="userSpaceOnUse"
++       x1="370"
++       y1="940"
++       x2="780"
++       y2="825">
++      <stop
++         offset="0"
++         stop-color="#F8AD38"
++         stop-opacity="1"
++         id="stop16" />
++      <stop
++         offset="0.5"
++         stop-color="#F2982B"
++         stop-opacity="1"
++         id="stop17" />
++      <stop
++         offset="1"
++         stop-color="#DB6711"
++         stop-opacity="1"
++         id="stop18" />
++    </linearGradient>
++    <linearGradient
++       id="peach"
++       gradientUnits="userSpaceOnUse"
++       x1="380"
++       y1="780"
++       x2="690"
++       y2="985">
++      <stop
++         offset="0"
++         stop-color="#FFF9EF"
++         stop-opacity="1"
++         id="stop19" />
++      <stop
++         offset="0.6"
++         stop-color="#FFF4E5"
++         stop-opacity="1"
++         id="stop20" />
++      <stop
++         offset="1"
++         stop-color="#F8E2C0"
++         stop-opacity="1"
++         id="stop21" />
++    </linearGradient>
++    <linearGradient
++       id="earDepth"
++       gradientUnits="userSpaceOnUse"
++       x1="560"
++       y1="260"
++       x2="800"
++       y2="640">
++      <stop
++         offset="0"
++         stop-color="#3C1207"
++         stop-opacity="0"
++         id="stop22" />
++      <stop
++         offset="0.18"
++         stop-color="#401508"
++         stop-opacity="0.24"
++         id="stop23" />
++      <stop
++         offset="0.42"
++         stop-color="#441808"
++         stop-opacity="0.24"
++         id="stop24" />
++      <stop
++         offset="0.8"
++         stop-color="#552410"
++         stop-opacity="0.12"
++         id="stop25" />
++      <stop
++         offset="1"
++         stop-color="#542410"
++         stop-opacity="0"
++         id="stop26" />
++    </linearGradient>
++    <linearGradient
++       id="ivoryPatch"
++       x1="0.15"
++       y1="0.0"
++       x2="0.9"
++       y2="1">
++      <stop
++         offset="0"
++         stop-color="#FFFDF5"
++         id="stop27" />
++      <stop
++         offset="0.62"
++         stop-color="#FFF4E3"
++         id="stop28" />
++      <stop
++         offset="1"
++         stop-color="#FFE0B9"
++         id="stop29" />
++    </linearGradient>
++    <clipPath
++       id="collieBodyClip"
++       clipPathUnits="userSpaceOnUse">
++      <path
++         d="M 343.00,237.00 C 343.00,237.00 340.11,247.85 338.00,250.00 C 331.29,256.84 299.96,281.62 290.00,291.00 C 281.30,299.20 259.47,321.67 252.00,331.00 C 240.85,344.93 211.37,386.43 202.00,401.00 C 196.02,410.29 182.72,436.01 178.00,446.00 C 173.60,455.32 163.38,480.27 160.00,490.00 C 156.22,500.88 147.73,529.81 145.00,541.00 C 142.96,549.34 139.04,571.48 138.00,580.00 C 136.87,589.27 135.10,613.66 135.00,623.00 C 134.88,634.92 135.56,666.16 137.00,678.00 C 138.60,691.16 145.83,725.46 149.00,738.00 C 151.18,746.64 158.60,768.77 162.00,777.00 C 166.81,788.65 180.92,818.85 187.00,830.00 C 192.64,840.34 209.28,866.33 216.00,876.00 C 221.64,884.11 237.44,904.61 244.00,912.00 C 252.85,921.97 287.00,956.00 287.00,956.00 C 287.00,956.00 245.21,1050.80 239.00,1066.00 C 238.18,1068.02 238.00,1076.00 238.00,1076.00 C 238.00,1076.00 245.08,1079.75 247.00,1079.00 C 263.59,1072.54 344.93,1028.04 369.00,1025.00 C 384.98,1022.98 421.72,1049.91 437.00,1055.00 C 451.76,1059.92 491.67,1068.72 507.00,1071.00 C 517.94,1072.63 546.96,1073.66 558.00,1073.00 C 572.41,1072.14 609.95,1067.29 624.00,1064.00 C 636.94,1060.97 669.95,1049.61 682.00,1044.00 C 695.21,1037.85 728.35,1018.74 740.00,1010.00 C 751.03,1001.72 776.95,976.41 786.00,966.00 C 792.86,958.11 813.00,926.00 813.00,926.00 C 813.00,926.00 819.00,938.35 820.00,942.00 C 820.98,945.58 822.16,955.29 822.00,959.00 C 821.75,964.70 818.00,982.82 818.00,987.00 C 818.00,988.39 820.76,991.38 822.00,992.00 C 823.16,992.58 827.07,992.90 828.00,992.00 C 832.05,988.07 849.45,968.49 854.00,961.00 C 859.29,952.30 869.96,926.74 873.00,918.00 C 874.88,912.58 877.47,897.71 878.00,892.00 C 878.56,885.96 878.84,870.01 878.00,864.00 C 876.88,856.04 869.00,828.00 869.00,828.00 C 869.00,828.00 885.28,834.04 889.00,837.00 C 893.93,840.92 908.00,859.00 908.00,859.00 C 908.00,859.00 918.00,855.00 918.00,855.00 C 918.00,855.00 919.84,824.25 918.00,816.00 C 915.34,804.09 899.53,770.12 897.00,761.00 C 896.01,757.44 897.13,747.59 898.00,744.00 C 899.10,739.47 903.48,727.93 906.00,724.00 C 908.98,719.35 918.60,708.34 923.00,705.00 C 928.71,700.65 945.15,691.14 952.00,689.00 C 966.57,684.44 1023.94,673.05 1038.00,669.00 C 1043.77,667.34 1057.97,660.28 1063.00,657.00 C 1068.02,653.73 1079.88,643.35 1084.00,639.00 C 1087.73,635.07 1096.72,623.69 1099.00,619.00 C 1100.64,615.64 1102.73,605.67 1102.00,602.00 C 1101.33,598.64 1095.51,591.33 1093.00,589.00 C 1089.58,585.83 1077.66,579.28 1075.00,577.00 C 1073.90,576.05 1072.11,572.45 1072.00,571.00 C 1071.75,567.58 1073.00,550.00 1073.00,550.00 C 1073.00,550.00 1052.21,539.57 1046.00,538.00 C 1035.99,535.47 1004.64,532.53 994.00,530.00 C 986.80,528.28 968.35,521.81 962.00,518.00 C 955.15,513.89 939.28,499.99 934.00,494.00 C 925.51,484.37 904.25,452.51 895.00,442.00 C 888.42,434.51 869.17,416.71 861.00,411.00 C 853.22,405.56 830.93,394.23 822.00,391.00 C 810.44,386.82 777.64,380.55 767.00,377.00 C 760.38,374.79 742.94,366.29 738.00,363.00 C 735.18,361.12 729.74,353.90 728.00,351.00 C 726.45,348.41 723.14,341.01 723.00,338.00 C 722.75,332.55 726.00,308.00 726.00,308.00 C 726.00,308.00 720.71,303.62 719.00,304.00 C 715.58,304.76 702.63,310.79 699.00,314.00 C 693.43,318.94 679.18,336.16 675.00,343.00 C 672.00,347.91 667.08,362.35 666.00,368.00 C 664.35,376.61 663.71,401.80 662.00,411.00 C 660.23,420.51 653.61,445.03 650.00,454.00 C 646.85,461.83 635.74,481.02 631.00,488.00 C 627.03,493.86 615.05,508.04 610.00,513.00 C 603.09,519.78 583.91,536.41 576.00,542.00 C 567.59,547.94 544.25,561.49 535.00,566.00 C 527.29,569.75 506.28,577.80 498.00,580.00 C 489.08,582.37 456.00,587.00 456.00,587.00 C 456.00,587.00 511.27,555.03 525.00,544.00 C 536.83,534.50 566.79,500.22 573.00,493.00 C 573.86,492.00 574.00,487.00 574.00,487.00 C 574.00,487.00 568.86,482.07 567.00,482.00 C 563.45,481.87 550.63,485.91 546.00,486.00 C 539.68,486.13 517.00,483.00 517.00,483.00 C 517.00,483.00 543.28,465.54 550.00,460.00 C 555.67,455.32 569.69,441.57 574.00,436.00 C 576.96,432.17 584.00,416.00 584.00,416.00 C 584.00,416.00 579.53,412.31 578.00,412.00 C 571.79,410.73 542.85,408.03 535.00,406.00 C 530.50,404.84 519.42,398.41 516.00,396.00 C 513.87,394.50 508.00,387.00 508.00,387.00 C 508.00,387.00 537.37,374.43 545.00,370.00 C 550.88,366.58 565.33,355.95 570.00,351.00 C 578.49,342.01 603.51,308.37 612.00,299.00 C 616.84,293.65 633.83,280.42 637.00,277.00 C 637.74,276.21 637.60,272.90 637.00,272.00 C 636.24,270.86 632.55,268.18 631.00,268.00 C 593.76,263.57 343.00,237.00 343.00,237.00 Z"
++         id="path29" />
++    </clipPath>
++    <clipPath
++       id="earManeClip"
++       clipPathUnits="userSpaceOnUse">
++      <path
++         d="M 755 238 C 754 237.3 745.27 234.49 742 234 C 715.74 230.06 687.49 238.83 665 252 C 651.76 259.75 639.89 270.31 630 282 C 615.33 299.35 605.41 319.89 588 335 C 583.45 338.95 570.09 348.23 564 352 C 557.91 355.77 536 367 536 367 L 537 372 C 537 372 561.93 383.95 565 385 C 568.07 386.05 574.77 387.71 578 388 C 581.23 388.29 600 387 600 387 L 601 390 C 601 390 593.9 406.89 591 412 C 581.87 428.08 569.73 443.57 556 456 C 553.04 458.68 543 466 543 466 C 543 466 554.28 468.84 558 469 C 561.72 469.16 576 467 576 467 C 576 467 577.86 469.92 578 471 C 578.14 472.08 575.97 482.51 575 486 C 574.03 489.49 571.5 496.71 570 500 C 568.5 503.29 554.41 528.4 552 532 C 549.59 535.6 543.91 542.79 541 546 C 538.09 549.21 515 571 515 571 C 515 571 544.11 557.56 552 553 C 574.74 539.86 595.82 522.92 614 504 C 637.48 479.56 657.18 450.03 666 417 C 667.53 411.27 671.85 389.09 673 380 C 676.12 355.3 672.78 330.14 684 307 C 692.3 289.88 708.77 276.25 725 267 C 728.81 264.83 750.22 255.37 752 254 C 753.78 252.63 758 247 758 247 C 758 247 758.38 243.15 758 242 C 757.62 240.85 756 238.7 755 238 Z"
++         id="path30" />
++    </clipPath>
++    <linearGradient
++       id="innerEarAccent"
++       gradientUnits="userSpaceOnUse"
++       x1="734"
++       y1="272"
++       x2="576"
++       y2="542">
++      <stop
++         offset="0"
++         stop-color="#4C1A0B"
++         stop-opacity="0.83"
++         id="stop30" />
++      <stop
++         offset="0.32"
++         stop-color="#6F270F"
++         stop-opacity="0.78"
++         id="stop31" />
++      <stop
++         offset="0.72"
++         stop-color="#71310E"
++         stop-opacity="0.44"
++         id="stop32" />
++      <stop
++         offset="1"
++         stop-color="#96390C"
++         stop-opacity="0"
++         id="stop33" />
++    </linearGradient>
++    <linearGradient
++       inkscape:collect="always"
++       xlink:href="#peach"
++       id="linearGradient40"
++       gradientUnits="userSpaceOnUse"
++       x1="380"
++       y1="780"
++       x2="690"
++       y2="985"
++       gradientTransform="translate(116.02742,18.569351)" />
++    <linearGradient
++       inkscape:collect="always"
++       xlink:href="#crest"
++       id="linearGradient41"
++       gradientUnits="userSpaceOnUse"
++       x1="560"
++       y1="540"
++       x2="700"
++       y2="235"
++       gradientTransform="translate(-4.8618785e-8,-2.2099448)" />
++  </defs>
++  <rect
++     x="0"
++     y="0"
++     width="1254"
++     height="1254"
++     rx="290"
++     ry="290"
++     fill="url(#bgGradient)"
++     id="rect33" />
++  <rect
++     x="0"
++     y="0"
++     width="1254"
++     height="1254"
++     rx="290"
++     ry="290"
++     fill="url(#sheen)"
++     id="rect34"
++     style="opacity:1" />
++  <ellipse
++     cx="627"
++     cy="213"
++     rx="501"
++     ry="163"
++     fill="#fff8ee"
++     opacity="0.05"
++     id="ellipse34" />
++  <path
++     d="m 805,415 c 33,15 68,44 76,81 5.81085,33 -12.68569,59.00528 -44,50 -48,-14 -73,20 -88,56 -11,29 -15,46 -14,58 11,-21 26,-40 37,-42 -17,60 -41,101 -89,135 -44,29 -103,54 -148,75 118,-35 189,-36 225,-22 44,20 61,49 69,72 33,-43 50,-81 36,-125 -19,-36 13,-60 56,-79 74,-27 150,0 224,-52 51,-38 55,-58 63,-90 C 1033,527 966,521 911,492 860,455 840,424 805,415 Z M 421,973 c 86,6 162,-20 226,-59 58,-36 109,-67 143,-39 32,29 17,88 -37,132 -65,44 -139,56 -221,46 -62,-8 -99,-34 -111,-80 z"
++     fill="url(#ivoryPatch)"
++     id="collie-ivory"
++     clip-path="url(#collieBodyClip)"
++     sodipodi:nodetypes="cccccccccccccccccccccc" />
++  <g
++     transform="translate(59.565,59.565) scale(0.90500)"
++     id="g40">
++    <circle
++       cx="870"
++       cy="506"
++       r="29.5"
++       fill="url(#contour)"
++       id="circle34" />
++    <path
++       d="M 1110.8753 423.2064 A 540 540 0 0 1 1126.6444 464.3154"
++       fill="none"
++       fill-rule="evenodd"
++       stroke="#891E07"
++       stroke-width="34"
++       stroke-linecap="round"
++       id="circular-dash-1" />
++    <path
++       d="M 1045.6100 311.1549 A 540 540 0 0 1 1078.0595 359.1946"
++       fill="none"
++       fill-rule="evenodd"
++       stroke="#891E07"
++       stroke-width="34"
++       stroke-linecap="round"
++       id="circular-dash-2" />
++    <path
++       d="M 956.2447 218.4883 A 540 540 0 0 1 999.9504 258.3007"
++       fill="none"
++       fill-rule="evenodd"
++       stroke="#891E07"
++       stroke-width="34"
++       stroke-linecap="round"
++       id="circular-dash-3" />
++    <path
++       d="m 291,190 c -2.02,0.97 -37.11,29.13 -46,37 -28.74,25.45 -54.8,54.46 -78,85 -21.03,27.68 -39.63,57.83 -55,89 -41.41,84.02 -66.04,176.82 -58,271 8.76,102.65 51.41,199.29 116,279 9.1,11.23 44,49 44,49 0,0 -56.47,140.86 -57,143 -2.27,9.17 0.36,19.95 10,24 2.38,1 9.87,1.49 13,1 3.13,-0.49 158.04,-64.81 159,-65 0.96,-0.19 3.05,-0.2 4,0 0.95,0.2 48.6,22.16 56,25 21.42,8.22 44.35,14.42 67,18 59.97,9.48 121.33,7.15 180,-9 41.6,-11.45 82.32,-29.65 118,-54 11.43,-7.8 44,-36 44,-36 0,0 1.02,4.52 1,6 -0.02,1.48 -7,36 -7,36 0,0 12.23,-3.44 16,-5 35.52,-14.7 65.54,-42.53 87,-74 3.13,-4.59 8.65,-14.97 11,-20 2.35,-5.03 9.93,-23.18 12,-31 2.07,-7.82 6,-40 6,-40 h 3 c 0,0 10.05,21.95 11,23 0.95,1.05 5,3 5,3 0,0 9.52,-11.04 12,-15 2.48,-3.96 8.94,-17.15 11,-23 11.27,-32.01 12.88,-65.72 2,-98 -2.47,-7.33 -15.28,-31.67 -16,-35 -5.53,-25.57 19.13,-43.27 39,-53 19.48,-9.54 42.3,-9.77 63,-15 34.49,-8.72 67.11,-23.89 89,-53 4.24,-5.64 39.03,-65.57 41,-70 5.97,-13.43 10.6,-32.5 2,-46 -5.27,-8.26 -13.83,-13.35 -23,-16 -3.04,-0.88 -39.42,-6.44 -52,-9 -12.58,-2.56 -57.57,-13.14 -64,-15 -15.71,-4.55 -31.77,-10.06 -45,-20 -27.4,-20.6 -42.09,-52.5 -64,-78 -18.03,-20.97 -38.8,-38.55 -63,-52 -8.44,-4.69 -36.74,-15.07 -44,-20 -14.52,-9.86 -23.61,-27.56 -40,-35 -3.81,-1.73 -30,-7 -30,-7 0,0 1.14,-6.93 2,-9 3.16,-7.61 9.62,-14.91 16,-20 2.42,-1.93 19,-12 19,-12 -9.29575,-12.98892 -23.33708,-19.6859 -38,-25 -47.62,-16.86 -102.01,-7.78 -142,23 -4.6,3.54 -16.33,13.93 -21,19 -4.67,5.07 -28.01,37.31 -33,43 -13.63,15.54 -28.64,28.35 -47,38 -6.39,3.36 -38,16 -38,16 0,0 1.01,6.25 2,8 0.99,1.75 7.98,8.71 11,11 12.37,9.38 28.96,14.37 44,17 6.97,1.22 29,2 29,2 0,0 -9.42,14.69 -13,19 -3.58,4.31 -16.21,17.12 -22,22 -5.79,4.88 -48,34 -48,34 0,0 14.21,5.26 19,6 4.79,0.74 26.54,0.49 31,0 4.46,-0.49 21,-2 21,-2 0,0 -12.38,17.79 -17,23 -4.62,5.21 -27.4,26.83 -35,33 -7.6,6.17 -24.63,17.92 -33,23 -8.37,5.08 -61,32 -61,32 l 1,2 c 0,0 15.89,1.17 21,1 5.11,-0.17 19.76,-1.71 26,-3 52.62,-10.88 102.14,-36.9 141,-74 21.17,-20.22 40.65,-44.79 52,-72 3.65,-8.75 10.7,-33.84 13,-45 2.3,-11.16 4.9,-48.33 7,-56 5.12,-18.71 15.69,-38.6 31,-51 4.74,-3.84 22,-12 22,-12 0,0 -3.68,12 -4,16 -1.58,19.69 5.68,38.42 22,50 3.65,2.59 20.16,10.48 27,13 6.84,2.52 52.18,12.85 61,16 8.82,3.15 31.93,14.29 35,16 3.07,1.71 9.23,5.84 12,8 2.77,2.16 24.87,21.28 32,29 27.63,29.92 44.82,71.28 83,90 4.12,2.02 22.48,9.01 30,11 7.52,1.99 53.74,8.37 60,10 6.26,1.63 25,9 25,9 0,0 -1.32,18.95 -1,21 0.98,6.25 5.23,12.05 10,16 9.05,7.5 24.28,9.32 23,24 -0.17,1.95 -2.45,10.07 -4,13 -1.55,2.93 -15.21,20.43 -20,25 -17.09,16.3 -40.63,25.71 -63,32 -24.33,6.84 -50.25,6.53 -74,16 -6.8,2.71 -27.11,13.49 -32,17 -20.83,14.95 -35.09,39.9 -33,66 1.43,17.82 12.12,32.65 18,49 3.7,10.29 6.76,21.99 7,33 0.08,3.68 -2,22 -2,22 l -2,1 c 0,0 -10.37,-14.26 -13,-17 -7.82,-8.14 -18.44,-15.07 -29,-19 -3.04,-1.13 -13,-3 -13,-3 0,0 11.22,42.7 12,48 3.61,24.54 -1.26,51.01 -10,74 -5.92,15.57 -13.84,30.76 -24,44 -3.53,4.6 -18,20 -18,20 l -2,-4 c 0,0 3.59,-12.77 4,-17 1.49,-15.4 0.06,-34.31 -8,-48 -1.49,-2.53 -8,-9 -8,-9 0,0 -24.17,38.35 -31,47 -6.83,8.65 -26.61,28.84 -31,33 -4.39,4.16 -14.15,12.4 -19,16 -33.92,25.18 -71.42,44.23 -112,56 -38.64,11.21 -78.84,15.36 -119,14 -5.61,-0.19 -17.44,-1.21 -23,-2 -5.56,-0.79 -49.28,-8.75 -61,-12 -11.72,-3.25 -36.28,-12.46 -47,-17 -10.72,-4.54 -41.81,-20.73 -43,-21 -1.19,-0.27 -3.81,-0.25 -5,0 -1.19,0.25 -137,60 -137,60 l -1,-2 c 0,0 49.56,-110.19 51,-114 1.44,-3.81 5,-16 5,-16 0,0 -36.98,-36.91 -45,-46 -8.02,-9.09 -23.94,-29.14 -31,-39 C 151.64,861.2 125.93,813.6 110,762 98.95,726.2 91.42,688.51 90,651 c -0.5,-13.21 1.23,-47.71 2,-57 3.51,-42.31 14.12,-84.3 29,-124 3.86,-10.3 14.49,-35.86 20,-47 29.46,-59.56 68,-113.95 116,-160 10.81,-10.37 57,-49 57,-49 0,0 2.32,-9.85 2,-12 -1.64,-11.02 -15.64,-16.49 -25,-12 z"
++       fill="url(#contour)"
++       fill-rule="evenodd"
++       id="path34"
++       sodipodi:nodetypes="cccccsccsssscccccsccsssccscscccccccccsccccscccccccscccssccsscsscsssccsccssccccssssscssscccssccccccscccccccscccccssccssssssccscsccsccccccc" />
++    <path
++       d="M 836.3584 144.4551 A 540 540 0 0 1 896.4015 176.1169"
++       fill="none"
++       fill-rule="evenodd"
++       stroke="#891E07"
++       stroke-width="34"
++       stroke-linecap="round"
++       id="circular-dash-5" />
++    <path
++       d="M 345.5062 169.0544 A 540 540 0 0 1 438.6230 126.6167"
++       fill="none"
++       fill-rule="evenodd"
++       stroke="#891E07"
++       stroke-width="34"
++       stroke-linecap="round"
++       id="circular-dash-6" />
++    <path
++       d="M 690.9654 102.3700 A 540 540 0 0 1 764.3696 118.0696"
++       fill="none"
++       fill-rule="evenodd"
++       stroke="#891E07"
++       stroke-width="34"
++       stroke-linecap="round"
++       id="circular-dash-7" />
++    <path
++       d="M 511.8799 106.9375 A 540 540 0 0 1 610.4196 97.0194"
++       fill="none"
++       fill-rule="evenodd"
++       stroke="#891E07"
++       stroke-width="34"
++       stroke-linecap="round"
++       id="circular-dash-8" />
++    <path
++       d="M 782.35122,242.02847 C 783.54289,241.76404 745.27,234.49 742,234 c -26.26,-3.94 -54.51,4.83 -77,18 -13.24,7.75 -25.11,18.31 -35,30 -14.67,17.35 -24.59,37.89 -42,53 -4.55,3.95 -17.91,13.23 -24,17 -6.09,3.77 -39.23957,10.28663 -39.23957,10.28663 0,0 37.16957,20.29869 40.23957,21.34869 3.07,1.05 9.77,3.01326 13,3.30326 3.23,0.29 22,0.0614 22,0.0614 2.06994,7.41652 -5.47811,18.35561 -9,25 -9.13,16.08 -21.27,31.57 -35,44 -2.96,2.68 -13,10 -13,10 0,0 11.28,2.84 15,3 3.72,0.16 19.86,0.92 20,2 0.14,1.08 -2.03,11.51 -3,15 -0.97,3.49 -3.5,10.71 -5,14 -1.5,3.29 -15.59,28.4 -18,32 -2.41,3.6 -8.09,10.79 -11,14 -2.91,3.21 -26,25 -26,25 0,0 29.11,-13.44 37,-18 22.74,-13.14 43.82,-30.08 62,-49 23.48,-24.44 36.46647,-34.99398 52,-87 17.53218,-58.69746 1.85399,-76.70065 18,-110 8.3,-17.12 24.77,-30.75 41,-40 8.98759,-4.95735 34.98611,-20.00867 57.35122,-24.97151 z"
++       fill="url(#crest)"
++       fill-rule="evenodd"
++       id="path35"
++       sodipodi:nodetypes="sccccscssccccsssssscccsccs" />
++    <path
++       id="clean-ear-fold"
++       d="m 741,276 c -36,17 -52,53 -64,98 46.98272,64.30876 -30.69643,140.68779 -119,179 79.99827,-14.23502 83.85253,-72.77189 112.15783,-127.61578 C 688.15783,380.38422 701,323 741,276 Z"
++       fill="url(#innerEarAccent)"
++       clip-path="url(#earManeClip)"
++       sodipodi:nodetypes="ccccc" />
++    <path
++       d="m 771,310.79006 c 0,0 -3.37243,1.48622 -4,5 -2.12,5.99 1.73,14.25 5,19 6,8.69 17,16.59 28,14 6.47,-1.53 9.51,-10.05 8,-16 -2.47,-9.72 -11.53,-16.67 -20,-21 -5.38484,-3.00215 -10.08528,-3.28985 -17,-1 z"
++       fill="url(#crest)"
++       fill-rule="evenodd"
++       id="path36"
++       style="fill:url(#linearGradient41)"
++       sodipodi:nodetypes="ccccccc" />
++    <path
++       d="M 571 597 C 571 597 513.88 619.34 495 625 C 476.12 630.66 390.2 649.16 384 651 C 342.97 663.18 304.33 686.81 276 719 C 261.66 735.29 249.2 754.41 242 775 C 239.29 782.75 235 808 235 808 L 237 809 C 237 809 262.47 781.21 268 776 C 283.61 761.29 301.29 748.48 320 738 C 326.84 734.17 345.46 725.31 349 724 C 352.54 722.69 362.23 719.98 364 720 C 365.77 720.02 371 722 371 722 L 368 754 L 373 754 C 373 754 443.54 691.3 466 674 C 488.46 656.7 559.45 610.34 562 608 C 564.55 605.66 571 597 571 597 Z"
++       fill="url(#upperFur)"
++       fill-rule="evenodd"
++       id="path37" />
++    <path
++       d="M 850.19945,904.32866 C 833.41183,834.21567 772.20565,818.59756 734.1401,815.98823 697.2101,813.45823 645.29,818.15 612,834 c -7.79,3.71 -35.09,19.2 -46,26 -10.91,6.8 -45.06,32.04 -57,39 -37.92,22.1 -80.98,38.88 -125,43 -7.37,0.69 -37.58,1.54 -44,1 -12.99503,-1.09304 -23.15385,-6.4648 -29,-4 0,0 17.8,12.01 24,15 35.89,17.31 78.81,21.07 118,17 32.29,-3.35 64.03,-11.64 94,-24 9.53,-3.93 34.97,-16.32 46,-22 11.03,-5.68 56.88,-32.48 67,-37 63.20886,-28.2353 131.21561,-32.29831 190.25929,16.43799 0,0 0.11016,0.60067 -0.0598,-0.10933 z"
++       fill="url(#lowerFur)"
++       fill-rule="evenodd"
++       id="path38"
++       sodipodi:nodetypes="sccscssccccsccss" />
++    <path
++       d="M 562 663 L 559 662 C 559 662 500.98 691.52 488 699 C 475.02 706.48 439.27 729.71 436 732 C 432.73 734.29 426.02 739.39 423 742 C 419.98 744.61 392.95 770.63 389 775 C 385.05 779.37 376.26 790.54 374 794 C 371.74 797.46 366 809 366 809 C 366 809 378.95 804.7 383 803 C 387.05 801.3 418.85 786.15 430 780 C 441.15 773.85 466.22 759.03 477 751 C 487.78 742.97 516.86 716.03 523 710 C 529.14 703.97 543.04 688.87 547 684 C 550.96 679.13 562 663 562 663 Z"
++       fill="url(#peach)"
++       fill-rule="evenodd"
++       id="path39" />
++    <path
++       d="m 794.02742,967.56935 -2,-1 c 0,0 -59.65,33.18996 -72,38.99995 -33.42,15.72 -68.54,27.73 -105,34 -13.09,2.25 -70,7 -70,7 l -1,2 c 0,0 19.41,9.07 26,11 33.41,9.78 71.07,6.83 104,-3 5.76,-1.72 17.57,-6.42 23,-9 22.6,-10.74 44.42,-24.17 63,-41 5.52,-5 25.04,-25.50999 27,-27.99999 1.96,-2.49 7,-10.99996 7,-10.99996 z"
++       fill="url(#peach)"
++       fill-rule="evenodd"
++       id="path40"
++       style="opacity:1;fill:url(#linearGradient40)" />
++  </g>
++</svg>
+diff --git a/assets/collie-matrix-invite.svg b/assets/collie-matrix-invite.svg
+new file mode 100644
+index 0000000000000000000000000000000000000000..7f1aa757733fb58b79a9f18261a7b999039d2e73
+--- /dev/null
++++ b/assets/collie-matrix-invite.svg
+@@ -0,0 +1,80 @@
++<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"
++     width="2076" height="352" viewBox="0 0 2076 352" role="img"
++     aria-labelledby="title description">
++  <title id="title">Join the Pack — Matrix community</title>
++  <desc id="description">Collie community invitation. Manrope ExtraBold lettering, warm copper-to-orange left field, forest green right field, slender cream diagonal separator, pale lichen Matrix capsule. Text is optically centered.</desc>
++  <defs>
++    <clipPath id="banner-mask"><rect width="2076" height="352" rx="92"/></clipPath>
++    <clipPath id="copper-mask"><path d="M0 0H1355L1194 352H0Z"/></clipPath>
++    <linearGradient id="forest-gradient" x1="0" y1="0" x2="1" y2="1">
++      <stop offset="0" stop-color="#1F4C2C"/><stop offset="1" stop-color="#1B4524"/>
++    </linearGradient>
++    <linearGradient id="copper-gradient" x1="0" y1="0" x2="0" y2="1">
++      <stop offset="0" stop-color="#DA5704"/><stop offset="1" stop-color="#DC5905"/>
++    </linearGradient>
++    <linearGradient id="gold-gradient" x1="0" y1="0" x2="0" y2="1">
++      <stop offset="0" stop-color="#F99F35"/><stop offset="1" stop-color="#FFA638"/>
++    </linearGradient>
++    <linearGradient id="pale-gradient" x1="0" y1="0" x2="0" y2="1">
++      <stop offset="0" stop-color="#E5ECD6"/><stop offset="1" stop-color="#EDF2E1"/>
++    </linearGradient>
++    <!-- Exact unmodified outlines from Manrope ExtraBold (800), rendered at native aspect ratio.
++         Shapes are reusable instead of redundant per-character path traces. -->
++    <path id="g-u74" d="M442 -30 Q273 -30 160.5 56 Q48 142 0 296 L268 360 Q274 324 298.5 292.5 Q323 261 358.5 242.5 Q394 224 430 224 Q472 224 514 246.5 Q556 269 574 312 Q585 338 587.5 374.5 Q590 411 590 480 L590 1440 L866 1440 L866 480 L866 397 Q866 321 857 272.5 Q848 224 818 172 Q758 69 661.5 19.5 Q565 -30 442 -30 Z"/>
++    <path id="g-u111" d="M626 -30 Q465 -30 341 42.5 Q217 115 148.5 244.5 Q80 374 80 540 Q80 707 149.5 836.5 Q219 966 343.5 1038 Q468 1110 626 1110 Q787 1110 911.5 1037.5 Q1036 965 1105 835 Q1174 705 1174 540 Q1174 374 1104.5 244.5 Q1035 115 910.5 42.5 Q786 -30 626 -30 Z M368 540 Q368 392 434.5 308 Q501 224 626 224 Q753 224 819.5 310 Q886 396 886 540 Q886 687 819 771.5 Q752 856 626 856 Q497 856 432.5 771.5 Q368 687 368 540 Z"/>
++    <path id="g-u105" d="M160 1470 L432 1470 L432 1230 L160 1230 Z M160 1080 L432 1080 L432 0 L160 0 Z"/>
++    <path id="g-u110" d="M876 510 Q876 592 864 664 Q852 736 800.5 796 Q749 856 644 856 Q550 856 482 791.5 Q414 727 414 548 L414 0 L138 0 L138 1080 L380 1080 L380 969 Q441 1037 529 1074.5 Q617 1112 730 1112 Q920 1112 1013.5 1015 Q1107 918 1129.5 810 Q1152 702 1152 606 L1152 0 L876 0 Z"/>
++    <path id="g-u116" d="M788 0 Q684 -19 594 -19 Q472 -19 382 17.5 Q292 54 248 134 Q221 184 212 236 Q203 288 203 359 L204 458 L204 870 L20 870 L20 1080 L204 1080 L204 1380 L476 1380 L476 1080 L788 1080 L788 870 L476 870 L476 474 L476 417 Q476 365 480 333 Q484 301 498 280 Q539 215 660 215 Q706 215 788 226 Z"/>
++    <path id="g-u104" d="M876 510 Q876 592 864 664 Q852 736 800.5 796 Q749 856 644 856 Q550 856 482 791.5 Q414 727 414 548 L414 0 L138 0 L138 1440 L380 1440 L380 969 Q441 1037 529 1074.5 Q617 1112 730 1112 Q920 1112 1013.5 1015 Q1107 918 1129.5 810 Q1152 702 1152 606 L1152 0 L876 0 Z"/>
++    <path id="g-u101" d="M642 -30 Q478 -30 350.5 41 Q223 112 151.5 239 Q80 366 80 526 Q80 700 149.5 832.5 Q219 965 343 1037.5 Q467 1110 626 1110 Q782 1110 897 1041 Q1012 972 1073.5 845 Q1135 718 1135 547 Q1135 520 1131 464 L373 464 Q388 348 452.5 286 Q517 224 626 224 Q705 224 762.5 259 Q820 294 850 360 L1122 282 Q1082 185 1009 114.5 Q936 44 841 7 Q746 -30 642 -30 Z M856 666 Q842 775 789.5 824.5 Q737 874 638 874 Q423 874 380 666 Z"/>
++    <path id="g-u80" d="M140 1440 L748 1440 Q817 1440 868 1432 Q1055 1403 1147.5 1278.5 Q1240 1154 1240 964 Q1240 775 1147 650 Q1054 525 868 496 Q817 488 748 488 L412 488 L412 0 L140 0 Z M736 742 Q793 742 828 752 Q903 772 934.5 832.5 Q966 893 966 964 Q966 1035 934.5 1095.5 Q903 1156 828 1176 Q793 1186 736 1186 L412 1186 L412 742 Z"/>
++    <path id="g-u97" d="M440 -30 Q328 -30 246.5 13.5 Q165 57 122.5 132 Q80 207 80 298 Q80 416 135 497 Q190 578 316 624 Q386 650 487 668.5 Q588 687 778 715 Q770 791 722.5 826.5 Q675 862 580 862 Q511 862 449 830 Q387 798 364 730 L118 808 Q160 948 276 1029 Q392 1110 580 1110 Q899 1110 1002 914 Q1031 860 1038.5 804.5 Q1046 749 1046 660 L1046 0 L808 0 L808 132 Q736 46 650 8 Q564 -30 440 -30 Z M346 302 Q346 247 386.5 215.5 Q427 184 498 184 Q567 184 619 208.5 Q671 233 702.5 266 Q734 299 748 328 Q774 381 776 495 Q635 471 569 457 Q503 443 458 426 Q399 402 372.5 372.5 Q346 343 346 302 Z"/>
++    <path id="g-u99" d="M616 -30 Q452 -30 330.5 44 Q209 118 144.5 247.5 Q80 377 80 540 Q80 704 146.5 833.5 Q213 963 335.5 1036.5 Q458 1110 620 1110 Q746 1110 847.5 1066.5 Q949 1023 1015.5 941.5 Q1082 860 1106 750 L834 678 Q810 761 751 808.5 Q692 856 616 856 Q492 856 430 769 Q368 682 368 540 Q368 395 432 309.5 Q496 224 616 224 Q704 224 753.5 264 Q803 304 828 386 L1106 328 Q1060 156 932 63 Q804 -30 616 -30 Z"/>
++    <path id="g-u107" d="M140 1440 L416 1440 L416 560 L782 1080 L1118 1080 L728 540 L1144 0 L790 0 L416 520 L416 0 L138 0 Z"/>
++    <path id="g-open-bracket" d="M280 1800 L738 1800 L738 1560 L520 1560 L520 -180 L738 -180 L738 -420 L280 -420 Z"/>
++    <path id="g-u109" d="M1440 638 Q1440 744 1389.5 804 Q1339 864 1250 864 Q1194 864 1151.5 837.5 Q1109 811 1085.5 763.5 Q1062 716 1062 654 L1062 0 L790 0 L790 638 Q790 744 739.5 804 Q689 864 600 864 Q544 864 501.5 837.5 Q459 811 435.5 763.5 Q412 716 412 654 L412 0 L138 0 L138 1080 L378 1080 L378 962 Q433 1030 515.5 1068 Q598 1106 694 1106 Q806 1106 885 1061.5 Q964 1017 1008 938 Q1061 1017 1148 1061.5 Q1235 1106 1338 1106 Q1459 1106 1543 1057 Q1627 1008 1669.5 918.5 Q1712 829 1712 710 L1712 0 L1440 0 Z"/>
++    <path id="g-close-bracket" d="M120 -420 L120 -180 L338 -180 L338 1560 L120 1560 L120 1800 L578 1800 L578 -420 Z"/>
++    <path id="g-u77" d="M140 1440 L384 1440 L860 484 L1336 1440 L1580 1440 L1580 0 L1326 0 L1326 860 L908 0 L812 0 L394 860 L394 0 L140 0 Z"/>
++    <path id="g-u114" d="M140 1080 L380 1080 L380 906 Q425 987 496 1028 Q587 1084 712 1084 Q746 1084 774 1080 L774 826 Q743 836 697 836 Q621 836 562 808 Q490 775 452 710 Q414 645 414 552 L414 0 L140 0 Z"/>
++    <path id="g-u120" d="M406 546 L28 1080 L348 1080 L564 760 L776 1080 L1096 1080 L718 546 L1106 0 L786 0 L564 332 L340 0 L20 0 Z"/>
++  </defs>
++
++  <g clip-path="url(#banner-mask)">
++    <rect width="2076" height="352" fill="url(#forest-gradient)"/>
++    <!-- Copper left and a narrow, constant-thickness cream diagonal divider. -->
++    <path d="M0 0H1355L1194 352H0Z" fill="url(#copper-gradient)"/>
++    <!-- Upper-redwood corner: one deliberate cubic, not raster contour tracing. -->
++    <path d="M0 0H233C154 47 57 147 0 246Z" fill="#B93D16"/>
++    <!-- Golden lower rise, drawn as a single smooth cubic Bezier. -->
++    <path d="M148 352C420 282 683 224 1195 292C1280 303 1410 338 1500 350L1500 520H0Z" clip-path="url(#copper-mask)" fill="url(#gold-gradient)"/>
++    <path d="M1355 0H1372L1211 352H1194Z" fill="#FCFCF8"/>
++    <!-- Lichen inset, same geometry and corner softness as the reference. -->
++    <rect x="1369" y="67" width="659" height="219" rx="63" fill="url(#pale-gradient)"/>
++  </g>
++
++  <!-- Both visible ink bounds are centered at exactly y=176 (the banner midpoint). -->
++  <g id="join-the-pack" fill="#FFFCF5" stroke="#FFFCF5" stroke-width="70" stroke-linejoin="round" paint-order="stroke fill" transform="translate(154 233.24) scale(0.0795 -0.0795)" aria-label="Join the Pack">
++      <use href="#g-u74" x="0"/>
++      <use href="#g-u111" x="1026"/>
++      <use href="#g-u105" x="2280"/>
++      <use href="#g-u110" x="2872"/>
++      <use href="#g-u116" x="4544"/>
++      <use href="#g-u104" x="5432"/>
++      <use href="#g-u101" x="6704"/>
++      <use href="#g-u80" x="8320"/>
++      <use href="#g-u97" x="9620"/>
++      <use href="#g-u99" x="10786"/>
++      <use href="#g-u107" x="11952"/>
++  </g>
++  <g id="matrix-wordmark" fill="#184629" stroke="#184629" stroke-width="70" stroke-linejoin="round" paint-order="stroke fill" transform="translate(1418 212.225) scale(0.0525 -0.0525)" aria-label="[m] Matrix">
++      <use href="#g-open-bracket" x="0"/>
++      <use href="#g-u109" x="907"/>
++      <use href="#g-close-bracket" x="2788"/>
++      <use href="#g-u77" x="4144"/>
++      <use href="#g-u97" x="5913"/>
++      <use href="#g-u116" x="7128"/>
++      <use href="#g-u114" x="8065"/>
++      <use href="#g-u105" x="8938"/>
++      <use href="#g-u120" x="9579"/>
++  </g>
++</svg>
+diff --git a/build-inputs/engineering.json b/build-inputs/engineering.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..54411a04e4f6ccf9592c32ff3785825c7e16ab65
+--- /dev/null
++++ b/build-inputs/engineering.json
+@@ -0,0 +1,7 @@
++{
++  "schema": 1,
++  "origin": "https://github.com/0cwa/collie-release-engineering.git",
++  "recipe_revision": "36779887ffc0bb1ecff55a87c350740662570039",
++  "native_recipe_path": "tools/native",
++  "trust": "trusted-local native outputs; independent reproduction not established"
++}
+diff --git a/build-inputs/native-lock.json b/build-inputs/native-lock.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..5bcbe7f029fc3e64fcb812524426a167c9c048a4
+--- /dev/null
++++ b/build-inputs/native-lock.json
+@@ -0,0 +1,83 @@
++{
++  "schema": 1,
++  "source_provenance": {
++    "libsignal": "904c8dc8216073b078a5f2f5090e3da8382e6a92",
++    "ringrtc": "bdbb0dd1b9f418850dfe1fa3cd4b1c2b1123436f",
++    "webrtc": "d7dbd6fdddac949e89501e6ea947a344e9ffde72"
++  },
++  "input_group": "org.signal",
++  "output_group": "im.collie.native",
++  "modules": [
++    {
++      "name": "libsignal-android",
++      "input_version": "0.106.1",
++      "output_version": "0.106.1-collie.1",
++      "extension": "aar",
++      "binary_sha256": "4247031a753f73f12753d04f14d9316436bbf07af2097c1b897feedd360dbd9a",
++      "pom_sha256": "1f126e627c035d8fa2e3c2caca29a5af87f4013b8b9c430bfea9ab5d2aa7347d",
++      "native_libraries": [
++        "libsignal_jni.so"
++      ]
++    },
++    {
++      "name": "libsignal-client",
++      "input_version": "0.106.1",
++      "output_version": "0.106.1-collie.1",
++      "extension": "jar",
++      "binary_sha256": "c361b8e905c770b838535fdac5a0bdf0f995f8ed6ce0a6837cb4c7360e8c5a79",
++      "pom_sha256": "0d3570391d1594c4a91d67e899cded9bdcee7cc95468cf511cbb0619ee0368f4",
++      "native_libraries": []
++    },
++    {
++      "name": "ringrtc-android",
++      "input_version": "2.74.0",
++      "output_version": "2.74.0-collie.1",
++      "extension": "aar",
++      "binary_sha256": "51f1f9b1f2335ba1b6557b5f0810227ac66a54ec8cbf0f2c789091b0ab5d245b",
++      "pom_sha256": "81b7212da6206aa0159c19befe3cd8732d788df11a99edc9a2e03eb4286f5b92",
++      "native_libraries": [
++        "libringrtc.so",
++        "libringrtc_rffi.so"
++      ]
++    }
++  ],
++  "required_abis": [
++    "arm64-v8a",
++    "armeabi-v7a",
++    "x86",
++    "x86_64"
++  ],
++  "source_patches": [
++    {
++      "path": "patches/libsignal-0.106.1-attributed.mbox",
++      "sha256": "56db63aafe770da39e249fcce6f9bac47cdffafa3734dab980ac85e0715e555e"
++    },
++    {
++      "path": "patches/ringrtc-2.74-attributed.mbox",
++      "sha256": "0cbff85c66e3a9d77d1fef20c20161431238b3db98f23290c9315e37137c1501"
++    },
++    {
++      "path": "patches/webrtc-8037b-molly-proxy-UNTESTED.patch",
++      "sha256": "a89d9a7066e677fedc3aff5c25818b1e11c676425beb17097e61bfd360c62593"
++    },
++    {
++      "path": "patches/webrtc-unknown-proxy-fix.patch",
++      "sha256": "de6a410c3098fe150a13ecc14f971fbae6fbc64b708383cd94f6e9073bfebb42"
++    },
++    {
++      "path": "patches/webrtc-socks-ipv6-fix.patch",
++      "sha256": "308b2485a73280bc4666b0ed852982e1396b68453efd249e6f421b2be01a08f5"
++    }
++  ],
++  "toolchain_reference": {
++    "webrtc_deps_sha256": "3091dc4f260c6eedbfd5058dc3f53b8f9511c890d51bf7c056a2c78852245bcd",
++    "webrtc_depot_tools_revision": "ce5a30784f7323ee224f3a6e7d4ae208dd6d17fe",
++    "webrtc_linux_jdk_cipd_instance": "Ac1SdNGLeE0dSBE6mDm4oq8NvcHCLDgYMWYZki0QkVAC",
++    "webrtc_siso_revision": "bc45e8f67ae0f37d337190ad64aa8bb440c791eb",
++    "webrtc_gn_android_ndk_version": "2@30.0.15729638",
++    "ringrtc_aar_android_ndk_revision": "28.0.13004108",
++    "rust_version": "1.98.1",
++    "opus_model": "a5177ec6fb7d15058e99e57029746100121f68e4890b1467d4094aa336b6013e",
++    "verification_status": "reference only; bootstrap depot_tools, complete dependency closure, role of both NDK versions and reproducibility remain unverified"
++  }
++}
+diff --git a/build-inputs/native-publication.json b/build-inputs/native-publication.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..ec03ee86456afab3a88a000f753ae56922d9ffb9
+--- /dev/null
++++ b/build-inputs/native-publication.json
+@@ -0,0 +1,8 @@
++{
++  "schema": 1,
++  "status": "BLOCKED",
++  "repository": null,
++  "reason": "Accepted trusted-local native artifacts have locked hashes but no verified public immutable origin. Release assembly remains blocked.",
++  "lock": "native-lock.json",
++  "production_version_floor": 177702
++}
+diff --git a/gradle.properties b/gradle.properties
+index 5be8502cea0234b8e32807bff2e3bc15a6087b51..88b33e8739966d8a5585b802bd9b97c67676d3bd 100644
+--- a/gradle.properties
++++ b/gradle.properties
+@@ -29,3 +29,11 @@ android.disallowKotlinSourceSets=false
+ # Uncomment these to build libsignal from source.
+ # libsignalClientPath=../libsignal
+ # org.gradle.dependency.verification=lenient
++
++# Canonical Collie identity: no legacy product matrix.
++mollyFirebaseFree=false
++baseAppTitle=Collie
++baseAppFileName=Collie
++basePackageId=im.collie.app
++collieBuildTimestamp=1794023956
++collieBuildRevision=da5c03ff20ae

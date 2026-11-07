@@ -10,3 +10,5 @@ jobs:
         with:
           persist-credentials: false
       - run: python3 -m unittest discover -s tests -v
+      - run: PYTHONPATH=tools/patches python3 -m unittest tools/patches/test_migration_receipts.py tools/patches/test_release_artifacts.py
+      - run: PYTHONPATH=tools/patches python3 -m unittest tools/patches/test_hosted_eligibility.py tools/patches/test_native_release_route.py -v

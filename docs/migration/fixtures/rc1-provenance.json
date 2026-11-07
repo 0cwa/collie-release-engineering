@@ -1,0 +1,257 @@
+{
+  "schema": 1,
+  "commit": "698902e405975bbd87789a2e376f80b564031738",
+  "workflow_revision": "698902e405975bbd87789a2e376f80b564031738",
+  "run_id": "0",
+  "run_attempt": "1",
+  "version_name": "8.35.1-1-rc1",
+  "version_code": 177702,
+  "certificate_sha256": "f8cc0c0c052e5635c26fcd293c2b0af3e87d61ff7f2df3602a9af6e91f73c826",
+  "package": "im.collie.app",
+  "input_pins": {
+    "schema": 1,
+    "signal": {
+      "version": "8.35.1",
+      "commit": "a74583b01e260944f699c4da03ba4e8ce04de32b"
+    },
+    "molly": {
+      "version": "8.19.2-4",
+      "patches": "patches/molly",
+      "target": "0e202dda90785771ff8c87526eaaf30c655f54f3",
+      "tree": "3cd0bb01cf840e4b702187085432020d163d80ce"
+    },
+    "port": {
+      "mechanical_tree": "d1b1951155a3e600a1c9af606e440ed25fc4b11d",
+      "series": "patches/ports/signal-8.35.1/series",
+      "keep_mechanical": {
+        "app/src/main/java/org/thoughtcrime/securesms/preferences/CorrectedPreferenceFragment.java": "Retain Molly's modified preference fragment despite Signal deleting it; this is an explicit AI-assisted compatibility decision from source merge 7761e6fdb7170378374221bee386f3a9f58900e5.",
+        "app/src/main/res/layout/value_click_preference_item.xml": "Retain the Molly version of this layout despite its upstream deletion; the canonical resolution leaves the mechanical merge unchanged.",
+        "core/database/src/main/AndroidManifest.xml": "Retain the Signal module manifest despite Molly deleting the old path; the canonical resolution leaves the mechanical merge unchanged."
+      }
+    },
+    "target_tree": "706f9f75285b19373f60220995a6981ff329b180",
+    "native": "tools/native/native-lock.json",
+    "android": {
+      "sdk": "37.0",
+      "build_tools": "36.0.0",
+      "ndk": "28.0.13004108",
+      "assemble": ":app:assembleProdWebsiteDebug",
+      "tests": [
+        ":core:network:test",
+        "--tests",
+        "org.signal.network.config.ProxyConfigTest",
+        "--tests",
+        "org.signal.network.config.LibSignalProxyPolicyTest",
+        ":lib:network:test",
+        ":lib:libsignal-service:test",
+        "--tests",
+        "org.whispersystems.signalservice.api.SignalServiceAccountManagerLinkedRegistrationTest",
+        "--tests",
+        "org.whispersystems.signalservice.api.messages.multidevice.DeviceContactsReaderTest",
+        ":feature:registration:testDebugUnitTest",
+        "--tests",
+        "org.signal.registration.RegistrationRepositoryTest",
+        "--tests",
+        "org.signal.registration.screens.phonenumber.PhoneNumberEntryViewModelTest",
+        "--tests",
+        "org.signal.registration.screens.verificationcode.VerificationCodeViewModelTest",
+        "--tests",
+        "org.signal.registration.screens.welcome.WelcomeScreenViewModelTest",
+        "--tests",
+        "org.signal.registration.RegistrationNavigationTest",
+        ":app:testProdWebsiteDebugUnitTest",
+        "--tests",
+        "org.thoughtcrime.securesms.components.settings.conversation.shared.ConversationHeaderBadgeTest",
+        "--tests",
+        "org.thoughtcrime.securesms.registration.ui.RegistrationIntentsTest",
+        "--tests",
+        "org.thoughtcrime.securesms.keyvalue.MollySettingsMigrationTest",
+        "--tests",
+        "org.thoughtcrime.securesms.net.ConnectivityStateCalculatorTest",
+        "--tests",
+        "org.thoughtcrime.securesms.backup.MollyLanguageBackupTest",
+        "--tests",
+        "org.thoughtcrime.securesms.messages.IncomingMessageObserverConnectivityTest",
+        "--tests",
+        "org.thoughtcrime.securesms.backup.MollyBackupPreferencesTest",
+        "--tests",
+        "org.thoughtcrime.securesms.backup.FullBackupExporterTest",
+        "--tests",
+        "org.thoughtcrime.securesms.backup.FullBackupImporterTest",
+        "--tests",
+        "org.thoughtcrime.securesms.service.KeyCachingServiceTest",
+        "--tests",
+        "org.thoughtcrime.securesms.logsubmit.LogSectionSystemInfoTest",
+        "--tests",
+        "org.thoughtcrime.securesms.notifications.NotificationIdsTest",
+        "--tests",
+        "org.thoughtcrime.securesms.backup.v2.LegacyBackupNotificationTest",
+        "--tests",
+        "org.thoughtcrime.securesms.service.MessageBackupListenerTest",
+        "--tests",
+        "org.thoughtcrime.securesms.components.settings.app.appearance.AppearanceSettingsViewModelTest",
+        "--tests",
+        "org.thoughtcrime.securesms.components.settings.app.account.AccountSettingsViewModelTest",
+        "--tests",
+        "org.thoughtcrime.securesms.components.settings.app.data.DataAndStorageSettingsViewModelTest",
+        "--tests",
+        "org.thoughtcrime.securesms.components.settings.app.updates.AppUpdatesSettingsViewModelTest",
+        "--tests",
+        "org.thoughtcrime.securesms.jobs.FcmRefreshJobTest",
+        "--tests",
+        "org.thoughtcrime.securesms.jobs.UnifiedPushRefreshJobTest",
+        "--tests",
+        "im.molly.unifiedpush.receiver.UnifiedPushReceiverTest",
+        "--tests",
+        "org.thoughtcrime.securesms.components.settings.app.subscription.completed.TerminalDonationBottomSheetTest",
+        "--tests",
+        "org.thoughtcrime.securesms.delete.DeleteAccountViewModelTest",
+        "--tests",
+        "org.thoughtcrime.securesms.registration.v2.AppRegistrationStorageControllerTest",
+        "--tests",
+        "org.thoughtcrime.securesms.dependencies.NetworkDependenciesModuleTest",
+        "--tests",
+        "org.thoughtcrime.securesms.net.MollyProxyFailClosedTest",
+        "--tests",
+        "org.thoughtcrime.securesms.registration.LinkAndSyncAvailabilityTest",
+        "--tests",
+        "org.thoughtcrime.securesms.components.settings.app.notifications.profiles.details.NotificationProfileDetailsScreenTest",
+        "--tests",
+        "org.thoughtcrime.securesms.components.settings.conversation.individual.IndividualSettingsViewModelTest",
+        "--tests",
+        "org.thoughtcrime.securesms.stories.dialogs.StoryContextMenuTest",
+        "--tests",
+        "org.thoughtcrime.securesms.util.RemoteConfigOverrideTest",
+        "--tests",
+        "org.thoughtcrime.securesms.messages.ViewOnceOpenGuardTest",
+        ":feature:app-settings:testDebugUnitTest",
+        "--tests",
+        "org.signal.appsettings.updates.AppUpdatesSettingsScreenTest",
+        "--tests",
+        "org.signal.appsettings.appicon.AppIconSelectionScreenTest",
+        "--tests",
+        "org.signal.appsettings.appicon.AppIconTutorialScreenTest",
+        "--tests",
+        "org.signal.appsettings.help.HelpSettingsScreenTest",
+        ":feature:media-viewer:testDebugUnitTest",
+        "--tests",
+        "org.signal.mediaviewer.MediaViewerScreenTest",
+        ":feature:media-send:testDebugUnitTest",
+        "--tests",
+        "org.signal.mediasend.screens.capture.MediaCaptureViewModelTest"
+      ]
+    },
+    "fork_source": {
+      "head": "b13bff463547475bbe1ae55335add689f52532e0",
+      "url": "https://github.com/tw-hx/Signal-Android"
+    },
+    "profiles": {
+      "collie": {
+        "base_checkpoint": "6269897101cd0c4605c1eaac62f57e5ac94dbd44",
+        "base_series": "patches/ports/signal-8.35.1/series",
+        "base_tree": "706f9f75285b19373f60220995a6981ff329b180",
+        "firebase_free": false,
+        "fork_series": [
+          "patches/forks/signal-foss/firebase-free-build/series",
+          "patches/forks/signal-foss/collie-icon/series",
+          "patches/forks/signal-foss/collie-branding/series",
+          "patches/forks/signal-foss/collie-visuals/series",
+          "patches/forks/signal-foss/restore-picker/series",
+          "patches/forks/signal-foss/notification-default/series"
+        ],
+        "target_tree": "da5c03ff20ae2a672329eb8257bc33949845b268"
+      },
+      "collie-foss": {
+        "base_checkpoint": "6269897101cd0c4605c1eaac62f57e5ac94dbd44",
+        "base_series": "patches/ports/signal-8.35.1/series",
+        "base_tree": "706f9f75285b19373f60220995a6981ff329b180",
+        "firebase_free": true,
+        "fork_series": [
+          "patches/forks/signal-foss/firebase-free-build/series",
+          "patches/forks/signal-foss/collie-icon/series",
+          "patches/forks/signal-foss/collie-branding/series",
+          "patches/forks/signal-foss/collie-visuals/series",
+          "patches/forks/signal-foss/restore-picker/series",
+          "patches/forks/signal-foss/notification-default/series"
+        ],
+        "target_tree": "da5c03ff20ae2a672329eb8257bc33949845b268"
+      },
+      "molly-continued": {
+        "base_checkpoint": "6269897101cd0c4605c1eaac62f57e5ac94dbd44",
+        "base_series": "patches/ports/signal-8.35.1/series",
+        "base_tree": "706f9f75285b19373f60220995a6981ff329b180",
+        "firebase_free": false,
+        "fork_series": [
+          "patches/forks/signal-foss/firebase-free-build/series",
+          "patches/forks/signal-foss/collie-icon/series",
+          "patches/forks/signal-foss/collie-branding/series",
+          "patches/forks/signal-foss/collie-visuals/series",
+          "patches/forks/signal-foss/restore-picker/series",
+          "patches/forks/signal-foss/notification-default/series"
+        ],
+        "target_tree": "da5c03ff20ae2a672329eb8257bc33949845b268"
+      },
+      "molly-foss-continued": {
+        "base_checkpoint": "6269897101cd0c4605c1eaac62f57e5ac94dbd44",
+        "base_series": "patches/ports/signal-8.35.1/series",
+        "base_tree": "706f9f75285b19373f60220995a6981ff329b180",
+        "firebase_free": true,
+        "fork_series": [
+          "patches/forks/signal-foss/firebase-free-build/series",
+          "patches/forks/signal-foss/collie-icon/series",
+          "patches/forks/signal-foss/collie-branding/series",
+          "patches/forks/signal-foss/collie-visuals/series",
+          "patches/forks/signal-foss/restore-picker/series",
+          "patches/forks/signal-foss/notification-default/series"
+        ],
+        "target_tree": "da5c03ff20ae2a672329eb8257bc33949845b268"
+      },
+      "molly-minimal": {
+        "base_checkpoint": "6269897101cd0c4605c1eaac62f57e5ac94dbd44",
+        "base_series": "patches/ports/signal-8.35.1/series",
+        "base_tree": "706f9f75285b19373f60220995a6981ff329b180",
+        "firebase_free": false,
+        "fork_series": [
+          "patches/forks/signal-foss/firebase-free-build/series",
+          "patches/forks/signal-foss/collie-icon/series",
+          "patches/forks/signal-foss/collie-branding/series",
+          "patches/forks/signal-foss/collie-visuals/series",
+          "patches/forks/signal-foss/restore-picker/series",
+          "patches/forks/signal-foss/notification-default/series"
+        ],
+        "target_tree": "da5c03ff20ae2a672329eb8257bc33949845b268"
+      }
+    }
+  },
+  "build_tools": "36.0.0",
+  "java": "openjdk version \"21.0.13\" 2026-10-20 LTS\nOpenJDK Runtime Environment Temurin-21.0.13+9 (build 21.0.13+9-LTS)\nOpenJDK 64-Bit Server VM Temurin-21.0.13+9 (build 21.0.13+9-LTS, mixed mode, sharing)",
+  "apks": [
+    {
+      "profile": "collie",
+      "file": "collie.apk",
+      "sha256": "97e0a39365cff50af3425fff9c9f19cf56500b31bae211de1baf9c94c35e931f"
+    },
+    {
+      "profile": "collie-foss",
+      "file": "collie-foss.apk",
+      "sha256": "97e0a39365cff50af3425fff9c9f19cf56500b31bae211de1baf9c94c35e931f"
+    },
+    {
+      "profile": "molly-continued",
+      "file": "molly-continued.apk",
+      "sha256": "97e0a39365cff50af3425fff9c9f19cf56500b31bae211de1baf9c94c35e931f"
+    },
+    {
+      "profile": "molly-foss-continued",
+      "file": "molly-foss-continued.apk",
+      "sha256": "97e0a39365cff50af3425fff9c9f19cf56500b31bae211de1baf9c94c35e931f"
+    },
+    {
+      "profile": "molly-minimal",
+      "file": "molly-minimal.apk",
+      "sha256": "97e0a39365cff50af3425fff9c9f19cf56500b31bae211de1baf9c94c35e931f"
+    }
+  ],
+  "artifact_mode": "single-collie",
+  "source_profile": "collie"
+}
