@@ -16,8 +16,7 @@ class PagesTest(unittest.TestCase):
         self.data={'repo':{'address':p.ORIGIN+'fdroid/repo'},'packages':{b.APP:{'versions':{a['apk_sha256']:{'manifest':{'versionCode':1,'versionName':'fixture','signer':{'sha256':[b.APK_CERTIFICATE]}},'file':{'name':'/'+apk.name,'sha256':b.sha(apk)}}}}}}
         receipt={'schema':2,'kind':'repository','payload':dict(release_manifest_sha256=a['release_manifest_sha256'],release_receipt_sha256=None,apk_sha256=a['apk_sha256'],apk_certificate_sha256=b.APK_CERTIFICATE,repository_certificate_sha256='a'*64,fdroidserver_revision='synthetic signedfixture transport mocked',metadata_revision='b'*40,indexes=[dict(file='entry.jar',sha256=b.sha(repo/'entry.jar'))],generation=b.generation_digest(repo)),'evidence':[dict(status='UNKNOWN',description='Synthetic Pages fixture; no production signing or deployment',sha256=None)]}
         (self.bundle/'repository-receipt.json').write_text(json.dumps(receipt))
-        (self.bundle/'landing/index.html').write_text('synthetic landing '+('a'*64).upper()+' '+b.APK_CERTIFICATE.upper())
-        (self.bundle/'landing/add-repository.svg').write_text('<svg/>')
+        b.landing(self.bundle/'landing',p.ORIGIN+'fdroid/repo/','a'*64,b.APK_CERTIFICATE,'https://github.com/0cwa/collieim-android/releases/download/v8.35.1-1-rc1/collie.apk')
         self.approval=dict(schema=1,kind='collie-pages-input',origin=p.ORIGIN,previous_site_sha256=p.digest({}),previous_manifest_sha256=None,candidate_generation_sha256=b.generation_digest(repo),repository_certificate_sha256='a'*64,repository_receipt_sha256=p.receipts.digest(receipt),release_approvals=['fixture.json'],landing_sha256=p.digest(p.inventory(self.bundle/'landing')),maximum_bytes=p.MAX_BYTES,policy_revision='c'*40)
         self.write()
     def write(self):(self.bundle/'approval.json').write_text(json.dumps(self.approval))

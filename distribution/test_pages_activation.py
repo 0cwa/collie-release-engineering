@@ -59,8 +59,19 @@ class ActivationTest(unittest.TestCase):
         plan=self.prepare();shutil.rmtree(self.bundle/'previous');shutil.copytree(self.root/'activation-output/phase2/site',self.bundle/'previous')
         self.approval.update(previous_site_sha256=p.digest(p.inventory(self.bundle/'previous')),previous_manifest_sha256=b.sha(self.bundle/'previous/site-manifest.json'))
         for state in ('active','inactive'):
+            if state=='inactive':shutil.rmtree(self.bundle/'landing')
             b.landing(self.bundle/'landing',p.ORIGIN+'fdroid/repo/','a'*64,b.APK_CERTIFICATE,self.activation['download_url'],state=state);self.approval['landing_sha256']=p.digest(p.inventory(self.bundle/'landing'));b.atomic_json(self.bundle/'approval.json',self.approval)
             with patch('binary_repo.verify_indexes',return_value=self.data):
                 if state=='active':p.prepare(self.bundle,self.root/'active-update','c'*40)
                 else:
                     with self.assertRaisesRegex(ValueError,'remain active'):p.prepare(self.bundle,self.root/'bad-update','c'*40)
+
+    def test_ordinary_prepare_rejects_relative_first_links_and_stale_new_qr(self):
+        self.approval.update(previous_site_sha256=p.digest(p.inventory(self.bundle/'previous')),previous_manifest_sha256=b.sha(self.bundle/'previous/site-manifest.json'))
+        original=(self.bundle/'landing/index.html').read_text()
+        for href in ('/fdroid/repo/?fingerprint='+'A'*64,'//repo.collie.im/fdroid/repo/?fingerprint='+'A'*64):
+            (self.bundle/'landing/index.html').write_text(original+'<a href="'+href+'">Add</a>');self.approval['landing_sha256']=p.digest(p.inventory(self.bundle/'landing'));b.atomic_json(self.bundle/'approval.json',self.approval)
+            with patch('binary_repo.verify_indexes',return_value=self.data),self.assertRaisesRegex(ValueError,'activation'):p.prepare(self.bundle,self.root/'forbidden-relative','c'*40)
+        (self.bundle/'landing/index.html').write_text(original);(self.bundle/'landing/add-repository.png').write_bytes(b'opaque stale fixture QR')
+        self.approval['landing_sha256']=p.digest(p.inventory(self.bundle/'landing'));b.atomic_json(self.bundle/'approval.json',self.approval)
+        with patch('binary_repo.verify_indexes',return_value=self.data),self.assertRaisesRegex(ValueError,'new repository QR'):p.prepare(self.bundle,self.root/'forbidden-stale','c'*40)

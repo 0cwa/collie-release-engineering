@@ -2,7 +2,7 @@
 import html,re,shutil,json,hashlib
 from pathlib import Path
 from string import Template
-from urllib.parse import urlsplit,urlunsplit
+from urllib.parse import urlsplit,urlunsplit,urljoin
 ROOT=Path(__file__).with_name('site')
 STATIC=frozenset('assets/'+name for name in ('site.css','manrope.ttf','sora.ttf','manrope-OFL.txt','sora-OFL.txt','collie-icon.svg'))
 
@@ -23,6 +23,7 @@ def links(repo_url,certificate):
 
 def render(output,repo_url=None,repo_cert=None,apk_cert=None,download=None,*,state='inactive'):
     if state not in ('inactive','native','preview','active'):raise ValueError('page state')
+    if state in ('inactive','native') and any((output/name).exists() or (output/name).is_symlink() for name in ('add-repository.png','add-repository.svg')):raise ValueError('inactive/native output contains an existing QR; use a fresh directory')
     output.mkdir(parents=True,exist_ok=True);write_assets(output);e=html.escape
     if state=='native':
         content='<section class="inactive"><p>Collie native inputs are being prepared.</p><p class="note">The F-Droid feed is not active.</p></section>'
@@ -36,7 +37,7 @@ def render(output,repo_url=None,repo_cert=None,apk_cert=None,download=None,*,sta
         qr=qrcode.QRCode(error_correction=qrcode.constants.ERROR_CORRECT_M,box_size=8,border=4);qr.add_data(urls['deep']);qr.make(fit=True)
         qr.make_image(fill_color='#000000',back_color='#ffffff').convert('RGB').save(output/'add-repository.png')
         notice='<p class="status">Local preview. This repository is not published.</p>' if state=='preview' else ''
-        content=f'''{notice}<section class="content"><div><p class="intro">Add Collie to F-Droid or a compatible client.</p><div class="actions"><a class="button" href="{e(urls['deep'])}">Add repository</a><a class="button secondary" href="{e(download)}">Download APK</a></div><p class="manual">If the app does not open, <a href="{e(urls['universal'])}">try the F-Droid link</a>, or copy this address into your client:<br><a href="{e(urls['https'])}">{e(repo_url)}</a></p></div><div class="qr"><div class="qr-island"><img src="add-repository.png" width="240" height="240" alt="QR code to add the fingerprint-pinned Collie repository"></div><p class="scan">Scan to add the repository</p></div></section><section class="fingerprints"><div><h2>Repository fingerprint</h2><code>{e(repo_cert.upper())}</code></div><div><h2>APK fingerprint</h2><code>{e(apk_cert.upper())}</code></div></section><p class="note">The same signed APK as GitHub, with optional FCM support. This is Collie’s custom repository, separate from the official F-Droid catalogue.</p>'''
+        content=f'''{notice}<section class="content"><div><p class="intro">Add Collie to F-Droid or a compatible client.</p><div class="actions"><a class="button" href="{e(urls['deep'])}">Add repository</a><a class="button secondary" href="{e(download)}">Download APK</a></div><p class="manual">If the app does not open, <a href="{e(urls['universal'])}">try the F-Droid link</a>, or copy this address into your client:<br><a href="{e(urls['https'])}">{e(urls['https'])}</a></p></div><div class="qr"><div class="qr-island"><img src="add-repository.png" width="240" height="240" alt="QR code to add the fingerprint-pinned Collie repository"></div><p class="scan">Scan to add the repository</p></div></section><section class="fingerprints"><div><h2>Repository fingerprint</h2><code>{e(repo_cert.upper())}</code></div><div><h2>APK fingerprint</h2><code>{e(apk_cert.upper())}</code></div></section><p class="note">The same signed APK as GitHub, with optional FCM support. This is Collie’s custom repository, separate from the official F-Droid catalogue.</p>'''
     metadata=''
     if state!='native' and repo_cert and apk_cert:
         links(repo_url,repo_cert)
@@ -46,16 +47,24 @@ def render(output,repo_url=None,repo_cert=None,apk_cert=None,download=None,*,sta
     (output/'index.html').write_text(text)
     return {'state':state,'files':sorted(STATIC|{'index.html'}|({'add-repository.png'} if state in ('preview','active') else set()))}
 
-def has_add_link(text):
+def has_add_link(text,origin='https://repo.collie.im/'):
     from html.parser import HTMLParser
+    approved=urlsplit(origin)
     class Links(HTMLParser):
         active=False
         def handle_starttag(self,tag,attrs):
             attrs=dict(attrs)
             if tag=='body' and attrs.get('data-repository-state') in ('active','preview'):self.active=True
             if tag=='a':
-                href=attrs.get('href','').strip().lower()
-                if href.startswith(('fdroidrepos:','fdroidrepo:','https://fdroid.link/#','https://repo.collie.im/fdroid/repo')):self.active=True
+                # Resolve root-relative and scheme-relative URLs as the browser
+                # does; a literal-prefix check misses both forms.
+                href=attrs.get('href','').strip()
+                try:target=urlsplit(urljoin(origin,href))
+                except ValueError:self.active=True;return
+                if target.scheme.lower() in ('fdroidrepos','fdroidrepo'):self.active=True
+                if target.scheme.lower() in ('https','http'):
+                    if target.hostname==approved.hostname and target.path.rstrip('/')=='/fdroid/repo':self.active=True
+                    if target.hostname=='fdroid.link' and target.fragment:self.active=True
     parser=Links();parser.feed(text);return parser.active
 
 def main():

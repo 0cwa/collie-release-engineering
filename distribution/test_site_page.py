@@ -28,3 +28,17 @@ class SitePageTest(unittest.TestCase):
     def test_add_link_detection_covers_browser_case_and_whitespace(self):
         self.assertTrue(s.has_add_link('<a href="  FDROIDREPOS://repo.collie.im/fdroid/repo/">Add</a>'))
         self.assertFalse(s.has_add_link('<a href="https://github.com/0cwa/collieim-android">Source</a>'))
+
+    def test_relative_repository_links_resolve_against_approved_origin(self):
+        for href in ('/fdroid/repo/?fingerprint='+'A'*64,'//repo.collie.im/fdroid/repo/?fingerprint='+'A'*64):
+            with self.subTest(href=href):self.assertTrue(s.has_add_link('<a href="'+href+'">Add</a>'))
+        self.assertFalse(s.has_add_link('<a href="/fdroid/repository-guide">Docs</a>'))
+        self.assertFalse(s.has_add_link('<a href="//example.org/fdroid/repo/">Other</a>'))
+    def test_reused_inactive_native_output_rejects_stale_qr_without_deletion(self):
+        self.render('preview');out=self.root/'preview';png=(out/'add-repository.png').read_bytes();html=(out/'index.html').read_bytes()
+        for state in ('inactive','native'):
+            with self.assertRaisesRegex(ValueError,'existing QR'):s.render(out,'https://repo.collie.im/fdroid/repo/','a'*64,'b'*64,'https://github.com/0cwa/collieim-android/releases/download/v1/collie.apk',state=state)
+            self.assertEqual((out/'add-repository.png').read_bytes(),png);self.assertEqual((out/'index.html').read_bytes(),html)
+    def test_displayed_manual_address_includes_full_pinned_fingerprint(self):
+        self.render('preview');text=(self.root/'preview/index.html').read_text();pinned=s.links('https://repo.collie.im/fdroid/repo/','a'*64)['https']
+        self.assertIn('>'+pinned+'</a>',text)

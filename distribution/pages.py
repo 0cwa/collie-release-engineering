@@ -118,9 +118,12 @@ def prepare(bundle,output,expected_policy):
         # the exact landing digest. Never execute a candidate build or script.
         text=(landing/'index.html').read_text()
         if 'data-repository-state="preview"' in text:raise ValueError('test preview cannot be a production landing')
-        if site_page.has_add_link(text) and not (old/'index.html').is_file():raise ValueError('first repository link requires completed production activation evidence')
-        if site_page.has_add_link(text) and not site_page.has_add_link((old/'index.html').read_text()):raise ValueError('first repository link requires completed production activation evidence')
-        if (old/'index.html').is_file() and site_page.has_add_link((old/'index.html').read_text()) and not site_page.has_add_link(text):raise ValueError('an active repository landing must remain active during updates')
+        prior_active=(old/'index.html').is_file() and site_page.has_add_link((old/'index.html').read_text(),ORIGIN)
+        new_qr_assets=({'add-repository.png','add-repository.svg'} & set(landing_files))-set(old_files)
+        if new_qr_assets and not prior_active:raise ValueError('new repository QR requires completed production activation evidence')
+        if site_page.has_add_link(text,ORIGIN) and not (old/'index.html').is_file():raise ValueError('first repository link requires completed production activation evidence')
+        if site_page.has_add_link(text,ORIGIN) and not site_page.has_add_link((old/'index.html').read_text(),ORIGIN):raise ValueError('first repository link requires completed production activation evidence')
+        if (old/'index.html').is_file() and site_page.has_add_link((old/'index.html').read_text(),ORIGIN) and not site_page.has_add_link(text,ORIGIN):raise ValueError('an active repository landing must remain active during updates')
         if a['repository_certificate_sha256'].upper() not in text or b.APK_CERTIFICATE.upper() not in text:raise ValueError('landing fingerprints differ')
         if not isinstance(a['release_approvals'],list) or not a['release_approvals']:raise ValueError('release approvals missing')
         approvals=[]
