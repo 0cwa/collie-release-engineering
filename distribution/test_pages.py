@@ -1,8 +1,78 @@
-import copy,io,json,tarfile,tempfile,unittest
+import copy,hashlib,io,json,tarfile,tempfile,unittest
 from pathlib import Path
 from unittest.mock import patch
 import binary_repo as b
 import pages as p
+
+# Approved phase metadata only: these sizes/names are exact, payloads stay tiny.
+NATIVE_PHASE_HEADER_FIXTURE=(
+    ('assets/collie-icon.svg',23983),
+    ('assets/manrope-OFL.txt',4387),
+    ('assets/manrope.ttf',164700),
+    ('assets/site.css',4945),
+    ('assets/site.js',1200),
+    ('assets/sora-OFL.txt',4385),
+    ('assets/sora.ttf',111400),
+    ('index.html',2333),
+    ('native-inputs/v1/maven/im/collie/native/libsignal-android/0.106.1-collie.1/libsignal-android-0.106.1-collie.1.aar',215587114),
+    ('native-inputs/v1/maven/im/collie/native/libsignal-android/0.106.1-collie.1/libsignal-android-0.106.1-collie.1.pom',1718),
+    ('native-inputs/v1/maven/im/collie/native/libsignal-client/0.106.1-collie.1/libsignal-client-0.106.1-collie.1.jar',1003356),
+    ('native-inputs/v1/maven/im/collie/native/libsignal-client/0.106.1-collie.1/libsignal-client-0.106.1-collie.1.pom',1693),
+    ('native-inputs/v1/maven/im/collie/native/ringrtc-android/2.74.0-collie.1/ringrtc-android-2.74.0-collie.1.aar',94240994),
+    ('native-inputs/v1/maven/im/collie/native/ringrtc-android/2.74.0-collie.1/ringrtc-android-2.74.0-collie.1.pom',1572),
+    ('site-manifest.json',2625),
+)
+
+class PagesArchiveHeaderTests(unittest.TestCase):
+    def test_approved_native_phase_paths_fit_ustar_without_extensions(self):
+        self.assertEqual(p.ARCHIVE_FORMAT,tarfile.USTAR_FORMAT)
+        self.assertEqual(len(NATIVE_PHASE_HEADER_FIXTURE),15)
+        self.assertEqual([name for name,_ in NATIVE_PHASE_HEADER_FIXTURE],
+                         sorted(name for name,_ in NATIVE_PHASE_HEADER_FIXTURE))
+        for name,size in NATIVE_PHASE_HEADER_FIXTURE:
+            with self.subTest(name=name):
+                info=tarfile.TarInfo(name);info.size=size;info.mode=0o644;info.mtime=0
+                encoded=info.tobuf(p.ARCHIVE_FORMAT)
+                self.assertEqual(len(encoded),512)
+                self.assertEqual(encoded[156:157],tarfile.REGTYPE)
+                stored_name=encoded[0:100].split(b'\0',1)[0].decode('ascii')
+                prefix=encoded[345:500].split(b'\0',1)[0].decode('ascii')
+                self.assertEqual((prefix+'/'+stored_name) if prefix else stored_name,name)
+                size_field=encoded[124:136].split(b'\0',1)[0].strip()
+                self.assertEqual(int(size_field,8),size)
+        with tempfile.TemporaryDirectory() as temporary:
+            root=Path(temporary);site=root/'site';site.mkdir();manifest={}
+            for name,_ in NATIVE_PHASE_HEADER_FIXTURE:
+                target=site/name;target.parent.mkdir(parents=True,exist_ok=True)
+                payload=('fixture:'+name).encode();target.write_bytes(payload)
+                manifest[name]={'bytes':len(payload),'sha256':hashlib.sha256(payload).hexdigest()}
+            output=root/'archive.tar';p.archive(site,output,manifest);raw=output.read_bytes();cursor=0
+            for name,entry in sorted(manifest.items()):
+                header=raw[cursor:cursor+512];cursor+=512
+                self.assertEqual(len(header),512);self.assertEqual(header[156:157],tarfile.REGTYPE)
+                stored_name=header[0:100].split(b'\0',1)[0].decode('ascii')
+                prefix=header[345:500].split(b'\0',1)[0].decode('ascii')
+                self.assertEqual((prefix+'/'+stored_name) if prefix else stored_name,name)
+                size_field=header[124:136].split(b'\0',1)[0].strip()
+                size=int(size_field,8);self.assertEqual(size,entry['bytes'])
+                payload=raw[cursor:cursor+size];cursor+=size;cursor+=(-size)%512
+                self.assertEqual(hashlib.sha256(payload).hexdigest(),entry['sha256'])
+            trailer=raw[cursor:]
+            self.assertGreaterEqual(len(trailer),1024)
+            self.assertEqual(len(trailer)%512,0)
+            self.assertFalse(any(trailer))
+
+    def test_archive_rejects_public_path_that_cannot_fit_ustar(self):
+        name='assets/'+'a'*236+'.svg'
+        self.assertEqual(p.safe_name(name),name)
+        self.assertTrue(p.public_site_name(name))
+        oversized=tarfile.TarInfo('assets/too-large.svg');oversized.size=(1<<33)
+        with self.assertRaises(ValueError):oversized.tobuf(p.ARCHIVE_FORMAT)
+        with tempfile.TemporaryDirectory() as temporary:
+            root=Path(temporary);site=root/'site';site.mkdir();content=b'fixture'
+            target=site/name;target.parent.mkdir(parents=True);target.write_bytes(content)
+            manifest={name:{'bytes':len(content),'sha256':hashlib.sha256(content).hexdigest()}}
+            with self.assertRaises(ValueError):p.archive(site,root/'unsupported.tar',manifest)
 
 class PagesTest(unittest.TestCase):
     def setUp(self):

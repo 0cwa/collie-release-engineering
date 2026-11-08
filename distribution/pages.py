@@ -17,6 +17,7 @@ import migration_receipts as receipts
 ORIGIN='https://repo.collie.im/'
 MAX_BYTES=950_000_000  # conservative decimal1GB minus50MB operational margin
 NATIVE_POLICY=Path(__file__).with_name('native-v1.json')
+ARCHIVE_FORMAT=tarfile.USTAR_FORMAT
 
 def native_files():
     return b.load(NATIVE_POLICY)['files']
@@ -61,7 +62,7 @@ def copy_pinned(source,destination,expected):
 def archive(site,output,manifest):
     # Match the official upload-pages-artifact action: artifact.tar containing only
     # regular files/directories. Avoid its nested floating upload-artifact ref.
-    with tarfile.open(output,'w',format=tarfile.PAX_FORMAT) as tar:
+    with tarfile.open(output,'w',format=ARCHIVE_FORMAT) as tar:
         for name,entry in sorted(manifest.items()):
             info=tarfile.TarInfo(name);info.size=entry['bytes'];info.mode=0o644;info.mtime=0
             with open(site/name,'rb') as stream:tar.addfile(info,stream)
