@@ -129,6 +129,14 @@ def verify_engineering_inputs(engineering):
     return revision
 
 
+def verify_engineering_root(engineering):
+    """Require producer inputs to come from the checkout whose code is running."""
+    engineering = Path(engineering).resolve()
+    if engineering != ROOT.resolve():
+        raise ValueError('engineering checkout must match the composer source root')
+    return engineering
+
+
 def verify_security_outputs(repo, tree, manifest):
     for path in manifest['paths']:
         mode, kind, oid, _ = tree_blob(repo, tree, path)
@@ -280,7 +288,7 @@ def compose(repo, checkpoint_repo, stage, engineering, plan_path,
     repo = Path(repo).resolve()
     checkpoint_repo = Path(checkpoint_repo).resolve()
     stage = Path(stage).resolve()
-    engineering = Path(engineering).resolve()
+    engineering = verify_engineering_root(engineering)
     verify_checkpoint_repository(repo, checkpoint_repo)
     engineering_revision = verify_engineering_inputs(engineering)
     plan = publish.load_plan(Path(plan_path).read_bytes())

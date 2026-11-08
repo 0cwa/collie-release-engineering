@@ -89,6 +89,28 @@ class SecurityCompositionTests(unittest.TestCase):
                 composer.verify_checkpoint_repository(repo, repo)
             self.assertEqual(sentinel.read_bytes(), b'unchanged\n')
 
+    def test_engineering_checkout_must_match_composer_root_before_input_reads(self):
+        with tempfile.TemporaryDirectory() as directory:
+            other_checkout = Path(directory) / 'clean-engineering'
+            other_checkout.mkdir()
+            with mock.patch.object(composer, 'verify_checkpoint_repository') as verify_repo:
+                with self.assertRaisesRegex(ValueError, 'engineering checkout must match'):
+                    composer.compose(
+                        repo=other_checkout / 'app.git', checkpoint_repo=other_checkout / 'app.git',
+                        stage=other_checkout / 'stage', engineering=other_checkout,
+                        plan_path=other_checkout / 'plan.json', prior_generated='1' * 40,
+                        prior_integration='2' * 40, reconstruction_commit='3' * 40,
+                        current_main='4' * 40, output_plan=other_checkout / 'out-plan.json',
+                        output_messages=other_checkout / 'out-messages.json',
+                        output_markdown=other_checkout / 'out-messages.md')
+                verify_repo.assert_not_called()
+
+    def test_engineering_root_symlink_alias_is_normalized(self):
+        with tempfile.TemporaryDirectory() as directory:
+            alias = Path(directory) / 'engineering-alias'
+            alias.symlink_to(ROOT, target_is_directory=True)
+            self.assertEqual(composer.verify_engineering_root(alias), ROOT.resolve())
+
     def test_security_layer_rejects_an_output_that_survived_publication_cleanup(self):
         oid = '1' * 40
         workflow = b'name: Direct source checks\n'
