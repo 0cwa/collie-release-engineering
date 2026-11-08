@@ -102,6 +102,6 @@ class DeletionStages(unittest.TestCase):
         with self.assertRaisesRegex(forest.ForestError, 'preimage mismatch'):
             release.apply_deletions(self.root, self.root, data, forest.clean_git_env())
         data['files'][0]['blob'] = self.blobs['one']
-        os.chmod(self.root / 'one', 0o755)
+        os.chmod(self.root / 'one', 0o700)
         with self.assertRaisesRegex(forest.ForestError, 'mode mismatch'):
             release.apply_deletions(self.root, self.root, data, forest.clean_git_env())
