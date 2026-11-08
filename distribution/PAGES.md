@@ -33,8 +33,9 @@ Official references, inspected for this implementation:
 Python3.12.14 and hash-pinned fdroidserver2.4.5 remain verification tools; APK/index
 signing is outside Pages. Official action commits are pinned in both workflows.
 The production workflow uses the official upload-pages-artifact composite at an
-immutable commit, with `include-hidden-files: true` so `.nojekyll` remains part of
-the approved site. Its nested upload-artifact action is also pinned in that composite.
+immutable commit, with `include-hidden-files: true` to preserve any approved hidden
+paths if present. The approved native-only inventory has 15 paths and does not
+include `.nojekyll`. Its nested upload-artifact action is also pinned in that composite.
 Local policy preparation still audits each exact site manifest and archive; the
 wrapper differential changes only artifact construction and retains the same
 per-file payloads. Hosted Pages deployment compatibility remains NOT RUN until a
