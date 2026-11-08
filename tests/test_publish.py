@@ -68,6 +68,17 @@ class PublicationTests(unittest.TestCase):
                 self.generate()
             file.unlink()
 
+    def test_partial_clone_and_promisor_object_packs_rejected(self):
+        m.git(self.repo, 'config', '--local', 'extensions.partialClone', 'remote-origin')
+        with self.assertRaisesRegex(ValueError, 'partial clone configuration'):
+            self.generate()
+        m.git(self.repo, 'config', '--local', '--unset', 'extensions.partialClone')
+        pack = self.repo / '.git' / 'objects' / 'pack' / 'fixture.promisor'
+        pack.parent.mkdir(parents=True, exist_ok=True);pack.write_bytes(b'')
+        with self.assertRaisesRegex(ValueError, 'promisor object packs'):
+            self.generate()
+        pack.unlink()
+
     def test_unreviewed_overlay_and_reordered_layers(self):
         self.plan['layers'][0]['kind'] = 'publication'
         with self.assertRaisesRegex(ValueError, 'overlay precedes'):

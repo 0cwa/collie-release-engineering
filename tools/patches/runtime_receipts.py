@@ -100,26 +100,50 @@ def source_unchanged(checkout,commit,tree):
     Read the original index only for staged/hidden-entry checks. Never refresh
     its stat cache or let local Git conversion rules stand in for source bytes.
     """
+    return source_worktree_matches_index(checkout,commit,tree,require_head_tree=True)
+
+
+def source_worktree_matches_index(checkout,expected_head,expected_tree,*,require_head_tree=False):
+    """Prove raw worktree bytes equal a pinned index tree at an explicit HEAD.
+
+    This supports prepublication staging where HEAD deliberately remains the
+    approved application base while the index/worktree are reset to the
+    verified reconstruction tree. It rejects staged/hidden entries, all
+    untracked paths, local conversion rules, file-mode disguises and unsafe
+    filesystem substitutions without refreshing the index.
+    """
     env={k:v for k,v in os.environ.items() if not k.startswith('GIT_')}
-    env.update(GIT_CONFIG_NOSYSTEM='1',GIT_CONFIG_GLOBAL=os.devnull,GIT_NO_REPLACE_OBJECTS='1',GIT_ATTR_NOSYSTEM='1')
+    env.update(GIT_CONFIG_NOSYSTEM='1',GIT_CONFIG_GLOBAL=os.devnull,GIT_NO_REPLACE_OBJECTS='1',GIT_ATTR_NOSYSTEM='1',GIT_NO_LAZY_FETCH='1')
     def git(*argv):
         return subprocess.check_output(['git','-C',str(checkout),'-c','core.hooksPath=/dev/null',
             '-c','core.fsmonitor=false','-c','core.attributesFile=/dev/null',*argv],env=env)
     common=Path(os.fsdecode(git('rev-parse','--path-format=absolute','--git-common-dir').strip()))
     if any((common/name).exists() for name in ('info/grafts','objects/info/alternates','shallow')) or git('for-each-ref','--format=%(refname)','refs/replace').strip():
         raise ValueError('hostile or incomplete source Git store')
-    if git('rev-parse','HEAD').decode().strip()!=commit or git('rev-parse','HEAD^{tree}').decode().strip()!=tree:
-        raise ValueError('actual checkout differs from approved source')
+    if any((common/'objects/pack').glob('*.promisor')):
+        raise ValueError('promisor object packs are forbidden')
+    for args in (('config','--local','--get','extensions.partialClone'),
+                 ('config','--local','--get-regexp',r'^remote\..*\.promisor$')):
+        result=subprocess.run(['git','-C',str(checkout),*args],env=env,stdout=subprocess.PIPE,stderr=subprocess.DEVNULL)
+        if result.returncode==0 and result.stdout.strip():raise ValueError('partial or promisor Git object store is forbidden')
+        if result.returncode not in (0,1):raise ValueError('cannot verify Git object store configuration')
+    if git('rev-parse','HEAD').decode().strip()!=expected_head:
+        raise ValueError('actual checkout HEAD differs from pinned base')
+    if require_head_tree and git('rev-parse','HEAD^{tree}').decode().strip()!=expected_tree:
+        raise ValueError('actual checkout tree differs from approved source')
+    untracked=git('ls-files','--others','-z','--directory')
+    if untracked:
+        raise ValueError('untracked source paths are forbidden: '+os.fsdecode(untracked.split(b'\0',1)[0]))
     entries=git('ls-files','-v','-z').split(b'\0')
     if any(line.startswith(b'S ') or line[:1].islower() for line in entries):
         raise ValueError('hidden tracked source entries')
-    tracked=list(filter(None,git('ls-tree','-r','-z','--full-tree',commit).split(b'\0')))
+    tracked=list(filter(None,git('ls-tree','-r','-z','--full-tree',expected_tree).split(b'\0')))
     approved_index=[]
     for entry in tracked:
         metadata,path=entry.split(b'\t',1);mode,kind,expected=metadata.split()
         approved_index.append(mode+b' '+expected+b' 0\t'+path)
     if sorted(filter(None,git('ls-files','--stage','-z').split(b'\0')))!=sorted(approved_index):
-        raise ValueError('tracked source index changed during build')
+        raise ValueError('tracked source index entries differ from expected tree')
     root=os.open(checkout,os.O_RDONLY|os.O_DIRECTORY)
     try:
         for entry in tracked:

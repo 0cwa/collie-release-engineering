@@ -68,6 +68,11 @@ class SourceCheckoutTests(unittest.TestCase):
         before=self.index.read_bytes()
         try:r.source_unchanged(self.repo,self.commit,self.tree)
         finally:self.assertEqual(self.index.read_bytes(),before,'collector changed original index')
+    def check_staged(self,tree,*,require_head_tree=False):
+        r.source_worktree_matches_index(self.repo,self.commit,tree,require_head_tree=require_head_tree)
+    def stage_overlay(self,contents):
+        self.file.write_bytes(contents);self.git('add','plain.txt')
+        return self.git('write-tree')
     def test_actual_complete_tracked_bytes_modes_and_symlinks_pass_without_index_change(self):
         self.check()
     def test_mode_change_is_rejected_with_local_filemode_disabled(self):
@@ -86,7 +91,7 @@ class SourceCheckoutTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError,'file type'):self.check()
     def test_parent_directory_symlink_is_rejected(self):
         (self.repo/'nested').rename(self.repo/'moved');(self.repo/'nested').symlink_to('moved',target_is_directory=True)
-        with self.assertRaisesRegex(ValueError,'missing or unsafe'):self.check()
+        with self.assertRaisesRegex(ValueError,'untracked source paths|missing or unsafe'):self.check()
     def test_assumed_unchanged_and_skip_worktree_cannot_hide_source(self):
         for enabled,disabled in [('--assume-unchanged','--no-assume-unchanged'),('--skip-worktree','--no-skip-worktree')]:
             with self.subTest(flag=enabled):
@@ -97,6 +102,33 @@ class SourceCheckoutTests(unittest.TestCase):
     def test_staged_content_change_is_rejected_without_index_refresh(self):
         self.file.write_bytes(b'tampered\n');self.git('add','plain.txt')
         with self.assertRaisesRegex(ValueError,'source index'):self.check()
+    def test_staged_overlay_worktree_is_checked_even_when_head_tree_is_older(self):
+        overlay=self.stage_overlay(b'candidate overlay\n')
+        self.check_staged(overlay)
+        self.assertNotEqual(self.git('rev-parse','HEAD^{tree}'),overlay)
+    def test_staged_overlay_rejects_raw_worktree_drift_before_producer_writes(self):
+        overlay=self.stage_overlay(b'candidate overlay\n')
+        self.file.write_bytes(b'changed after staging\n')
+        with self.assertRaisesRegex(ValueError,'source bytes changed'):
+            self.check_staged(overlay)
+    def test_staged_overlay_rejects_hidden_executable_mode_change(self):
+        overlay=self.stage_overlay(b'candidate overlay\n')
+        self.git('config','core.fileMode','false');self.file.chmod(0o700)
+        with self.assertRaisesRegex(ValueError,'executable mode'):
+            self.check_staged(overlay)
+    def test_staged_overlay_rejects_untracked_inputs_including_ignored_files(self):
+        (self.repo/'.gitignore').write_text('*.cache\n');self.git('add','.gitignore');self.git('commit','-qm','Fixture ignore rule')
+        self.commit=self.git('rev-parse','HEAD');tree=self.git('rev-parse','HEAD^{tree}')
+        (self.repo/'ignored.cache').write_bytes(b'not an input\n')
+        with self.assertRaisesRegex(ValueError,'untracked source paths'):
+            r.source_worktree_matches_index(self.repo,self.commit,tree,require_head_tree=True)
+    def test_dirty_tracked_manifest_input_cannot_pass_engineering_clean_check(self):
+        manifest=self.repo/'manifest.json';manifest.write_text('{"schema":1}\n')
+        self.git('add','manifest.json');self.git('commit','-qm','Add fixture manifest')
+        self.commit=self.git('rev-parse','HEAD');tree=self.git('rev-parse','HEAD^{tree}')
+        manifest.write_text('{"schema":2}\n');self.git('add','manifest.json')
+        with self.assertRaisesRegex(ValueError,'tracked source index entries differ from expected tree'):
+            r.source_worktree_matches_index(self.repo,self.commit,tree,require_head_tree=True)
     def test_local_clean_filter_cannot_hide_bytes_or_run_during_check(self):
         import shlex
         marker=self.repo/'filter-was-executed'

@@ -44,6 +44,18 @@ class SecurityCompositionTests(unittest.TestCase):
                     with self.assertRaisesRegex(ValueError, 'preimage'):
                         composer.verify_publication_preimage('repo', 'tree', self.manifest)
 
+    def test_shallow_checkpoint_repository_fails_before_any_input_changes(self):
+        with tempfile.TemporaryDirectory() as directory:
+            repo = Path(directory)
+            subprocess.run(['git', 'init', '-q', str(repo)], check=True)
+            sentinel = repo / 'input-sentinel'
+            sentinel.write_bytes(b'unchanged\n')
+            git_dir = subprocess.check_output(['git', '-C', str(repo), 'rev-parse', '--absolute-git-dir'], text=True).strip()
+            (Path(git_dir) / 'shallow').write_text('1' * 40 + '\n')
+            with self.assertRaisesRegex(ValueError, 'shallow history'):
+                composer.verify_checkpoint_repository(repo, repo)
+            self.assertEqual(sentinel.read_bytes(), b'unchanged\n')
+
     def test_security_layer_rejects_an_output_that_survived_publication_cleanup(self):
         oid = '1' * 40
         workflow = b'name: Direct source checks\n'

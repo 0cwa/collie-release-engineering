@@ -21,6 +21,8 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'source'))
 import publish
 import commit_messages
+sys.path.insert(0, str(ROOT / 'tools/patches'))
+import runtime_receipts
 
 HEX40 = re.compile(r'[0-9a-f]{40}\Z')
 HEX64 = re.compile(r'[0-9a-f]{64}\Z')
@@ -107,6 +109,24 @@ def write_new(path, raw):
 
 def load_json(path):
     return json.loads(Path(path).read_bytes(), object_pairs_hook=publish.unique_object)
+
+
+def verify_checkpoint_repository(repo, checkpoint_repo):
+    publish.plain(repo)
+    publish.plain(checkpoint_repo)
+    repo_dir = Path(git(repo, 'rev-parse', '--absolute-git-dir').decode().strip()).resolve()
+    checkpoint_dir = Path(git(checkpoint_repo, 'rev-parse', '--absolute-git-dir').decode().strip()).resolve()
+    if repo_dir != checkpoint_dir:
+        raise ValueError('checkpoint inputs must come from the same verified plain object store')
+
+
+def verify_engineering_inputs(engineering):
+    revision = git(engineering, 'rev-parse', 'HEAD').decode().strip()
+    publish.oid(revision)
+    tree = publish.tree(engineering, revision)
+    runtime_receipts.source_worktree_matches_index(
+        engineering, revision, tree, require_head_tree=True)
+    return revision
 
 
 def verify_security_outputs(repo, tree, manifest):
@@ -229,13 +249,8 @@ def compose(repo, checkpoint_repo, stage, engineering, plan_path,
     checkpoint_repo = Path(checkpoint_repo).resolve()
     stage = Path(stage).resolve()
     engineering = Path(engineering).resolve()
-    publish.plain(repo)
-    dirty = git(engineering, 'status', '--porcelain', '--',
-                'source/compose_security_publication.py', 'source/layers/publication.py').decode().strip()
-    if dirty:
-        raise ValueError('producer implementation must be committed before composing a draft')
-    engineering_revision = git(engineering, 'rev-parse', 'HEAD').decode().strip()
-    publish.oid(engineering_revision)
+    verify_checkpoint_repository(repo, checkpoint_repo)
+    engineering_revision = verify_engineering_inputs(engineering)
     plan = publish.load_plan(Path(plan_path).read_bytes())
     current_main = publish.oid(current_main)
     prior_generated = publish.oid(prior_generated)
@@ -269,8 +284,8 @@ def compose(repo, checkpoint_repo, stage, engineering, plan_path,
     stage_head = git(stage, 'rev-parse', 'HEAD').decode().strip()
     if stage_head != current_main:
         raise ValueError('stage worktree must be checked out at the pinned current application base')
-    if git(stage, 'write-tree').decode().strip() != plan['reconstructed_tree']:
-        raise ValueError('stage index is not the verified prepublication reconstruction tree')
+    runtime_receipts.source_worktree_matches_index(
+        stage, current_main, plan['reconstructed_tree'])
 
     security_patch_path = ROOT / security_manifest['patch']
     if hashlib.sha256(security_patch_path.read_bytes()).hexdigest() != security_manifest['patch_sha256']:

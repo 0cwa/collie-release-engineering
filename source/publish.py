@@ -19,7 +19,7 @@ SHA = re.compile(r'[0-9a-f]{40}\Z')
 def environment():
     env = {k: v for k, v in os.environ.items() if not k.startswith('GIT_')}
     env.update(GIT_CONFIG_NOSYSTEM='1', GIT_CONFIG_GLOBAL=os.devnull,
-               GIT_ATTR_NOSYSTEM='1', GIT_NO_REPLACE_OBJECTS='1', LC_ALL='C',
+               GIT_ATTR_NOSYSTEM='1', GIT_NO_REPLACE_OBJECTS='1', GIT_NO_LAZY_FETCH='1', LC_ALL='C',
                GIT_AUTHOR_NAME='Collie Source Publication',
                GIT_AUTHOR_EMAIL='source-publication@collie.im',
                GIT_COMMITTER_NAME='Collie Source Publication',
@@ -49,6 +49,20 @@ def plain(repo):
         for path in ('info/grafts', 'objects/info/alternates', 'shallow'):
             if (root / path).exists():
                 raise ValueError('grafts, alternates and shallow history are forbidden')
+    if any((common / 'objects/pack').glob('*.promisor')):
+        raise ValueError('promisor object packs are forbidden')
+    result = subprocess.run(['git', '-C', str(repo), 'config', '--local', '--get', 'extensions.partialClone'],
+                            stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, env=environment())
+    if result.returncode == 0 and result.stdout.strip():
+        raise ValueError('partial clone configuration is forbidden')
+    if result.returncode not in (0, 1):
+        raise ValueError('cannot verify plain Git object configuration')
+    result = subprocess.run(['git', '-C', str(repo), 'config', '--local', '--get-regexp', r'^remote\..*\.promisor$'],
+                            stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, env=environment())
+    if result.returncode == 0 and result.stdout.strip():
+        raise ValueError('promisor remotes are forbidden')
+    if result.returncode not in (0, 1):
+        raise ValueError('cannot verify plain Git object configuration')
     if git(repo, 'for-each-ref', '--format=%(refname)', 'refs/replace').strip():
         raise ValueError('replace refs are forbidden')
 
