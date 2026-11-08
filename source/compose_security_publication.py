@@ -125,7 +125,7 @@ def verify_engineering_inputs(engineering):
     publish.oid(revision)
     tree = publish.tree(engineering, revision)
     runtime_receipts.source_worktree_matches_index(
-        engineering, revision, tree, require_head_tree=True)
+        engineering, revision, tree, require_head_tree=True, allow_promisor=True)
     return revision
 
 

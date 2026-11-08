@@ -103,7 +103,7 @@ def source_unchanged(checkout,commit,tree):
     return source_worktree_matches_index(checkout,commit,tree,require_head_tree=True)
 
 
-def source_worktree_matches_index(checkout,expected_head,expected_tree,*,require_head_tree=False):
+def source_worktree_matches_index(checkout,expected_head,expected_tree,*,require_head_tree=False,allow_promisor=False):
     """Prove raw worktree bytes equal a pinned index tree at an explicit HEAD.
 
     This supports prepublication staging where HEAD deliberately remains the
@@ -120,13 +120,14 @@ def source_worktree_matches_index(checkout,expected_head,expected_tree,*,require
     common=Path(os.fsdecode(git('rev-parse','--path-format=absolute','--git-common-dir').strip()))
     if any((common/name).exists() for name in ('info/grafts','objects/info/alternates','shallow')) or git('for-each-ref','--format=%(refname)','refs/replace').strip():
         raise ValueError('hostile or incomplete source Git store')
-    if any((common/'objects/pack').glob('*.promisor')):
-        raise ValueError('promisor object packs are forbidden')
-    for args in (('config','--local','--get','extensions.partialClone'),
-                 ('config','--local','--get-regexp',r'^remote\..*\.promisor$')):
-        result=subprocess.run(['git','-C',str(checkout),*args],env=env,stdout=subprocess.PIPE,stderr=subprocess.DEVNULL)
-        if result.returncode==0 and result.stdout.strip():raise ValueError('partial or promisor Git object store is forbidden')
-        if result.returncode not in (0,1):raise ValueError('cannot verify Git object store configuration')
+    if not allow_promisor:
+        if any((common/'objects/pack').glob('*.promisor')):
+            raise ValueError('promisor object packs are forbidden')
+        for args in (('config','--local','--get','extensions.partialClone'),
+                     ('config','--local','--get-regexp',r'^remote\..*\.promisor$')):
+            result=subprocess.run(['git','-C',str(checkout),*args],env=env,stdout=subprocess.PIPE,stderr=subprocess.DEVNULL)
+            if result.returncode==0 and result.stdout.strip():raise ValueError('partial or promisor Git object store is forbidden')
+            if result.returncode not in (0,1):raise ValueError('cannot verify Git object store configuration')
     if git('rev-parse','HEAD').decode().strip()!=expected_head:
         raise ValueError('actual checkout HEAD differs from pinned base')
     if require_head_tree and git('rev-parse','HEAD^{tree}').decode().strip()!=expected_tree:

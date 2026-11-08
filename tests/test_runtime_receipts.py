@@ -75,6 +75,15 @@ class SourceCheckoutTests(unittest.TestCase):
         return self.git('write-tree')
     def test_actual_complete_tracked_bytes_modes_and_symlinks_pass_without_index_change(self):
         self.check()
+    def test_exact_engineering_tree_can_be_checked_without_fetching_promisor_history(self):
+        self.git('config','extensions.partialClone','fixture')
+        self.git('config','remote.fixture.promisor','true')
+        pack=self.repo/'.git/objects/pack/fixture.promisor';pack.parent.mkdir(parents=True,exist_ok=True);pack.write_bytes(b'')
+        with self.assertRaisesRegex(ValueError,'promisor object packs'):
+            self.check()
+        before=self.index.read_bytes()
+        r.source_worktree_matches_index(self.repo,self.commit,self.tree,require_head_tree=True,allow_promisor=True)
+        self.assertEqual(self.index.read_bytes(),before)
     def test_mode_change_is_rejected_with_local_filemode_disabled(self):
         self.git('config','core.fileMode','false');self.file.chmod(0o755)
         with self.assertRaisesRegex(ValueError,'executable mode'):self.check()
