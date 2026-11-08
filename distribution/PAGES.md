@@ -32,12 +32,13 @@ Official references, inspected for this implementation:
 
 Python3.12.14 and hash-pinned fdroidserver2.4.5 remain verification tools; APK/index
 signing is outside Pages. Official action commits are pinned in both workflows.
-The official upload-pages-artifact@v3 composite invokes a floating nested
-upload-artifact@v4, so this adapter creates the equivalent artifact.tar and directly
-pins upload-artifact@v4. The archive contains only regular files, with deterministic
-order/mode/uid/gid/mtime, no symlinks/hardlinks and verified per-file bytes. Hosted
-Pages deployment compatibility is NOT RUN until separately approved activation;
-local tar structure/digests and official format requirements were checked.
+The production workflow uses the official upload-pages-artifact composite at an
+immutable commit, with `include-hidden-files: true` so `.nojekyll` remains part of
+the approved site. Its nested upload-artifact action is also pinned in that composite.
+Local policy preparation still audits each exact site manifest and archive; the
+wrapper differential changes only artifact construction and retains the same
+per-file payloads. Hosted Pages deployment compatibility remains NOT RUN until a
+separately approved activation.
 
 ## Trusted approved input bundle
 

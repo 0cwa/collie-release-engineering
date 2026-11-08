@@ -81,20 +81,20 @@ jobs:
               cp "$RUNNER_TEMP/inputs/$name" "$RUNNER_TEMP/control/activation/"
             done
           fi
-      # Direct official artifact action pin avoids upload-pages-artifact's nested
-      # floating action ref. artifact.tar is checked for links, hashes and size.
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+      # Official Pages wrapper constructs the artifact.tar expected by deploy-pages.
+      # Hidden files are required to preserve the approved .nojekyll path.
+      - uses: actions/upload-pages-artifact@5f327015a708106f6f1b7c9a633901af30fe80cb
         if: inputs.preparation_mode == 'feed'
         with:
           name: collie-pages-phase1
-          path: ${{ runner.temp }}/pages/phase1/artifact.tar
-          if-no-files-found: error
+          path: ${{ runner.temp }}/pages/phase1/site
+          include-hidden-files: true
           retention-days: 30
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+      - uses: actions/upload-pages-artifact@5f327015a708106f6f1b7c9a633901af30fe80cb
         with:
           name: collie-pages-phase2
-          path: ${{ runner.temp }}/pages/phase2/artifact.tar
-          if-no-files-found: error
+          path: ${{ runner.temp }}/pages/phase2/site
+          include-hidden-files: true
           retention-days: 30
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
