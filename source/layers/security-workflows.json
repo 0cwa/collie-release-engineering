@@ -2,7 +2,7 @@
   "schema": 1,
   "kind": "feature-layer",
   "name": "Pinned Actions security and screenshot workflows for published application source",
-  "application_base": "9694af939eb3671f71eb53a277bea9608c8a2b32",
+  "application_base": "f636568af237afa0161700a09b94b09f2b70d6f6",
   "before_tree": "5fe046686b3d9d9121125bb5f1505a5c3d090f6a",
   "after_tree": "0a1f3ed3e192543f524ff10de0be6ff3e06cbc50",
   "tree_scope": "publication-workflow-replacement-fixture only; not complete reconstructed application G/I",
