@@ -71,5 +71,5 @@
     "must_precede": "generated G/I"
   },
   "coverage": "GitHub Actions only; Java/Kotlin/native dependency analysis NOT RUN; a separately verified traced Android build is required before source-language analysis.",
-  "replay_scope": "Isolated fixture proving the actual publication workflow replacement is followed by additive canonical renderer outputs. Full reconstructed G/I tree replay and final publication-plan binding remain pending owner freeze."
+  "replay_scope": "The isolated workflow-replacement fixture and complete DRAFT source composition verify publication followed by additive canonical renderer outputs. Generation and verification of final G/I commits and frozen publication-plan binding remain pending owner freeze."
 }
