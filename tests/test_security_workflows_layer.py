@@ -50,6 +50,7 @@ class SecurityWorkflowFeatureLayerTests(unittest.TestCase):
         self.assertEqual(policy['origin'], 'https://github.com/0cwa/collie-release-engineering.git')
         self.assertEqual(policy['revision'], POLICY_REVISION)
         self.assertEqual(policy['renderer'], 'tools/codeql/render_publication.py')
+        self.assertRegex(policy['renderer_blob'], r'^[0-9a-f]{40}$')
         self.assertRegex(policy['renderer_sha256'], r'^[0-9a-f]{64}$')
         self.assertEqual(set(policy['template_paths']), {
             'tools/codeql/publication/codeql.yml.in',
@@ -58,6 +59,10 @@ class SecurityWorkflowFeatureLayerTests(unittest.TestCase):
             'tools/codeql/publication/codeql-config.yml',
             'tools/codeql/publication/reviewed-findings.json',
         })
+        self.assertEqual(set(policy['template_blobs']), set(policy['template_paths']))
+        self.assertEqual(set(policy['template_sha256']), set(policy['template_paths']))
+        self.assertTrue(all(re.fullmatch(r'[0-9a-f]{40}', value) for value in policy['template_blobs'].values()))
+        self.assertTrue(all(re.fullmatch(r'[0-9a-f]{64}', value) for value in policy['template_sha256'].values()))
         self.assertEqual(self.manifest['modes'], {path: '100644' for path in EXPECTED_PATHS})
         self.assertEqual(self.manifest['paths'], sorted(EXPECTED_PATHS))
         self.assertEqual(ordering['apply_after'], 'source/layers/publication.py::replace_application_workflows')

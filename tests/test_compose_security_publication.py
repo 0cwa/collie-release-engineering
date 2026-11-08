@@ -29,6 +29,39 @@ class SecurityCompositionTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'five canonical'):
             composer.validate_security_manifest(changed)
 
+    def test_renderer_and_template_inputs_are_checked_against_commit_blobs(self):
+        with tempfile.TemporaryDirectory() as directory:
+            repo = Path(directory)
+            subprocess.run(['git', 'init', '-q', str(repo)], check=True)
+            subprocess.run(['git', '-C', str(repo), 'config', 'user.name', 'Fixture'], check=True)
+            subprocess.run(['git', '-C', str(repo), 'config', 'user.email', 'fixture@example.invalid'], check=True)
+            renderer = repo / 'tools/codeql/render_publication.py'
+            template = repo / 'tools/codeql/publication/template.yml.in'
+            renderer.parent.mkdir(parents=True)
+            template.parent.mkdir(parents=True)
+            renderer.write_bytes(b'RENDERER\n')
+            template.write_bytes(b'TEMPLATE\n')
+            subprocess.run(['git', '-C', str(repo), 'add', '-A'], check=True)
+            subprocess.run(['git', '-C', str(repo), 'commit', '-qm', 'Pinned renderer fixture'], check=True)
+            revision = subprocess.check_output(['git', '-C', str(repo), 'rev-parse', 'HEAD'], text=True).strip()
+            blobs = {
+                path: subprocess.check_output(['git', '-C', str(repo), 'rev-parse', f'HEAD:{path}'], text=True).strip()
+                for path in ('tools/codeql/render_publication.py', 'tools/codeql/publication/template.yml.in')
+            }
+            policy = {
+                'revision': revision,
+                'renderer': 'tools/codeql/render_publication.py',
+                'renderer_blob': blobs['tools/codeql/render_publication.py'],
+                'renderer_sha256': hashlib.sha256(b'RENDERER\n').hexdigest(),
+                'template_paths': ['tools/codeql/publication/template.yml.in'],
+                'template_blobs': {'tools/codeql/publication/template.yml.in': blobs['tools/codeql/publication/template.yml.in']},
+                'template_sha256': {'tools/codeql/publication/template.yml.in': hashlib.sha256(b'TEMPLATE\n').hexdigest()},
+            }
+            composer.verify_policy_objects(repo, policy)
+            policy['template_blobs']['tools/codeql/publication/template.yml.in'] = '0' * 40
+            with self.assertRaisesRegex(ValueError, 'Git blob differs'):
+                composer.verify_policy_objects(repo, policy)
+
     def test_message_preview_shortens_known_legacy_subjects_without_changing_layer_records(self):
         layer = 'Resolve modify/delete conflicts for modules Molly removes and remove new upstream files added beneath those excluded modules'
         messages = {'layers': [{'subject': layer, 'changes': layer}]}

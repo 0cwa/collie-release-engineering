@@ -33,6 +33,7 @@
     "origin": "https://github.com/0cwa/collie-release-engineering.git",
     "revision": "124ca006b36c64e12807db2d1737d7f1faf06471",
     "renderer": "tools/codeql/render_publication.py",
+    "renderer_blob": "383a44dbd2aa26225db8e67fdb4ea34272db2b3c",
     "renderer_sha256": "fcc6c7bb970d05597c3c4333c04288e98cbe090a9cfab1e1acd33d99f56bc936",
     "template_paths": [
       "tools/codeql/publication/codeql.yml.in",
@@ -40,7 +41,21 @@
       "tools/codeql/publication/publish-screenshots.yml.in",
       "tools/codeql/publication/codeql-config.yml",
       "tools/codeql/publication/reviewed-findings.json"
-    ]
+    ],
+    "template_blobs": {
+      "tools/codeql/publication/codeql.yml.in": "505cf5d7fc9735f9b4377b580782e36b77b638b1",
+      "tools/codeql/publication/update-screenshots.yml.in": "a80a26773f06f454600e399828115b8989ecfff2",
+      "tools/codeql/publication/publish-screenshots.yml.in": "c35f9381ddd7ec1fd3f7fe565917f1b74055ebcb",
+      "tools/codeql/publication/codeql-config.yml": "390d44f5d6a8cf1d53266ea7637dfdf5f9538ac9",
+      "tools/codeql/publication/reviewed-findings.json": "4e49c62f6d2e6a25532522e1e9704c867903c578"
+    },
+    "template_sha256": {
+      "tools/codeql/publication/codeql.yml.in": "9a1f4200a3528c480cf6de4dd8e8dfb80a75a950bdc9b009fad12fd73e92f17a",
+      "tools/codeql/publication/update-screenshots.yml.in": "11858bbbe6125cd904e28b4312958eb08c0b45a76d4a60ac047fda79f8afaef9",
+      "tools/codeql/publication/publish-screenshots.yml.in": "5c265a22ed73167507b5fc2210033e73b1e177cb792deded9e9b70128c3fe897",
+      "tools/codeql/publication/codeql-config.yml": "61d120d00ff16b9c25303e245d6a08b286b9836f3c29a822b81d03f9f9601e0e",
+      "tools/codeql/publication/reviewed-findings.json": "d1240327219f44e01b73eeae84e9b53aea21d51d1cca3da0dd3d62fc2ceaa465"
+    }
   },
   "ordering": {
     "apply_after": "source/layers/publication.py::replace_application_workflows",

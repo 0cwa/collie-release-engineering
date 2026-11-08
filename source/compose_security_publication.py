@@ -213,6 +213,38 @@ def validate_security_manifest(manifest):
             raise ValueError('security layer output hash/mode is invalid: ' + path)
     if not HEX64.fullmatch(ordering.get('publication_output_sha256', '')):
         raise ValueError('security layer publication marker digest is invalid')
+    policy = manifest.get('policy', {})
+    template_paths = policy.get('template_paths')
+    if (policy.get('revision') != '124ca006b36c64e12807db2d1737d7f1faf06471'
+            or policy.get('renderer') != 'tools/codeql/render_publication.py'
+            or not HEX40.fullmatch(policy.get('renderer_blob', ''))
+            or not HEX64.fullmatch(policy.get('renderer_sha256', ''))
+            or not isinstance(template_paths, list) or not template_paths):
+        raise ValueError('canonical renderer pin or Git blob identity is invalid')
+    for key in ('template_blobs', 'template_sha256'):
+        values = policy.get(key, {})
+        pattern = HEX40 if key == 'template_blobs' else HEX64
+        if set(values) != set(template_paths) or any(not pattern.fullmatch(value) for value in values.values()):
+            raise ValueError('canonical renderer template blob identities are incomplete')
+
+
+def verify_policy_objects(repo, policy):
+    revision = publish.oid(policy['revision'])
+    if git(repo, 'cat-file', '-t', revision).strip() != b'commit':
+        raise ValueError('pinned canonical renderer revision is not an available commit object')
+    files = [(policy['renderer'], policy['renderer_blob'], policy['renderer_sha256'])]
+    files.extend((path, policy['template_blobs'][path], policy['template_sha256'][path])
+                 for path in policy['template_paths'])
+    for path, expected_blob, expected_sha256 in files:
+        entries = tree_entries(repo, revision, path)
+        if (len(entries) != 1 or entries[0][0] != '100644'
+                or entries[0][1] != 'blob' or entries[0][2] != expected_blob):
+            raise ValueError('pinned renderer input Git blob differs: ' + path)
+        content = git(repo, 'cat-file', 'blob', expected_blob)
+        if hashlib.sha256(content).hexdigest() != expected_sha256:
+            raise ValueError('pinned renderer input bytes differ: ' + path)
+        if git(repo, 'hash-object', '--stdin', data=content).decode().strip() != expected_blob:
+            raise ValueError('pinned renderer input bytes do not match their Git blob: ' + path)
 
 
 def shorten_message_subjects(messages):
@@ -259,6 +291,7 @@ def compose(repo, checkpoint_repo, stage, engineering, plan_path,
 
     security_manifest = load_json(ROOT / 'source/layers/security-workflows.json')
     validate_security_manifest(security_manifest)
+    verify_policy_objects(engineering, security_manifest['policy'])
     if current_main != security_manifest['application_base']:
         raise ValueError('security layer application base differs from the explicitly reviewed current main')
     if publish.tree(checkpoint_repo, prior_generated) != plan['final_tree']:
@@ -345,8 +378,12 @@ def compose(repo, checkpoint_repo, stage, engineering, plan_path,
     verify_security_outputs(repo, tree, security_manifest)
     if set(security_paths) != set(security_manifest['paths']):
         raise ValueError('security layer changed paths differ from its manifest')
+    template_inputs = ', '.join(
+        f'{path}={security_manifest["policy"]["template_blobs"][path]}/'
+        f'{security_manifest["policy"]["template_sha256"][path]}'
+        for path in security_manifest['policy']['template_paths'])
     record('feature', security_manifest['name'], before, tree,
-           f'Canonical renderer {security_manifest["policy"]["renderer"]} from {security_manifest["policy"]["origin"]} at immutable revision {security_manifest["policy"]["revision"]}; renderer SHA-256 {security_manifest["policy"]["renderer_sha256"]}; static output patch SHA-256 {security_hash}. Actions analysis only; Java/Kotlin/native source not run.')
+           f'Canonical renderer {security_manifest["policy"]["renderer"]} from {security_manifest["policy"]["origin"]} at immutable revision {security_manifest["policy"]["revision"]}; renderer Git blob {security_manifest["policy"]["renderer_blob"]}, SHA-256 {security_manifest["policy"]["renderer_sha256"]}; template Git blobs/SHA-256 {template_inputs}; static output patch SHA-256 {security_hash}. Actions analysis only; Java/Kotlin/native source not run.')
 
     plan['old_main'] = current_main
     plan['layers'] = retained_layers + records
