@@ -2,6 +2,12 @@ name: Manually deploy approved Pages snapshots
 on:
   workflow_dispatch:
     inputs:
+      preparation_mode:
+        description: Feed rollout, or first add-link activation after production acceptance
+        type: choice
+        options: [feed, activate-links]
+        default: feed
+        required: true
       trusted_policy_revision:
         description: Exact reviewed main commit containing this verifier/workflow
         type: string
@@ -21,6 +27,8 @@ concurrency:
   cancel-in-progress: false
 jobs:
   prepare:
+    outputs:
+      mode: ${{ steps.prepare.outputs.mode }}
     # Disabled until separately approved Pages/environment provisioning. PRs and
     # non-main dispatches have no path to these jobs; no pull_request_target.
     if: github.ref == 'refs/heads/main' && vars.COLLIE_PAGES_PRODUCTION_ENABLED == 'true'
@@ -48,17 +56,35 @@ jobs:
         run: |
           python distribution/download_pages_input.py --asset-id "$ASSET_ID" --sha256 "$EXPECTED_SHA256" --output "$RUNNER_TEMP/input.tar"
           python distribution/pages.py unpack "$RUNNER_TEMP/input.tar" "$RUNNER_TEMP/inputs"
-      - name: Prepare both complete snapshots with the trusted policy
+      - name: Prepare the approved snapshots with the trusted policy
+        id: prepare
         env:
           APPROVED_POLICY: ${{ inputs.trusted_policy_revision }}
+          PREPARATION_MODE: ${{ inputs.preparation_mode }}
         run: |
-          python distribution/pages.py prepare "$RUNNER_TEMP/inputs" "$RUNNER_TEMP/pages" --policy "$APPROVED_POLICY"
+          case "$PREPARATION_MODE" in feed|activate-links) ;; *) exit 1 ;; esac
+          echo "mode=$PREPARATION_MODE" >> "$GITHUB_OUTPUT"
+          if [ "$PREPARATION_MODE" = feed ]; then
+            python distribution/pages.py prepare "$RUNNER_TEMP/inputs" "$RUNNER_TEMP/pages" --policy "$APPROVED_POLICY"
+          else
+            python distribution/pages_activation.py prepare "$RUNNER_TEMP/inputs" "$RUNNER_TEMP/pages" --policy "$APPROVED_POLICY"
+          fi
           python distribution/pages.py preflight "$RUNNER_TEMP/pages/plan.json" "$RUNNER_TEMP/pages/journal.json"
+          if [ "$PREPARATION_MODE" = activate-links ]; then
+            python distribution/pages.py readback "$RUNNER_TEMP/pages/plan.json" "$RUNNER_TEMP/pages/journal.json" --phase phase1
+          fi
           mkdir "$RUNNER_TEMP/control"
           cp "$RUNNER_TEMP/pages/plan.json" "$RUNNER_TEMP/pages/journal.json" "$RUNNER_TEMP/control/"
+          if [ "$PREPARATION_MODE" = activate-links ]; then
+            mkdir "$RUNNER_TEMP/control/activation"
+            for name in approval.json feed-plan.json feed-journal.json repository-receipt.json client-acceptance.json; do
+              cp "$RUNNER_TEMP/inputs/$name" "$RUNNER_TEMP/control/activation/"
+            done
+          fi
       # Direct official artifact action pin avoids upload-pages-artifact's nested
       # floating action ref. artifact.tar is checked for links, hashes and size.
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: inputs.preparation_mode == 'feed'
         with:
           name: collie-pages-phase1
           path: ${{ runner.temp }}/pages/phase1/artifact.tar
@@ -77,6 +103,7 @@ jobs:
           if-no-files-found: error
           retention-days: 90
   phase1:
+    if: needs.prepare.outputs.mode == 'feed'
     needs: prepare
     runs-on: ubuntu-24.04
     permissions:
@@ -91,7 +118,8 @@ jobs:
         with:
           artifact_name: collie-pages-phase1
   phase1-readback:
-    needs: phase1
+    if: ${{ !cancelled() && needs.prepare.result == 'success' && (needs.phase1.result == 'success' || needs.prepare.outputs.mode == 'activate-links') }}
+    needs: [prepare, phase1]
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
@@ -105,7 +133,8 @@ jobs:
         with:
           name: collie-pages-control
           path: ${{ runner.temp }}/control/
-      - run: python distribution/pages.py readback "$RUNNER_TEMP/control/plan.json" "$RUNNER_TEMP/control/journal.json" --phase phase1
+      - if: inputs.preparation_mode == 'feed'
+        run: python distribution/pages.py readback "$RUNNER_TEMP/control/plan.json" "$RUNNER_TEMP/control/journal.json" --phase phase1
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: collie-pages-after-phase1
@@ -113,6 +142,7 @@ jobs:
           if-no-files-found: error
           retention-days: 90
   phase2:
+    if: ${{ !cancelled() && needs['phase1-readback'].result == 'success' }}
     needs: phase1-readback
     runs-on: ubuntu-24.04
     permissions:
@@ -127,6 +157,7 @@ jobs:
         with:
           artifact_name: collie-pages-phase2
   final-readback:
+    if: ${{ !cancelled() && needs.phase2.result == 'success' }}
     needs: phase2
     runs-on: ubuntu-24.04
     steps:
@@ -142,6 +173,9 @@ jobs:
           name: collie-pages-after-phase1
           path: ${{ runner.temp }}/control/
       - run: python distribution/pages.py readback "$RUNNER_TEMP/control/plan.json" "$RUNNER_TEMP/control/journal.json" --phase phase2
+      - name: Preserve completed production link activation evidence
+        if: inputs.preparation_mode == 'activate-links'
+        run: python distribution/pages_activation.py record "$RUNNER_TEMP/control/activation" "$RUNNER_TEMP/control/plan.json" "$RUNNER_TEMP/control/journal.json" > "$RUNNER_TEMP/control/link-activation.json"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: collie-pages-completed-receipt

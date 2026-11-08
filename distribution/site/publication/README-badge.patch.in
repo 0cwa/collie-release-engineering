@@ -1,0 +1,21 @@
+# INERT REVIEW TEMPLATE ONLY — DO NOT APPLY BEFORE APPROVED PRODUCTION ACTIVATION.
+--- a/README.md
++++ b/README.md
+@@ -5,7 +5,7 @@
+ </p>
+ 
+ <p align="center">
+-  <a href="https://apps.obtainium.imranr.dev/redirect?r=obtainium://app/%7B%22id%22%3A%22im.collie.app%22%2C%22url%22%3A%22https%3A%2F%2Fgithub.com%2F0cwa%2Fcollieim-android%22%2C%22author%22%3A%220cwa%22%2C%22name%22%3A%22Collie%22%2C%22additionalSettings%22%3A%22%7B%5C%22includePrereleases%5C%22%3Afalse%2C%5C%22apkFilterRegEx%5C%22%3A%5C%22%5Ecollie%5C%5C%5C%5C.apk%24%5C%22%7D%22%7D"><img src="assets/badge_obtainium.png" alt="Get it on Obtainium" height="80"></a> <a href="https://liberapay.com/Collie/">
++  <a href="https://apps.obtainium.imranr.dev/redirect?r=obtainium://app/%7B%22id%22%3A%22im.collie.app%22%2C%22url%22%3A%22https%3A%2F%2Fgithub.com%2F0cwa%2Fcollieim-android%22%2C%22author%22%3A%220cwa%22%2C%22name%22%3A%22Collie%22%2C%22additionalSettings%22%3A%22%7B%5C%22includePrereleases%5C%22%3Afalse%2C%5C%22apkFilterRegEx%5C%22%3A%5C%22%5Ecollie%5C%5C%5C%5C.apk%24%5C%22%7D%22%7D"><img src="assets/badge_obtainium.png" alt="Get it on Obtainium" height="80"></a> <a href="https://repo.collie.im/" title="Our custom F-Droid repository"><img src="assets/badge_fdroid.svg" alt="Our F-Droid repository" height="80"></a> <a href="https://liberapay.com/Collie/">
+   <img src="https://raw.githubusercontent.com/aha999/DonateButtons/master/LiberaPay.png" alt="Donate via Liberapay" height="80">
+ </a>
+ </p>
+@@ -38,7 +38,7 @@
+ 
+ ## Download
+ 
+-Use the Obtainium link above to stay updated.  Our apk `collie.apk` is on the [Releases page](https://github.com/0cwa/collieim-android/releases)  All APK files in the latest release contain the same Collie app; the older names are available for existing Obtainium filters. All are FOSS and all use the package `im.collie.app` and can be installed alongside Signal or Molly.  *F-droid-compatible repo coming soon.*
++Use the Obtainium link above to stay updated.  Our apk `collie.apk` is on the [Releases page](https://github.com/0cwa/collieim-android/releases)  All APK files in the latest release contain the same Collie app; the older names are available for existing Obtainium filters. All are FOSS and all use the package `im.collie.app` and can be installed alongside Signal or Molly.  Our custom F-Droid repository distributes the same signed APK.
+ 
+ _[Throw the dog a bone? 🐶🦴](https://liberapay.com/Collie)_ - It helps me speed up development - I want to work on a desktop client too.
+ 
