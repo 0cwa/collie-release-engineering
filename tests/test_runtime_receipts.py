@@ -75,6 +75,10 @@ class SourceCheckoutTests(unittest.TestCase):
         return self.git('write-tree')
     def test_actual_complete_tracked_bytes_modes_and_symlinks_pass_without_index_change(self):
         self.check()
+    def test_empty_untracked_directories_are_not_source_inputs(self):
+        (self.repo/'tools/codeql').mkdir(parents=True)
+        (self.repo/'tools/screenshots').mkdir(parents=True)
+        self.check()
     def test_exact_engineering_tree_can_be_checked_without_fetching_promisor_history(self):
         self.git('config','extensions.partialClone','fixture')
         self.git('config','remote.fixture.promisor','true')

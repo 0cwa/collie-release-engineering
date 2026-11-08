@@ -132,7 +132,10 @@ def source_worktree_matches_index(checkout,expected_head,expected_tree,*,require
         raise ValueError('actual checkout HEAD differs from pinned base')
     if require_head_tree and git('rev-parse','HEAD^{tree}').decode().strip()!=expected_tree:
         raise ValueError('actual checkout tree differs from approved source')
-    untracked=git('ls-files','--others','-z','--directory')
+    # Empty directories cannot affect a Git tree or producer input. Report
+    # untracked files and symlinks, including ignored ones, without collapsing
+    # them into directory records.
+    untracked=git('ls-files','--others','-z')
     if untracked:
         raise ValueError('untracked source paths are forbidden: '+os.fsdecode(untracked.split(b'\0',1)[0]))
     entries=git('ls-files','-v','-z').split(b'\0')
