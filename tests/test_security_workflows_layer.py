@@ -47,6 +47,7 @@ class SecurityWorkflowFeatureLayerTests(unittest.TestCase):
         ordering = self.manifest['ordering']
         self.assertEqual(self.manifest['schema'], 1)
         self.assertEqual(self.manifest['kind'], 'feature-layer')
+        self.assertEqual(self.manifest['application_base'], '9694af939eb3671f71eb53a277bea9608c8a2b32')
         self.assertEqual(policy['origin'], 'https://github.com/0cwa/collie-release-engineering.git')
         self.assertEqual(policy['revision'], POLICY_REVISION)
         self.assertEqual(policy['renderer'], 'tools/codeql/render_publication.py')
