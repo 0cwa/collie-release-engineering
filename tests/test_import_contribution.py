@@ -1,8 +1,10 @@
 import copy
 import hashlib
 import json
+import os
 from pathlib import Path
 import subprocess
+import stat
 import sys
 import tempfile
 import unittest
@@ -94,6 +96,18 @@ class ReviewedImportTests(unittest.TestCase):
         self.assertEqual(published['source_tree'],publish.tree(self.repo,current_main))
         for contribution in (first,second):
             publish.git(self.repo,'merge-base','--is-ancestor',contribution,published['integration_commit'])
+
+    def test_aggregate_patch_is_owner_only_even_with_permissive_umask(self):
+        _,_,current_main=self.independent_backlog()
+        overlay=self.repo/'private-aggregate.patch'
+        patch=self.delta(self.base,current_main)
+        previous_umask=os.umask(0)
+        try:
+            importer.import_aggregate(self.repo,self.path,overlay,current_main,
+                                      hashlib.sha256(patch).hexdigest())
+        finally:
+            os.umask(previous_umask)
+        self.assertEqual(stat.S_IMODE(overlay.stat().st_mode),0o600)
 
     def test_aggregate_replays_gitlink_changes(self):
         with tempfile.TemporaryDirectory(dir=self.repo) as directory:

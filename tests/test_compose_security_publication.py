@@ -1,5 +1,7 @@
 import json
 import hashlib
+import os
+import stat
 import sys
 from pathlib import Path
 import subprocess
@@ -15,6 +17,16 @@ import compose_security_publication as composer
 class SecurityCompositionTests(unittest.TestCase):
     def setUp(self):
         self.manifest = json.loads((ROOT / 'source/layers/security-workflows.json').read_text())
+
+    def test_composer_output_is_owner_only_even_with_permissive_umask(self):
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory) / 'draft-plan.json'
+            previous_umask = os.umask(0)
+            try:
+                composer.write_new(output, b'draft plan\n')
+            finally:
+                os.umask(previous_umask)
+            self.assertEqual(stat.S_IMODE(output.stat().st_mode), 0o600)
 
     def test_security_manifest_binds_all_five_outputs_and_publication_order(self):
         composer.validate_security_manifest(self.manifest)

@@ -102,7 +102,7 @@ def write_new(path, raw):
     flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL
     if hasattr(os, 'O_NOFOLLOW'):
         flags |= os.O_NOFOLLOW
-    descriptor = os.open(path, flags, 0o644)
+    descriptor = os.open(path, flags, 0o600)
     with os.fdopen(descriptor, 'wb') as output:
         output.write(raw)
 

@@ -140,7 +140,7 @@ def import_aggregate(repo, plan_path, overlay_path, current_main, expected_patch
     if hasattr(os, 'O_NOFOLLOW'):
         flags |= os.O_NOFOLLOW
     try:
-        descriptor = os.open(overlay_path, flags, 0o644)
+        descriptor = os.open(overlay_path, flags, 0o600)
     except FileExistsError as error:
         raise ValueError('refusing to overwrite an existing aggregate patch') from error
     with os.fdopen(descriptor, 'wb') as output:
