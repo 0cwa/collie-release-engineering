@@ -117,6 +117,7 @@ jobs:
         id: deploy
         with:
           artifact_name: collie-pages-phase1
+          timeout: '1800000'
   phase1-readback:
     if: ${{ !cancelled() && needs.prepare.result == 'success' && (needs.phase1.result == 'success' || needs.prepare.outputs.mode == 'activate-links') }}
     needs: [prepare, phase1]
@@ -156,6 +157,7 @@ jobs:
         id: deploy
         with:
           artifact_name: collie-pages-phase2
+          timeout: '1800000'
   final-readback:
     if: ${{ !cancelled() && needs.phase2.result == 'success' }}
     needs: phase2

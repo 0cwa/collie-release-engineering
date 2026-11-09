@@ -18,6 +18,9 @@ class WorkflowBoundaryTest(unittest.TestCase):
         self.assertIn('needs: phase1-readback',text)
         self.assertIn("if: ${{ !cancelled() && needs['phase1-readback'].result == 'success' }}",text)
         self.assertIn('pages.py preflight',text)
+        self.assertEqual(text.count("          timeout: '1800000'\n"),2)
+        for phase in ('phase1','phase2'):
+            self.assertIn(f"artifact_name: collie-pages-{phase}\n          timeout: '1800000'",text)
         self.assertEqual(text.count('name: github-pages'),2)
         self.assertEqual(text.count('pages: write'),2)
         self.assertEqual(text.count('id-token: write'),2)
