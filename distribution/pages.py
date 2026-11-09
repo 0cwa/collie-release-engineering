@@ -243,8 +243,10 @@ def observe_head(url,*,allow_unverified=False):
         headers=_cache_headers(response.headers) if allow_unverified else _fresh_cache_headers(response.headers)
         return {'status':200,'headers':headers}
 
-def observe(url,*,allow_unverified=False):
+def observe(url,*,allow_unverified=False,max_bytes=None):
     import urllib.error
+    if max_bytes is None:max_bytes=MAX_BYTES
+    if type(max_bytes) is not int or not 0<max_bytes<=MAX_BYTES:raise ValueError('invalid readback byte limit')
     request=urllib.request.Request(url,headers={'Cache-Control':'no-cache, no-store','Pragma':'no-cache'})
 
     try:
@@ -262,7 +264,12 @@ def observe(url,*,allow_unverified=False):
         if response.status!=200:raise ValueError('readback not200')
         headers=_cache_headers(response.headers) if allow_unverified else _fresh_cache_headers(response.headers)
         h=hashlib.sha256();size=0
-        for block in iter(lambda:response.read(1024*1024),b''):h.update(block);size+=len(block)
+        while True:
+            block=response.read(min(1024*1024,max_bytes-size+1))
+            if not block:break
+            size+=len(block)
+            if size>max_bytes:raise ValueError('readback exceeds maximum byte budget')
+            h.update(block)
         return {'status':200,'sha256':h.hexdigest(),'bytes':size,'headers':headers}
 
 def _authorized_empty_native_plan(plan):
@@ -355,7 +362,8 @@ def preflight(plan,journal_path,*,fetch=observe,head=None):
                 raise ValueError('cached response is not a fresh canonical inventory')
             return actual
         def exact_get(url,name,expected):
-            actual=(fetch(url,allow_unverified=True) if recovery and fetch is observe else fetch(url))
+            actual=(fetch(url,allow_unverified=recovery,max_bytes=expected['bytes'])
+                    if fetch is observe else fetch(url))
             if (actual.get('status',200)!=200 or actual.get('sha256')!=expected['sha256'] or
                 actual.get('bytes')!=expected['bytes']):
                 message='native URL differs before initial publication' if name.startswith('native-inputs/') else 'existing URL differs before initial publication'
@@ -377,7 +385,9 @@ def preflight(plan,journal_path,*,fetch=observe,head=None):
                 observations[name]=exact_get(plan['origin']+name,name,plan['manifests']['phase1'][name])
         else:
             for name,expected in plan['previous_files'].items():
-                safe_name(name);actual=fetch(plan['origin']+name)
+                safe_name(name)
+                actual=(fetch(plan['origin']+name,max_bytes=expected['bytes'])
+                        if fetch is observe else fetch(plan['origin']+name))
                 if actual.get('status',200)!=200 or actual.get('sha256')!=expected['sha256'] or actual.get('bytes')!=expected['bytes']:raise ValueError('live previous site differs from approved snapshot')
                 observations[name]=actual
         # A retained feed can predate native hosting. Also inspect every NEW
@@ -412,8 +422,8 @@ def readback(plan,journal_path,phase,*,fetch=None):
             safe_name(name)
             # In the exact empty-native recovery, cache metadata is not origin
             # proof. Still GET every URL and require the exact planned bytes/hash.
-            actual=(fetch(plan['origin']+name,allow_unverified=True)
-                    if recovery and fetch is observe else fetch(plan['origin']+name))
+            actual=(fetch(plan['origin']+name,allow_unverified=recovery,max_bytes=expected['bytes'])
+                    if fetch is observe else fetch(plan['origin']+name))
             if actual.get('status',200)!=200 or actual.get('sha256')!=expected['sha256'] or actual.get('bytes')!=expected['bytes']:raise ValueError('readback mismatch: '+name)
             observed[name]=actual
         journal['readbacks'][phase]=observed

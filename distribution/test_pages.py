@@ -334,21 +334,130 @@ class NativePagesTest(unittest.TestCase):
     def test_owner_authorized_recovery_hashes_cached_200_for_both_readbacks(self):
         self.add_native(only=True);plan=self.prepare();journal=self.output/'journal.json'
         p.preflight(plan,journal,head=lambda _url:{'status':404,'headers':{'Age':'1468','X-Cache':'HIT'}})
-        phase='phase1'
-        def cached_exact(url,*,allow_unverified=False):
-            if not allow_unverified:raise ValueError('cached response is not a fresh canonical inventory')
-            name=url.removeprefix(p.ORIGIN)
-            return dict(plan['manifests'][phase][name],status=200,headers={'Age':'1468','X-Cache':'HIT'})
-        with patch.object(p,'observe',side_effect=cached_exact):
+        class Response:
+            status=200
+            def __init__(self,content,url):
+                self.content=io.BytesIO(content);self.url=url;self.headers=Message()
+                self.headers['Age']='1468';self.headers['X-Cache']='HIT'
+            def __enter__(self):return self
+            def __exit__(self,*_args):self.content.close()
+            def read(self,size=-1):return self.content.read(size)
+            def geturl(self):return self.url
+        requested=[]
+        def open_cached(request,timeout):
+            requested.append((request.full_url,timeout))
+            name=request.full_url.removeprefix(p.ORIGIN)
+            return Response((self.output/'phase1/site'/name).read_bytes(),request.full_url)
+        with patch('urllib.request.urlopen',side_effect=open_cached):
             p.readback(plan,journal,'phase1')
-            phase='phase2'
             p.readback(plan,journal,'phase2')
         receipt=b.load(journal)
         self.assertFalse(receipt['previous_verified'])
         self.assertTrue(p.verify_completed_readbacks(plan,receipt))
+        self.assertEqual(len(requested),30)
         for name in plan['manifests']['phase1']:
             self.assertEqual(receipt['readbacks']['phase1'][name]['headers']['X-Cache'],'HIT')
             self.assertEqual(receipt['readbacks']['phase2'][name]['headers']['X-Cache'],'HIT')
+
+    def test_owner_authorized_recovery_cached_200_wrong_body_fails_real_observer(self):
+        self.add_native(only=True);plan=self.prepare();journal=self.output/'journal.json'
+        p.preflight(plan,journal,head=lambda _url:{'status':404,'headers':{'Age':'1468','X-Cache':'HIT'}})
+        class Response:
+            status=200
+            def __init__(self,content,url):
+                self.content=io.BytesIO(content);self.url=url;self.headers=Message()
+                self.headers['Age']='1468';self.headers['X-Cache']='HIT'
+            def __enter__(self):return self
+            def __exit__(self,*_args):self.content.close()
+            def read(self,size=-1):return self.content.read(size)
+            def geturl(self):return self.url
+        changed=next(iter(plan['manifests']['phase1']))
+        def open_wrong(request,timeout):
+            name=request.full_url.removeprefix(p.ORIGIN)
+            content=(self.output/'phase1/site'/name).read_bytes()
+            if name==changed:content=b'X'+content[1:]
+            return Response(content,request.full_url)
+        with patch('urllib.request.urlopen',side_effect=open_wrong):
+            with self.assertRaisesRegex(ValueError,'readback mismatch: '+changed):
+                p.readback(plan,journal,'phase1')
+        self.assertEqual(b.load(journal)['completed'],[])
+
+    def test_owner_authorized_recovery_cached_200_preflight_hashes_native_body(self):
+        self.add_native(only=True);plan=self.prepare();journal=self.output/'journal.json'
+        native=next(name for name in plan['manifests']['phase1'] if name.startswith('native-inputs/'))
+        class Response:
+            status=200
+            def __init__(self,content,url):
+                self.content=io.BytesIO(content);self.url=url;self.headers=Message()
+                self.headers['Age']='1468';self.headers['X-Cache']='HIT'
+            def __enter__(self):return self
+            def __exit__(self,*_args):self.content.close()
+            def read(self,size=-1):return self.content.read(size)
+            def geturl(self):return self.url
+        def head(url):
+            status=200 if url==p.ORIGIN+native else 404
+            return {'status':status,'headers':{'Age':'1468','X-Cache':'HIT'}}
+        def open_cached(request,timeout):
+            name=request.full_url.removeprefix(p.ORIGIN)
+            return Response((self.output/'phase1/site'/name).read_bytes(),request.full_url)
+        with patch('urllib.request.urlopen',side_effect=open_cached) as opened:
+            result=p.preflight(plan,journal,head=head)
+        self.assertEqual(opened.call_count,1)
+        self.assertFalse(result['previous_verified'])
+        self.assertEqual(result['previous_state']['observations'][native]['classification'],p.EXACT_CONTENT_UNVERIFIED)
+        self.assertEqual(result['previous_state']['observations'][native]['headers']['X-Cache'],'HIT')
+
+    def test_owner_authorized_recovery_cached_200_rejects_https_downgrade(self):
+        self.add_native(only=True);plan=self.prepare();journal=self.output/'journal.json'
+        p.preflight(plan,journal,head=lambda _url:{'status':404,'headers':{'Age':'1468','X-Cache':'HIT'}})
+        class Response:
+            status=200
+            headers=Message()
+            def __enter__(self):return self
+            def __exit__(self,*_args):pass
+            def read(self,size=-1):return b''
+            def geturl(self):return 'http://repo.collie.im/'
+        with patch('urllib.request.urlopen',return_value=Response()):
+            with self.assertRaisesRegex(ValueError,'HTTPS readback required'):
+                p.readback(plan,journal,'phase1')
+        self.assertEqual(b.load(journal)['completed'],[])
+
+    def test_observe_stops_reading_over_global_byte_budget(self):
+        url='https://repo.collie.im/native-inputs/example'
+        class Response:
+            status=200
+            def __init__(self):
+                self.headers=Message();self.headers['Age']='1468';self.headers['X-Cache']='HIT'
+                self.url=url;self.content=io.BytesIO(b'12345');self.bytes_returned=0
+            def __enter__(self):return self
+            def __exit__(self,*_args):self.content.close()
+            def read(self,size=-1):
+                block=self.content.read(size);self.bytes_returned+=len(block);return block
+            def geturl(self):return self.url
+        response=Response()
+        with patch.object(p,'MAX_BYTES',3),patch('urllib.request.urlopen',return_value=response):
+            with self.assertRaisesRegex(ValueError,'maximum byte budget'):
+                p.observe(url,allow_unverified=True)
+        self.assertEqual(response.bytes_returned,4)
+
+    def test_readback_observer_reads_at_most_expected_size_plus_one_byte(self):
+        self.add_native(only=True);plan=self.prepare();journal=self.output/'journal.json'
+        p.preflight(plan,journal,head=lambda _url:{'status':404,'headers':{'Age':'1468','X-Cache':'HIT'}})
+        name=next(iter(plan['manifests']['phase1']));expected=plan['manifests']['phase1'][name]['bytes']
+        class Response:
+            status=200
+            def __init__(self):
+                self.headers=Message();self.headers['Age']='1468';self.headers['X-Cache']='HIT'
+                self.bytes_returned=0
+            def __enter__(self):return self
+            def __exit__(self,*_args):pass
+            def read(self,size=-1):self.bytes_returned+=size;return b'x'*size
+            def geturl(self):return p.ORIGIN+name
+        response=Response()
+        with patch('urllib.request.urlopen',return_value=response):
+            with self.assertRaisesRegex(ValueError,'maximum byte budget'):
+                p.readback(plan,journal,'phase1')
+        self.assertEqual(response.bytes_returned,expected+1)
 
     def test_recovery_rejects_unapproved_feed_sentinel(self):
         self.add_native(only=True);plan=self.prepare();journal=self.output/'journal.json'
