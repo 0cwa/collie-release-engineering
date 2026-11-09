@@ -219,8 +219,8 @@ def verify_terminal_operation_inventory(runs, deployments, expected_run_ids, exp
         raise ValueError('unexpected or missing workflow run/deployment')
     if any(row['status'] != 'completed' or row['conclusion'] != 'failure' for row in runs):
         raise ValueError('workflow run is active or not a known terminal failure')
-    if any(row['state'] != 'failure' for row in deployments):
-        raise ValueError('deployment is active or not a known terminal failure')
+    if any(row['state'] not in ('failure', 'success') for row in deployments):
+        raise ValueError('deployment is active or not a known terminal state')
     return True
 
 

@@ -396,6 +396,13 @@ class NativeAcceptanceTests(unittest.TestCase):
             with self.subTest(mutate=mutate), self.assertRaises(ValueError):
                 self.validate(fixture)
 
+    def test_terminal_inventory_allows_known_successful_deployments(self):
+        fixture = copy.deepcopy(self.fixture)
+        fixture[4]['pre_dispatch_inventory']['deployments'][0]['state'] = 'success'
+        proof = self.validate(fixture)
+        self.assertEqual(proof['status'], 'PASS')
+        self.assertFalse(fixture[1]['previous_verified'])
+
     def test_run_workflow_head_and_artifact_identity_must_match_plan(self):
         for mutate in (
             lambda run: run.update(head_sha='e' * 40),
