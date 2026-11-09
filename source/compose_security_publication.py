@@ -284,7 +284,7 @@ def validate_security_manifest(manifest):
         raise ValueError('security layer publication marker digest is invalid')
     policy = manifest.get('policy', {})
     template_paths = policy.get('template_paths')
-    if (policy.get('revision') != '124ca006b36c64e12807db2d1737d7f1faf06471'
+    if (policy.get('revision') != 'f3710fcc2af4f7c3a6118a904e9030fbf42f86e9'
             or policy.get('renderer') != 'tools/codeql/render_publication.py'
             or not HEX40.fullmatch(policy.get('renderer_blob', ''))
             or not HEX64.fullmatch(policy.get('renderer_sha256', ''))
@@ -392,7 +392,7 @@ def compose(repo, checkpoint_repo, stage, engineering, plan_path,
     security_patch_path = ROOT / security_manifest['patch']
     if hashlib.sha256(security_patch_path.read_bytes()).hexdigest() != security_manifest['patch_sha256']:
         raise ValueError('security layer patch digest differs from checked-in manifest')
-    if security_manifest['policy']['revision'] != '124ca006b36c64e12807db2d1737d7f1faf06471':
+    if security_manifest['policy']['revision'] != 'f3710fcc2af4f7c3a6118a904e9030fbf42f86e9':
         raise ValueError('security renderer policy pin differs from reviewed immutable revision')
 
     # This is the production publication producer. It updates owner content,
@@ -532,9 +532,9 @@ def main():
     parser.add_argument('--output-messages', type=Path, required=True)
     parser.add_argument('--output-markdown', type=Path, required=True)
     parser.add_argument('--native-receipt-dir', type=Path,
-                        help='directory containing the retained plan.json/journal.json and normalized read-only GitHub run/artifact metadata in run.json')
+                        help='directory containing plan.json, journal.json, and run.json with the locally validated PASS proof from validate_retained_evidence (not a raw GitHub run record)')
     parser.add_argument('--native-policy-revision',
-                        help='exact reviewed Pages policy commit recorded in run.json; not a fixed historical SHA')
+                        help='exact reviewed Pages policy commit bound into the locally validated proof in run.json')
     args = parser.parse_args()
     print(json.dumps(compose(args.repo, args.checkpoint_repo, args.stage, args.engineering, args.plan,
                              args.prior_generated, args.prior_integration,

@@ -159,6 +159,60 @@ def valid_file_entry(value, label):
         raise ValueError(label + ' byte count invalid')
 
 
+def validate_receipt_structure(plan, journal, native_manifest, source_native_artifacts):
+    """Check the shared completed-receipt invariants in both trust paths."""
+    exact(plan, {'schema', 'kind', 'input_approval_sha256', 'origin', 'policy_revision', 'mode',
+                 'native_manifest_sha256', 'repository_receipt_sha256',
+                 'repository_certificate_sha256', 'candidate_generation_sha256',
+                 'maximum_bytes', 'previous_manifest_sha256', 'previous_site_sha256',
+                 'previous_files', 'manifests', 'artifacts'}, 'Pages plan')
+    native = native_map(native_manifest, source_native_artifacts)
+    canonical_paths = CANONICAL | set(native)
+    if (not isinstance(plan['manifests'], dict)
+            or set(plan['manifests']) != {'phase1', 'phase2'}
+            or len(canonical_paths) != 15):
+        raise ValueError('completed native receipt requires two exact fifteen-path inventories')
+    for phase in ('phase1', 'phase2'):
+        inventory = plan['manifests'][phase]
+        if not isinstance(inventory, dict) or set(inventory) != canonical_paths or len(inventory) != 15:
+            raise ValueError(phase + ' must contain the exact fifteen canonical paths')
+        for path, entry in inventory.items():
+            valid_file_entry(entry, phase + ' entry ' + path)
+        for path, entry in native.items():
+            if inventory[path] != entry:
+                raise ValueError(phase + ' native bytes differ from the six pinned files: ' + path)
+    if plan['manifests']['phase1'] != plan['manifests']['phase2']:
+        raise ValueError('native-only phase inventories differ')
+    exact(plan['artifacts'], {'phase1', 'phase2'}, 'Pages archives')
+    for phase, artifact in plan['artifacts'].items():
+        exact(artifact, {'sha256', 'bytes'}, phase + ' archive')
+        valid_file_entry(artifact, phase + ' archive')
+    if plan['artifacts']['phase1'] != plan['artifacts']['phase2']:
+        raise ValueError('native-only phase artifacts differ')
+    exact(journal, {'schema', 'plan_sha256', 'completed', 'previous_verified', 'readbacks',
+                    'previous_state_classification', 'previous_state'}, 'Pages journal')
+    if (type(journal['schema']) is not int or journal['schema'] != 1
+            or journal['plan_sha256'] != digest(plan)
+            or journal['completed'] != ['phase1', 'phase2']):
+        raise ValueError('completed receipt journal differs from the exact ordered two-phase plan')
+    validate_recovery_precondition(plan, journal, canonical_paths, set(native))
+    if not isinstance(journal['readbacks'], dict) or set(journal['readbacks']) != {'phase1', 'phase2'}:
+        raise ValueError('both completed readback phases are required')
+    for phase in ('phase1', 'phase2'):
+        observed = journal['readbacks'][phase]
+        if not isinstance(observed, dict) or set(observed) != canonical_paths or len(observed) != 15:
+            raise ValueError(phase + ' readback must cover all fifteen canonical paths')
+        for path, entry in plan['manifests'][phase].items():
+            actual = observed[path]
+            exact(actual, {'status', 'sha256', 'bytes', 'headers'}, phase + ' readback ' + path)
+            cache_headers(actual['headers'], phase + ' readback headers ' + path)
+            if (type(actual['status']) is not int or actual['status'] != 200
+                    or actual['sha256'] != entry['sha256']
+                    or type(actual['bytes']) is not int or actual['bytes'] != entry['bytes']):
+                raise ValueError(phase + ' readback differs from the approved body: ' + path)
+    return native, canonical_paths
+
+
 def native_map(native_manifest, source_native_artifacts):
     exact(native_manifest, {'schema', 'kind', 'origin', 'files'}, 'native manifest')
     if (type(native_manifest['schema']) is not int or native_manifest['schema'] != 1
@@ -492,6 +546,8 @@ def validate(plan, journal, native_manifest_raw, source_native_artifacts, proof,
             or proof['native_manifest_sha256'] != sha(native_manifest_raw)
             or proof['input_approval_sha256'] != plan.get('input_approval_sha256')):
         raise ValueError('composition proof differs from the completed receipt or native manifest')
+    validate_receipt_structure(
+        plan, journal, json.loads(native_manifest_raw, object_pairs_hook=unique), source_native_artifacts)
     exact(plan, {'schema', 'kind', 'input_approval_sha256', 'origin', 'policy_revision', 'mode',
                  'native_manifest_sha256', 'repository_receipt_sha256',
                  'repository_certificate_sha256', 'candidate_generation_sha256',
@@ -509,6 +565,7 @@ def validate(plan, journal, native_manifest_raw, source_native_artifacts, proof,
         raise ValueError('completed native-only Pages plan differs from the reviewed policy')
     native_manifest = json.loads(native_manifest_raw, object_pairs_hook=unique)
     native = native_map(native_manifest, source_native_artifacts)
+    validate_receipt_structure(plan, journal, native_manifest, source_native_artifacts)
     if (plan['native_manifest_sha256'] != sha(native_manifest_raw)
             or not isinstance(plan['manifests'], dict)
             or set(plan['manifests']) != {'phase1', 'phase2'}):
@@ -870,6 +927,20 @@ def transition_outputs(state_raw, gradle_raw, workflow_raw, build_raw, propertie
     if build.count(old_identity) != 1:
         raise ValueError('expected exact draft identity notice in BUILD.md')
     build = build.replace(old_identity, new_identity)
+    build += (
+        "\n\n### Preserve build outputs before source receipt collection\n\n"
+        "Build only from the registered agent-owned G checkout after recording its clean HEAD, index tree, "
+        "and worktree tree. Before Gradle runs, expand and verify this exact generated-path set is absent: "
+        "`.gradle/`, `.kotlin/`, `.cxx/`, root `build/`, `app/build/`, and each included module's `build/` "
+        "under `core/*`, `core-gms/*`, `lib/*`, and `feature/*`, plus `screener/build/`, `lintchecks/build/`, "
+        "and `fast-lint/build/`. Record the expanded paths. After the unsigned APK and required reports are complete, copy "
+        "the APK, reports, build log, exact command, and tool-version record to the separate receipt directory "
+        "outside the G checkout. Then remove only the recorded paths that were absent before the build and "
+        "were created by that build. Do not remove `local.properties`, source files, pre-existing paths, or "
+        "anything with `git clean`. Finally verify HEAD, index tree, and tracked worktree tree still equal "
+        "the recorded G commit/tree, and verify there are no untracked or modified source paths before running "
+        "the strict source receipt collector. Keep the copied APK and reports outside the checkout.\n"
+    )
     properties = properties_raw.decode()
     old_properties_notice = '# DRAFT proposal only; not reserved. Direct Android builds remain blocked.'
     new_properties_notice = ('# Release candidate identity; 177703 is held. Bind the actual unsigned manifest '

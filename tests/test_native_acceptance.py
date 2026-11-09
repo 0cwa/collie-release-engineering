@@ -288,6 +288,65 @@ def receipt_fixture(bundle_path):
     return plan, journal, native_raw, source_native, run, approval_raw, bundle_path
 
 
+def retained_receipt_directory_fixture(directory, bundle_path):
+    """Write a complete synthetic retained-run directory for the real loader chain."""
+    plan, journal, native_raw, source_native, _, approval_raw, _ = receipt_fixture(bundle_path)
+    evidence = retained_dispatch_fixture()
+    evidence['approval_raw'] = approval_raw
+    bundle_digest, bundle_size, _ = acceptance.inspect_input_bundle(bundle_path)
+    dispatch = evidence['dispatch_inputs']
+    dispatch['bundle_sha256'] = bundle_digest
+    dispatch['bundle_bytes'] = bundle_size
+    dispatch['candidate_approval_member'] = {
+        'path': 'actual-approval.json', 'bytes': len(approval_raw), 'sha256': sha(approval_raw)}
+    dispatch['dispatch_inputs_as_passed_by_executed_controller']['bundle_sha256'] = bundle_digest
+    dispatch['release'].update(asset_bytes=bundle_size, asset_digest='sha256:' + bundle_digest)
+    dispatch['controller_sha256_at_dispatch'] = sha(
+        evidence['controller_raw'].replace(b'.size==123 ', f'.size=={bundle_size} '.encode()))
+    evidence['controller_raw'] = evidence['controller_raw'].replace(
+        b'.size==123 ', f'.size=={bundle_size} '.encode())
+    evidence['prepare_log_raw'] = evidence['prepare_log_raw'].replace(
+        b'EXPECTED_SHA256: ' + b'b' * 64, b'EXPECTED_SHA256: ' + bundle_digest.encode())
+    evidence['release_metadata']['assets'][0].update(
+        size=bundle_size, digest='sha256:' + bundle_digest)
+    evidence['pre_dispatch_inventory'] = {
+        'captured_at': '2026-11-09T09:59:30Z',
+        'runs': [{'id': 1, 'status': 'completed', 'conclusion': 'failure'}],
+        'deployments': [{'id': 2, 'state': 'success'}],
+        'expected_run_ids': [1], 'expected_deployment_ids': [2],
+    }
+    for job in evidence['jobs']:
+        if job['name'] == 'prepare':
+            job.update(startedAt='2026-11-09T10:00:30Z', completedAt='2026-11-09T10:03:00Z')
+        elif job['name'] == 'final-readback':
+            job.update(startedAt='2026-11-09T10:07:00Z', completedAt='2026-11-09T10:09:00Z')
+    evidence['artifact_metadata']['artifacts'][0]['workflow_run'] = {
+        'id': evidence['run']['id'], 'head_sha': POLICY}
+    evidence['plan'] = plan
+
+    directory.mkdir(parents=True)
+    values = {
+        'actual-approval.json': approval_raw,
+        'actual-dispatch-inputs.json': (json.dumps(dispatch, indent=2) + '\n').encode(),
+        'published-release-asset.json': (json.dumps(evidence['release_metadata'], indent=2) + '\n').encode(),
+        'controller-at-dispatch.sh': evidence['controller_raw'],
+        'prepare-safe-log.txt': evidence['prepare_log_raw'],
+        'run.json': (json.dumps(evidence['run'], indent=2) + '\n').encode(),
+        'jobs.json': (json.dumps(evidence['jobs'], indent=2) + '\n').encode(),
+        'artifact-metadata.json': (json.dumps(evidence['artifact_metadata'], indent=2) + '\n').encode(),
+        'control/plan.json': (json.dumps(plan, indent=2) + '\n').encode(),
+        'control/journal.json': (json.dumps(journal, indent=2) + '\n').encode(),
+        'pre-dispatch-inventory.json': (json.dumps(evidence['pre_dispatch_inventory'], indent=2) + '\n').encode(),
+    }
+    for relative, raw in values.items():
+        path = directory / relative
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(raw)
+    index = ''.join(f'{sha(raw)}  {relative}\n' for relative, raw in sorted(values.items()))
+    (directory / 'evidence-sha256.txt').write_text(index)
+    return native_raw, source_native
+
+
 class NativeAcceptanceTests(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory(prefix='native-approval-fixture-')
@@ -352,6 +411,59 @@ class NativeAcceptanceTests(unittest.TestCase):
             acceptance.validate(plan, changed, native_raw, native_files, proof, POLICY)
         with self.assertRaisesRegex(ValueError, 'composition proof does not match'):
             acceptance.validate(plan, journal, native_raw, native_files, proof, 'd' * 40)
+
+    def test_retained_directory_to_composition_and_source_transition_end_to_end(self):
+        directory = Path(self.temp.name) / 'run-4001'
+        native_raw, source_native = retained_receipt_directory_fixture(directory, self.fixture[6])
+        evidence = acceptance.load_run_evidence(directory)
+        proof = acceptance.validate_retained_evidence(
+            evidence, native_raw, source_native, POLICY, self.fixture[6])
+        self.assertEqual(acceptance.validate(
+            evidence['plan'], evidence['journal'], native_raw, source_native, proof, POLICY), proof)
+
+        state = {'schema': 1, 'status': 'BLOCKED', 'repository': acceptance.NATIVE_REPOSITORY,
+                 'publication_status': 'NOT PUBLISHED', 'reason': 'synthetic fixture only',
+                 'lock': 'native-lock.json', 'production_version_floor': 177702}
+        gradle = ('before\nthrow GradleException("Direct Android builds BLOCKED: publish and verify locked native inputs first; see BUILD.md")\n')
+        workflow_line = """run: python3 -c 'import json; x=json.load(open("build-inputs/native-publication.json")); assert x["status"] == "BLOCKED"; print("Direct Android build acceptance BLOCKED pending public immutable native inputs; this source check is not build approval")'"""
+        build = ("**Direct build readiness: BLOCKED.**\n"
+                 "Every direct Android Gradle configuration deliberately fails until the required publication layer\n"
+                 "and clean-checkout build acceptance are reviewed. This draft is not releasable.\n"
+                 "The expected command; it is currently BLOCKED as described above.\n"
+                 "The direct-build gate remains closed until the owner refreshes the\n"
+                 "inventory and confirms this proposal through the serialized reservation policy.\n"
+                 "accepted native bytes. Their public immutable repository has not been supplied\n"
+                 "or independently downloaded. `native-publication.json` records this gap. Do not\n"
+                 "substitute upstream native libraries or disable strict dependency verification.\n"
+                 "The retained local operator route is in collie-release-engineering and still\n"
+                 "requires its explicit trusted-local native acceptance. That is not independent\n"
+                 "native reproduction. The three locked binaries and transformed POMs now have tracked exclusive repository, catalog, substitutions and strict verification entries. The proposed origin in build-inputs/native-artifacts.json is NOT PUBLISHED. Obtain operator publication approval, independently read back all six exact files, review a separate acceptance/gate layer, then run a fresh controlled Gradle build. No native init script, local Maven lookup or external native source includeBuild is part of this direct-source recipe.\n"
+                 "**DRAFT candidate proposal:** 8.35.1-2-rc1 / 177703. This value is not allocated\n"
+                 "or reserved. The direct-build gate remains bound to the recorded native acceptance digest. Version reservation\n"
+                 "and release eligibility remain separate requirements.")
+        properties = ('# DRAFT proposal only; not reserved. Direct Android builds remain blocked.\n'
+                      'releaseVersionCode=177703\nreleaseVersionName=8.35.1-2-rc1\n')
+        outputs, _ = acceptance.transition_outputs(
+            json.dumps(state).encode(), gradle.encode(), workflow_line.encode(), build.encode(),
+            properties.encode(), proof)
+        self.assertEqual(json.loads(outputs['build-inputs/native-publication.json'])['status'], 'ACCEPTED')
+        self.assertIn(b'Preserve build outputs before source receipt collection', outputs['BUILD.md'])
+
+        journal_path = directory / 'control/journal.json'
+        journal = json.loads(journal_path.read_bytes())
+        path = next(iter(journal['readbacks']['phase2']))
+        journal['readbacks']['phase2'][path]['sha256'] = '0' * 64
+        journal_raw = (json.dumps(journal, indent=2) + '\n').encode()
+        journal_path.write_bytes(journal_raw)
+        index_path = directory / 'evidence-sha256.txt'
+        rows = {line.split('  ', 1)[1]: line.split('  ', 1)[0]
+                for line in index_path.read_text().splitlines()}
+        rows['control/journal.json'] = sha(journal_raw)
+        index_path.write_text(''.join(f'{rows[name]}  {name}\n' for name in sorted(rows)))
+        tampered = acceptance.load_run_evidence(directory)
+        with self.assertRaisesRegex(ValueError, 'readback differs'):
+            acceptance.validate_retained_evidence(
+                tampered, native_raw, source_native, POLICY, self.fixture[6])
 
     def test_n1_requires_actual_approval_member_and_canonical_digest(self):
         with self.assertRaisesRegex(ValueError, 'approval input is not'):
@@ -573,6 +685,12 @@ class NativeAcceptanceTests(unittest.TestCase):
         self.assertNotIn('proposed origin in build-inputs/native-artifacts.json is NOT PUBLISHED', accepted_build)
         self.assertIn('177703 is held', output['gradle.properties'].decode())
         self.assertNotIn('not reserved', output['gradle.properties'].decode())
+        accepted_build = output['BUILD.md'].decode()
+        self.assertIn('app/build', accepted_build)
+        self.assertIn('`core/*`, `core-gms/*`, `lib/*`, and `feature/*`', accepted_build)
+        self.assertIn('`.gradle/`, `.kotlin/`, `.cxx/`, root `build/`', accepted_build)
+        self.assertIn('Do not remove `local.properties`', accepted_build)
+        self.assertIn('Do not remove `local.properties`, source files, pre-existing paths, or anything with `git clean`', accepted_build)
         self.assertEqual(evidence, proof['source_evidence'])
 
     def test_tampered_proof_or_inventory_digest_cannot_transition_blocked_state(self):
