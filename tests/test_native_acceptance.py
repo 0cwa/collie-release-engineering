@@ -113,6 +113,8 @@ class RetainedDispatchAdapterTests(unittest.TestCase):
             lambda e: e['dispatch_inputs']['release'].update(asset_id=9999),
             lambda e: e['dispatch_inputs']['candidate_approval_member'].update(sha256='0' * 64),
             lambda e: e['dispatch_inputs'].update(controller_sha256_at_dispatch='0' * 64),
+            lambda e: (e.update(controller_raw=e['controller_raw'].replace(b'bundle_asset_id="$ASSET_ID"', b'bundle_asset_id=wrong')),
+                       e['dispatch_inputs'].update(controller_sha256_at_dispatch=sha(e['controller_raw']))),
             lambda e: e['dispatch_inputs'].update(value_binding='self-consistent but false'),
             lambda e: e['dispatch_inputs'].update(run_attempt=1),
             lambda e: e['run'].update(id=9999),

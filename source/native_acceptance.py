@@ -344,13 +344,15 @@ def validate_retained_dispatch(evidence, expected_policy, bundle_digest, bundle_
         '[[ "$actual_main" == "$POLICY" ]]',
         'select(.tag_name==$tag and .target_commitish==$policy and .draft==false and .prerelease==true and (.assets|length)==1)',
         'select(.name=="input.tar" and .size==310855680 and .digest==("sha256:"+$sha) and .state=="uploaded")',
-        'sha256sum "$INPUT"', 'gh workflow run pages-release.yml', 'echo "DISPATCH_RUN_ID=$run_id"',
+        'sha256sum "$INPUT"', 'gh workflow run pages-release.yml', 'preparation_mode=feed',
+        'trusted_policy_revision="$POLICY"', 'bundle_asset_id="$ASSET_ID"',
+        'bundle_sha256="$BUNDLE_SHA"', 'echo "DISPATCH_RUN_ID=$run_id"',
     )
     expected_value_binding = ('POLICY was git rev-parse HEAD checked against remote main; ASSET_ID was selected '
                               'from the exact release tag only after matching asset name/size/API digest; '
                               'BUNDLE_SHA was the exact APPROVED_BUNDLE_SHA256 value passed to this controller invocation.')
     if (dispatch['exact_command_template'] != template
-            or dispatch['exact_command_template'] not in text
+            or not ('--repo "$REPO"' in text or f'--repo {REPO}' in text)
             or not all(fragment in text for fragment in required_controller)
             or dispatch['value_binding'] != expected_value_binding):
         raise ValueError('retained controller source does not bind the recorded dispatch inputs')
