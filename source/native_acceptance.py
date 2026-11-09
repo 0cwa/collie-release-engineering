@@ -286,7 +286,7 @@ def validate_retained_dispatch(evidence, expected_policy, bundle_digest, bundle_
     """Bind real controller/API records; GitHub's workflow-run API has no inputs."""
     run = evidence['run']
     exact(run, {'id', 'status', 'conclusion', 'event', 'head_sha', 'run_attempt',
-                'created_at', 'updated_at', 'path', 'workflow_id'},
+                'created_at', 'run_started_at', 'updated_at', 'path', 'workflow_id'},
           'GitHub workflow run record')
     dispatch = evidence['dispatch_inputs']
     dispatch_fields = {'run_id', 'run_attempt', 'run_created_at', 'policy_revision',
@@ -362,7 +362,7 @@ def validate_retained_dispatch(evidence, expected_policy, bundle_digest, bundle_
         'readonly BUNDLE_SHA="$APPROVED_BUNDLE_SHA256"',
         '[[ "$actual_main" == "$POLICY" ]]',
         'select(.tag_name==$tag and .target_commitish==$policy and .draft==false and .prerelease==true and (.assets|length)==1)',
-        'select(.name=="input.tar" and .size==310855680 and .digest==("sha256:"+$sha) and .state=="uploaded")',
+        f'select(.name=="input.tar" and .size=={bundle_size} and .digest==("sha256:"+$sha) and .state=="uploaded")',
         'sha256sum "$INPUT"', 'gh workflow run pages-release.yml', 'preparation_mode=feed',
         'trusted_policy_revision="$POLICY"', 'bundle_asset_id="$ASSET_ID"',
         'bundle_sha256="$BUNDLE_SHA"', 'echo "DISPATCH_RUN_ID=$run_id"',
@@ -409,8 +409,13 @@ def validate_retained_dispatch(evidence, expected_policy, bundle_digest, bundle_
     receipt = receipts[0]
     control = controls[0]
     if (type(receipt.get('id')) is not int or receipt['id'] <= 0
-            or receipt.get('expired') is not False or type(receipt.get('size_in_bytes')) is not int):
+            or receipt.get('expired') is not False or type(receipt.get('size_in_bytes')) is not int
+            or not isinstance(receipt.get('created_at'), str) or not receipt['created_at']):
         raise ValueError('completed receipt artifact metadata invalid')
+    receipt_run = receipt.get('workflow_run')
+    if (not isinstance(receipt_run, dict) or type(receipt_run.get('id')) is not int
+            or receipt_run['id'] != run['id'] or receipt_run.get('head_sha') != run['head_sha']):
+        raise ValueError('completed receipt artifact run binding differs')
     if (type(control.get('id')) is not int or control['id'] <= 0
             or control.get('expired') is not False or type(control.get('size_in_bytes')) is not int
             or control['size_in_bytes'] <= 0):
@@ -423,7 +428,7 @@ def validate_retained_dispatch(evidence, expected_policy, bundle_digest, bundle_
         'repository': REPO, 'workflow_path': WORKFLOW, 'run_id': run['id'],
         'run_attempt': run['run_attempt'], 'head_sha': run['head_sha'], 'event': run['event'],
         'status': run['status'], 'conclusion': run['conclusion'],
-        'attempt_started_at': run['created_at'], 'attempt_completed_at': run['updated_at'],
+        'attempt_started_at': run['run_started_at'], 'attempt_completed_at': run['updated_at'],
         'prepare_job': {'id': by_name['prepare']['id'], 'name': 'prepare',
                         'status': by_name['prepare']['status'], 'conclusion': by_name['prepare']['conclusion'],
                         'started_at': by_name['prepare']['startedAt'], 'completed_at': by_name['prepare']['completedAt']},
@@ -432,7 +437,7 @@ def validate_retained_dispatch(evidence, expected_policy, bundle_digest, bundle_
                                'started_at': by_name['final-readback']['startedAt'],
                                'completed_at': by_name['final-readback']['completedAt']},
         'artifact': {'id': receipt['id'], 'name': ARTIFACT, 'expired': receipt['expired'],
-                     'workflow_run_id': run['id'], 'head_sha': run['head_sha'],
+                     'workflow_run_id': receipt_run['id'], 'head_sha': receipt_run['head_sha'],
                      'created_at': receipt['created_at']},
         'pre_dispatch_inventory': inventory,
     }

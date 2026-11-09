@@ -38,7 +38,7 @@ def retained_dispatch_fixture():
                   'readonly BUNDLE_SHA="$APPROVED_BUNDLE_SHA256"\n'
                   '[[ "$actual_main" == "$POLICY" ]]\n'
                   'select(.tag_name==$tag and .target_commitish==$policy and .draft==false and .prerelease==true and (.assets|length)==1)\n'
-                  'select(.name=="input.tar" and .size==310855680 and .digest==("sha256:"+$sha) and .state=="uploaded")\n'
+                  f'select(.name=="input.tar" and .size=={size} and .digest==("sha256:"+$sha) and .state=="uploaded")\n'
                   'sha256sum "$INPUT"\n' + template + '\necho "DISPATCH_RUN_ID=$run_id"\n').encode()
     approval = b'{"synthetic":true}\n'
     log = (f'ASSET_ID: {asset_id}\nEXPECTED_SHA256: {bundle_digest}\n'
@@ -79,12 +79,14 @@ def retained_dispatch_fixture():
         'controller_raw': controller, 'prepare_log_raw': log,
         'run': {'id': run_id, 'status': 'completed', 'conclusion': 'success',
                 'event': 'workflow_dispatch', 'head_sha': POLICY, 'run_attempt': 2,
-                'created_at': '2026-11-09T10:00:00Z', 'updated_at': '2026-11-09T10:10:00Z',
+                'created_at': '2026-11-09T10:00:00Z', 'run_started_at': '2026-11-09T10:00:00Z',
+                'updated_at': '2026-11-09T10:10:00Z',
                 'path': acceptance.WORKFLOW, 'workflow_id': 1},
         'jobs': jobs,
         'artifact_metadata': {'artifacts': [
             {'id': 9001, 'name': acceptance.ARTIFACT, 'expired': False, 'size_in_bytes': 1,
-             'created_at': '2026-11-09T10:08:00Z'},
+             'created_at': '2026-11-09T10:08:00Z',
+             'workflow_run': {'id': run_id, 'head_sha': POLICY}},
             {'id': 9002, 'name': 'collie-pages-control', 'expired': False, 'size_in_bytes': 1}]},
         'pre_dispatch_inventory': {'captured_at': '2026-11-09T09:59:30Z', 'runs': [],
                                    'deployments': [], 'expected_run_ids': [1],
@@ -104,6 +106,39 @@ class RetainedDispatchAdapterTests(unittest.TestCase):
         self.assertEqual(run['run_attempt'], 2)
         self.assertEqual(binding['input_asset_id'], 7501)
         self.assertFalse(self.evidence['dispatch_inputs']['provider_event_payload_exposes_inputs'])
+
+    def test_controller_filter_matches_the_measured_bundle_size(self):
+        acceptance.validate_retained_dispatch(self.evidence, POLICY, 'b' * 64, 123, self.evidence['plan'])
+        evidence=copy.deepcopy(self.evidence)
+        evidence['controller_raw']=evidence['controller_raw'].replace(b'.size==123 ',b'.size==310855680 ')
+        evidence['dispatch_inputs']['controller_sha256_at_dispatch']=sha(evidence['controller_raw'])
+        with self.assertRaisesRegex(ValueError,'controller source does not bind'):
+            acceptance.validate_retained_dispatch(evidence, POLICY, 'b' * 64, 123, evidence['plan'])
+
+    def test_rerun_identity_uses_current_attempt_start_not_initial_creation(self):
+        evidence=copy.deepcopy(self.evidence)
+        evidence['run']['created_at']='2026-11-09T09:00:00Z'
+        evidence['dispatch_inputs']['run_created_at']='2026-11-09T09:00:00Z'
+        identity,_=acceptance.validate_retained_dispatch(evidence, POLICY, 'b' * 64, 123, evidence['plan'])
+        self.assertEqual(identity['attempt_started_at'],'2026-11-09T10:00:00Z')
+        del evidence['run']['run_started_at']
+        with self.assertRaisesRegex(ValueError,'workflow run record fields differ'):
+            acceptance.validate_retained_dispatch(evidence, POLICY, 'b' * 64, 123, evidence['plan'])
+
+    def test_receipt_artifact_has_its_own_run_identity_and_creation_time(self):
+        mutations=(
+            lambda item:item['workflow_run'].update(id=9999),
+            lambda item:item['workflow_run'].update(id=True),
+            lambda item:item['workflow_run'].update(head_sha='f'*40),
+            lambda item:item.pop('workflow_run'),
+            lambda item:item.pop('created_at'),
+            lambda item:item.update(created_at=None),
+        )
+        for mutate in mutations:
+            evidence=copy.deepcopy(self.evidence)
+            mutate(evidence['artifact_metadata']['artifacts'][0])
+            with self.subTest(mutate=mutate),self.assertRaises(ValueError):
+                acceptance.validate_retained_dispatch(evidence, POLICY, 'b' * 64, 123, evidence['plan'])
 
     def test_current_controller_shape_needs_no_plan_hash_at_dispatch(self):
         evidence = copy.deepcopy(self.evidence)
