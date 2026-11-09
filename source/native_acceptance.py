@@ -821,7 +821,7 @@ def transition_outputs(state_raw, gradle_raw, workflow_raw, build_raw, proof):
     if build.count(old_task) != 1:
         raise ValueError('expected exact blocked canonical-task explanation in BUILD.md')
     build = build.replace(old_task, 'native input acceptance is recorded above; source build and runtime acceptance remain required.')
-    old_version = ("The direct-build gate remains closed until the owner refreshes\n"
+    old_version = ("The direct-build gate remains closed until the owner refreshes the\n"
                    "the inventory and confirms this proposal through the serialized reservation policy.")
     new_version = ("The direct-build gate remains bound to the recorded native acceptance digest. Version reservation\n"
                    "and release eligibility remain separate requirements.")
