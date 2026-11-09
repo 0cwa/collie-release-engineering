@@ -32,12 +32,14 @@ Official references, inspected for this implementation:
 
 Python3.12.14 and hash-pinned fdroidserver2.4.5 remain verification tools; APK/index
 signing is outside Pages. Official action commits are pinned in both workflows.
-The official upload-pages-artifact@v3 composite invokes a floating nested
-upload-artifact@v4, so this adapter creates the equivalent artifact.tar and directly
-pins upload-artifact@v4. The archive contains only regular files, with deterministic
-order/mode/uid/gid/mtime, no symlinks/hardlinks and verified per-file bytes. Hosted
-Pages deployment compatibility is NOT RUN until separately approved activation;
-local tar structure/digests and official format requirements were checked.
+The production workflow uses the official upload-pages-artifact composite at an
+immutable commit, with `include-hidden-files: true` to preserve any approved hidden
+paths if present. The approved native-only inventory has 15 paths and does not
+include `.nojekyll`. Its nested upload-artifact action is also pinned in that composite.
+Local policy preparation still audits each exact site manifest and archive; the
+wrapper differential changes only artifact construction and retains the same
+per-file payloads. Hosted Pages deployment compatibility remains NOT RUN until a
+separately approved activation.
 
 ## Trusted approved input bundle
 
@@ -107,9 +109,11 @@ preflight as a provider-level conditional-write transaction.
    exposing the new active entry. APK bytes are stored once at canonical URLs.
 3. The operator approves the protected phase1 deployment. Fresh canonical URL
    read-back checks every expected hash/size, including new APK and index previews,
-   and records observed Cache-Control/ETag/Last-Modified/Age. Cached404, mixed bytes
-   or interrupted requests do not advance the journal. Retry the same prepared
-   plan; do not rebuild or re-sign the APK.
+   and records observed Cache-Control/ETag/Last-Modified/Age/X-Cache. Preflight sends
+   no-cache revalidation headers and uses HEAD responses for fresh absence checks;
+   existing expected files are GET-hashed. It rejects nonzero Age, `X-Cache: HIT`,
+   or an HTTPS downgrade. Cached404, mixed bytes or interrupted requests do not
+   advance the journal. Retry the same prepared plan; do not rebuild or re-sign APK.
 4. Only successful phase1 read-back permits the separately protected phase2 job.
    It publishes the same immutable assets with the newly signed active indexes and
    approved landing. Final read-back checks the complete snapshot again. Public
@@ -132,9 +136,14 @@ main-only and disabled until the independently approved repository variable
 COLLIE_PAGES_PRODUCTION_ENABLED is explicitly set. Dispatch must name the exact
 reviewed main policy commit and independently approved public data asset ID/hash.
 The preparation job has no deployment/index-signing credentials and does not
-execute candidate code. Deployment jobs execute only the pinned official deploy
-Pages action with pages:write/id-token:write, through github-pages; read-back jobs
-have contents:read and no protected environment credentials.
+execute candidate code. Deployment jobs keep pages:write/id-token:write on the
+github-pages environment and use the artifact ID emitted by the pinned official
+Pages uploader to create a deployment through GitHub's documented Pages API. The
+local poller obtains its OIDC token from the Actions runtime, polls until success,
+a terminal failure, interruption, or its 30-minute deadline, and cancels pending
+deployments on interruption, repeated API errors, or that final deadline. It never
+prints either token. Read-back jobs have contents:read and no protected environment
+credentials; phase2 remains gated on the complete phase1 canonical read-back.
 
 Before enabling, provision and inspect: Pages Actions source, correct custom
 hostname/TLS, domain verification, github-pages required independent reviewers,

@@ -1,6 +1,8 @@
 import copy,hashlib,io,json,tarfile,tempfile,unittest
+from email.message import Message
 from pathlib import Path
 from unittest.mock import patch
+from urllib.error import HTTPError
 import binary_repo as b
 import pages as p
 
@@ -73,6 +75,57 @@ class PagesArchiveHeaderTests(unittest.TestCase):
             target=site/name;target.parent.mkdir(parents=True);target.write_bytes(content)
             manifest={name:{'bytes':len(content),'sha256':hashlib.sha256(content).hexdigest()}}
             with self.assertRaises(ValueError):p.archive(site,root/'unsupported.tar',manifest)
+
+class PagesFreshInventoryTests(unittest.TestCase):
+    def test_observe_head_requests_fresh_headers_for_absence(self):
+        url='https://repo.collie.im/native-inputs/example'
+        headers=Message();headers['Age']='0';headers['X-Cache']='MISS'
+        error=HTTPError(url,404,'Not Found',headers,None)
+        with patch('urllib.request.urlopen',side_effect=error) as opened:
+            result=p.observe_head(url)
+        request=opened.call_args.args[0]
+        self.assertEqual(request.get_method(),'HEAD')
+        self.assertEqual(request.get_header('Cache-control'),'no-cache, no-store')
+        self.assertEqual(result['status'],404)
+        self.assertEqual(result['headers']['X-Cache'],'MISS')
+
+    def test_observe_requests_revalidation_and_rejects_stale_cache_responses(self):
+        url='https://repo.collie.im/native-inputs/example'
+        headers=Message();headers['Age']='0';headers['X-Cache']='MISS'
+        error=HTTPError(url,404,'Not Found',headers,None)
+        with patch('urllib.request.urlopen',side_effect=error) as opened:
+            result=p.observe(url)
+        request=opened.call_args.args[0]
+        self.assertEqual(request.get_header('Cache-control'),'no-cache, no-store')
+        self.assertEqual(request.get_header('Pragma'),'no-cache')
+        self.assertEqual(result['status'],404)
+        self.assertEqual(result['headers']['X-Cache'],'MISS')
+
+        stale_headers=Message();stale_headers['Age']='1920';stale_headers['X-Cache']='MISS'
+        stale=HTTPError(url,404,'Not Found',stale_headers,None)
+        with patch('urllib.request.urlopen',side_effect=stale):
+            with self.assertRaisesRegex(ValueError,'not a fresh canonical inventory'):
+                p.observe(url)
+
+        hit_headers=Message();hit_headers['Age']='0';hit_headers['X-Cache']='HIT'
+        hit=HTTPError(url,404,'Not Found',hit_headers,None)
+        with patch('urllib.request.urlopen',side_effect=hit):
+            with self.assertRaisesRegex(ValueError,'not a fresh canonical inventory'):
+                p.observe(url)
+
+        downgraded=HTTPError('http://repo.collie.im/native-inputs/example',404,'Not Found',headers,None)
+        with patch('urllib.request.urlopen',side_effect=downgraded):
+            with self.assertRaisesRegex(ValueError,'HTTPS readback required'):
+                p.observe(url)
+
+    def test_observe_rejects_unknown_age(self):
+        url='https://repo.collie.im/native-inputs/example'
+        for age in ('unknown',''):
+            headers=Message();headers['Age']=age;headers['X-Cache']='MISS'
+            error=HTTPError(url,404,'Not Found',headers,None)
+            with self.subTest(age=age),patch('urllib.request.urlopen',side_effect=error):
+                with self.assertRaisesRegex(ValueError,'freshness is unknown'):
+                    p.observe(url)
 
 class PagesTest(unittest.TestCase):
     def setUp(self):
@@ -214,6 +267,24 @@ class NativePagesTest(unittest.TestCase):
             site=self.output/phase/'site';text=(site/'index.html').read_text();self.assertIn('not active',text);self.assertIn('native inputs',text);self.assertNotIn('signed index',text);self.assertNotIn('fdroidrepos:',text);self.assertFalse((site/'fdroid').exists());self.assertFalse((site/'add-repository.svg').exists())
             self.assertEqual({n:e for n,e in plan['manifests'][phase].items() if n.startswith('native-inputs/')},files)
         self.assertEqual(plan['artifacts']['phase1'],plan['artifacts']['phase2'])
+    def test_initial_native_preflight_uses_fresh_absence_heads(self):
+        self.add_native(only=True);plan=self.prepare();journal=self.output/'journal.json';seen=[]
+        def head(url):seen.append(url);return {'status':404,'headers':{'Age':'0','X-Cache':'MISS'}}
+        def fetch(_url):self.fail('GET should not be used to establish fresh 404 absence')
+        p.preflight(plan,journal,fetch=fetch,head=head)
+        self.assertEqual(len(seen),8)
+        self.assertTrue(b.load(journal)['previous_verified'])
+    def test_native_head_200_requires_exact_get_hash_before_preflight(self):
+        self.add_native(only=True);plan=self.prepare();journal=self.output/'journal.json';fetched=[]
+        def head(url):
+            if '/native-inputs/' in url:return {'status':200,'headers':{'Age':'0','X-Cache':'MISS'}}
+            return {'status':404,'headers':{'Age':'0','X-Cache':'MISS'}}
+        def fetch(url):
+            name=url.removeprefix(plan['origin']);fetched.append(name)
+            return dict(plan['manifests']['phase1'][name],status=200,headers={'Age':'0','X-Cache':'MISS'})
+        p.preflight(plan,journal,fetch=fetch,head=head)
+        self.assertEqual(set(fetched),{name for name in plan['manifests']['phase1'] if name.startswith('native-inputs/')})
+        self.assertTrue(b.load(journal)['previous_verified'])
     def test_native_feed_both_phases_same_six_files(self):
         files=self.add_native();plan=self.prepare()
         for phase in ('phase1','phase2'):self.assertEqual({n:e for n,e in plan['manifests'][phase].items() if n.startswith('native-inputs/')},files)

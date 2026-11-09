@@ -29,6 +29,8 @@ jobs:
   prepare:
     outputs:
       mode: ${{ steps.prepare.outputs.mode }}
+      phase1_artifact_id: ${{ steps['phase1-upload'].outputs.artifact_id }}
+      phase2_artifact_id: ${{ steps['phase2-upload'].outputs.artifact_id }}
     # Disabled until separately approved Pages/environment provisioning. PRs and
     # non-main dispatches have no path to these jobs; no pull_request_target.
     if: github.ref == 'refs/heads/main' && vars.COLLIE_PAGES_PRODUCTION_ENABLED == 'true'
@@ -81,20 +83,22 @@ jobs:
               cp "$RUNNER_TEMP/inputs/$name" "$RUNNER_TEMP/control/activation/"
             done
           fi
-      # Direct official artifact action pin avoids upload-pages-artifact's nested
-      # floating action ref. artifact.tar is checked for links, hashes and size.
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+      # Official Pages wrapper constructs the artifact.tar expected by deploy-pages.
+      # Include any approved hidden paths without changing the prepared inventory.
+      - uses: actions/upload-pages-artifact@5f327015a708106f6f1b7c9a633901af30fe80cb
+        id: phase1-upload
         if: inputs.preparation_mode == 'feed'
         with:
           name: collie-pages-phase1
-          path: ${{ runner.temp }}/pages/phase1/artifact.tar
-          if-no-files-found: error
+          path: ${{ runner.temp }}/pages/phase1/site
+          include-hidden-files: true
           retention-days: 30
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+      - uses: actions/upload-pages-artifact@5f327015a708106f6f1b7c9a633901af30fe80cb
+        id: phase2-upload
         with:
           name: collie-pages-phase2
-          path: ${{ runner.temp }}/pages/phase2/artifact.tar
-          if-no-files-found: error
+          path: ${{ runner.temp }}/pages/phase2/site
+          include-hidden-files: true
           retention-days: 30
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
@@ -107,19 +111,31 @@ jobs:
     needs: prepare
     runs-on: ubuntu-24.04
     permissions:
+      contents: read
       pages: write
       id-token: write
     environment:
       name: github-pages
       url: ${{ steps.deploy.outputs.page_url }}
     steps:
-      - uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e # v4
-        id: deploy
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
-          artifact_name: collie-pages-phase1
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: '3.12.14'
+      - name: Deploy phase 1 and poll until success or final deadline
+        id: deploy
+        env:
+          ARTIFACT_ID: ${{ needs.prepare.outputs.phase1_artifact_id }}
+          GITHUB_TOKEN: ${{ github.token }}
+        run: python distribution/deploy_pages.py --artifact-id "$ARTIFACT_ID" --timeout-seconds 1800
   phase1-readback:
     if: ${{ !cancelled() && needs.prepare.result == 'success' && (needs.phase1.result == 'success' || needs.prepare.outputs.mode == 'activate-links') }}
     needs: [prepare, phase1]
+    outputs:
+      phase2_artifact_id: ${{ needs.prepare.outputs.phase2_artifact_id }}
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
@@ -146,16 +162,26 @@ jobs:
     needs: phase1-readback
     runs-on: ubuntu-24.04
     permissions:
+      contents: read
       pages: write
       id-token: write
     environment:
       name: github-pages
       url: ${{ steps.deploy.outputs.page_url }}
     steps:
-      - uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e # v4
-        id: deploy
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
-          artifact_name: collie-pages-phase2
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: '3.12.14'
+      - name: Deploy phase 2 and poll until success or final deadline
+        id: deploy
+        env:
+          ARTIFACT_ID: ${{ needs['phase1-readback'].outputs.phase2_artifact_id }}
+          GITHUB_TOKEN: ${{ github.token }}
+        run: python distribution/deploy_pages.py --artifact-id "$ARTIFACT_ID" --timeout-seconds 1800
   final-readback:
     if: ${{ !cancelled() && needs.phase2.result == 'success' }}
     needs: phase2
