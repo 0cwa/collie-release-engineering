@@ -169,6 +169,36 @@ def verify_release_metadata(repo, tree):
         raise ValueError('current publication producer omitted the explicit DRAFT version proposal or direct-build gate')
 
 
+def apply_toolchain_layer(repo, stage, tree, application_base):
+    manifest = load_json(ROOT / 'source/layers/temurin-21.0.13.json')
+    expected_paths = ['.tool-versions', 'BUILD.md', 'Dockerfile']
+    if (manifest.get('schema') != 1 or manifest.get('kind') != 'feature-layer'
+            or manifest.get('paths') != expected_paths
+            or manifest.get('application_base_commit') != application_base):
+        raise ValueError('Temurin toolchain layer does not bind the reviewed application base')
+    patch_path = ROOT / manifest['patch']
+    patch = patch_path.read_bytes()
+    if hashlib.sha256(patch).hexdigest() != manifest.get('patch_sha256'):
+        raise ValueError('Temurin toolchain patch digest differs')
+    for path in expected_paths:
+        before = manifest.get('before', {}).get(path, {})
+        mode, kind, oid, _ = tree_blob(repo, tree, path)
+        content = git(repo, 'cat-file', 'blob', oid)
+        if (mode != '100644' or kind != 'blob' or oid != before.get('blob')
+                or hashlib.sha256(content).hexdigest() != before.get('sha256')):
+            raise ValueError('Temurin layer preimage changed: ' + path)
+    patch_sha256, changed = apply_patch(stage, patch_path, manifest['patch_sha256'], expected_paths)
+    after_tree = git(stage, 'write-tree').decode().strip()
+    for path in expected_paths:
+        expected = manifest.get('after', {}).get(path, {})
+        mode, kind, oid, _ = tree_blob(repo, after_tree, path)
+        content = git(repo, 'cat-file', 'blob', oid)
+        if (mode != '100644' or kind != 'blob' or oid != expected.get('blob')
+                or hashlib.sha256(content).hexdigest() != expected.get('sha256')):
+            raise ValueError('Temurin layer output differs: ' + path)
+    return after_tree, patch_sha256, changed, manifest
+
+
 def verify_ordinary_pr_policy(repo, tree, stage):
     workflow = git(repo, 'show', f'{tree}:.github/workflows/source.yml').decode()
     if 'pull_request' not in workflow or 'workflow_dispatch' not in workflow:
@@ -392,6 +422,12 @@ def compose(repo, checkpoint_repo, stage, engineering, plan_path,
         for path in security_manifest['policy']['template_paths'])
     record('feature', security_manifest['name'], before, tree,
            f'Canonical renderer {security_manifest["policy"]["renderer"]} from {security_manifest["policy"]["origin"]} at immutable revision {security_manifest["policy"]["revision"]}; renderer Git blob {security_manifest["policy"]["renderer_blob"]}, SHA-256 {security_manifest["policy"]["renderer_sha256"]}; template Git blobs/SHA-256 {template_inputs}; static output patch SHA-256 {security_hash}. Actions analysis only; Java/Kotlin/native source not run.')
+
+    before = tree
+    tree, toolchain_hash, toolchain_paths, toolchain_manifest = apply_toolchain_layer(
+        repo, stage, tree, current_main)
+    record('feature', toolchain_manifest['name'], before, tree,
+           f"Official Temurin {toolchain_manifest['java']} release alignment. Docker Hub amd64 manifest {toolchain_manifest['image']['manifest_digest']}; setup-java-supported tool-version syntax. Static source patch SHA-256 {toolchain_hash}; paths {sorted(toolchain_paths)}. Image metadata inspected only; no image pull or run.")
 
     plan['old_main'] = current_main
     plan['layers'] = retained_layers + records

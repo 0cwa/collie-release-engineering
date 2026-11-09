@@ -1,0 +1,25 @@
+diff --git a/.tool-versions b/.tool-versions
+index 4e8b348..e1165d5 100644
+--- a/.tool-versions
++++ b/.tool-versions
+@@ -1 +1 @@
+-java openjdk-21.0.2
++java temurin-21.0.13+9
+diff --git a/BUILD.md b/BUILD.md
+index f0cfe39..bc594c4 100644
+--- a/BUILD.md
++++ b/BUILD.md
+@@ -6,2 +6,4 @@ This checkout contains the reconstructed application source; Gradle does not run
+-an assembler or inject source from another worktree. JDK/Gradle/SDK/NDK and strict
+-dependency inputs are declared in this tree. Canonical identity is im.collie.app,
++an assembler or inject source from another worktree. Its JDK is Eclipse Temurin
++21.0.13+9: `.tool-versions` pins that release and `Dockerfile` pins the matching
++official Linux/amd64 image by digest. Gradle/SDK/NDK and strict dependency inputs
++are also declared in this tree. Canonical identity is im.collie.app,
+diff --git a/Dockerfile b/Dockerfile
+index aad3588..114ac33 100644
+--- a/Dockerfile
++++ b/Dockerfile
+@@ -1 +1 @@
+-FROM docker.io/eclipse-temurin:21.0.11_10-jdk-alpine-3.23@sha256:4ec2402e5ebb803add08b063b9e5e52e7c11961caaae1f490479d925753f0d92 AS base
++FROM docker.io/eclipse-temurin:21.0.13_9-jdk-alpine-3.23@sha256:f1d8aa86ba3a2a7119b157df01d1832281cd122989cddb46bc86a9f49f99cc42 AS base

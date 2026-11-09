@@ -1,0 +1,59 @@
+{
+  "schema": 1,
+  "kind": "feature-layer",
+  "name": "Align the declared JDK with verified Temurin 21.0.13+9",
+  "patch": "source/layers/temurin-21.0.13.patch",
+  "patch_sha256": "4dda4249ebcaa7ce69aafac73876c959c41b40dcd1298fe459740ff220297e71",
+  "paths": [
+    ".tool-versions",
+    "BUILD.md",
+    "Dockerfile"
+  ],
+  "before": {
+    ".tool-versions": {
+      "blob": "4e8b348598d6189630bcbc1fa96f1f9d2e09c118",
+      "sha256": "298ce167c6dea0a22471d1146b91ce21399f567c2887315c93e7bc0d91a03762"
+    },
+    "BUILD.md": {
+      "blob": "f0cfe39cbdcf6030e6ac276a79a8f8c06aa42c36",
+      "sha256": "eca398d092e622feb460ec5d2d7fdb79602fbd03bd5fce28ccc7cc5a6e5437c8"
+    },
+    "Dockerfile": {
+      "blob": "aad3588bc4593e887c5cfa7953617370447dcc43",
+      "sha256": "1a733851f11654681b76165766d1cd8cf12ab973a48e8a28e5673c492feca398"
+    }
+  },
+  "after": {
+    ".tool-versions": {
+      "blob": "e1165d522b8d2ca75072b8964cc5de87a2c3592a",
+      "sha256": "0e0b74cd9e72c066be30b5dc9d6f9f9017d2ff87a6c9f3f967bbcdef08d500db"
+    },
+    "BUILD.md": {
+      "blob": "bc594c4571b9a4c7b0dcbb9e223ead108e9bf231",
+      "sha256": "28b8d70f5cf49a3422abeab956fcc4d9ac49912e48d93138086aa36baee584b4"
+    },
+    "Dockerfile": {
+      "blob": "114ac3358449426c41220ca4dd4153bf7c10e2aa",
+      "sha256": "dffa7ddd2bfdd83bcd78193fc5fc3b041eb121f57f11b26eb0cbcc22d5a09ebe"
+    }
+  },
+  "java": "Eclipse Temurin 21.0.13+9",
+  "image": {
+    "reference": "docker.io/eclipse-temurin:21.0.13_9-jdk-alpine-3.23",
+    "architecture": "linux/amd64",
+    "manifest_digest": "sha256:f1d8aa86ba3a2a7119b157df01d1832281cd122989cddb46bc86a9f49f99cc42",
+    "compressed_size_bytes": 183852221
+  },
+  "provenance": [
+    "Official Docker Hub API tag metadata for library/eclipse-temurin:21.0.13_9-jdk-alpine-3.23; checked 2026-11-09. The amd64 image manifest digest exactly matches the Dockerfile @sha256 convention already used by the pinned 21.0.11+10 image.",
+    "Official setup-java version-file documentation supports the asdf-java Temurin prefix format, e.g. java temurin-17.0.3+7, which is the same .tool-versions syntax used here.",
+    "Prepared local JDK and retained test evidence use Eclipse Temurin 21.0.13+9; this source layer aligns patch-level identity without claiming the Docker image was pulled or run."
+  ],
+  "references": [
+    "https://hub.docker.com/v2/repositories/library/eclipse-temurin/tags/21.0.13_9-jdk-alpine-3.23",
+    "https://hub.docker.com/_/eclipse-temurin/tags?name=21",
+    "https://github.com/actions/setup-java/blob/main/docs/advanced-usage.md",
+    "https://github.com/adoptium/containers/blob/main/21/jdk/alpine/3.23/Dockerfile"
+  ],
+  "application_base_commit": "f636568af237afa0161700a09b94b09f2b70d6f6"
+}
