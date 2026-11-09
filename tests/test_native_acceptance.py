@@ -507,7 +507,7 @@ class NativeAcceptanceTests(unittest.TestCase):
                  "and clean-checkout build acceptance are reviewed. This draft is not releasable.\n"
                  "The expected command; it is currently BLOCKED as described above.\n"
                  "The direct-build gate remains closed until the owner refreshes the\n"
-                 "the inventory and confirms this proposal through the serialized reservation policy.")
+                 "inventory and confirms this proposal through the serialized reservation policy.")
         output, evidence = acceptance.transition_outputs(json.dumps(state).encode(), gradle.encode(),
                                                          workflow.encode(), build.encode(), proof)
         result = json.loads(output['build-inputs/native-publication.json'])
