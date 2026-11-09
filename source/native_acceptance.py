@@ -350,6 +350,7 @@ def validate_retained_dispatch(evidence, expected_policy, bundle_digest, bundle_
                               'from the exact release tag only after matching asset name/size/API digest; '
                               'BUNDLE_SHA was the exact APPROVED_BUNDLE_SHA256 value passed to this controller invocation.')
     if (dispatch['exact_command_template'] != template
+            or dispatch['exact_command_template'] not in text
             or not all(fragment in text for fragment in required_controller)
             or dispatch['value_binding'] != expected_value_binding):
         raise ValueError('retained controller source does not bind the recorded dispatch inputs')
@@ -385,9 +386,14 @@ def validate_retained_dispatch(evidence, expected_policy, bundle_digest, bundle_
     if len(receipts) != 1 or len(controls) != 1:
         raise ValueError('successful completed-receipt and control artifacts required')
     receipt = receipts[0]
+    control = controls[0]
     if (type(receipt.get('id')) is not int or receipt['id'] <= 0
             or receipt.get('expired') is not False or type(receipt.get('size_in_bytes')) is not int):
         raise ValueError('completed receipt artifact metadata invalid')
+    if (type(control.get('id')) is not int or control['id'] <= 0
+            or control.get('expired') is not False or type(control.get('size_in_bytes')) is not int
+            or control['size_in_bytes'] <= 0):
+        raise ValueError('retained control artifact metadata invalid')
 
     inventory = evidence['pre_dispatch_inventory']
     exact(inventory, {'captured_at', 'runs', 'deployments', 'expected_run_ids', 'expected_deployment_ids'},

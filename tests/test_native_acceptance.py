@@ -112,9 +112,12 @@ class RetainedDispatchAdapterTests(unittest.TestCase):
             lambda e: e['dispatch_inputs']['dispatch_inputs_as_passed_by_executed_controller'].update(bundle_sha256='f' * 64),
             lambda e: e['dispatch_inputs']['release'].update(asset_id=9999),
             lambda e: e['dispatch_inputs']['candidate_approval_member'].update(sha256='0' * 64),
+            lambda e: e['dispatch_inputs'].update(controller_sha256_at_dispatch='0' * 64),
+            lambda e: e['dispatch_inputs'].update(value_binding='self-consistent but false'),
             lambda e: e['dispatch_inputs'].update(run_attempt=1),
             lambda e: e['run'].update(id=9999),
             lambda e: e['run'].update(run_attempt=1),
+            lambda e: e.update(prepare_log_raw=b'wrong preparation record'),
             lambda e: e['jobs'][-1].update(conclusion='skipped'),
         )
         for mutate in mutations:
