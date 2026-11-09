@@ -203,19 +203,38 @@ def prepare(bundle,output,expected_policy):
 
 def observe(url):
     import urllib.error
+    request=urllib.request.Request(url,headers={'Cache-Control':'no-cache, no-store','Pragma':'no-cache'})
+
+    def fresh_headers(headers):
+        values={k:headers.get(k) for k in ('Cache-Control','ETag','Last-Modified','Age','X-Cache')}
+        age=values['Age']
+        if age not in (None,''):
+            try:
+                age_value=int(age)
+            except ValueError:
+                raise ValueError('invalid Age header; canonical inventory freshness is unknown') from None
+            if age_value!=0:raise ValueError('cached response is not a fresh canonical inventory')
+        if re.search(r'\bhit\b',values['X-Cache'] or '',re.IGNORECASE):
+            raise ValueError('cached response is not a fresh canonical inventory')
+        return values
+
     try:
-        response=urllib.request.urlopen(url,timeout=60)
+        response=urllib.request.urlopen(request,timeout=60)
     except urllib.error.HTTPError as error:
         if error.code==404:
-            headers={k:error.headers.get(k) for k in ('Cache-Control','ETag','Last-Modified','Age')}
-            error.close();return {'status':404,'headers':headers}
+            try:
+                if not error.geturl().startswith('https://'):raise ValueError('HTTPS readback required')
+                headers=fresh_headers(error.headers)
+            finally:error.close()
+            return {'status':404,'headers':headers}
         raise
     with response:
         if not response.geturl().startswith('https://'):raise ValueError('HTTPS readback required')
         if response.status!=200:raise ValueError('readback not200')
+        headers=fresh_headers(response.headers)
         h=hashlib.sha256();size=0
         for block in iter(lambda:response.read(1024*1024),b''):h.update(block);size+=len(block)
-        return {'status':200,'sha256':h.hexdigest(),'bytes':size,'headers':{k:response.headers.get(k) for k in ('Cache-Control','ETag','Last-Modified','Age')}}
+        return {'status':200,'sha256':h.hexdigest(),'bytes':size,'headers':headers}
 
 def preflight(plan,journal_path,*,fetch=observe):
     if plan['origin']!=ORIGIN:raise ValueError('unapproved origin')

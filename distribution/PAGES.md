@@ -109,9 +109,10 @@ preflight as a provider-level conditional-write transaction.
    exposing the new active entry. APK bytes are stored once at canonical URLs.
 3. The operator approves the protected phase1 deployment. Fresh canonical URL
    read-back checks every expected hash/size, including new APK and index previews,
-   and records observed Cache-Control/ETag/Last-Modified/Age. Cached404, mixed bytes
-   or interrupted requests do not advance the journal. Retry the same prepared
-   plan; do not rebuild or re-sign the APK.
+   and records observed Cache-Control/ETag/Last-Modified/Age/X-Cache. Preflight sends
+   no-cache revalidation headers and rejects nonzero Age, `X-Cache: HIT`, or an
+   HTTPS downgrade. Cached404, mixed bytes or interrupted requests do not advance
+   the journal. Retry the same prepared plan; do not rebuild or re-sign the APK.
 4. Only successful phase1 read-back permits the separately protected phase2 job.
    It publishes the same immutable assets with the newly signed active indexes and
    approved landing. Final read-back checks the complete snapshot again. Public

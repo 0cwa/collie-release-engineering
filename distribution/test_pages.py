@@ -1,6 +1,8 @@
 import copy,hashlib,io,json,tarfile,tempfile,unittest
+from email.message import Message
 from pathlib import Path
 from unittest.mock import patch
+from urllib.error import HTTPError
 import binary_repo as b
 import pages as p
 
@@ -33,6 +35,38 @@ class PagesArchiveHeaderTests(unittest.TestCase):
             with self.subTest(name=name):
                 info=tarfile.TarInfo(name);info.size=size;info.mode=0o644;info.mtime=0
                 encoded=info.tobuf(p.ARCHIVE_FORMAT)
+
+class PagesFreshInventoryTests(unittest.TestCase):
+    def test_observe_requests_revalidation_and_rejects_stale_cache_responses(self):
+        url='https://repo.collie.im/native-inputs/example'
+        headers=Message();headers['Age']='0';headers['X-Cache']='MISS'
+        error=HTTPError(url,404,'Not Found',headers,None)
+        with patch('urllib.request.urlopen',side_effect=error) as opened:
+            result=p.observe(url)
+        request=opened.call_args.args[0]
+        self.assertEqual(request.get_header('Cache-control'),'no-cache, no-store')
+        self.assertEqual(request.get_header('Pragma'),'no-cache')
+        self.assertEqual(result['status'],404)
+        self.assertEqual(result['headers']['X-Cache'],'MISS')
+
+        stale_headers=Message();stale_headers['Age']='1920';stale_headers['X-Cache']='HIT'
+        stale=HTTPError(url,404,'Not Found',stale_headers,None)
+        with patch('urllib.request.urlopen',side_effect=stale):
+            with self.assertRaisesRegex(ValueError,'not a fresh canonical inventory'):
+                p.observe(url)
+
+        downgraded=HTTPError('http://repo.collie.im/native-inputs/example',404,'Not Found',headers,None)
+        with patch('urllib.request.urlopen',side_effect=downgraded):
+            with self.assertRaisesRegex(ValueError,'HTTPS readback required'):
+                p.observe(url)
+
+    def test_observe_rejects_unknown_age(self):
+        url='https://repo.collie.im/native-inputs/example'
+        headers=Message();headers['Age']='unknown';headers['X-Cache']='MISS'
+        error=HTTPError(url,404,'Not Found',headers,None)
+        with patch('urllib.request.urlopen',side_effect=error):
+            with self.assertRaisesRegex(ValueError,'freshness is unknown'):
+                p.observe(url)
                 self.assertEqual(len(encoded),512)
                 self.assertEqual(encoded[156:157],tarfile.REGTYPE)
                 stored_name=encoded[0:100].split(b'\0',1)[0].decode('ascii')
