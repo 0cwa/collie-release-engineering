@@ -5,6 +5,7 @@ An approval is the externally supplied SHA-256 of the complete plan. This tool
 cannot approve its own plan. Run with the trusted verifier revision, without secrets.
 """
 import argparse
+from datetime import datetime, timezone
 import hashlib
 import json
 import os
@@ -14,6 +15,9 @@ import subprocess
 import commit_messages
 
 SHA = re.compile(r'[0-9a-f]{40}\Z')
+HISTORICAL_PUBLICATION_TIMESTAMP = '2000-01-01T00:00:00Z'
+PLAN_V1_FIELDS = {'schema', 'signal', 'old_main', 'reconstructed_tree', 'layers', 'final_tree'}
+PLAN_V2_FIELDS = PLAN_V1_FIELDS | {'publication_timestamp'}
 
 
 def environment():
@@ -23,17 +27,15 @@ def environment():
                GIT_AUTHOR_NAME='Collie Source Publication',
                GIT_AUTHOR_EMAIL='source-publication@collie.im',
                GIT_COMMITTER_NAME='Collie Source Publication',
-               GIT_COMMITTER_EMAIL='source-publication@collie.im',
-               GIT_AUTHOR_DATE='2000-01-01T00:00:00Z',
-               GIT_COMMITTER_DATE='2000-01-01T00:00:00Z')
+               GIT_COMMITTER_EMAIL='source-publication@collie.im')
     return env
 
 
-def git(repo, *args, data=None):
+def git(repo, *args, data=None, env=None):
     command = ['git', '-C', str(repo), '-c', 'core.hooksPath=/dev/null',
                '-c', 'core.fsmonitor=false', '-c', 'commit.gpgSign=false', *args]
     return subprocess.run(command, input=data, stdout=subprocess.PIPE,
-                          check=True, env=environment()).stdout
+                          check=True, env=environment() if env is None else env).stdout
 
 
 def oid(value):
@@ -71,11 +73,31 @@ def tree(repo, revision):
     return git(repo, 'rev-parse', oid(revision) + '^{tree}').decode().strip()
 
 
-def commit(repo, tree_id, parents, message):
+def validate_publication_timestamp(value, *, allow_historical=False):
+    if not isinstance(value, str):
+        raise ValueError('publication timestamp must be UTC RFC3339 text')
+    try:
+        parsed = datetime.strptime(value, '%Y-%m-%dT%H:%M:%SZ').replace(tzinfo=timezone.utc)
+    except ValueError as error:
+        raise ValueError('publication timestamp must be UTC RFC3339 text') from error
+    if parsed.strftime('%Y-%m-%dT%H:%M:%SZ') != value:
+        raise ValueError('publication timestamp must use canonical UTC seconds')
+    if value == HISTORICAL_PUBLICATION_TIMESTAMP and not allow_historical:
+        raise ValueError('new publication cannot use the historical fixture timestamp')
+    return value
+
+
+def commit(repo, tree_id, parents, message, *, publication_timestamp=None, historical=False):
     args = ['commit-tree', oid(tree_id)]
     for parent in parents:
         args += ['-p', oid(parent)]
-    return git(repo, *args, data=message.encode()).decode().strip()
+    env = environment()
+    if publication_timestamp is not None:
+        publication_timestamp = validate_publication_timestamp(
+            publication_timestamp, allow_historical=historical)
+        env.update(GIT_AUTHOR_DATE=publication_timestamp,
+                   GIT_COMMITTER_DATE=publication_timestamp)
+    return git(repo, *args, data=message.encode(), env=env).decode().strip()
 
 
 def unique_object(pairs):
@@ -92,8 +114,14 @@ def load_plan(raw):
 
 
 def validate_plan(plan):
-    if set(plan) != {'schema', 'signal', 'old_main', 'reconstructed_tree', 'layers', 'final_tree'} or type(plan['schema']) is not int or plan['schema'] != 1:
+    if not isinstance(plan, dict) or type(plan.get('schema')) is not int:
         raise ValueError('unknown or missing publication-plan fields')
+    if ((plan['schema'] == 1 and set(plan) != PLAN_V1_FIELDS)
+            or (plan['schema'] == 2 and set(plan) != PLAN_V2_FIELDS)
+            or plan['schema'] not in (1, 2)):
+        raise ValueError('unknown or missing publication-plan fields')
+    if plan['schema'] == 2:
+        validate_publication_timestamp(plan['publication_timestamp'])
     for key in ('signal', 'old_main', 'reconstructed_tree', 'final_tree'):
         oid(plan[key])
     if not isinstance(plan['layers'], list) or not plan['layers']:
@@ -127,7 +155,8 @@ def verify_user_files(repo,published,application_base):
             raise ValueError('published user-facing content differs from approved application base: '+name)
 
 
-def publish(repo, path, approved_digest, expected_main, *, messages=None, approved_messages_sha256=None, historical_messages=False):
+def publish(repo, path, approved_digest, expected_main, *, messages=None, approved_messages_sha256=None,
+            historical_messages=False, historical_publication=False):
     plain(repo)
     raw = path.read_bytes()
     if hashlib.sha256(raw).hexdigest() != approved_digest:
@@ -142,6 +171,13 @@ def publish(repo, path, approved_digest, expected_main, *, messages=None, approv
         wording=commit_messages.validate(json.loads(message_raw,object_pairs_hook=unique_object),plan,approved_digest)
     if oid(expected_main) != plan['old_main']:
         raise ValueError('current base differs from approved base')
+    historical = historical_publication or historical_messages
+    if plan['schema'] == 1:
+        if not historical:
+            raise ValueError('new publication plan must bind a publication_timestamp')
+        publication_timestamp = HISTORICAL_PUBLICATION_TIMESTAMP
+    else:
+        publication_timestamp = plan['publication_timestamp']
     if tree(repo, plan['signal']) != plan['layers'][0]['before_tree']:
         raise ValueError('first layer does not start at exact Signal tree')
     verify_user_files(repo,plan['final_tree'],plan['old_main'])
@@ -155,23 +191,44 @@ def publish(repo, path, approved_digest, expected_main, *, messages=None, approv
         message = (layer['name'] + '\n\nComposite/generated publication layer. Original authorship and decisions:\n'
                    + layer['provenance'] + '\n')
         if wording is not None:message=commit_messages.message({k:wording['layers'][index][k] for k in ('subject','body')})
-        parent = commit(repo, layer['after_tree'], [parent], message)
+        parent = commit(repo, layer['after_tree'], [parent], message,
+                        publication_timestamp=publication_timestamp,
+                        historical=plan['schema'] == 1)
         outputs.append(parent)
     generated = parent
     integration = commit(repo, plan['final_tree'], [plan['old_main'], generated],
-                         commit_messages.message(wording['integration']) if wording is not None else 'Integrate reviewed Collie published source tree\n')
-    verify(repo, plan, generated, integration, expected_main, messages=wording)
+                         commit_messages.message(wording['integration']) if wording is not None else 'Integrate reviewed Collie published source tree\n',
+                         publication_timestamp=publication_timestamp,
+                         historical=plan['schema'] == 1)
+    verify(repo, plan, generated, integration, expected_main, messages=wording,
+           publication_timestamp=publication_timestamp, historical=plan['schema'] == 1)
     return {'source_commit': generated, 'source_tree': plan['final_tree'],
             'integration_commit': integration, 'old_main': plan['old_main'],
             'layer_commits': outputs, 'plan_sha256': approved_digest, 'messages_sha256':approved_messages_sha256}
 
 
-def verify(repo, plan, generated, integration, expected_main, *, messages=None):
+def verify(repo, plan, generated, integration, expected_main, *, messages=None,
+           publication_timestamp=None, historical=False):
     plain(repo)
     validate_plan(plan)
     verify_user_files(repo,plan['final_tree'],plan['old_main'])
     if expected_main != plan['old_main']:
         raise ValueError('stale base')
+    publication_timestamp = publication_timestamp or plan.get('publication_timestamp')
+    expected_epoch = None
+    if publication_timestamp is not None:
+        validate_publication_timestamp(publication_timestamp, allow_historical=historical)
+        expected_epoch = str(int(datetime.strptime(publication_timestamp, '%Y-%m-%dT%H:%M:%SZ')
+                                 .replace(tzinfo=timezone.utc).timestamp()))
+
+    def check_timestamp(revision):
+        actual = git(repo, 'show', '-s', '--format=%at%x00%ct', oid(revision)).decode().strip().split('\x00')
+        if actual != [expected_epoch, expected_epoch]:
+            raise ValueError('generated commit dates differ from approved publication timestamp')
+
+    if expected_epoch is not None:
+        check_timestamp(generated)
+        check_timestamp(integration)
     if tree(repo, generated) != plan['final_tree'] or tree(repo, integration) != plan['final_tree']:
         raise ValueError('complete final tree differs')
     parents = git(repo, 'show', '-s', '--format=%P', oid(integration)).decode().split()
@@ -184,6 +241,8 @@ def verify(repo, plan, generated, integration, expected_main, *, messages=None):
     cursor = generated
     for index in reversed(range(len(plan['layers']))):
         layer=plan['layers'][index]
+        if expected_epoch is not None:
+            check_timestamp(cursor)
         if messages is not None:
             actual=git(repo,'cat-file','commit',cursor).split(b'\n\n',1)[1]
             expected=commit_messages.message({k:messages['layers'][index][k] for k in ('subject','body')}).encode()
@@ -224,5 +283,10 @@ if __name__ == '__main__':
     selection.add_argument('--messages',type=Path)
     selection.add_argument('--historical-messages',action='store_true',help='reproduce already-published historical candidate wording only')
     parser.add_argument('--approved-messages-sha256')
+    parser.add_argument('--historical-publication', action='store_true',
+                        help='replay a schema-1 publication plan with its original fixture timestamp')
     args = parser.parse_args()
-    print(json.dumps(publish(args.repo, args.plan, args.approved_plan_sha256, args.current_main, messages=args.messages, approved_messages_sha256=args.approved_messages_sha256, historical_messages=args.historical_messages), indent=2))
+    print(json.dumps(publish(args.repo, args.plan, args.approved_plan_sha256, args.current_main,
+                             messages=args.messages, approved_messages_sha256=args.approved_messages_sha256,
+                             historical_messages=args.historical_messages,
+                             historical_publication=args.historical_publication), indent=2))

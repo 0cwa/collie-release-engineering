@@ -41,6 +41,31 @@ class PublicationTests(unittest.TestCase):
         self.assertEqual(a, b)
         self.assertEqual(m.tree(self.repo, a['source_commit']), self.final)
         self.assertEqual(m.git(self.repo, 'ls-tree', a['source_commit']), m.git(self.repo, 'ls-tree', self.final))
+        for revision in [*a['layer_commits'], a['source_commit'], a['integration_commit']]:
+            dates = m.git(self.repo, 'show', '-s', '--format=%at%x00%ct', revision).decode().strip()
+            self.assertEqual(dates.split('\x00'), ['946684800', '946684800'])
+
+    def test_approved_publication_timestamp_is_deterministic_and_tree_preserving(self):
+        timestamp = '2026-11-09T12:43:27Z'
+        self.plan.update(schema=2, publication_timestamp=timestamp)
+        with patch.dict(os.environ, {
+            'GIT_AUTHOR_DATE': '1999-12-31T23:59:59Z',
+            'GIT_COMMITTER_DATE': '1999-12-31T23:59:59Z',
+        }):
+            a = self.generate()
+            b = self.generate()
+        self.assertEqual(a, b)
+        self.assertEqual(m.tree(self.repo, a['source_commit']), self.final)
+        self.assertEqual(m.tree(self.repo, a['integration_commit']), self.final)
+        generated = [*a['layer_commits'], a['source_commit'], a['integration_commit']]
+        for revision in generated:
+            raw = m.git(self.repo, 'show', '-s', '--format=%aI%x00%cI', revision).decode().strip()
+            self.assertEqual(raw.split('\x00'), [timestamp, timestamp])
+
+    def test_schema2_rejects_historical_fixture_timestamp(self):
+        self.plan.update(schema=2, publication_timestamp='2000-01-01T00:00:00Z')
+        with self.assertRaisesRegex(ValueError, 'historical fixture timestamp'):
+            m.validate_plan(self.plan)
 
     def test_tampered_plan(self):
         self.path.write_text(json.dumps(self.plan))

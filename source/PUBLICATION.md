@@ -10,13 +10,21 @@ currently a draft until public native inputs and direct build acceptance pass.
 2. Pin a complete publication plan: exact official Signal commit, current
    application main, all complete intermediate trees, reconstruction endpoint,
    standalone-build and publication overlays, and complete final tree. A plan
-   contains no generated commit hash, avoiding a self-reference.
+   contains no generated commit hash, avoiding a self-reference. New plans use
+   schema 2 and include a canonical UTC `publication_timestamp`; the timestamp
+   is covered by the approved plan digest and supplies the author and committer
+   dates for each generated publication commit. Ambient `GIT_*_DATE` values are
+   ignored. Schema 1 plans remain available for historical replay only; replay
+   them with `--historical-publication` (or the explicit historical-message
+   mode) to preserve their original fixture timestamp.
 3. A trusted operator/verifier outside the candidate computes and approves the
    plan file SHA-256 and re-reads current remote main. Run the trusted revision of
    `source/publish.py --repo REPLAY --plan PLAN --approved-plan-sha256 SHA256
    --current-main CURRENT`. Candidate jobs receive no credentials and cannot
    supply their own trusted verifier/policy. The tool produces deterministic G
    and I, where I has parents [old main, G] and its complete tree equals G.
+   Candidate verification also checks generated commit dates against a schema 2
+   plan's approved timestamp.
 4. Review every path in `git diff OLD_MAIN I` and `git diff SIGNAL G`. Full-tree
    equality includes binary files, modes and symlinks; directory allowlists are
    not evidence of equality. Composite layers use explicit generated authorship
