@@ -507,9 +507,19 @@ class NativeAcceptanceTests(unittest.TestCase):
                  "and clean-checkout build acceptance are reviewed. This draft is not releasable.\n"
                  "The expected command; it is currently BLOCKED as described above.\n"
                  "The direct-build gate remains closed until the owner refreshes the\n"
-                 "inventory and confirms this proposal through the serialized reservation policy.")
+                 "inventory and confirms this proposal through the serialized reservation policy.\n"
+                 "accepted native bytes. Their public immutable repository has not been supplied\n"
+                 "or independently downloaded. `native-publication.json` records this gap. Do not\n"
+                 "substitute upstream native libraries or disable strict dependency verification.\n"
+                 "The retained local operator route is in collie-release-engineering and still\n"
+                 "requires its explicit trusted-local native acceptance. That is not independent\n"
+                 "native reproduction. The three locked binaries and transformed POMs now have tracked exclusive repository, catalog, substitutions and strict verification entries. The proposed origin in build-inputs/native-artifacts.json is NOT PUBLISHED. Obtain operator publication approval, independently read back all six exact files, review a separate acceptance/gate layer, then run a fresh controlled Gradle build. No native init script, local Maven lookup or external native source includeBuild is part of this direct-source recipe.\n"
+                 "**DRAFT candidate proposal:** 8.35.1-2-rc1 / 177703. This value is not allocated\n"
+                 "or reserved. The direct-build gate remains bound to the recorded native acceptance digest. Version reservation\n"
+                 "and release eligibility remain separate requirements.")
+        properties = '# DRAFT proposal only; not reserved. Direct Android builds remain blocked.\nreleaseVersionCode=177703\nreleaseVersionName=8.35.1-2-rc1\n'
         output, evidence = acceptance.transition_outputs(json.dumps(state).encode(), gradle.encode(),
-                                                         workflow.encode(), build.encode(), proof)
+                                                         workflow.encode(), build.encode(), properties.encode(), proof)
         result = json.loads(output['build-inputs/native-publication.json'])
         self.assertEqual(result['status'], 'ACCEPTED')
         gradle_result = output['app/build.gradle.kts'].decode()
@@ -519,7 +529,15 @@ class NativeAcceptanceTests(unittest.TestCase):
         workflow_result = output['.github/workflows/source.yml'].decode()
         self.assertIn('x.get("status") in ("BLOCKED","ACCEPTED")', workflow_result)
         self.assertIn('operation_inventory_sha256', workflow_result)
-        self.assertIn('Direct build readiness: ACCEPTED', output['BUILD.md'].decode())
+        accepted_build = output['BUILD.md'].decode()
+        self.assertIn('Direct build readiness: ACCEPTED', accepted_build)
+        self.assertIn('both readback phases verified all 15 canonical HTTPS paths', accepted_build)
+        self.assertIn('this does not claim origin verification or cryptographic GitHub attestation', accepted_build)
+        self.assertIn('Version code 177703 is held', accepted_build)
+        self.assertNotIn('public immutable repository has not been supplied', accepted_build)
+        self.assertNotIn('proposed origin in build-inputs/native-artifacts.json is NOT PUBLISHED', accepted_build)
+        self.assertIn('177703 is held', output['gradle.properties'].decode())
+        self.assertNotIn('not reserved', output['gradle.properties'].decode())
         self.assertEqual(evidence, proof['source_evidence'])
 
     def test_tampered_proof_or_inventory_digest_cannot_transition_blocked_state(self):

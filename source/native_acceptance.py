@@ -776,9 +776,10 @@ def transition_native_state(raw_state, proof):
     return (json.dumps(updated, indent=2) + '\n').encode(), source_evidence
 
 
-def transition_outputs(state_raw, gradle_raw, workflow_raw, build_raw, proof):
+def transition_outputs(state_raw, gradle_raw, workflow_raw, build_raw, properties_raw, proof):
     """Return the exact app files changed by a validated proof."""
-    state_raw, gradle_raw, workflow_raw, build_raw = map(bytes, (state_raw, gradle_raw, workflow_raw, build_raw))
+    state_raw, gradle_raw, workflow_raw, build_raw, properties_raw = map(
+        bytes, (state_raw, gradle_raw, workflow_raw, build_raw, properties_raw))
     updated_state, source_evidence = transition_native_state(state_raw, proof)
     gradle = gradle_raw.decode()
     old_guard = 'throw GradleException("Direct Android builds BLOCKED: publish and verify locked native inputs first; see BUILD.md")'
@@ -828,11 +829,55 @@ def transition_outputs(state_raw, gradle_raw, workflow_raw, build_raw, proof):
     if build.count(old_version) != 1:
         raise ValueError('expected exact blocked version proposal explanation in BUILD.md')
     build = build.replace(old_version, new_version)
+    old_native_notice = ("accepted native bytes. Their public immutable repository has not been supplied\n"
+                         "or independently downloaded. `native-publication.json` records this gap. Do not\n"
+                         "substitute upstream native libraries or disable strict dependency verification.")
+    new_native_notice = (
+        f"accepted native bytes. Policy run {proof['run_id']} attempt {proof['run_attempt']} completed; "
+        "both readback phases verified all 15 canonical HTTPS paths by response body size and SHA-256. "
+        "The retained pre-dispatch snapshot and receipt are bound by the evidence digest below. "
+        "`previous_verified=false` records the authorized first-publication recovery classification; "
+        "this does not claim origin verification or cryptographic GitHub attestation. Do not\n"
+        "substitute upstream native libraries or disable strict dependency verification.\n"
+        f"Native evidence SHA-256: `{proof['evidence_sha256']}`.")
+    if build.count(old_native_notice) != 1:
+        raise ValueError('expected exact stale native publication notice in BUILD.md')
+    build = build.replace(old_native_notice, new_native_notice)
+    old_repository_notice = ("The retained local operator route is in collie-release-engineering and still\n"
+                             "requires its explicit trusted-local native acceptance. That is not independent\n"
+                             "native reproduction. The three locked binaries and transformed POMs now have tracked exclusive repository, catalog, substitutions and strict verification entries. The proposed origin in build-inputs/native-artifacts.json is NOT PUBLISHED. Obtain operator publication approval, independently read back all six exact files, review a separate acceptance/gate layer, then run a fresh controlled Gradle build. No native init script, local Maven lookup or external native source includeBuild is part of this direct-source recipe.")
+    new_repository_notice = (
+        "The six exact pinned native files were published to the immutable repository and independently "
+        "read back in both completed phases. The retained local operator route is separate and was not "
+        "used to establish this acceptance. The source binds the receipt's run, policy, asset, manifest, "
+        "journal, dispatch and plan digests as trusted local consistency evidence; it is not a cryptographic "
+        "GitHub attestation or an origin-verification claim. No native init script, local Maven lookup or "
+        "external native source includeBuild is part of this direct-source recipe.")
+    if build.count(old_repository_notice) != 1:
+        raise ValueError('expected exact stale repository notice in BUILD.md')
+    build = build.replace(old_repository_notice, new_repository_notice)
+    old_identity = ("**DRAFT candidate proposal:** 8.35.1-2-rc1 / 177703. This value is not allocated\n"
+                    "or reserved. The direct-build gate remains bound to the recorded native acceptance digest. Version reservation\n"
+                    "and release eligibility remain separate requirements.")
+    new_identity = ("**Release candidate identity:** 8.35.1-2-rc1 / 177703. Version code 177703 is held; its\n"
+                    "hold must be bound to the actual unsigned manifest before signing. The direct-build gate remains\n"
+                    "bound to the recorded native acceptance digest. Build and runtime acceptance remain required.")
+    if build.count(old_identity) != 1:
+        raise ValueError('expected exact draft identity notice in BUILD.md')
+    build = build.replace(old_identity, new_identity)
+    properties = properties_raw.decode()
+    old_properties_notice = '# DRAFT proposal only; not reserved. Direct Android builds remain blocked.'
+    new_properties_notice = ('# Release candidate identity; 177703 is held. Bind the actual unsigned manifest '
+                             'before signing; native acceptance does not establish release eligibility.')
+    if properties.count(old_properties_notice) != 1:
+        raise ValueError('expected exact draft version notice in gradle.properties')
+    properties = properties.replace(old_properties_notice, new_properties_notice)
     return {
         'build-inputs/native-publication.json': updated_state,
         'app/build.gradle.kts': gradle.encode(),
         '.github/workflows/source.yml': workflow.encode(),
         'BUILD.md': build.encode(),
+        'gradle.properties': properties.encode(),
     }, source_evidence
 
 

@@ -166,11 +166,9 @@ def verify_release_metadata(repo, tree):
     accepted = state.get('status') == 'ACCEPTED'
     gate = b'throw GradleException("Direct Android builds BLOCKED:' in gradle
     if (b'releaseVersionCode and releaseVersionName are normal source-defined Gradle properties' not in build
-            or b'DRAFT candidate proposal:** 8.35.1-2-rc1 / 177703. This value is not allocated' not in build
             or b'providers.gradleProperty("releaseVersionCode")' not in gradle
             or b'providers.gradleProperty("releaseVersionName")' not in gradle
             or b'releaseVersionCode=177703\nreleaseVersionName=8.35.1-2-rc1' not in properties
-            or b'DRAFT proposal only; not reserved' not in properties
             or state.get('status') not in ('BLOCKED', 'ACCEPTED') or not gate):
         raise ValueError('current publication producer omitted version proposal or native build gate')
     if not accepted and 'acceptance' in state:
@@ -191,8 +189,16 @@ def verify_release_metadata(repo, tree):
                         'operation_inventory_sha256', 'input_approval_sha256', 'input_bundle_sha256',
                         'dispatch_binding_sha256', 'plan_sha256', 'workflow_metadata_sha256'))
                 or proof['evidence_sha256'].encode() not in gradle
-                or b'Direct build readiness: ACCEPTED' not in build):
+                or b'Direct build readiness: ACCEPTED' not in build
+                or b'public immutable repository has not been supplied' in build
+                or b'proposed origin in build-inputs/native-artifacts.json is NOT PUBLISHED' in build
+                or b'This value is not allocated' in build
+                or b'177703 is held' not in build
+                or b'177703 is held' not in properties):
             raise ValueError('accepted native state is not bound to its reviewed Gradle/build evidence')
+    elif (b'DRAFT candidate proposal:** 8.35.1-2-rc1 / 177703. This value is not allocated' not in build
+          or b'DRAFT proposal only; not reserved' not in properties):
+        raise ValueError('blocked native state lost its explicitly unreserved draft wording')
 
 
 def apply_toolchain_layer(repo, stage, tree, application_base):
@@ -474,7 +480,9 @@ def compose(repo, checkpoint_repo, stage, engineering, plan_path,
         gradle_raw = git(repo, 'show', f'{tree}:app/build.gradle.kts')
         workflow_raw = git(repo, 'show', f'{tree}:.github/workflows/source.yml')
         build_raw = git(repo, 'show', f'{tree}:BUILD.md')
-        changes, _ = native_acceptance.transition_outputs(state_raw, gradle_raw, workflow_raw, build_raw, proof)
+        properties_raw = git(repo, 'show', f'{tree}:gradle.properties')
+        changes, _ = native_acceptance.transition_outputs(
+            state_raw, gradle_raw, workflow_raw, build_raw, properties_raw, proof)
         for path, raw in changes.items():
             blob = git(repo, 'hash-object', '-w', '--stdin', data=raw).decode().strip()
             git(stage, 'update-index', '--add', '--cacheinfo', f'100644,{blob},{path}')
