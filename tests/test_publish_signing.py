@@ -133,24 +133,63 @@ class PublicationSigningTests(unittest.TestCase):
             [*signed['layer_commits'], signed['integration_commit']])
         self.assertEqual(publish.git(self.repo, 'cat-file', 'commit', self.signal), self.signal_raw)
         verifier = Path(__file__).parents[1] / 'source/verify_candidate.py'
-        output = subprocess.run([
-            sys.executable, str(verifier), '--repo', str(self.repo),
-            '--plan', str(self.plan_path), '--expected-plan-sha256', self.plan_digest,
-            '--current-main', self.old, '--expected-source', signed['source_commit'],
-            '--expected-integration', signed['integration_commit'],
-            '--messages', str(self.messages_path),
-            '--expected-messages-sha256', self.messages_digest,
-            '--signing-public-key', str(self.pub_path),
-            '--expected-signer-fingerprint', self.key['fingerprint'],
-            '--signing-identity-email', self.email,
-            '--allowed-signers', str(self.allowed_signers),
-            '--signing-request', str(self.request_path),
-            '--expected-signing-request-sha256', self.request_result['signing_request_sha256'],
-        ], text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        def verify_with_request(request_path, request_digest):
+            return subprocess.run([
+                sys.executable, str(verifier), '--repo', str(self.repo),
+                '--plan', str(self.plan_path), '--expected-plan-sha256', self.plan_digest,
+                '--current-main', self.old, '--expected-source', signed['source_commit'],
+                '--expected-integration', signed['integration_commit'],
+                '--messages', str(self.messages_path),
+                '--expected-messages-sha256', self.messages_digest,
+                '--signing-public-key', str(self.pub_path),
+                '--expected-signer-fingerprint', self.key['fingerprint'],
+                '--signing-identity-email', self.email,
+                '--allowed-signers', str(self.allowed_signers),
+                '--signing-request', str(request_path),
+                '--expected-signing-request-sha256', request_digest,
+            ], text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+
+        output = verify_with_request(
+            self.request_path, self.request_result['signing_request_sha256'])
         self.assertEqual(output.returncode, 0, output.stderr)
         result = json.loads(output.stdout)
         self.assertEqual(result['status'], 'PASS')
         self.assertEqual(result['signed_generated_commits'], 3)
+
+        substituted_request = json.loads(self.request_path.read_text())
+        substituted_request['unsigned_source'] = self.signal
+        substituted_request['unsigned_integration'] = self.signal
+        substituted_path = self.root / 'substituted-signing-request.json'
+        substituted_raw = (json.dumps(substituted_request, sort_keys=True,
+                                      separators=(',', ':')) + '\n')
+        substituted_path.write_text(substituted_raw)
+        substituted_digest = hashlib.sha256(substituted_raw.encode()).hexdigest()
+        substituted_output = verify_with_request(substituted_path, substituted_digest)
+        self.assertNotEqual(substituted_output.returncode, 0,
+                            'verifier accepted a rehashed request for unrelated upstream OIDs')
+
+        other_plan = json.loads(self.plan_path.read_text())
+        other_plan['layers'][0]['name'] = 'Different valid publication layer'
+        other_plan_path = self.root / 'other-plan.json'
+        other_plan_path.write_text(json.dumps(other_plan, separators=(',', ':')))
+        other_plan_digest = hashlib.sha256(other_plan_path.read_bytes()).hexdigest()
+        other_messages = commit_messages.preview(other_plan, other_plan_digest)
+        other_messages_path = self.root / 'other-messages.json'
+        other_messages_path.write_text(json.dumps(other_messages, separators=(',', ':')))
+        other_messages_digest = hashlib.sha256(other_messages_path.read_bytes()).hexdigest()
+        other_unsigned = publish.publish(
+            self.repo, other_plan_path, other_plan_digest, self.old,
+            messages=other_messages_path, approved_messages_sha256=other_messages_digest)
+        unrelated_request = json.loads(self.request_path.read_text())
+        unrelated_request['unsigned_source'] = other_unsigned['source_commit']
+        unrelated_request['unsigned_integration'] = other_unsigned['integration_commit']
+        unrelated_path = self.root / 'unrelated-valid-signing-request.json'
+        unrelated_raw = json.dumps(unrelated_request, sort_keys=True, separators=(',', ':')) + '\n'
+        unrelated_path.write_text(unrelated_raw)
+        unrelated_digest = hashlib.sha256(unrelated_raw.encode()).hexdigest()
+        unrelated_output = verify_with_request(unrelated_path, unrelated_digest)
+        self.assertNotEqual(unrelated_output.returncode, 0,
+                            'verifier accepted a rehashed request for a valid graph from a different plan')
 
     def test_signing_request_digest_and_wrong_public_key_fail_closed(self):
         with self.assertRaisesRegex(ValueError, 'external operator approval'):

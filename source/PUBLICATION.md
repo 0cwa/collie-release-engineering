@@ -83,8 +83,11 @@ unsigned G/I IDs, public `.pub` selector, and committer name/email. It reserves 
 new signing-request file and reports its SHA-256. Independently review that
 request, then supply the same inputs and that exact digest to the `sign` action.
 The verifier additionally requires the approved message file/digest and signing
-request/digest, so it can check message text and the request's signer, email,
-base, timestamp, and author inventory along with the signed objects. Its
+request/digest. It revalidates the request's unsigned G/I against the same plan,
+messages, base, and timestamp, checks its author inventory, and compares each
+signed commit with its unsigned counterpart for tree, message, author, date, and
+translated parents. Keep the unsigned objects available to the verifier; when
+they are in a separate object store, pass `--unsigned-repo UNSIGNED_REPLAY`. Its
 `allowed-signers` input must contain exactly one entry in the form
 `EMAIL namespaces="git" KEY_TYPE PUBLIC_KEY_DATA` matching the requested public
 key and identity. These are interface placeholders, not key paths or secret
@@ -114,7 +117,9 @@ MESSAGES_SHA256 --signing-public-key SIGNER_PUBLIC_KEY.pub
 --expected-signer-fingerprint SHA256_FINGERPRINT --signing-identity-email
 VERIFIED_OR_NOREPLY_EMAIL --allowed-signers ALLOWED_SIGNERS --signing-request
 SIGNING_REQUEST --expected-signing-request-sha256 APPROVED_REQUEST_SHA256` to
-the read-only `verify_candidate.py` command above. No command in this flow
+the read-only `verify_candidate.py` command above. Add `--unsigned-repo
+UNSIGNED_REPLAY` when the approved unsigned G/I objects are not present in
+`--repo`. No command in this flow
 updates a ref or pushes a commit.
 
 The required MollySocket TLS correction is a feature layer for the next release.

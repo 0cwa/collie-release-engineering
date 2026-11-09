@@ -149,6 +149,11 @@ def sign(repo, *, plan_path, plan_digest, messages_path, messages_digest,
         authors=candidate_authors(repo, plan, unsigned_layers, integration))
     if request != expected:
         raise ValueError('signing request does not bind these exact publication inputs and signer')
+    validate_request_binding(
+        request, plan_digest=plan_digest, messages_digest=messages_digest,
+        current_main=current_main, publication_timestamp=plan['publication_timestamp'],
+        fingerprint=key['fingerprint'], identity=request['committer_email'],
+        repo=repo, plan=plan, wording=wording)
 
     signed_layers = []
     signed_parent = plan['signal']
@@ -189,6 +194,9 @@ def sign(repo, *, plan_path, plan_digest, messages_path, messages_digest,
         fingerprint=key['fingerprint'], identity=request['committer_email'],
         allowed_signers=allowed_signers, expected_authors=request['authors'],
         committer_name=request['committer_name'])
+    signatures.verify_signed_matches_unsigned(
+        repo, repo, plan, source, integration, signed_layers[-1], signed_integration,
+        committer_name=request['committer_name'], committer_email=request['committer_email'])
     return {'source_commit': signed_layers[-1], 'layer_commits': signed_layers,
             'integration_commit': signed_integration,
             'unsigned_source': publish.oid(source),
@@ -200,7 +208,8 @@ def sign(repo, *, plan_path, plan_digest, messages_path, messages_digest,
 
 
 def validate_request_binding(request, *, plan_digest, messages_digest, current_main,
-                             publication_timestamp, fingerprint, identity):
+                             publication_timestamp, fingerprint, identity,
+                             repo=None, plan=None, wording=None):
     if (request['publication_plan_sha256'] != plan_digest
             or request['messages_sha256'] != messages_digest
             or request['current_main'] != publish.oid(current_main)
@@ -208,14 +217,25 @@ def validate_request_binding(request, *, plan_digest, messages_digest, current_m
             or request['signer_fingerprint'] != fingerprint
             or request['committer_email'] != identity):
         raise ValueError('signing request does not bind this plan, base, messages, timestamp, or signer')
-    publish.oid(request['unsigned_source'])
-    publish.oid(request['unsigned_integration'])
+    unsigned_source = publish.oid(request['unsigned_source'])
+    unsigned_integration = publish.oid(request['unsigned_integration'])
     signatures.validate_identity(request['committer_name'], request['committer_email'])
-    if (not isinstance(request['authors'], list) or len(request['authors']) < 2
+    if (not isinstance(request['authors'], list)
+            or (plan is not None and len(request['authors']) != len(plan['layers']) + 1)
+            or (plan is None and len(request['authors']) < 2)
             or any(not isinstance(author, dict) or set(author) != {'name', 'email'}
                    or not isinstance(author['name'], str) or not isinstance(author['email'], str)
                    for author in request['authors'])):
         raise ValueError('signing request author inventory is malformed')
+    if repo is not None or plan is not None:
+        if repo is None or plan is None or wording is None:
+            raise ValueError('unsigned request validation requires repository, plan, and approved messages')
+        publish.verify(repo, plan, unsigned_source, unsigned_integration, current_main,
+                       messages=wording, publication_timestamp=publication_timestamp)
+        layers = signatures.generated_layer_commits(repo, plan, unsigned_source)
+        authors = candidate_authors(repo, plan, layers, unsigned_integration)
+        if authors != request['authors']:
+            raise ValueError('unsigned request author inventory differs from its verified graph')
     return request
 
 

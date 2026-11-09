@@ -16,6 +16,8 @@ parser.add_argument('--expected-plan-sha256', required=True)
 parser.add_argument('--current-main', required=True)
 parser.add_argument('--expected-source', required=True)
 parser.add_argument('--expected-integration', required=True)
+parser.add_argument('--unsigned-repo', type=Path,
+                    help='object store containing the approved unsigned G/I from the signing request; defaults to --repo')
 parser.add_argument('--messages', type=Path)
 parser.add_argument('--expected-messages-sha256')
 parser.add_argument('--signing-public-key', type=Path)
@@ -47,13 +49,13 @@ if any(value is not None for value in signature_args):
         args.expected_plan_sha256)
     request = sign_publication.load_approved_request(
         args.signing_request, args.expected_signing_request_sha256)
+    unsigned_repo = args.unsigned_repo or args.repo
     sign_publication.validate_request_binding(
         request, plan_digest=args.expected_plan_sha256,
         messages_digest=args.expected_messages_sha256, current_main=args.current_main,
         publication_timestamp=plan['publication_timestamp'],
-        fingerprint=args.expected_signer_fingerprint, identity=args.signing_identity_email)
-    if len(request['authors']) != len(plan['layers']) + 1:
-        parser.error('signing request author inventory differs from generated layer count')
+        fingerprint=args.expected_signer_fingerprint, identity=args.signing_identity_email,
+        repo=unsigned_repo, plan=plan, wording=wording)
     publish.verify(args.repo, plan, args.expected_source, args.expected_integration,
                    args.current_main, messages=wording,
                    publication_timestamp=plan['publication_timestamp'])
@@ -62,6 +64,10 @@ if any(value is not None for value in signature_args):
         public_key=args.signing_public_key, fingerprint=args.expected_signer_fingerprint,
         identity=args.signing_identity_email, allowed_signers=args.allowed_signers,
         expected_authors=request['authors'], committer_name=request['committer_name'])
+    signatures.verify_signed_matches_unsigned(
+        unsigned_repo, args.repo, plan, request['unsigned_source'], request['unsigned_integration'],
+        args.expected_source, args.expected_integration,
+        committer_name=request['committer_name'], committer_email=request['committer_email'])
     signature_result = {'signatures':'PASS','signer_fingerprint':args.expected_signer_fingerprint,
                         'signed_generated_commits':len(signed),
                         'signing_request_sha256':args.expected_signing_request_sha256}

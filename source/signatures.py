@@ -104,6 +104,67 @@ def commit_identities(repo, revision):
     return result
 
 
+def commit_record(repo, revision):
+    raw = publish.git(repo, 'cat-file', 'commit', publish.oid(revision))
+    headers, message = raw.split(b'\n\n', 1)
+    record = {'parents': [], 'message': message, 'signed': False}
+    for line in headers.splitlines():
+        if line.startswith(b'tree '):
+            record['tree'] = line[5:].decode()
+        elif line.startswith(b'parent '):
+            record['parents'].append(line[7:].decode())
+        elif line.startswith(b'author '):
+            record['author'] = line
+        elif line.startswith(b'committer '):
+            record['committer'] = line
+        elif line.startswith((b'gpgsig ', b'gpgsig-sha256 ')):
+            record['signed'] = True
+    if not all(key in record for key in ('tree', 'author', 'committer')):
+        raise ValueError('generated commit headers are incomplete')
+    committer = re.fullmatch(rb'committer (.*) <([^<>]+)> ([0-9]+ [+-][0-9]{4})',
+                             record['committer'])
+    if committer is None:
+        raise ValueError('generated committer header is malformed')
+    record['committer_name'] = committer.group(1).decode('utf-8')
+    record['committer_email'] = committer.group(2).decode('utf-8')
+    record['committer_date'] = committer.group(3)
+    return record
+
+
+def verify_signed_matches_unsigned(unsigned_repo, signed_repo, plan,
+                                   unsigned_source, unsigned_integration,
+                                   signed_source, signed_integration, *,
+                                   committer_name, committer_email):
+    """Check that signed generated commits are only the approved signature/committer transform."""
+    unsigned_layers = generated_layer_commits(unsigned_repo, plan, unsigned_source)
+    signed_layers = generated_layer_commits(signed_repo, plan, signed_source)
+    if len(unsigned_layers) != len(signed_layers):
+        raise ValueError('signed and unsigned layer counts differ')
+    previous_unsigned = plan['signal']
+    previous_signed = plan['signal']
+    pairs = list(zip(unsigned_layers, signed_layers))
+    pairs.append((publish.oid(unsigned_integration), publish.oid(signed_integration)))
+    for index, (unsigned_revision, signed_revision) in enumerate(pairs):
+        unsigned = commit_record(unsigned_repo, unsigned_revision)
+        signed = commit_record(signed_repo, signed_revision)
+        if unsigned['signed'] or not signed['signed']:
+            raise ValueError('signed/unsigned generated commit signature state is invalid')
+        if (unsigned['tree'] != signed['tree'] or unsigned['message'] != signed['message']
+                or unsigned['author'] != signed['author']
+                or unsigned['committer_date'] != signed['committer_date']):
+            raise ValueError('signed commit changed approved tree, message, author, or date')
+        if (signed['committer_name'] != committer_name
+                or signed['committer_email'] != committer_email):
+            raise ValueError('signed commit committer differs from approved identity')
+        if index < len(unsigned_layers):
+            if unsigned['parents'] != [previous_unsigned] or signed['parents'] != [previous_signed]:
+                raise ValueError('signed and unsigned layer parents do not correspond')
+            previous_unsigned, previous_signed = unsigned_revision, signed_revision
+        elif (unsigned['parents'] != [plan['old_main'], publish.oid(unsigned_source)]
+              or signed['parents'] != [plan['old_main'], publish.oid(signed_source)]):
+            raise ValueError('signed and unsigned integration parents do not correspond')
+
+
 def verify_generated_signatures(repo, plan, generated, integration, *, public_key,
                                 fingerprint, identity, allowed_signers,
                                 expected_authors=None, committer_name=None):
