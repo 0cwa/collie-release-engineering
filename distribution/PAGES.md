@@ -145,9 +145,13 @@ fails without advancing the journal. A 200 at the unapproved feed sentinel fails
 This classification only permits the already authorized initial phase to proceed.
 It does not satisfy publication acceptance: phase 1 must still return HTTPS 200 and
 exact bytes/SHA for all 15 canonical URLs before phase 2, and phase 2 must pass the
-same full readback. Default existing-inventory checks, stale-journal rejection,
-HTTPS downgrade rejection, deployment/run inventory checks before dispatch, and
-cleanup of the temporary production flag remain fail-closed.
+same full readback. In this exact recovery mode a returned 200 may carry cached
+headers; the readback still GETs and verifies every byte and does not treat cache
+metadata as origin proof. Streaming stops at the planned file size plus one byte
+and never exceeds the 950,000,000-byte site budget. Default existing-inventory
+checks, stale-journal rejection, HTTPS downgrade rejection, deployment/run
+inventory checks before dispatch, and cleanup of the temporary production flag
+remain fail-closed.
 
 ## Workflow permission and activation gate
 
