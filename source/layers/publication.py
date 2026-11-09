@@ -66,9 +66,9 @@ def replace_application_workflows(app):
 
 def apply(app, engineering, previous_application, *, application_base, publication_plan):
     app, engineering, previous_application = map(Path, (app, engineering, previous_application))
-    if subprocess.check_output(['git','-C',str(app),'rev-parse','HEAD^{tree}'],text=True).strip() != RECONSTRUCTED_TREE:
+    if subprocess.check_output(['git','-C',str(app),'rev-parse','HEAD^{tree}'],text=True,env=git_environment()).strip() != RECONSTRUCTED_TREE:
         raise ValueError('publication layer requires exact merged-main reconstruction')
-    if subprocess.check_output(['git','-C',str(app),'status','--porcelain'], text=True).strip():
+    if subprocess.check_output(['git','-C',str(app),'status','--porcelain'], text=True,env=git_environment()).strip():
         raise ValueError('publication layer requires a clean reconstructed checkout')
     apply_outputs(app, engineering, previous_application,
                   application_base=application_base, publication_plan=publication_plan)

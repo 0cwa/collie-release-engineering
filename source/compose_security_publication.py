@@ -79,7 +79,7 @@ def tree_blob(repo, tree, path):
     return entries[0]
 
 
-def apply_patch(stage, patch_path, expected_sha256=None, expected_paths=None):
+def apply_patch(stage, patch_path, expected_sha256=None, expected_paths=None, *, unidiff_zero=False):
     patch = Path(patch_path).read_bytes()
     digest = hashlib.sha256(patch).hexdigest()
     if expected_sha256 is not None and digest != expected_sha256:
@@ -91,9 +91,8 @@ def apply_patch(stage, patch_path, expected_sha256=None, expected_paths=None):
     }
     if expected_paths is not None and names != set(expected_paths):
         raise ValueError('static feature patch path set differs from its manifest')
-    # The Temurin alignment patch intentionally contains zero-context hunks:
-    # its exact preimage and postimage are separately pinned in the manifest.
-    git(stage, 'apply', '--cached', '--binary', '--unidiff-zero', data=patch)
+    options = ['--unidiff-zero'] if unidiff_zero else []
+    git(stage, 'apply', '--cached', '--binary', *options, data=patch)
     return digest, names
 
 
@@ -219,7 +218,7 @@ def apply_toolchain_layer(repo, stage, tree, application_base):
         if (mode != '100644' or kind != 'blob' or oid != before.get('blob')
                 or hashlib.sha256(content).hexdigest() != before.get('sha256')):
             raise ValueError('Temurin layer preimage changed: ' + path)
-    patch_sha256, changed = apply_patch(stage, patch_path, manifest['patch_sha256'], expected_paths)
+    patch_sha256, changed = apply_patch(stage, patch_path, manifest['patch_sha256'], expected_paths, unidiff_zero=True)
     after_tree = git(stage, 'write-tree').decode().strip()
     for path in expected_paths:
         expected = manifest.get('after', {}).get(path, {})

@@ -46,7 +46,10 @@ class SecurityCompositionTests(unittest.TestCase):
                      b'+java temurin-21.0.13+9\n')
             patch_path = repo / 'alignment.patch'
             patch_path.write_bytes(patch)
-            composer.apply_patch(repo, patch_path, hashlib.sha256(patch).hexdigest(), {'.tool-versions'})
+            with self.assertRaises(subprocess.CalledProcessError):
+                composer.apply_patch(repo, patch_path, hashlib.sha256(patch).hexdigest(), {'.tool-versions'})
+            self.assertEqual(subprocess.check_output(['git', '-C', str(repo), 'show', ':.tool-versions']), original)
+            composer.apply_patch(repo, patch_path, hashlib.sha256(patch).hexdigest(), {'.tool-versions'}, unidiff_zero=True)
             self.assertEqual(target.read_bytes(), original)
             self.assertEqual(subprocess.check_output(
                 ['git', '-C', str(repo), 'show', ':.tool-versions']),

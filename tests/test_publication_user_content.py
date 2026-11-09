@@ -4,7 +4,9 @@ import json
 import os
 from pathlib import Path
 import sys
+import tempfile
 import unittest
+from unittest import mock
 sys.path.insert(0,str(Path(__file__).parents[1]/'source'))
 import publish
 import test_publish as fixtures
@@ -62,3 +64,17 @@ class UserContentPublicationTests(unittest.TestCase):
                 publish.git(self.repo,'update-index','--cacheinfo',mode,blob,'assets/executable')
                 changed=publish.git(self.repo,'write-tree').decode().strip()
                 with self.assertRaisesRegex(ValueError,'assets'):publish.verify_user_files(self.repo,changed,self.current)
+
+    def test_reconstruction_checks_ignore_inherited_git_directory(self):
+        # An inherited GIT_DIR must not redirect the explicit app checkout.
+        with tempfile.TemporaryDirectory() as directory:
+            repo = Path(directory)
+            publish.git(repo, 'init', '-q')
+            publish.git(repo, '-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.invalid',
+                        'commit', '--allow-empty', '-qm', 'Clean reconstructed fixture')
+            expected = publish.git(repo, 'rev-parse', 'HEAD^{tree}').decode().strip()
+            with mock.patch.dict(os.environ, {'GIT_DIR': str(repo / 'nonexistent.git')}), \
+                    mock.patch.object(layer, 'RECONSTRUCTED_TREE', expected), \
+                    mock.patch.object(layer, 'apply_outputs') as outputs:
+                layer.apply(repo, repo, repo, application_base='HEAD', publication_plan={})
+            outputs.assert_called_once()
