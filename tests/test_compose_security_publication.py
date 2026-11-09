@@ -137,6 +137,8 @@ class SecurityCompositionTests(unittest.TestCase):
     def test_release_gate_and_version_properties_are_required(self):
         tree = 'a' * 40
         def show(_repo, _command, spec):
+            if spec.endswith(':build-inputs/native-publication.json'):
+                return b'{"status":"BLOCKED"}'
             if spec.endswith(':BUILD.md'):
                 return (b'releaseVersionCode and releaseVersionName are normal source-defined Gradle properties '
                         b'DRAFT candidate proposal:** 8.35.1-2-rc1 / 177703. This value is not allocated')
@@ -147,8 +149,12 @@ class SecurityCompositionTests(unittest.TestCase):
                     b'throw GradleException("Direct Android builds BLOCKED:')
         with mock.patch.object(composer, 'git', side_effect=show):
             composer.verify_release_metadata('repo', tree)
-        with mock.patch.object(composer, 'git', return_value=b'no direct build gate'):
-            with self.assertRaisesRegex(ValueError, 'omitted the explicit DRAFT version proposal'):
+        def missing_gate(_repo, _command, spec):
+            if spec.endswith(':build-inputs/native-publication.json'):
+                return b'{"status":"BLOCKED"}'
+            return b'no direct build gate'
+        with mock.patch.object(composer, 'git', side_effect=missing_gate):
+            with self.assertRaisesRegex(ValueError, 'omitted version proposal or native build gate'):
                 composer.verify_release_metadata('repo', tree)
 
     def test_ordinary_application_pr_policy_passes_without_a_release_tree_pin(self):

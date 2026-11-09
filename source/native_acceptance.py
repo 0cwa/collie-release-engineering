@@ -167,8 +167,15 @@ def native_map(native_manifest, source_native_artifacts):
     expected = {}
     for row in source_native_artifacts:
         exact(row, {'path', 'url', 'sha256', 'bytes'}, 'source native artifact')
-        path = row['path']
-        if not isinstance(path, str) or not path.startswith(NATIVE_PREFIX) or path in expected:
+        source_path = row['path']
+        if not isinstance(source_path, str) or not source_path:
+            raise ValueError('source native path invalid or duplicated')
+        relative = PurePosixPath(source_path)
+        if (relative.is_absolute() or '..' in relative.parts or '.' in relative.parts
+                or relative.as_posix() != source_path):
+            raise ValueError('source native path invalid or duplicated')
+        path = source_path if source_path.startswith(NATIVE_PREFIX) else NATIVE_PREFIX + source_path
+        if path in expected:
             raise ValueError('source native path invalid or duplicated')
         if row['url'] != ORIGIN + path:
             raise ValueError('source native URL differs')
@@ -278,16 +285,17 @@ def validate_retained_dispatch(evidence, expected_policy, bundle_digest, bundle_
     """Bind real controller/API records; GitHub's workflow-run API has no inputs."""
     run = evidence['run']
     exact(run, {'id', 'status', 'conclusion', 'event', 'head_sha', 'run_attempt',
-                'created_at', 'updated_at', 'display_title', 'path', 'workflow_id'},
+                'created_at', 'updated_at', 'path', 'workflow_id'},
           'GitHub workflow run record')
     dispatch = evidence['dispatch_inputs']
-    exact(dispatch, {'run_id', 'run_attempt', 'run_created_at', 'policy_revision',
-                     'repository', 'workflow_ref', 'dispatch_event',
-                     'dispatch_inputs_as_passed_by_executed_controller',
-                     'exact_command_template', 'value_binding', 'release',
-                     'candidate_approval_member', 'bundle_sha256', 'bundle_bytes',
-                     'plan_sha256', 'controller_sha256_at_dispatch',
-                     'provider_event_payload_exposes_inputs'}, 'retained dispatch record')
+    dispatch_fields = {'run_id', 'run_attempt', 'run_created_at', 'policy_revision',
+                       'repository', 'workflow_ref', 'dispatch_event',
+                       'dispatch_inputs_as_passed_by_executed_controller',
+                       'exact_command_template', 'value_binding', 'release',
+                       'candidate_approval_member', 'bundle_sha256', 'bundle_bytes',
+                       'controller_sha256_at_dispatch', 'provider_event_payload_exposes_inputs'}
+    if set(dispatch) not in (dispatch_fields, dispatch_fields | {'plan_sha256'}):
+        raise ValueError('retained dispatch record fields differ')
     values = dispatch['dispatch_inputs_as_passed_by_executed_controller']
     exact(values, {'preparation_mode', 'trusted_policy_revision', 'bundle_asset_id', 'bundle_sha256'},
           'controller-recorded dispatch values')
@@ -323,9 +331,10 @@ def validate_retained_dispatch(evidence, expected_policy, bundle_digest, bundle_
             or values['trusted_policy_revision'] != expected_policy
             or values['bundle_asset_id'] != str(asset_id)
             or values['bundle_sha256'] != bundle_digest
-            or dispatch['bundle_sha256'] != bundle_digest or dispatch['bundle_bytes'] != bundle_size
-            or dispatch['plan_sha256'] != digest(plan)):
+            or dispatch['bundle_sha256'] != bundle_digest or dispatch['bundle_bytes'] != bundle_size):
         raise ValueError('recorded dispatch values differ from policy, plan, or asset')
+    if 'plan_sha256' in dispatch and dispatch['plan_sha256'] != digest(plan):
+        raise ValueError('optional retained plan binding differs from the completed control artifact')
     if (type(dispatch['run_id']) is not int or dispatch['run_id'] != run['id']
             or type(dispatch['run_attempt']) is not int or dispatch['run_attempt'] != run['run_attempt']
             or dispatch['run_created_at'] != run['created_at']
@@ -452,6 +461,84 @@ def validate_retained_evidence(evidence, native_manifest_raw, source_native_arti
     return _validate_core(evidence['plan'], evidence['journal'], native_manifest_raw,
                     source_native_artifacts, run, expected_policy, evidence['approval_raw'],
                     input_bundle_path, binding)
+
+
+def validate(plan, journal, native_manifest_raw, source_native_artifacts, proof, expected_policy):
+    """Rebind a locally validated retained-run proof to final composition inputs.
+
+    Full dispatch, API, artifact, snapshot, approval and bundle checks are done
+    by ``validate_retained_evidence`` before this proof is produced. This
+    composition step rechecks proof integrity and the exact plan, journal,
+    native manifest and response-body inventory. It is local consistency, not
+    a cryptographic GitHub attestation.
+    """
+    blocked_state = {
+        'schema': 1, 'status': 'BLOCKED', 'repository': ORIGIN,
+        'publication_status': 'NOT PUBLISHED', 'reason': 'composition proof check',
+        'lock': {}, 'production_version_floor': None,
+    }
+    transition_native_state(json.dumps(blocked_state), proof)
+    if (not isinstance(expected_policy, str) or not HEX40.fullmatch(expected_policy)
+            or proof['policy_revision'] != expected_policy):
+        raise ValueError('composition proof does not match the exact reviewed policy revision')
+    if (proof['plan_sha256'] != sha(canonical_bytes(plan))
+            or proof['journal_sha256'] != sha(canonical_bytes(journal))
+            or proof['native_manifest_sha256'] != sha(native_manifest_raw)
+            or proof['input_approval_sha256'] != plan.get('input_approval_sha256')):
+        raise ValueError('composition proof differs from the completed receipt or native manifest')
+    exact(plan, {'schema', 'kind', 'input_approval_sha256', 'origin', 'policy_revision', 'mode',
+                 'native_manifest_sha256', 'repository_receipt_sha256',
+                 'repository_certificate_sha256', 'candidate_generation_sha256',
+                 'maximum_bytes', 'previous_manifest_sha256', 'previous_site_sha256',
+                 'previous_files', 'manifests', 'artifacts'}, 'Pages plan')
+    if (type(plan['schema']) is not int or plan['schema'] != 1
+            or plan['kind'] != 'collie-pages-promotion' or plan['origin'] != ORIGIN
+            or plan['mode'] != 'native-only' or plan['policy_revision'] != expected_policy
+            or type(plan['maximum_bytes']) is not int or plan['maximum_bytes'] != MAX_BYTES
+            or plan['previous_manifest_sha256'] is not None or plan['previous_files'] != {}
+            or plan['previous_site_sha256'] != digest({})
+            or any(plan[key] is not None for key in ('repository_receipt_sha256',
+                                                       'repository_certificate_sha256',
+                                                       'candidate_generation_sha256'))):
+        raise ValueError('completed native-only Pages plan differs from the reviewed policy')
+    native_manifest = json.loads(native_manifest_raw, object_pairs_hook=unique)
+    native = native_map(native_manifest, source_native_artifacts)
+    if (plan['native_manifest_sha256'] != sha(native_manifest_raw)
+            or not isinstance(plan['manifests'], dict)
+            or set(plan['manifests']) != {'phase1', 'phase2'}):
+        raise ValueError('composition native manifest or phase inventory differs')
+    canonical_paths = CANONICAL | set(native)
+    for phase in ('phase1', 'phase2'):
+        inventory = plan['manifests'][phase]
+        if not isinstance(inventory, dict) or set(inventory) != canonical_paths or len(inventory) != 15:
+            raise ValueError(phase + ' must contain exactly fifteen canonical paths')
+        for path, entry in native.items():
+            if inventory[path] != entry:
+                raise ValueError(phase + ' native hashes differ from source pins: ' + path)
+    if plan['manifests']['phase1'] != plan['manifests']['phase2']:
+        raise ValueError('native-only phase inventories differ')
+    exact(journal, {'schema', 'plan_sha256', 'completed', 'previous_verified', 'readbacks',
+                    'previous_state_classification', 'previous_state'}, 'Pages journal')
+    if (type(journal['schema']) is not int or journal['schema'] != 1
+            or journal['plan_sha256'] != digest(plan)
+            or journal['completed'] != ['phase1', 'phase2']):
+        raise ValueError('completed receipt journal does not bind the exact two-phase plan')
+    validate_recovery_precondition(plan, journal, canonical_paths, set(native))
+    if not isinstance(journal['readbacks'], dict) or set(journal['readbacks']) != {'phase1', 'phase2'}:
+        raise ValueError('both completed readback phases are required')
+    for phase in ('phase1', 'phase2'):
+        observed = journal['readbacks'][phase]
+        if not isinstance(observed, dict) or set(observed) != canonical_paths or len(observed) != 15:
+            raise ValueError(phase + ' readback must cover all fifteen canonical paths')
+        for path, entry in plan['manifests'][phase].items():
+            actual = observed[path]
+            exact(actual, {'status', 'sha256', 'bytes', 'headers'}, phase + ' readback ' + path)
+            cache_headers(actual['headers'], phase + ' readback headers ' + path)
+            if (type(actual['status']) is not int or actual['status'] != 200
+                    or actual['sha256'] != entry['sha256']
+                    or type(actual['bytes']) is not int or actual['bytes'] != entry['bytes']):
+                raise ValueError(phase + ' readback differs from the approved body: ' + path)
+    return proof
 
 def _validate_core(plan, journal, native_manifest_raw, source_native_artifacts, run, expected_policy,
                    approval_raw, input_bundle_path, retained_binding):

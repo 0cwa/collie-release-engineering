@@ -67,21 +67,20 @@ def retained_dispatch_fixture():
         'candidate_approval_member': {'path': 'actual-approval.json', 'bytes': len(approval),
                                       'sha256': sha(approval)},
         'bundle_sha256': bundle_digest, 'bundle_bytes': size,
-        'plan_sha256': 'c' * 64, 'controller_sha256_at_dispatch': sha(controller),
+        'controller_sha256_at_dispatch': sha(controller),
         'provider_event_payload_exposes_inputs': False,
     }
     jobs = [{'id': i + 1, 'name': name, 'status': 'completed', 'conclusion': 'success',
              'startedAt': '2026-11-09T10:00:30Z', 'completedAt': '2026-11-09T10:01:00Z'}
             for i, name in enumerate(('prepare', 'phase1', 'phase1-readback', 'phase2', 'final-readback'))]
     plan = {'policy_revision': POLICY}
-    dispatch['plan_sha256'] = acceptance.digest(plan)
     return {
         'approval_raw': approval, 'dispatch_inputs': dispatch, 'release_metadata': release,
         'controller_raw': controller, 'prepare_log_raw': log,
         'run': {'id': run_id, 'status': 'completed', 'conclusion': 'success',
                 'event': 'workflow_dispatch', 'head_sha': POLICY, 'run_attempt': 2,
                 'created_at': '2026-11-09T10:00:00Z', 'updated_at': '2026-11-09T10:10:00Z',
-                'display_title': 'test', 'path': acceptance.WORKFLOW, 'workflow_id': 1},
+                'path': acceptance.WORKFLOW, 'workflow_id': 1},
         'jobs': jobs,
         'artifact_metadata': {'artifacts': [
             {'id': 9001, 'name': acceptance.ARTIFACT, 'expired': False, 'size_in_bytes': 1,
@@ -106,6 +105,14 @@ class RetainedDispatchAdapterTests(unittest.TestCase):
         self.assertEqual(binding['input_asset_id'], 7501)
         self.assertFalse(self.evidence['dispatch_inputs']['provider_event_payload_exposes_inputs'])
 
+    def test_current_controller_shape_needs_no_plan_hash_at_dispatch(self):
+        evidence = copy.deepcopy(self.evidence)
+        self.assertNotIn('plan_sha256', evidence['dispatch_inputs'])
+        run, binding = acceptance.validate_retained_dispatch(
+            evidence, POLICY, 'b' * 64, 123, evidence['plan'])
+        self.assertEqual(run['run_id'], 4001)
+        self.assertEqual(binding['input_bundle_sha256'], 'b' * 64)
+
     def test_rejects_dispatch_asset_approval_and_run_mismatches(self):
         mutations = (
             lambda e: e['dispatch_inputs']['dispatch_inputs_as_passed_by_executed_controller'].update(bundle_asset_id='9999'),
@@ -113,6 +120,7 @@ class RetainedDispatchAdapterTests(unittest.TestCase):
             lambda e: e['dispatch_inputs']['release'].update(asset_id=9999),
             lambda e: e['dispatch_inputs']['candidate_approval_member'].update(sha256='0' * 64),
             lambda e: e['dispatch_inputs'].update(controller_sha256_at_dispatch='0' * 64),
+            lambda e: e['dispatch_inputs'].update(plan_sha256='0' * 64),
             lambda e: (e.update(controller_raw=e['controller_raw'].replace(b'bundle_asset_id="$ASSET_ID"', b'bundle_asset_id=wrong')),
                        e['dispatch_inputs'].update(controller_sha256_at_dispatch=sha(e['controller_raw']))),
             lambda e: e['dispatch_inputs'].update(value_binding='self-consistent but false'),
@@ -133,7 +141,11 @@ class RetainedDispatchAdapterTests(unittest.TestCase):
         evidence['run'].update(conclusion='failure')
         with self.assertRaisesRegex(ValueError, 'dispatch run ID/attempt/policy'):
             acceptance.validate_retained_dispatch(evidence, POLICY, 'b' * 64, 123, evidence['plan'])
-        actual = Path(__file__).parents[3] / 'native-candidate/runtime-timeout/current/run-42559808017'
+        evidence_path = Path('native-candidate/runtime-timeout/current/run-42559808017')
+        actual = next((parent / evidence_path for parent in Path(__file__).resolve().parents
+                       if (parent / evidence_path).is_dir()), None)
+        if actual is None:
+            self.skipTest('retained actual failed-run evidence is not available in this checkout')
         with self.assertRaisesRegex(ValueError, 'pre-dispatch-inventory.json'):
             acceptance.load_run_evidence(actual)
 
@@ -294,6 +306,18 @@ class NativeAcceptanceTests(unittest.TestCase):
         self.assertEqual(proof['input_asset_id'], self.fixture[4]['dispatch_binding']['release_asset']['asset_id'])
         self.assertEqual(proof['input_bundle_sha256'], self.fixture[4]['dispatch_binding']['payload']['bundle_sha256'])
 
+    def test_composer_rebinds_validated_proof_to_receipt_and_native_sources(self):
+        plan, journal, native_raw, native_files, _, _, _ = self.fixture
+        proof = self.validate()
+        self.assertEqual(
+            acceptance.validate(plan, journal, native_raw, native_files, proof, POLICY), proof)
+        changed = copy.deepcopy(journal)
+        changed['readbacks']['phase2'].pop(next(iter(changed['readbacks']['phase2'])))
+        with self.assertRaisesRegex(ValueError, 'composition proof differs|readback must cover'):
+            acceptance.validate(plan, changed, native_raw, native_files, proof, POLICY)
+        with self.assertRaisesRegex(ValueError, 'composition proof does not match'):
+            acceptance.validate(plan, journal, native_raw, native_files, proof, 'd' * 40)
+
     def test_n1_requires_actual_approval_member_and_canonical_digest(self):
         with self.assertRaisesRegex(ValueError, 'approval input is not'):
             plan, journal, native_raw, source_native, run, _, bundle_path = self.fixture
@@ -369,6 +393,23 @@ class NativeAcceptanceTests(unittest.TestCase):
             mutate(fixture[0], fixture[1])
             with self.subTest(mutate=mutate), self.assertRaises(ValueError):
                 self.validate(fixture)
+
+    def test_source_native_artifacts_accept_exact_repository_relative_producer_paths(self):
+        native_raw = self.fixture[2]
+        source_rows = self.fixture[3]
+        relative_rows = [
+            {**row, 'path': row['path'][len(acceptance.NATIVE_PREFIX):]}
+            for row in source_rows
+        ]
+        self.assertEqual(acceptance.native_map(json.loads(native_raw), relative_rows), NATIVE)
+        wrong_url = copy.deepcopy(relative_rows)
+        wrong_url[0]['url'] = acceptance.ORIGIN + wrong_url[0]['path']
+        with self.assertRaisesRegex(ValueError, 'source native URL differs'):
+            acceptance.native_map(json.loads(native_raw), wrong_url)
+        traversal = copy.deepcopy(relative_rows)
+        traversal[0]['path'] = '../' + traversal[0]['path']
+        with self.assertRaisesRegex(ValueError, 'source native path invalid'):
+            acceptance.native_map(json.loads(native_raw), traversal)
 
     def test_both_ordered_readbacks_require_all_fifteen_exact_200_hash_size(self):
         for mutate in (
