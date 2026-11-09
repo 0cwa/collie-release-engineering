@@ -31,9 +31,12 @@ def environment():
     return env
 
 
-def git(repo, *args, data=None, env=None):
+def git(repo, *args, data=None, env=None, config=()):
     command = ['git', '-C', str(repo), '-c', 'core.hooksPath=/dev/null',
-               '-c', 'core.fsmonitor=false', '-c', 'commit.gpgSign=false', *args]
+               '-c', 'core.fsmonitor=false', '-c', 'commit.gpgSign=false']
+    for key, value in config:
+        command += ['-c', f'{key}={value}']
+    command += list(args)
     return subprocess.run(command, input=data, stdout=subprocess.PIPE,
                           check=True, env=environment() if env is None else env).stdout
 
@@ -87,17 +90,34 @@ def validate_publication_timestamp(value, *, allow_historical=False):
     return value
 
 
-def commit(repo, tree_id, parents, message, *, publication_timestamp=None, historical=False):
-    args = ['commit-tree', oid(tree_id)]
+def commit(repo, tree_id, parents, message, *, publication_timestamp=None, historical=False,
+           signing_key=None, author_name=None, author_email=None,
+           committer_name=None, committer_email=None):
+    args = ['commit-tree']
+    config = ()
+    env = environment()
+    if author_name is not None:
+        env['GIT_AUTHOR_NAME'] = author_name
+    if author_email is not None:
+        env['GIT_AUTHOR_EMAIL'] = author_email
+    if signing_key is not None:
+        if committer_name is None or committer_email is None:
+            raise ValueError('signed commits require an approved committer identity')
+        args.append('-S')
+        config = (('gpg.format', 'ssh'),
+                  ('gpg.ssh.program', str(Path(__file__).with_name('ssh-sign-with-agent'))),
+                  ('user.signingkey', str(Path(signing_key).resolve())))
+        env.update(GIT_COMMITTER_NAME=committer_name,
+                   GIT_COMMITTER_EMAIL=committer_email)
+    args.append(oid(tree_id))
     for parent in parents:
         args += ['-p', oid(parent)]
-    env = environment()
     if publication_timestamp is not None:
         publication_timestamp = validate_publication_timestamp(
             publication_timestamp, allow_historical=historical)
         env.update(GIT_AUTHOR_DATE=publication_timestamp,
                    GIT_COMMITTER_DATE=publication_timestamp)
-    return git(repo, *args, data=message.encode(), env=env).decode().strip()
+    return git(repo, *args, data=message.encode(), env=env, config=config).decode().strip()
 
 
 def unique_object(pairs):
