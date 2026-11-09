@@ -134,9 +134,14 @@ main-only and disabled until the independently approved repository variable
 COLLIE_PAGES_PRODUCTION_ENABLED is explicitly set. Dispatch must name the exact
 reviewed main policy commit and independently approved public data asset ID/hash.
 The preparation job has no deployment/index-signing credentials and does not
-execute candidate code. Deployment jobs execute only the pinned official deploy
-Pages action with pages:write/id-token:write, through github-pages; read-back jobs
-have contents:read and no protected environment credentials.
+execute candidate code. Deployment jobs keep pages:write/id-token:write on the
+github-pages environment and use the artifact ID emitted by the pinned official
+Pages uploader to create a deployment through GitHub's documented Pages API. The
+local poller obtains its OIDC token from the Actions runtime, polls until success,
+a terminal failure, interruption, or its 30-minute deadline, and cancels pending
+deployments on interruption, repeated API errors, or that final deadline. It never
+prints either token. Read-back jobs have contents:read and no protected environment
+credentials; phase2 remains gated on the complete phase1 canonical read-back.
 
 Before enabling, provision and inspect: Pages Actions source, correct custom
 hostname/TLS, domain verification, github-pages required independent reviewers,
