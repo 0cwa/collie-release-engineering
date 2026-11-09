@@ -128,16 +128,8 @@ def materialize(files,lock,plan,metadata):
     result['build-inputs/native-artifacts.json']=(json.dumps(plan,indent=2)+'\n').encode()
     result['build-inputs/host-test-inputs.json']=(json.dumps({
         'schema':1,'status':'NOT RUN','test_only':True,'never_package_in_apk':True,
-        'platform':'Linux x86-64','resource':'libsignal_jni_testing_amd64.so',
         'public_url':None,'complete_host_build_recipe':None,
-        'historical_local_candidate_sha256':'b3f94489c68433abfb00883c9a4579565cfd6db820fcbd006b1ca581beaf9d8e',
-        'historical_receipt_lock_sha256':'9866196dec36f096d2757bbf9e9d774c7147548542dd2a041e6438f79dbd73e4',
-        'prepared_libsignal_tree':'de930179286b4fe68875475c1b0678615e180908',
-        'staging_guard':{'origin':'https://github.com/0cwa/collie-release-engineering.git',
-                        'revision':'808ee6357a9227f780faa605eddad48b44136c70',
-                        'path':'tools/native/host_jni_guard.py',
-                        'sha256':'038f9553916d93baf2a6919d19c9146f6486ccfec1dacf8eee78b64d595db538'},
-        'limitation':'Historical local test input uses an older lock. Not current accepted host-test evidence; no public host binary or complete build recipe. Six production Maven files do not establish native JVM regression readiness.'},indent=2)+'\n').encode()
+        'limitation':'No public testing-JNI binary or complete public host-build recipe is supplied; native JVM regression is NOT RUN. Production artifact verification does not establish native JVM test readiness.'},indent=2)+'\n').encode()
 
     props=files['gradle.properties'].decode()
     props=props.replace('# Uncomment these to build libsignal from source.\n# libsignalClientPath=../libsignal\n# org.gradle.dependency.verification=lenient\n','')
@@ -147,9 +139,40 @@ def materialize(files,lock,plan,metadata):
     # This layer intentionally never edits app/build.gradle.kts or the gate.
     build_path='BUILD.md' if 'BUILD.md' in files else 'docs/BUILD.md'
     build=files[build_path].decode()
-    build=build.replace('Obtain the three locked artifacts and POMs from approved\npublic immutable URLs, verify all hashes, materialize their exclusive repository\nand verification entries in source, then run a fresh controlled Gradle build.',
-        'The three locked binaries and transformed POMs now have tracked exclusive repository, catalog, substitutions and strict verification entries. The proposed origin in build-inputs/native-artifacts.json is NOT PUBLISHED. Obtain operator publication approval, independently read back all six exact files, review a separate acceptance/gate layer, then run a fresh controlled Gradle build. No native init script, local Maven lookup or external native source includeBuild is part of this direct-source recipe.')
-    build+='\nNative JVM regression readiness is separate: build-inputs/host-test-inputs.json records the historical Linux testing-JNI candidate and immutable staging-guard recipe. No public host-test input or complete host build recipe is supplied; those tests are NOT RUN, not skipped/passed. Do not package test JNI in a release or treat the six production Maven files as all-test readiness.\n'
+    native_status = '''## Build and verification
+
+Run the production build with strict dependency verification and the repository's Gradle wrapper:
+
+```sh
+./gradlew --dependency-verification=strict :app:assembleProdWebsiteRelease
+```
+
+This uses the declared toolchain and checked-in dependency-verification metadata. Native input status and hashes are recorded in the tracked build-input manifests; their verification status does not by itself establish release authorization.
+
+This general build guide does not cover release acceptance, version reservation, artifact retention, or operator procedures; those are maintained separately. Native JVM regression is separate from production dependency resolution. No public testing-JNI binary or complete public host-build recipe is available, so native JVM regression is NOT RUN. A successful source build alone does not establish independent native reproduction or runtime, physical-device, account, attachment, database, or upgrade acceptance.
+'''
+    dates_heading = '## Published source dates\n'
+    if build.count(dates_heading) > 1:
+        raise ValueError('build guide contains duplicate published-source-date sections')
+    date_at = build.find(dates_heading)
+    dates = build[date_at:] if date_at >= 0 else ''
+    before_dates = build[:date_at] if date_at >= 0 else build
+    direct_status = '**Direct build readiness:'
+    if direct_status in before_dates:
+        prefix = before_dates[:before_dates.index(direct_status)].rstrip()
+        before_dates = prefix + '\n\n' + native_status.rstrip() + ('\n\n' if date_at >= 0 else '\n')
+    else:
+        old_recipe = ('Obtain the three locked artifacts and POMs from approved\n'
+                      'public immutable URLs, verify all hashes, materialize their exclusive repository\n'
+                      'and verification entries in source, then run a fresh controlled Gradle build.')
+        before_dates = before_dates.replace(old_recipe,
+            'The tracked coordinates, exclusive repository, substitutions and strict verification metadata define the proposed native inputs. The origin remains NOT PUBLISHED. This source-layer candidate does not establish public artifact readback, independent native reproduction or direct Android build acceptance; the unconditional build gate remains in place.')
+        output_runbook = '### Preserve build outputs before source receipt collection'
+        if output_runbook in before_dates:
+            before_dates = before_dates[:before_dates.index(output_runbook)].rstrip() + '\n\n'
+        if '## Build and verification\n' not in before_dates:
+            before_dates = before_dates.rstrip() + '\n\n' + native_status.rstrip() + ('\n\n' if date_at >= 0 else '\n')
+    build = before_dates + (dates if date_at >= 0 else '')
     result[build_path]=build.encode()
     return {path:data for path,data in result.items() if files.get(path)!=data}
 
