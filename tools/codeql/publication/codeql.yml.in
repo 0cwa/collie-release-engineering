@@ -34,6 +34,10 @@ jobs:
           sparse-checkout: .github/codeql
           persist-credentials: false
           lfs: false
+      - name: Require trusted base CodeQL configuration
+        run: |
+          test -f trusted-policy/.github/codeql/codeql-config.yml
+          test -s trusted-policy/.github/codeql/codeql-config.yml
       - name: Load the independently reviewed engineering policy
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -52,7 +56,7 @@ jobs:
           languages: actions
           build-mode: none
           source-root: source
-          config-file: ./source/.github/codeql/codeql-config.yml
+          config-file: ./trusted-policy/.github/codeql/codeql-config.yml
           trap-caching: false
           dependency-caching: false
       - uses: github/codeql-action/analyze@33d7b85da1a04171e211befe2c739303b9a4c066 # v4.39.3
