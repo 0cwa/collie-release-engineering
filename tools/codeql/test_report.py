@@ -194,6 +194,82 @@ class ReportTests(unittest.TestCase):
         self.assertFalse(result["passed"])
         self.assertEqual(result["runs"][0]["coverage"]["missing_files"], ["missing.py"])
 
+    def test_cli_baseline_detects_partial_actions_extraction(self):
+        # Reduced shape from the custom app audit: one composite action was
+        # extracted, but the CLI baseline also includes four workflows.
+        data = fixture()
+        run = data["runs"][0]
+        run["tool"]["driver"]["rules"] = [
+            {"id": "actions/code-injection", "properties": {"kind": "problem"}}]
+        run["properties"] = {}
+        paths = [".github/actions/build/action.yml", *[
+            f".github/workflows/workflow-{i}.yml" for i in range(4)]]
+        run["tool"]["driver"]["notifications"] = [
+            {"id": "actions/diagnostics/successfully-extracted-files",
+             "properties": {"tags": ["successfully-extracted-files"]}},
+            {"id": "cli/expected-extracted-files/actions",
+             "properties": {"tags": ["expected-extracted-files", "telemetry"]}}]
+        notifications = [
+            {"descriptor": {"index": index}, "level": "none", "message": {"text": ""},
+             "locations": [location(path) for path in files]}
+            for index, files in ((0, paths[:1]), (1, paths))]
+        run["invocations"][0]["toolExecutionNotifications"] = notifications
+        result = self.audit(data, "actions")
+        self.assertFalse(result["passed"])
+        coverage = result["runs"][0]["coverage"]
+        self.assertEqual(coverage["extracted_file_count"], 1)
+        self.assertEqual(coverage["expected_file_count"], 5)
+        self.assertEqual(coverage["matched_expected_file_count"], 1)
+        self.assertEqual(coverage["missing_files"], paths[1:])
+        self.assertIn("4 expected actions file(s) were not extracted", report.markdown(result))
+        notifications[0]["locations"] = [location(path) for path in paths]
+        complete = self.audit(data, "actions")
+        self.assertTrue(complete["passed"])
+        self.assertEqual(complete["runs"][0]["coverage"]["matched_expected_file_count"], 5)
+
+    def test_cli_baseline_matches_exact_extractor_for_each_language(self):
+        for language, prefix, extractor in (
+                ("actions", "actions", "actions"), ("python", "py", "python"),
+                ("javascript-typescript", "js", "javascript"), ("c-cpp", "cpp", "cpp")):
+            for collection in ("toolExecutionNotifications", "toolConfigurationNotifications"):
+                with self.subTest(language=language, collection=collection):
+                    data = fixture()
+                    run = data["runs"][0]
+                    run["properties"] = {}
+                    run["tool"]["driver"]["rules"] = [
+                        {"id": f"{prefix}/problem", "properties": {"kind": "problem"}}]
+                    descriptors = [
+                        {"id": f"{prefix}/diagnostics/successfully-extracted-files",
+                         "properties": {"tags": ["successfully-extracted-files"]}},
+                        {"id": f"cli/expected-extracted-files/{extractor}",
+                         "properties": {"tags": ["expected-extracted-files"]}},
+                        {"id": "cli/expected-extracted-files/java",
+                         "properties": {"tags": ["expected-extracted-files"]}},
+                        {"id": f"cli/expected-extracted-files/{extractor}-other",
+                         "properties": {"tags": ["expected-extracted-files"]}},
+                    ]
+                    # Exercise extension component resolution and index-only
+                    # references, indexed locations and duplicate baseline rows.
+                    run["tool"]["extensions"] = [{"name": "coverage", "notifications": descriptors}]
+                    run["invocations"] = [{"executionSuccessful": True, collection: [
+                        {"descriptor": {"index": index, "toolComponent": {"index": 0}},
+                         "level": "none", "message": {"text": ""}, "locations": where}
+                        for index, where in ((0, [location(index=0)]),
+                                             (1, [location(index=0), location("missing"), location("missing")]),
+                                             (2, [location("other-language")]),
+                                             (3, [location("other-suffix")]))]}]
+                    result = self.audit(data, language)
+                    self.assertFalse(result["passed"])
+                    coverage = result["runs"][0]["coverage"]
+                    self.assertEqual(coverage["extracted_file_count"], 1)
+                    self.assertEqual(coverage["expected_file_count"], 2)
+                    self.assertEqual(coverage["missing_files"], ["missing"])
+                    # Expected evidence must not manufacture successful extraction.
+                    del run["invocations"][0][collection][0]
+                    result = self.audit(data, language)
+                    self.assertEqual(result["runs"][0]["coverage"]["extracted_file_count"], 0)
+                    self.assertFalse(result["passed"])
+
     def test_missing_baseline_is_unknown_not_zero_or_full_coverage(self):
         data = fixture()
         del data["runs"][0]["invocations"][0]["toolExecutionNotifications"][1]
