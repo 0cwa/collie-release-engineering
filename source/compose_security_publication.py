@@ -23,6 +23,7 @@ import publish
 import commit_messages
 sys.path.insert(0, str(ROOT / 'tools/patches'))
 import runtime_receipts
+import native_acceptance
 
 HEX40 = re.compile(r'[0-9a-f]{40}\Z')
 HEX64 = re.compile(r'[0-9a-f]{64}\Z')
@@ -159,14 +160,37 @@ def verify_release_metadata(repo, tree):
     build = git(repo, 'show', f'{tree}:BUILD.md')
     gradle = git(repo, 'show', f'{tree}:app/build.gradle.kts')
     properties = git(repo, 'show', f'{tree}:gradle.properties')
+    state = json.loads(git(repo, 'show', f'{tree}:build-inputs/native-publication.json'))
+    accepted = state.get('status') == 'ACCEPTED'
+    gate = b'throw GradleException("Direct Android builds BLOCKED:' in gradle
     if (b'releaseVersionCode and releaseVersionName are normal source-defined Gradle properties' not in build
             or b'DRAFT candidate proposal:** 8.35.1-2-rc1 / 177703. This value is not allocated' not in build
             or b'providers.gradleProperty("releaseVersionCode")' not in gradle
             or b'providers.gradleProperty("releaseVersionName")' not in gradle
             or b'releaseVersionCode=177703\nreleaseVersionName=8.35.1-2-rc1' not in properties
             or b'DRAFT proposal only; not reserved' not in properties
-            or b'throw GradleException("Direct Android builds BLOCKED:' not in gradle):
-        raise ValueError('current publication producer omitted the explicit DRAFT version proposal or direct-build gate')
+            or state.get('status') not in ('BLOCKED', 'ACCEPTED') or not gate):
+        raise ValueError('current publication producer omitted version proposal or native build gate')
+    if not accepted and 'acceptance' in state:
+        raise ValueError('blocked native state must not retain acceptance evidence')
+    if accepted:
+        proof = state.get('acceptance')
+        fields = {'artifact_id', 'evidence_sha256', 'journal_sha256', 'native_manifest_sha256',
+                  'operation_inventory_sha256', 'input_approval_sha256', 'input_asset_id',
+                  'input_bundle_sha256', 'dispatch_binding_sha256', 'plan_sha256',
+                  'policy_revision', 'run_attempt', 'run_id', 'workflow_metadata_sha256'}
+        if (state.get('publication_status') != 'PUBLISHED_AND_READ_BACK'
+                or state.get('repository') != 'https://repo.collie.im/native-inputs/v1/maven/'
+                or not isinstance(proof, dict) or set(proof) != fields
+                or type(proof.get('input_asset_id')) is not int or proof['input_asset_id'] <= 0
+                or not re.fullmatch('[0-9a-f]{40}', proof.get('policy_revision', ''))
+                or any(not re.fullmatch('[0-9a-f]{64}', proof.get(key, '')) for key in
+                       ('evidence_sha256', 'journal_sha256', 'native_manifest_sha256',
+                        'operation_inventory_sha256', 'input_approval_sha256', 'input_bundle_sha256',
+                        'dispatch_binding_sha256', 'plan_sha256', 'workflow_metadata_sha256'))
+                or proof['evidence_sha256'].encode() not in gradle
+                or b'Direct build readiness: ACCEPTED' not in build):
+            raise ValueError('accepted native state is not bound to its reviewed Gradle/build evidence')
 
 
 def apply_toolchain_layer(repo, stage, tree, application_base):
@@ -314,7 +338,7 @@ def set_owner_entries(repo, stage, current_main):
 
 def compose(repo, checkpoint_repo, stage, engineering, plan_path,
             prior_generated, prior_integration, reconstruction_commit, current_main, output_plan,
-            output_messages, output_markdown):
+            output_messages, output_markdown, native_receipt_dir=None, native_policy_revision=None):
     repo = Path(repo).resolve()
     checkpoint_repo = Path(checkpoint_repo).resolve()
     stage = Path(stage).resolve()
@@ -372,6 +396,7 @@ def compose(repo, checkpoint_repo, stage, engineering, plan_path,
     git(stage, 'add', '-A')
     tree = git(stage, 'write-tree').decode().strip()
     records = []
+    native_source_evidence = None
 
     def record(kind, name, before, after, provenance):
         if before == after:
@@ -429,6 +454,32 @@ def compose(repo, checkpoint_repo, stage, engineering, plan_path,
     record('feature', toolchain_manifest['name'], before, tree,
            f"Official Temurin {toolchain_manifest['java']} release alignment. Docker Hub amd64 manifest {toolchain_manifest['image']['manifest_digest']}; setup-java-supported tool-version syntax. Static source patch SHA-256 {toolchain_hash}; paths {sorted(toolchain_paths)}. Image metadata inspected only; no image pull or run.")
 
+    if (native_receipt_dir is None) != (native_policy_revision is None):
+        raise ValueError('native receipt directory and exact policy revision must be supplied together')
+    if native_receipt_dir is not None:
+        receipt_dir = Path(native_receipt_dir).resolve()
+        before = tree
+        plan_doc = load_json(receipt_dir / 'plan.json')
+        journal_doc = load_json(receipt_dir / 'journal.json')
+        run_doc = load_json(receipt_dir / 'run.json')
+        native_policy_revision = publish.oid(native_policy_revision)
+        manifest_raw = git(engineering, 'show', f'{native_policy_revision}:distribution/native-v1.json')
+        source_native = json.loads(git(repo, 'show', f'{tree}:build-inputs/native-artifacts.json'))['files']
+        proof = native_acceptance.validate(plan_doc, journal_doc, manifest_raw, source_native,
+                                           run_doc, native_policy_revision)
+        native_source_evidence = proof['source_evidence']
+        state_raw = git(repo, 'show', f'{tree}:build-inputs/native-publication.json')
+        gradle_raw = git(repo, 'show', f'{tree}:app/build.gradle.kts')
+        workflow_raw = git(repo, 'show', f'{tree}:.github/workflows/source.yml')
+        build_raw = git(repo, 'show', f'{tree}:BUILD.md')
+        changes, _ = native_acceptance.transition_outputs(state_raw, gradle_raw, workflow_raw, build_raw, proof)
+        for path, raw in changes.items():
+            blob = git(repo, 'hash-object', '-w', '--stdin', data=raw).decode().strip()
+            git(stage, 'update-index', '--add', '--cacheinfo', f'100644,{blob},{path}')
+        tree = git(stage, 'write-tree').decode().strip()
+        record('feature', 'Accept exact completed native publication evidence', before, tree,
+               f"Validated exact six native input hashes, 15 canonical paths in both completed HTTPS readback phases, and successful policy {proof['policy_revision']} run {proof['run_id']} attempt {proof['run_attempt']} artifact {proof['artifact_id']}; evidence SHA-256 {proof['evidence_sha256']}. The source receipt must carry the returned PASS evidence entry.")
+
     plan['old_main'] = current_main
     plan['layers'] = retained_layers + records
     plan['final_tree'] = tree
@@ -437,12 +488,7 @@ def compose(repo, checkpoint_repo, stage, engineering, plan_path,
     verify_publication_preimage(repo, publication_tree, security_manifest)
     verify_security_outputs(repo, tree, security_manifest)
 
-    workflow = json.loads(git(repo, 'show', f'{tree}:build-inputs/native-publication.json'))
-    if workflow.get('status') != 'BLOCKED':
-        raise ValueError('regenerated source must retain the unconditional Android build gate')
-    gradle = git(repo, 'show', f'{tree}:app/build.gradle.kts')
-    if b'throw GradleException("Direct Android builds BLOCKED:' not in gradle:
-        raise ValueError('regenerated source lost the direct Android build gate')
+    verify_release_metadata(repo, tree)
 
     plan_bytes = (json.dumps(plan, indent=2) + '\n').encode()
     plan_sha256 = hashlib.sha256(plan_bytes).hexdigest()
@@ -458,7 +504,8 @@ def compose(repo, checkpoint_repo, stage, engineering, plan_path,
             'publication_tree': publication_tree,
             'security_preimage_tree': security_preimage_tree, 'final_tree': tree,
             'layers_added': records, 'messages': str(output_messages),
-            'markdown': str(output_markdown), 'status': 'DRAFT; no G/I commits generated'}
+            'markdown': str(output_markdown), 'native_source_evidence': native_source_evidence,
+            'status': 'DRAFT; no G/I commits generated'}
 
 
 def main():
@@ -475,12 +522,17 @@ def main():
     parser.add_argument('--output-plan', type=Path, required=True)
     parser.add_argument('--output-messages', type=Path, required=True)
     parser.add_argument('--output-markdown', type=Path, required=True)
+    parser.add_argument('--native-receipt-dir', type=Path,
+                        help='directory containing the retained plan.json/journal.json and normalized read-only GitHub run/artifact metadata in run.json')
+    parser.add_argument('--native-policy-revision',
+                        help='exact reviewed Pages policy commit recorded in run.json; not a fixed historical SHA')
     args = parser.parse_args()
     print(json.dumps(compose(args.repo, args.checkpoint_repo, args.stage, args.engineering, args.plan,
                              args.prior_generated, args.prior_integration,
                              args.reconstruction_commit, args.current_main,
                              args.output_plan, args.output_messages,
-                             args.output_markdown), indent=2))
+                             args.output_markdown, args.native_receipt_dir,
+                             args.native_policy_revision), indent=2))
 
 
 if __name__ == '__main__':
