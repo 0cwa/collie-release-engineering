@@ -64,6 +64,26 @@ class ReviewedImportTests(unittest.TestCase):
         self.assertEqual(result['plan']['old_main'],merged);self.assertEqual(result['plan']['final_tree'],publish.tree(self.repo,merged))
         self.path.write_text(json.dumps(result['plan']));out=publish.publish(self.repo,self.path,hashlib.sha256(self.path.read_bytes()).hexdigest(),merged,historical_messages=True)
         self.assertEqual(out['source_tree'],publish.tree(self.repo,merged));publish.git(self.repo,'merge-base','--is-ancestor',reviewed,out['integration_commit'])
+
+    def test_reviewed_import_preserves_schema2_timestamp_through_publish(self):
+        timestamp='2026-11-09T12:43:27Z'
+        self.plan.update(schema=2,publication_timestamp=timestamp)
+        self.path.write_text(json.dumps(self.plan))
+        reviewed=self.changed(self.base,'schema2-review.txt',b'reviewed contribution\n')
+        result=importer.import_reviewed(self.repo,self.path,reviewed,self.repo/'schema2-reviewed.patch',current_main=reviewed)
+        self.assertEqual(result['plan']['schema'],2)
+        self.assertEqual(result['plan']['publication_timestamp'],timestamp)
+        imported_path=self.repo/'schema2-reviewed-plan.json';imported_path.write_text(json.dumps(result['plan']))
+        raw=imported_path.read_bytes();digest=hashlib.sha256(raw).hexdigest()
+        import commit_messages
+        messages=commit_messages.preview(result['plan'],digest)
+        message_path=self.repo/'schema2-reviewed-messages.json';message_path.write_text(json.dumps(messages))
+        published=publish.publish(self.repo,imported_path,digest,reviewed,messages=message_path,
+                                  approved_messages_sha256=hashlib.sha256(message_path.read_bytes()).hexdigest())
+        self.assertEqual(publish.tree(self.repo,published['integration_commit']),publish.tree(self.repo,reviewed))
+        for revision in [*published['layer_commits'],published['source_commit'],published['integration_commit']]:
+            dates=publish.git(self.repo,'show','-s','--format=%aI%x00%cI',revision).decode().strip()
+            self.assertEqual(dates.split('\x00'),[timestamp,timestamp])
     def test_sequential_imports_retain_both_deltas_and_the_final_main(self):
         first=self.changed(self.base,'first.txt',b'first\n');second=self.changed(first,'second.txt',b'second\n')
         one=importer.import_reviewed(self.repo,self.path,first,self.repo/'first.patch',current_main=first)
@@ -96,6 +116,29 @@ class ReviewedImportTests(unittest.TestCase):
         self.assertEqual(published['source_tree'],publish.tree(self.repo,current_main))
         for contribution in (first,second):
             publish.git(self.repo,'merge-base','--is-ancestor',contribution,published['integration_commit'])
+
+    def test_aggregate_import_preserves_schema2_publication_timestamp_through_publish(self):
+        timestamp='2026-11-09T12:43:27Z'
+        self.plan.update(schema=2,publication_timestamp=timestamp)
+        self.path.write_text(json.dumps(self.plan))
+        _,_,current_main=self.independent_backlog()
+        patch=self.delta(self.base,current_main)
+        result=importer.import_aggregate(self.repo,self.path,self.repo/'schema2.patch',current_main,
+                                         hashlib.sha256(patch).hexdigest())
+        self.assertEqual(result['plan']['schema'],2)
+        self.assertEqual(result['plan']['publication_timestamp'],timestamp)
+        imported_path=self.repo/'schema2-plan.json'
+        imported_path.write_text(json.dumps(result['plan']))
+        raw=imported_path.read_bytes();digest=hashlib.sha256(raw).hexdigest()
+        import commit_messages
+        messages=commit_messages.preview(result['plan'],digest)
+        message_path=self.repo/'schema2-messages.json';message_path.write_text(json.dumps(messages))
+        published=publish.publish(self.repo,imported_path,digest,current_main,messages=message_path,
+                                  approved_messages_sha256=hashlib.sha256(message_path.read_bytes()).hexdigest())
+        self.assertEqual(publish.tree(self.repo,published['integration_commit']),publish.tree(self.repo,current_main))
+        for revision in [*published['layer_commits'],published['source_commit'],published['integration_commit']]:
+            dates=publish.git(self.repo,'show','-s','--format=%aI%x00%cI',revision).decode().strip()
+            self.assertEqual(dates.split('\x00'),[timestamp,timestamp])
 
     def test_aggregate_patch_is_owner_only_even_with_permissive_umask(self):
         _,_,current_main=self.independent_backlog()

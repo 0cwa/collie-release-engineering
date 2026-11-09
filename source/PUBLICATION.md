@@ -17,6 +17,11 @@ currently a draft until public native inputs and direct build acceptance pass.
    ignored. Schema 1 plans remain available for historical replay only; replay
    them with `--historical-publication` (or the explicit historical-message
    mode) to preserve their original fixture timestamp.
+   The production draft composer (`source/compose_security_publication.py`)
+   requires `--publication-timestamp YYYY-MM-DDTHH:MM:SSZ`; it upgrades the
+   retained checkpoint plan to schema 2 before hashing the plan or generating
+   editable message previews. The timestamp therefore travels through the
+   approved plan digest used by both the publisher and candidate verifier.
 3. A trusted operator/verifier outside the candidate computes and approves the
    plan file SHA-256 and re-reads current remote main. Run the trusted revision of
    `source/publish.py --repo REPLAY --plan PLAN --approved-plan-sha256 SHA256

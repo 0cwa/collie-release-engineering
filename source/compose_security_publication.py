@@ -328,6 +328,21 @@ def shorten_message_subjects(messages):
     return messages
 
 
+def publication_outputs(plan, publication_timestamp):
+    """Bind the composer draft to the explicit timestamp before preview hashing."""
+    publish.validate_publication_timestamp(publication_timestamp)
+    if plan.get('schema') == 2 and plan.get('publication_timestamp') != publication_timestamp:
+        raise ValueError('existing publication timestamp differs from the explicit composer input')
+    plan['schema'] = 2
+    plan['publication_timestamp'] = publication_timestamp
+    publish.validate_plan(plan)
+    raw = (json.dumps(plan, indent=2) + '\n').encode()
+    digest = hashlib.sha256(raw).hexdigest()
+    messages = shorten_message_subjects(commit_messages.preview(plan, digest))
+    commit_messages.validate(messages, plan, digest)
+    return raw, digest, messages
+
+
 def set_owner_entries(repo, stage, current_main):
     """Copy exact current-main owner entries into the staged source index."""
     existing = git(stage, 'ls-files', '-z', '--', *OWNER_PATHS).split(b'\0')
@@ -346,7 +361,9 @@ def set_owner_entries(repo, stage, current_main):
 
 def compose(repo, checkpoint_repo, stage, engineering, plan_path,
             prior_generated, prior_integration, reconstruction_commit, current_main, output_plan,
-            output_messages, output_markdown, native_receipt_dir=None, native_policy_revision=None):
+            output_messages, output_markdown, publication_timestamp,
+            native_receipt_dir=None, native_policy_revision=None):
+    publish.validate_publication_timestamp(publication_timestamp)
     repo = Path(repo).resolve()
     checkpoint_repo = Path(checkpoint_repo).resolve()
     stage = Path(stage).resolve()
@@ -493,18 +510,14 @@ def compose(repo, checkpoint_repo, stage, engineering, plan_path,
     plan['old_main'] = current_main
     plan['layers'] = retained_layers + records
     plan['final_tree'] = tree
-    publish.validate_plan(plan)
+    raw, plan_sha256, messages = publication_outputs(plan, publication_timestamp)
     publish.verify_user_files(repo, tree, current_main)
     verify_publication_preimage(repo, publication_tree, security_manifest)
     verify_security_outputs(repo, tree, security_manifest)
 
     verify_release_metadata(repo, tree)
 
-    plan_bytes = (json.dumps(plan, indent=2) + '\n').encode()
-    plan_sha256 = hashlib.sha256(plan_bytes).hexdigest()
-    messages = shorten_message_subjects(commit_messages.preview(plan, plan_sha256))
-    commit_messages.validate(messages, plan, plan_sha256)
-    write_new(output_plan, plan_bytes)
+    write_new(output_plan, raw)
     write_new(output_messages, (json.dumps(messages, indent=2) + '\n').encode())
     write_new(output_markdown, commit_messages.markdown(messages).encode())
     return {'plan': str(output_plan), 'plan_sha256': plan_sha256,
@@ -532,6 +545,8 @@ def main():
     parser.add_argument('--output-plan', type=Path, required=True)
     parser.add_argument('--output-messages', type=Path, required=True)
     parser.add_argument('--output-markdown', type=Path, required=True)
+    parser.add_argument('--publication-timestamp', required=True,
+                        help='explicit canonical UTC publication time (YYYY-MM-DDTHH:MM:SSZ), included in the plan digest')
     parser.add_argument('--native-receipt-dir', type=Path,
                         help='directory containing plan.json, journal.json, and run.json with the locally validated PASS proof from validate_retained_evidence (not a raw GitHub run record)')
     parser.add_argument('--native-policy-revision',
@@ -541,7 +556,7 @@ def main():
                              args.prior_generated, args.prior_integration,
                              args.reconstruction_commit, args.current_main,
                              args.output_plan, args.output_messages,
-                             args.output_markdown, args.native_receipt_dir,
+                             args.output_markdown, args.publication_timestamp, args.native_receipt_dir,
                              args.native_policy_revision), indent=2))
 
 

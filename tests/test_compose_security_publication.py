@@ -12,6 +12,7 @@ import unittest
 ROOT = Path(__file__).parents[1]
 sys.path.insert(0, str(ROOT / 'source'))
 import compose_security_publication as composer
+import test_publish as publication_fixtures
 
 
 class SecurityCompositionTests(unittest.TestCase):
@@ -140,7 +141,7 @@ class SecurityCompositionTests(unittest.TestCase):
                         plan_path=other_checkout / 'plan.json', prior_generated='1' * 40,
                         prior_integration='2' * 40, reconstruction_commit='3' * 40,
                         current_main='4' * 40, output_plan=other_checkout / 'out-plan.json',
-                        output_messages=other_checkout / 'out-messages.json',
+                        output_messages=other_checkout / 'out-messages.json', publication_timestamp='2026-11-09T12:43:27Z',
                         output_markdown=other_checkout / 'out-messages.md')
                 verify_repo.assert_not_called()
 
@@ -149,6 +150,59 @@ class SecurityCompositionTests(unittest.TestCase):
             alias = Path(directory) / 'engineering-alias'
             alias.symlink_to(ROOT, target_is_directory=True)
             self.assertEqual(composer.verify_engineering_root(alias), ROOT.resolve())
+
+    def test_composer_timestamp_plan_preview_publish_and_candidate_verifier(self):
+        timestamp = '2026-11-09T12:43:27Z'
+        fixture = publication_fixtures.PublicationTests('runTest')
+        fixture.setUp()
+        self.addCleanup(fixture.doCleanups)
+        upstream_dates = composer.publish.git(
+            fixture.repo, 'show', '-s', '--format=%aI%x00%cI', fixture.signal).decode().strip()
+
+        raw, digest, messages = composer.publication_outputs(fixture.plan, timestamp)
+        self.assertEqual(fixture.plan['schema'], 2)
+        self.assertEqual(fixture.plan['publication_timestamp'], timestamp)
+        self.assertIn(timestamp.encode(), raw)
+        self.assertEqual(messages['publication_plan_sha256'], digest)
+        composer.commit_messages.validate(messages, fixture.plan, digest)
+        with self.assertRaisesRegex(ValueError, 'existing publication timestamp differs'):
+            composer.publication_outputs(dict(fixture.plan), '2026-11-10T12:43:27Z')
+        with self.assertRaisesRegex(ValueError, 'must be UTC RFC3339 text'):
+            composer.publication_outputs(dict(fixture.plan), '2026-11-09T13:43:27+01:00')
+
+        plan_path = fixture.repo / 'composed-plan.json'
+        messages_path = fixture.repo / 'composed-messages.json'
+        plan_path.write_bytes(raw)
+        messages_path.write_text(json.dumps(messages))
+        published = composer.publish.publish(
+            fixture.repo, plan_path, digest, fixture.old, messages=messages_path,
+            approved_messages_sha256=hashlib.sha256(messages_path.read_bytes()).hexdigest())
+        self.assertEqual(composer.publish.tree(fixture.repo, published['source_commit']), fixture.final)
+        self.assertEqual(composer.publish.tree(fixture.repo, published['integration_commit']), fixture.final)
+        for revision in [*published['layer_commits'], published['source_commit'], published['integration_commit']]:
+            dates = composer.publish.git(fixture.repo, 'show', '-s', '--format=%aI%x00%cI', revision).decode().strip()
+            self.assertEqual(dates.split('\x00'), [timestamp, timestamp])
+        self.assertEqual(
+            composer.publish.git(fixture.repo, 'show', '-s', '--format=%aI%x00%cI', fixture.signal).decode().strip(),
+            upstream_dates)
+
+        verifier = ROOT / 'source/verify_candidate.py'
+        result = subprocess.run([
+            sys.executable, str(verifier), '--repo', str(fixture.repo), '--plan', str(plan_path),
+            '--expected-plan-sha256', digest, '--current-main', fixture.old,
+            '--expected-source', published['source_commit'], '--expected-integration', published['integration_commit'],
+        ], check=True, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        self.assertIn('"status": "PASS"', result.stdout)
+
+    def test_composer_requires_explicit_timestamp_cli_option(self):
+        script = str(ROOT / 'source/compose_security_publication.py')
+        result = subprocess.run([sys.executable, script, '--help'],
+                                check=True, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        self.assertIn('--publication-timestamp', result.stdout)
+        self.assertIn('included in the plan digest', result.stdout)
+        missing = subprocess.run([sys.executable, script], text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        self.assertEqual(missing.returncode, 2)
+        self.assertIn('--publication-timestamp', missing.stderr)
 
     def test_security_layer_rejects_an_output_that_survived_publication_cleanup(self):
         oid = '1' * 40

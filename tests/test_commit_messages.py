@@ -12,7 +12,8 @@ import test_publish as fixtures
 class CommitMessageInputs(unittest.TestCase):
     def setUp(self):
         self.fixture=fixtures.PublicationTests('runTest');self.fixture.setUp();self.addCleanup(self.fixture.doCleanups)
-        f=self.fixture;f.path.write_text(json.dumps(f.plan));self.plan_sha=hashlib.sha256(f.path.read_bytes()).hexdigest()
+        f=self.fixture;f.plan.update(schema=2,publication_timestamp='2026-11-09T12:43:27Z')
+        f.path.write_text(json.dumps(f.plan));self.plan_sha=hashlib.sha256(f.path.read_bytes()).hexdigest()
         self.wording=messages.preview(f.plan,self.plan_sha);self.file=f.repo/'messages.json'
     def emit(self):
         self.file.write_text(json.dumps(self.wording))
