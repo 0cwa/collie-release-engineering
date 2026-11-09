@@ -27,6 +27,12 @@ obsolete patch-repository JNI TU/Spinner into clean source or engineering.
 The engineering tools commit does not name final G: the rendered layer pins the
 already durable policy revision, and a later receipt names G, avoiding a cycle.
 
+The published CodeQL workflow reads `codeql-config.yml` from the trusted base
+revision checkout (`trusted-policy/.github/codeql/codeql-config.yml`), never the
+pull request's source checkout. It fails before CodeQL initialization if that
+trusted file is missing or empty. The reviewed source template is pinned at
+engineering commit `f3710fcc2af4f7c3a6118a904e9030fbf42f86e9`.
+
 Current app PR42 bridge retains local tools until cutover. After this dependency
 is merged and the published source layer is approved, engineering is authoritative.
 PR44 duplicate SARIF tools/buildless C++/weaker editor changes are intentionally
@@ -40,6 +46,7 @@ regenerate/retest a new G, never move release tags or rewrite retained history.
 Copied/adapted source hashes:
 
 - tools/codeql/publication/codeql-config.yml 61d120d00ff16b9c25303e245d6a08b286b9836f3c29a822b81d03f9f9601e0e
+- tools/codeql/publication/codeql.yml.in cb74e06253903007ff9aaa448091cad694cd02becc9d36a98014f8c3561041db
 - tools/codeql/publication/codeql.yml.in 418f93f60267c2c82c2531423202c77d8170f26f1db28e4a3266961e5d335de4
 - tools/codeql/publication/publish-screenshots.yml.in 5c265a22ed73167507b5fc2210033e73b1e177cb792deded9e9b70128c3fe897
 - tools/codeql/publication/reviewed-findings.json d1240327219f44e01b73eeae84e9b53aea21d51d1cca3da0dd3d62fc2ceaa465

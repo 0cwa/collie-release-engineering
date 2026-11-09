@@ -15,6 +15,28 @@ class RenderPublicationTests(unittest.TestCase):
             self.assertIn('languages: actions',(output/'.github/workflows/codeql.yml').read_text())
             self.assertIn('NOT RUN',result['coverage'])
             self.assertIn('tools/screenshots',(output/'.github/workflows/publish-screenshots.yml').read_text())
+    def test_missing_trusted_base_config_fails_before_codeql_init(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            repository=Path(__file__).resolve().parents[2]
+            revision=subprocess.check_output(['git','rev-parse','HEAD'],cwd=repository,text=True).strip()
+            output=Path(tmp)/'layer';r.render(revision,output,repository)
+            workflow=(output/'.github/workflows/codeql.yml').read_text()
+            guard='''test -f trusted-policy/.github/codeql/codeql-config.yml
+          test -s trusted-policy/.github/codeql/codeql-config.yml'''
+            self.assertIn(guard,workflow)
+            self.assertIn('config-file: ./trusted-policy/.github/codeql/codeql-config.yml',workflow)
+            self.assertLess(workflow.index('Require trusted base CodeQL configuration'),
+                            workflow.index('github/codeql-action/init@'))
+            with tempfile.TemporaryDirectory() as checkout:
+                missing=subprocess.run(['bash','-euo','pipefail','-c',guard],cwd=checkout,
+                                       capture_output=True)
+                self.assertNotEqual(missing.returncode,0)
+                config=Path(checkout)/'trusted-policy/.github/codeql/codeql-config.yml'
+                config.parent.mkdir(parents=True)
+                config.write_text('name: trusted base policy\n')
+                present=subprocess.run(['bash','-euo','pipefail','-c',guard],cwd=checkout,
+                                       capture_output=True)
+                self.assertEqual(present.returncode,0,present.stderr.decode())
     def test_working_tree_templates_cannot_mislabel_output(self):
         with tempfile.TemporaryDirectory() as tmp:
             repository=Path(tmp)/'repo';repository.mkdir()

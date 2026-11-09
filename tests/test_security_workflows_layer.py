@@ -18,7 +18,7 @@ EXPECTED_PATHS = {
     '.github/codeql/codeql-config.yml',
     '.github/codeql/reviewed-findings.json',
 }
-POLICY_REVISION = '124ca006b36c64e12807db2d1737d7f1faf06471'
+POLICY_REVISION = 'f3710fcc2af4f7c3a6118a904e9030fbf42f86e9'
 
 
 def load_publication():
@@ -159,6 +159,11 @@ class SecurityWorkflowFeatureLayerTests(unittest.TestCase):
         screenshot_generation = self.output_text('.github/workflows/update-screenshots.yml')
         screenshot_publish = self.output_text('.github/workflows/publish-screenshots.yml')
         self.assertIn('languages: actions', codeql)
+        self.assertIn('config-file: ./trusted-policy/.github/codeql/codeql-config.yml', codeql)
+        self.assertIn('test -f trusted-policy/.github/codeql/codeql-config.yml', codeql)
+        self.assertIn('test -s trusted-policy/.github/codeql/codeql-config.yml', codeql)
+        self.assertLess(codeql.index('Require trusted base CodeQL configuration'),
+                        codeql.index('github/codeql-action/init@'))
         self.assertNotIn('contents: write', codeql)
         self.assertNotIn('contents: write', screenshot_generation)
         self.assertIn("if: github.ref == 'refs/heads/main'", screenshot_publish)
