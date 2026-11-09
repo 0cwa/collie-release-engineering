@@ -18,6 +18,10 @@ ORIGIN='https://repo.collie.im/'
 MAX_BYTES=950_000_000  # conservative decimal1GB minus50MB operational margin
 NATIVE_POLICY=Path(__file__).with_name('native-v1.json')
 ARCHIVE_FORMAT=tarfile.USTAR_FORMAT
+FIRST_PUBLICATION_RECOVERY='owner-authorized-first-publication-unverified-origin'
+CACHED_NEGATIVE='cached_negative_unverified_origin'
+NEGATIVE_UNVERIFIED='negative_unverified_origin'
+EXACT_CONTENT_UNVERIFIED='exact_content_match_unverified_origin'
 
 def native_files():
     return b.load(NATIVE_POLICY)['files']
@@ -26,6 +30,17 @@ INDEXES={'entry.jar','entry.json','index-v1.jar','index-v1.json','index-v2.json'
 
 def digest(value):
     return hashlib.sha256(json.dumps(value,sort_keys=True,separators=(',',':')).encode()).hexdigest()
+
+def _cache_headers(headers):
+    return {k:headers.get(k) for k in ('Cache-Control','ETag','Last-Modified','Age','X-Cache')}
+
+def _fresh_headers(values):
+    age=values.get('Age')
+    if age is not None:
+        try:age_value=int(age)
+        except (TypeError,ValueError):return False
+        if age_value!=0:return False
+    return not re.search(r'\bhit\b',values.get('X-Cache') or '',re.IGNORECASE)
 
 def safe_name(name):
     path=PurePosixPath(name)
@@ -193,7 +208,7 @@ def prepare(bundle,output,expected_policy):
         if immutable1!=immutable2:raise ValueError('phase immutable asset sets differ')
         for name in old_files:
             if name not in manifests['phase2']:raise ValueError('retained URL removed')
-        plan={'schema':1,'kind':'collie-pages-promotion','input_approval_sha256':digest(a),'origin':ORIGIN,'policy_revision':expected_policy,'mode':'native-only' if native_only else 'feed','native_manifest_sha256':native_digest,'repository_receipt_sha256':a.get('repository_receipt_sha256'),'repository_certificate_sha256':a.get('repository_certificate_sha256'),'candidate_generation_sha256':a.get('candidate_generation_sha256'),'maximum_bytes':a['maximum_bytes'],'previous_manifest_sha256':a['previous_manifest_sha256'],'previous_files':old_files,'manifests':manifests,'artifacts':artifacts}
+        plan={'schema':1,'kind':'collie-pages-promotion','input_approval_sha256':digest(a),'origin':ORIGIN,'policy_revision':expected_policy,'mode':'native-only' if native_only else 'feed','native_manifest_sha256':native_digest,'repository_receipt_sha256':a.get('repository_receipt_sha256'),'repository_certificate_sha256':a.get('repository_certificate_sha256'),'candidate_generation_sha256':a.get('candidate_generation_sha256'),'maximum_bytes':a['maximum_bytes'],'previous_manifest_sha256':a['previous_manifest_sha256'],'previous_site_sha256':a['previous_site_sha256'],'previous_files':old_files,'manifests':manifests,'artifacts':artifacts}
         b.atomic_json(output/'plan.json',plan)
         b.atomic_json(output/'journal.json',{'schema':1,'plan_sha256':digest(plan),'completed':[],'previous_verified':False,'readbacks':{}})
         return plan
@@ -202,19 +217,14 @@ def prepare(bundle,output,expected_policy):
         raise
 
 def _fresh_cache_headers(headers):
-    values={k:headers.get(k) for k in ('Cache-Control','ETag','Last-Modified','Age','X-Cache')}
+    values=_cache_headers(headers)
     age=values['Age']
-    if age is not None:
-        try:
-            age_value=int(age)
-        except ValueError:
-            raise ValueError('invalid Age header; canonical inventory freshness is unknown') from None
-        if age_value!=0:raise ValueError('cached response is not a fresh canonical inventory')
-    if re.search(r'\bhit\b',values['X-Cache'] or '',re.IGNORECASE):
-        raise ValueError('cached response is not a fresh canonical inventory')
+    if age is not None and not re.fullmatch(r'\s*\d+\s*',age):
+        raise ValueError('invalid Age header; canonical inventory freshness is unknown')
+    if not _fresh_headers(values):raise ValueError('cached response is not a fresh canonical inventory')
     return values
 
-def observe_head(url):
+def observe_head(url,*,allow_unverified=False):
     import urllib.error
     request=urllib.request.Request(url,headers={'Cache-Control':'no-cache, no-store','Pragma':'no-cache'},method='HEAD')
     try:
@@ -223,16 +233,17 @@ def observe_head(url):
         if error.code==404:
             try:
                 if not error.geturl().startswith('https://'):raise ValueError('HTTPS readback required')
-                headers=_fresh_cache_headers(error.headers)
+                headers=_cache_headers(error.headers) if allow_unverified else _fresh_cache_headers(error.headers)
             finally:error.close()
             return {'status':404,'headers':headers}
         raise
     with response:
         if not response.geturl().startswith('https://'):raise ValueError('HTTPS readback required')
         if response.status!=200:raise ValueError('canonical inventory HEAD was not 200 or 404')
-        return {'status':200,'headers':_fresh_cache_headers(response.headers)}
+        headers=_cache_headers(response.headers) if allow_unverified else _fresh_cache_headers(response.headers)
+        return {'status':200,'headers':headers}
 
-def observe(url):
+def observe(url,*,allow_unverified=False):
     import urllib.error
     request=urllib.request.Request(url,headers={'Cache-Control':'no-cache, no-store','Pragma':'no-cache'})
 
@@ -242,30 +253,128 @@ def observe(url):
         if error.code==404:
             try:
                 if not error.geturl().startswith('https://'):raise ValueError('HTTPS readback required')
-                headers=_fresh_cache_headers(error.headers)
+                headers=_cache_headers(error.headers) if allow_unverified else _fresh_cache_headers(error.headers)
             finally:error.close()
             return {'status':404,'headers':headers}
         raise
     with response:
         if not response.geturl().startswith('https://'):raise ValueError('HTTPS readback required')
         if response.status!=200:raise ValueError('readback not200')
-        headers=_fresh_cache_headers(response.headers)
+        headers=_cache_headers(response.headers) if allow_unverified else _fresh_cache_headers(response.headers)
         h=hashlib.sha256();size=0
         for block in iter(lambda:response.read(1024*1024),b''):h.update(block);size+=len(block)
         return {'status':200,'sha256':h.hexdigest(),'bytes':size,'headers':headers}
 
+def _authorized_empty_native_plan(plan):
+    expected_paths=set(native_files())|set(site_page.STATIC)|{'index.html','site-manifest.json'}
+    try:
+        if (plan.get('schema')!=1 or plan.get('kind')!='collie-pages-promotion' or
+            plan.get('mode')!='native-only' or plan.get('origin')!=ORIGIN or
+            plan.get('previous_files')!={} or plan.get('previous_manifest_sha256') is not None or
+            plan.get('previous_site_sha256')!=digest({}) or
+            plan.get('native_manifest_sha256')!=b.sha(NATIVE_POLICY) or
+            type(plan.get('maximum_bytes')) is not int or plan.get('maximum_bytes')!=MAX_BYTES or
+            not re.fullmatch(r'[0-9a-f]{64}',plan.get('input_approval_sha256','')) or
+            not re.fullmatch(r'[0-9a-f]{40}',plan.get('policy_revision','')) or
+            plan.get('repository_receipt_sha256') is not None or
+            plan.get('repository_certificate_sha256') is not None or
+            plan.get('candidate_generation_sha256') is not None):return False
+        phase1=plan['manifests']['phase1'];phase2=plan['manifests']['phase2']
+        if set(phase1)!=expected_paths or phase2!=phase1:return False
+        if plan['artifacts']['phase1']!=plan['artifacts']['phase2']:return False
+        if any(type(e.get('bytes')) is not int or e['bytes']<=0 or
+               not re.fullmatch(r'[0-9a-f]{64}',e.get('sha256','')) for e in phase1.values()):return False
+        return all(phase1[name]==entry for name,entry in native_files().items())
+    except (KeyError,TypeError,AttributeError):
+        return False
+
+def _recovery_journal_authorized(plan,journal):
+    if (journal.get('previous_verified') is not False or
+        journal.get('previous_state_classification')!=FIRST_PUBLICATION_RECOVERY or
+        not _authorized_empty_native_plan(plan)):
+        return False
+    state=journal.get('previous_state')
+    if (not isinstance(state,dict) or state.get('plan_sha256')!=digest(plan) or
+        state.get('input_approval_sha256')!=plan['input_approval_sha256']):
+        return False
+    expected={'site-manifest.json','fdroid/repo/entry.jar'}|{
+        n for n in plan['manifests']['phase1'] if n.startswith('native-inputs/')}
+    observations=state.get('observations')
+    if not isinstance(observations,dict) or set(observations)!=expected:return False
+    for name,item in observations.items():
+        if not isinstance(item,dict):return False
+        if item.get('status')==404:
+            if item.get('classification') not in (CACHED_NEGATIVE,NEGATIVE_UNVERIFIED):return False
+        elif item.get('status')==200 and name in plan['manifests']['phase1']:
+            expected_entry=plan['manifests']['phase1'][name]
+            if (item.get('classification')!=EXACT_CONTENT_UNVERIFIED or
+                item.get('sha256')!=expected_entry['sha256'] or item.get('bytes')!=expected_entry['bytes']):return False
+        else:return False
+    return True
+
+def verify_terminal_operation_inventory(runs,deployments,expected_run_ids,expected_deployment_ids):
+    if not all(isinstance(value,list) for value in (runs,deployments)):
+        raise ValueError('operation inventory must be lists')
+    if not expected_run_ids or not expected_deployment_ids:
+        raise ValueError('known operation IDs are required')
+    if any(type(value) is not int or value<=0 for value in (*expected_run_ids,*expected_deployment_ids)):
+        raise ValueError('known operation IDs are invalid')
+    if (len(set(expected_run_ids))!=len(expected_run_ids) or
+        len(set(expected_deployment_ids))!=len(expected_deployment_ids)):
+        raise ValueError('known operation IDs are duplicated')
+    run_ids=[run.get('id') for run in runs if isinstance(run,dict)]
+    deployment_ids=[item.get('id') for item in deployments if isinstance(item,dict)]
+    if (len(run_ids)!=len(runs) or len(deployment_ids)!=len(deployments) or
+        any(type(value) is not int or value<=0 for value in (*run_ids,*deployment_ids)) or
+        len(set(run_ids))!=len(run_ids) or len(set(deployment_ids))!=len(deployment_ids) or
+        set(run_ids)!=set(expected_run_ids) or set(deployment_ids)!=set(expected_deployment_ids)):
+        raise ValueError('unexpected or missing workflow run/deployment')
+    if any(run.get('status')!='completed' or run.get('conclusion')!='failure' for run in runs):
+        raise ValueError('workflow run is active or not a known terminal failure')
+    if any(item.get('state')!='failure' for item in deployments):
+        raise ValueError('deployment is active or not a known terminal failure')
+    return True
+
 def preflight(plan,journal_path,*,fetch=observe,head=None):
     if plan['origin']!=ORIGIN:raise ValueError('unapproved origin')
     if head is None:head=observe_head if fetch is observe else fetch
+    recovery=_authorized_empty_native_plan(plan)
     with b.locked(journal_path.parent):
         journal=b.load(journal_path)
         if journal['plan_sha256']!=digest(plan):raise ValueError('journal belongs to another plan')
+        if (journal.get('previous_verified') is not False or journal.get('completed')!=[] or
+            journal.get('readbacks')!={} or 'previous_readback' in journal or
+            'previous_state' in journal or 'previous_state_classification' in journal):
+            raise ValueError('fresh preflight journal required')
         observations={}
+        def inspect_head(url):
+            actual=(head(url,allow_unverified=True) if recovery and head is observe_head else head(url))
+            if actual.get('status') not in (200,404):raise ValueError('canonical inventory HEAD was not 200 or 404')
+            headers=actual.get('headers',{})
+            if not recovery and not _fresh_headers(headers):
+                raise ValueError('cached response is not a fresh canonical inventory')
+            return actual
+        def exact_get(url,name,expected):
+            actual=(fetch(url,allow_unverified=True) if recovery and fetch is observe else fetch(url))
+            if (actual.get('status',200)!=200 or actual.get('sha256')!=expected['sha256'] or
+                actual.get('bytes')!=expected['bytes']):
+                message='native URL differs before initial publication' if name.startswith('native-inputs/') else 'existing URL differs before initial publication'
+                raise ValueError(message+': '+name)
+            actual=dict(actual);actual['classification']=EXACT_CONTENT_UNVERIFIED
+            return actual
+        def record_negative(name,actual):
+            if recovery:
+                item=dict(actual);item['classification']=CACHED_NEGATIVE if not _fresh_headers(actual.get('headers',{})) else NEGATIVE_UNVERIFIED
+                observations[name]=item
+            else:observations[name]=actual
         if not plan['previous_files']:
             for name in ('site-manifest.json','fdroid/repo/entry.jar'):
-                actual=head(plan['origin']+name)
-                if actual.get('status')!=404:raise ValueError('initial origin is not the explicitly approved empty feed')
-                observations[name]=actual
+                actual=inspect_head(plan['origin']+name)
+                if actual.get('status')==404:
+                    record_negative(name,actual);continue
+                if not recovery or name not in plan['manifests']['phase1']:
+                    raise ValueError('initial origin is not the explicitly approved empty feed')
+                observations[name]=exact_get(plan['origin']+name,name,plan['manifests']['phase1'][name])
         else:
             for name,expected in plan['previous_files'].items():
                 safe_name(name);actual=fetch(plan['origin']+name)
@@ -275,11 +384,15 @@ def preflight(plan,journal_path,*,fetch=observe,head=None):
         # native URL: absence from its inventory does not prove the URL is empty.
         for name,expected in plan['manifests']['phase1'].items():
             if not name.startswith('native-inputs/') or name in plan['previous_files']:continue
-            actual=head(plan['origin']+name)
-            if actual.get('status')==200:actual=fetch(plan['origin']+name)
-            if actual.get('status')!=404 and (actual.get('status',200)!=200 or actual.get('sha256')!=expected['sha256'] or actual.get('bytes')!=expected['bytes']):raise ValueError('existing native URL differs before initial publication')
-            observations[name]=actual
-        journal['previous_verified']=True;journal['previous_readback']=observations
+            actual=inspect_head(plan['origin']+name)
+            if actual.get('status')==404:record_negative(name,actual)
+            else:observations[name]=exact_get(plan['origin']+name,name,expected)
+        if recovery:
+            journal['previous_verified']=False
+            journal['previous_state_classification']=FIRST_PUBLICATION_RECOVERY
+            journal['previous_state']={'plan_sha256':digest(plan),'input_approval_sha256':plan['input_approval_sha256'],'observations':observations}
+        else:
+            journal['previous_verified']=True;journal['previous_readback']=observations
         b.atomic_json(journal_path,journal)
         return journal
 
@@ -290,7 +403,8 @@ def readback(plan,journal_path,phase,*,fetch=None):
     with b.locked(journal_path.parent):
         journal=b.load(journal_path)
         if journal['plan_sha256']!=digest(plan):raise ValueError('journal belongs to another plan')
-        if not journal.get('previous_verified'):raise ValueError('live previous preflight required')
+        if not journal.get('previous_verified') and not _recovery_journal_authorized(plan,journal):
+            raise ValueError('live previous preflight or owner-authorized first-publication recovery required')
         if phase=='phase2' and 'phase1' not in journal['completed']:raise ValueError('phase1 readback required before phase2')
         observed={}
         for name,expected in plan['manifests'][phase].items():
@@ -301,6 +415,21 @@ def readback(plan,journal_path,phase,*,fetch=None):
         if phase not in journal['completed']:journal['completed'].append(phase)
         b.atomic_json(journal_path,journal)
         return journal
+
+def verify_completed_readbacks(plan,journal):
+    if journal.get('plan_sha256')!=digest(plan):raise ValueError('journal belongs to another plan')
+    if not journal.get('previous_verified') and not _recovery_journal_authorized(plan,journal):
+        raise ValueError('live previous preflight or owner-authorized first-publication recovery required')
+    if journal.get('completed')!=['phase1','phase2'] or set(journal.get('readbacks',{}))!={'phase1','phase2'}:
+        raise ValueError('both canonical readbacks are required')
+    for phase in ('phase1','phase2'):
+        observed=journal['readbacks'][phase];expected=plan['manifests'][phase]
+        if set(observed)!=set(expected):raise ValueError('canonical readback inventory differs')
+        for name,entry in expected.items():
+            item=observed[name]
+            if (item.get('status')!=200 or item.get('sha256')!=entry['sha256'] or
+                item.get('bytes')!=entry['bytes']):raise ValueError('canonical readback differs: '+name)
+    return True
 
 def unpack(archive_path,destination):
     if destination.exists():raise ValueError('new bundle directory required')

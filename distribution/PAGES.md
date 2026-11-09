@@ -112,8 +112,9 @@ preflight as a provider-level conditional-write transaction.
    and records observed Cache-Control/ETag/Last-Modified/Age/X-Cache. Preflight sends
    no-cache revalidation headers and uses HEAD responses for fresh absence checks;
    existing expected files are GET-hashed. It rejects nonzero Age, `X-Cache: HIT`,
-   or an HTTPS downgrade. Cached404, mixed bytes or interrupted requests do not
-   advance the journal. Retry the same prepared plan; do not rebuild or re-sign APK.
+   or an HTTPS downgrade by default. Unknown/existing inventory, mixed bytes or
+   interrupted requests do not advance the journal. Retry the same prepared plan;
+   do not rebuild or re-sign APK.
 4. Only successful phase1 read-back permits the separately protected phase2 job.
    It publishes the same immutable assets with the newly signed active indexes and
    approved landing. Final read-back checks the complete snapshot again. Public
@@ -126,6 +127,27 @@ wrong-generation, cached404 and retry tests model safety; actual Pages headers,
 CDN convergence and official/compatible client recovery remain activation gates.
 A cached404 at a canonical URL must resolve before phase2; a successful cache-busted
 alternative is not sufficient. Do not weaken F-Droid signature/hash validation.
+
+### Owner-authorized first native publication recovery
+
+The exact native-only first-publication plan is a narrow exception to cached-negative
+preflight failure. It is eligible only when the prepared approval binds the empty
+previous-site digest and null previous manifest, the plan has no previous files, the
+fixed six-file native manifest is exact, and both phase manifests are the same exact
+15 approved paths/hashes/sizes. In that case, preflight records cached 404s as
+`cached_negative_unverified_origin` and journals the explicit
+`owner-authorized-first-publication-unverified-origin` classification. It keeps
+`previous_verified=false`; Age 0 and X-Cache MISS are also not described as proof of
+origin contact. A 200 at a planned native URL (or the planned site manifest) must be
+GET-verified against exact approved size/hash; any other status or differing bytes
+fails without advancing the journal. A 200 at the unapproved feed sentinel fails.
+
+This classification only permits the already authorized initial phase to proceed.
+It does not satisfy publication acceptance: phase 1 must still return HTTPS 200 and
+exact bytes/SHA for all 15 canonical URLs before phase 2, and phase 2 must pass the
+same full readback. Default existing-inventory checks, stale-journal rejection,
+HTTPS downgrade rejection, deployment/run inventory checks before dispatch, and
+cleanup of the temporary production flag remain fail-closed.
 
 ## Workflow permission and activation gate
 

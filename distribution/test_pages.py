@@ -127,6 +127,19 @@ class PagesFreshInventoryTests(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError,'freshness is unknown'):
                     p.observe(url)
 
+    def test_recovery_head_records_cached_negative_without_claiming_origin_proof(self):
+        url='https://repo.collie.im/native-inputs/example'
+        headers=Message();headers['Age']='1468';headers['X-Cache']='HIT'
+        error=HTTPError(url,404,'Not Found',headers,None)
+        with patch('urllib.request.urlopen',side_effect=error):
+            result=p.observe_head(url,allow_unverified=True)
+        self.assertEqual(result['status'],404)
+        self.assertEqual(result['headers']['Age'],'1468')
+        downgraded=HTTPError('http://repo.collie.im/native-inputs/example',404,'Not Found',headers,None)
+        with patch('urllib.request.urlopen',side_effect=downgraded):
+            with self.assertRaisesRegex(ValueError,'HTTPS readback required'):
+                p.observe_head(url,allow_unverified=True)
+
 class PagesTest(unittest.TestCase):
     def setUp(self):
         self.tmp=tempfile.TemporaryDirectory();self.addCleanup(self.tmp.cleanup);self.root=Path(self.tmp.name);self.bundle=self.root/'bundle';self.bundle.mkdir();self.output=self.root/'out'
@@ -156,7 +169,7 @@ class PagesTest(unittest.TestCase):
         with patch('binary_repo.verify_indexes',return_value=self.data):return p.prepare(self.bundle,self.output,'c'*40)
     def fetch(self,plan,phase):
         def fetch(url):
-            name=url.removeprefix(plan['origin']);return dict(plan['manifests'][phase][name],headers={'Cache-Control':'measuredfixture'})
+            name=url.removeprefix(plan['origin']);return dict(plan['manifests'][phase][name],status=200,headers={'Cache-Control':'measuredfixture'})
         return fetch
     def test_two_phases_same_assets_old_indexes_then_new(self):
         old=self.bundle/'previous/fdroid/repo';old.mkdir(parents=True);(old/'entry.jar').write_bytes(b'old entry')
@@ -213,6 +226,14 @@ class PagesTest(unittest.TestCase):
         self.assertFalse(b.load(journal)['previous_verified'])
         self.start_preflight(plan)
         self.assertTrue(b.load(journal)['previous_verified'])
+    def test_default_empty_feed_still_rejects_cached_negative(self):
+        plan=self.prepare();journal=self.output/'journal.json'
+        stale={'Age':'1468','X-Cache':'HIT'}
+        with self.assertRaisesRegex(ValueError,'not a fresh canonical inventory'):
+            p.preflight(plan,journal,head=lambda _url:{'status':404,'headers':stale})
+        state=b.load(journal)
+        self.assertFalse(state['previous_verified'])
+        self.assertNotIn('previous_state_classification',state)
     def test_existing_live_manifest_mismatch_blocks_preflight(self):
         old=self.bundle/'previous';(old/'assets').mkdir();(old/'assets/approved.svg').write_bytes(b'previous public asset');self.seal_previous()
         plan=self.prepare();journal=self.output/'journal.json'
@@ -242,6 +263,7 @@ class NativePagesTest(unittest.TestCase):
     setUp=PagesTest.setUp
     write=PagesTest.write
     prepare=PagesTest.prepare
+    fetch=PagesTest.fetch
     seal_previous=PagesTest.seal_previous
     def add_native(self,only=False):
         # Small transport fixtures use the exact six production coordinate names;
@@ -271,9 +293,131 @@ class NativePagesTest(unittest.TestCase):
         self.add_native(only=True);plan=self.prepare();journal=self.output/'journal.json';seen=[]
         def head(url):seen.append(url);return {'status':404,'headers':{'Age':'0','X-Cache':'MISS'}}
         def fetch(_url):self.fail('GET should not be used to establish fresh 404 absence')
-        p.preflight(plan,journal,fetch=fetch,head=head)
+        result=p.preflight(plan,journal,fetch=fetch,head=head)
         self.assertEqual(len(seen),8)
+        self.assertFalse(result['previous_verified'])
+        self.assertEqual(result['previous_state_classification'],p.FIRST_PUBLICATION_RECOVERY)
+        self.assertTrue(all(item['classification']==p.NEGATIVE_UNVERIFIED for item in result['previous_state']['observations'].values()))
+
+    def test_cached_empty_native_recovery_keeps_unverified_state_and_allows_exact_two_phase_receipt(self):
+        self.add_native(only=True);plan=self.prepare();journal=self.output/'journal.json';seen=[]
+        headers={'Age':'1468','X-Cache':'HIT','ETag':'shared-404'}
+        def head(url):seen.append(url);return {'status':404,'headers':headers}
+        def fetch(_url):self.fail('cached 404 recovery does not need a GET')
+        result=p.preflight(plan,journal,fetch=fetch,head=head)
+        self.assertEqual(len(seen),8)
+        self.assertFalse(result['previous_verified'])
+        self.assertNotIn('previous_readback',result)
+        self.assertEqual(result['previous_state_classification'],p.FIRST_PUBLICATION_RECOVERY)
+        self.assertEqual(set(result['previous_state']['observations']),
+                         {'site-manifest.json','fdroid/repo/entry.jar'}|{n for n in plan['manifests']['phase1'] if n.startswith('native-inputs/')})
+        self.assertTrue(all(item['classification']==p.CACHED_NEGATIVE for item in result['previous_state']['observations'].values()))
+        with self.assertRaisesRegex(ValueError,'phase1 readback required'):
+            p.readback(plan,journal,'phase2',fetch=self.fetch(plan,'phase2'))
+        with self.assertRaisesRegex(ValueError,'both canonical readbacks'):
+            p.verify_completed_readbacks(plan,b.load(journal))
+        p.readback(plan,journal,'phase1',fetch=self.fetch(plan,'phase1'))
+        with self.assertRaisesRegex(ValueError,'both canonical readbacks'):
+            p.verify_completed_readbacks(plan,b.load(journal))
+        receipt=p.readback(plan,journal,'phase2',fetch=self.fetch(plan,'phase2'))
+        self.assertFalse(receipt['previous_verified'])
+        self.assertEqual(receipt['completed'],['phase1','phase2'])
+        self.assertTrue(p.verify_completed_readbacks(plan,receipt))
+        for phase in ('phase1','phase2'):
+            self.assertEqual(len(receipt['readbacks'][phase]),15)
+            self.assertEqual({name:(item['sha256'],item['bytes']) for name,item in receipt['readbacks'][phase].items()},
+                             {name:(item['sha256'],item['bytes']) for name,item in plan['manifests'][phase].items()})
+        changed=copy.deepcopy(receipt);changed['readbacks']['phase2']['index.html']['bytes']+=1
+        with self.assertRaisesRegex(ValueError,'canonical readback differs'):
+            p.verify_completed_readbacks(plan,changed)
+
+    def test_recovery_rejects_unapproved_feed_sentinel(self):
+        self.add_native(only=True);plan=self.prepare();journal=self.output/'journal.json'
+        def head(url):
+            if url.endswith('/fdroid/repo/entry.jar'):return {'status':200,'headers':{'Age':'1468','X-Cache':'HIT'}}
+            return {'status':404,'headers':{'Age':'1468','X-Cache':'HIT'}}
+        with self.assertRaisesRegex(ValueError,'explicitly approved empty feed'):
+            p.preflight(plan,journal,head=head)
+        self.assertFalse(b.load(journal)['previous_verified'])
+        self.assertNotIn('previous_state_classification',b.load(journal))
+
+    def test_native_recovery_200_requires_exact_get_and_mismatch_does_not_advance(self):
+        self.add_native(only=True);plan=self.prepare();journal=self.output/'journal.json'
+        native=next(name for name in plan['manifests']['phase1'] if name.startswith('native-inputs/'))
+        def head(url):
+            return {'status':200,'headers':{'Age':'1468','X-Cache':'HIT'}} if url==p.ORIGIN+native else {'status':404,'headers':{'Age':'1468','X-Cache':'HIT'}}
+        calls=[]
+        def changed(url):
+            calls.append(url);return {'status':200,'sha256':'0'*64,'bytes':0,'headers':{'Age':'1468','X-Cache':'HIT'}}
+        with self.assertRaisesRegex(ValueError,'differs before initial publication'):
+            p.preflight(plan,journal,fetch=changed,head=head)
+        self.assertEqual(calls,[p.ORIGIN+native])
+        untouched=b.load(journal)
+        self.assertFalse(untouched['previous_verified'])
+        self.assertNotIn('previous_state_classification',untouched)
+        def wrong_size(url):
+            name=url.removeprefix(p.ORIGIN);entry=plan['manifests']['phase1'][name]
+            return dict(entry,status=200,bytes=entry['bytes']+1,headers={'Age':'1468','X-Cache':'HIT'})
+        with self.assertRaisesRegex(ValueError,'differs before initial publication'):
+            p.preflight(plan,journal,fetch=wrong_size,head=head)
+        self.assertNotIn('previous_state_classification',b.load(journal))
+        def exact(url):
+            name=url.removeprefix(p.ORIGIN)
+            return dict(plan['manifests']['phase1'][name],status=200,headers={'Age':'1468','X-Cache':'HIT'})
+        result=p.preflight(plan,journal,fetch=exact,head=head)
+        self.assertFalse(result['previous_verified'])
+        self.assertEqual(result['previous_state']['observations'][native]['classification'],p.EXACT_CONTENT_UNVERIFIED)
+
+    def test_recovery_rejects_unknown_status_and_nonapproved_empty_snapshot(self):
+        self.add_native(only=True);plan=self.prepare();journal=self.output/'journal.json'
+        stale={'Age':'1468','X-Cache':'HIT'}
+        with self.assertRaisesRegex(ValueError,'200 or 404'):
+            p.preflight(plan,journal,head=lambda _url:{'status':503,'headers':stale})
+        changed=copy.deepcopy(plan);changed['previous_site_sha256']='0'*64
+        b.atomic_json(journal,{'schema':1,'plan_sha256':p.digest(changed),'completed':[],'previous_verified':False,'readbacks':{}})
+        with self.assertRaisesRegex(ValueError,'not a fresh canonical inventory'):
+            p.preflight(changed,journal,head=lambda _url:{'status':404,'headers':stale})
+        self.assertFalse(b.load(journal)['previous_verified'])
+
+    def test_recovery_rejects_changed_path_native_identity_or_policy_approval(self):
+        self.add_native(only=True);plan=self.prepare();journal=self.output/'journal.json'
+        native=next(name for name in plan['manifests']['phase1'] if name.startswith('native-inputs/'))
+        mutations=[]
+        changed=copy.deepcopy(plan);changed['manifests']['phase1'].pop(native);changed['manifests']['phase2'].pop(native);mutations.append(changed)
+        changed=copy.deepcopy(plan);changed['manifests']['phase1'][native]['sha256']='0'*64;changed['manifests']['phase2'][native]['sha256']='0'*64;mutations.append(changed)
+        changed=copy.deepcopy(plan);changed['input_approval_sha256']='not-an-approval-digest';mutations.append(changed)
+        changed=copy.deepcopy(plan);changed['maximum_bytes']-=1;mutations.append(changed)
+        for changed in mutations:
+            with self.subTest(plan=changed):
+                b.atomic_json(journal,{'schema':1,'plan_sha256':p.digest(changed),'completed':[],'previous_verified':False,'readbacks':{}})
+                with self.assertRaisesRegex(ValueError,'fresh canonical inventory'):
+                    p.preflight(changed,journal,head=lambda _url:{'status':404,'headers':{'Age':'1468','X-Cache':'HIT'}})
+                self.assertNotIn('previous_state_classification',b.load(journal))
+
+    def test_native_policy_revision_must_match_approved_input(self):
+        self.add_native(only=True);self.approval['policy_revision']='d'*40;self.write()
+        with self.assertRaisesRegex(ValueError,'origin/policy approval differs'):
+            self.prepare()
+
+    def test_recovery_refuses_to_reset_a_used_journal(self):
+        self.add_native(only=True);plan=self.prepare();journal=self.output/'journal.json'
+        used=b.load(journal);used['previous_verified']=True;b.atomic_json(journal,used)
+        with self.assertRaisesRegex(ValueError,'fresh preflight journal required'):
+            p.preflight(plan,journal,head=lambda _url:{'status':404,'headers':{}})
         self.assertTrue(b.load(journal)['previous_verified'])
+
+    def test_operation_inventory_rejects_active_or_unexpected_run_and_deployment(self):
+        runs=[{'id':1,'status':'completed','conclusion':'failure'}]
+        deployments=[{'id':10,'state':'failure'}]
+        self.assertTrue(p.verify_terminal_operation_inventory(runs,deployments,[1],[10]))
+        with self.assertRaisesRegex(ValueError,'active or not a known terminal failure'):
+            p.verify_terminal_operation_inventory([{'id':1,'status':'in_progress','conclusion':None}],deployments,[1],[10])
+        with self.assertRaisesRegex(ValueError,'unexpected or missing'):
+            p.verify_terminal_operation_inventory(runs+[{'id':2,'status':'completed','conclusion':'failure'}],deployments,[1],[10])
+        with self.assertRaisesRegex(ValueError,'duplicated'):
+            p.verify_terminal_operation_inventory(runs,deployments,[1,1],[10])
+        with self.assertRaisesRegex(ValueError,'active or not a known terminal failure'):
+            p.verify_terminal_operation_inventory(runs,[{'id':10,'state':'in_progress'}],[1],[10])
     def test_native_head_200_requires_exact_get_hash_before_preflight(self):
         self.add_native(only=True);plan=self.prepare();journal=self.output/'journal.json';fetched=[]
         def head(url):
@@ -284,7 +428,8 @@ class NativePagesTest(unittest.TestCase):
             return dict(plan['manifests']['phase1'][name],status=200,headers={'Age':'0','X-Cache':'MISS'})
         p.preflight(plan,journal,fetch=fetch,head=head)
         self.assertEqual(set(fetched),{name for name in plan['manifests']['phase1'] if name.startswith('native-inputs/')})
-        self.assertTrue(b.load(journal)['previous_verified'])
+        self.assertFalse(b.load(journal)['previous_verified'])
+        self.assertEqual(b.load(journal)['previous_state_classification'],p.FIRST_PUBLICATION_RECOVERY)
     def test_native_feed_both_phases_same_six_files(self):
         files=self.add_native();plan=self.prepare()
         for phase in ('phase1','phase2'):self.assertEqual({n:e for n,e in plan['manifests'][phase].items() if n.startswith('native-inputs/')},files)
@@ -325,7 +470,8 @@ class NativePagesTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError,'native URL differs'):p.preflight(plan,journal,fetch=conflict)
         self.assertFalse(b.load(journal)['previous_verified'])
         p.preflight(plan,journal,fetch=lambda url:dict(plan['manifests']['phase1'][url.removeprefix(p.ORIGIN)],status=200) if '/native-inputs/' in url else {'status':404})
-        self.assertTrue(b.load(journal)['previous_verified'])
+        self.assertFalse(b.load(journal)['previous_verified'])
+        self.assertEqual(b.load(journal)['previous_state_classification'],p.FIRST_PUBLICATION_RECOVERY)
 
     def test_existing_feed_new_native_url_conflict_blocks_preflight(self):
         self.add_native(only=True);old=self.bundle/'previous/fdroid/repo';old.mkdir(parents=True);(old/'entry.jar').write_bytes(b'previous signed entry');self.seal_previous()
