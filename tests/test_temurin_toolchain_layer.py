@@ -9,7 +9,7 @@ ROOT = Path(__file__).parents[1]
 MANIFEST = ROOT / 'source/layers/temurin-21.0.13.json'
 PATCH = ROOT / 'source/layers/temurin-21.0.13.patch'
 FIXTURE = ROOT / 'tests/fixtures/temurin-53d'
-APP_BASE = 'f636568af237afa0161700a09b94b09f2b70d6f6'
+APP_BASE = 'fd83dbfc5323f7fb8689b697f141656399e87249'
 
 
 class TemurinToolchainLayerTests(unittest.TestCase):
@@ -21,8 +21,9 @@ class TemurinToolchainLayerTests(unittest.TestCase):
         self.assertEqual(manifest['application_base_commit'], APP_BASE)
         self.assertNotIn('before_tree', manifest)
         self.assertEqual(manifest['patch_sha256'], hashlib.sha256(patch).hexdigest())
-        self.assertEqual(manifest['paths'], ['.tool-versions', 'BUILD.md', 'Dockerfile'])
-        self.assertEqual(set(p.name for p in FIXTURE.iterdir()), set(manifest['paths']))
+        self.assertEqual(manifest['paths'], ['.tool-versions', 'docs/BUILD.md', 'Dockerfile'])
+        fixture_files = {p.relative_to(FIXTURE).as_posix() for p in FIXTURE.rglob('*') if p.is_file()}
+        self.assertEqual(fixture_files, set(manifest['paths']))
         for path in manifest['paths']:
             before = (FIXTURE / path).read_bytes()
             self.assertEqual(hashlib.sha256(before).hexdigest(), manifest['before'][path]['sha256'])
@@ -36,7 +37,7 @@ class TemurinToolchainLayerTests(unittest.TestCase):
         self.assertEqual(patch_paths, set(manifest['paths']))
         replacements = {
             '.tool-versions': (b'java openjdk-21.0.2\n', b'java temurin-21.0.13+9\n'),
-            'BUILD.md': (
+            'docs/BUILD.md': (
                 b'an assembler or inject source from another worktree. JDK/Gradle/SDK/NDK and strict\n'
                 b'dependency inputs are declared in this tree. Canonical identity is im.collie.app,\n',
                 b'an assembler or inject source from another worktree. Its JDK is Eclipse Temurin\n'

@@ -1,7 +1,7 @@
-diff --git a/BUILD.md b/BUILD.md
+diff --git a/docs/BUILD.md b/docs/BUILD.md
 index 0f573a86832abfafae790a836dada94868453d60..98e7efeed6cb0bde656bb82e8aa35755905d48ad 100644
---- a/BUILD.md
-+++ b/BUILD.md
+--- a/docs/BUILD.md
++++ b/docs/BUILD.md
 @@ -14,9 +14,7 @@ and clean-checkout build acceptance are reviewed. This draft is not releasable.
  
  The retained local operator route is in collie-release-engineering and still

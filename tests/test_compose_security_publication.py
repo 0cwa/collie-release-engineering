@@ -220,7 +220,7 @@ class SecurityCompositionTests(unittest.TestCase):
         def show(_repo, _command, spec):
             if spec.endswith(':build-inputs/native-publication.json'):
                 return b'{"status":"BLOCKED"}'
-            if spec.endswith(':BUILD.md'):
+            if spec.endswith(':docs/BUILD.md'):
                 return (b'releaseVersionCode and releaseVersionName are normal source-defined Gradle properties '
                         b'DRAFT candidate proposal:** 8.35.1-2-rc1 / 177703. This value is not allocated')
             if spec.endswith(':gradle.properties'):

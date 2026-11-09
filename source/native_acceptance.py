@@ -844,7 +844,7 @@ def transition_outputs(state_raw, gradle_raw, workflow_raw, build_raw, propertie
         bytes, (state_raw, gradle_raw, workflow_raw, build_raw, properties_raw))
     updated_state, source_evidence = transition_native_state(state_raw, proof)
     gradle = gradle_raw.decode()
-    old_guard = 'throw GradleException("Direct Android builds BLOCKED: publish and verify locked native inputs first; see BUILD.md")'
+    old_guard = 'throw GradleException("Direct Android builds BLOCKED: publish and verify locked native inputs first; see docs/BUILD.md")'
     if gradle.count(old_guard) != 1:
         raise ValueError('expected exactly one unconditional direct Android build guard')
     evidence_sha = proof['evidence_sha256']
@@ -856,7 +856,7 @@ def transition_outputs(state_raw, gradle_raw, workflow_raw, build_raw, propertie
         'val nativeInputsAccepted = nativeAcceptanceText.contains(' + status_literal + ') &&\n'
         '  nativeAcceptanceText.contains(' + digest_literal + ')\n'
         'if (!nativeInputsAccepted) {\n'
-        '  throw GradleException("Direct Android builds BLOCKED: accepted native publication evidence is absent or differs; see BUILD.md")\n'
+        '  throw GradleException("Direct Android builds BLOCKED: accepted native publication evidence is absent or differs; see docs/BUILD.md")\n'
         '}')
     gradle = gradle.replace(old_guard, new_guard)
 
@@ -870,7 +870,7 @@ def transition_outputs(state_raw, gradle_raw, workflow_raw, build_raw, propertie
     build = build_raw.decode()
     marker = '**Direct build readiness: BLOCKED.**'
     if build.count(marker) != 1:
-        raise ValueError('expected exact blocked readiness marker in BUILD.md')
+        raise ValueError('expected exact blocked readiness marker in docs/BUILD.md')
     build = build.replace(marker, '**Direct build readiness: ACCEPTED for the exact native publication evidence recorded in `build-inputs/native-publication.json`.**')
     old_paragraph = ("Every direct Android Gradle configuration deliberately fails until the required publication layer\n"
                      "and clean-checkout build acceptance are reviewed. This draft is not releasable.")
@@ -878,18 +878,18 @@ def transition_outputs(state_raw, gradle_raw, workflow_raw, build_raw, propertie
                      "validated Pages plan, journal, six pinned native files, and exact successful policy run. Native input\n"
                      "acceptance does not by itself establish a releasable build.")
     if build.count(old_paragraph) != 1:
-        raise ValueError('expected exact blocked Gradle explanation in BUILD.md')
+        raise ValueError('expected exact blocked Gradle explanation in docs/BUILD.md')
     build = build.replace(old_paragraph, new_paragraph)
     old_task = 'it is currently BLOCKED as described above.'
     if build.count(old_task) != 1:
-        raise ValueError('expected exact blocked canonical-task explanation in BUILD.md')
+        raise ValueError('expected exact blocked canonical-task explanation in docs/BUILD.md')
     build = build.replace(old_task, 'native input acceptance is recorded above; source build and runtime acceptance remain required.')
     old_version = ("The direct-build gate remains closed until the owner refreshes the\n"
                    "inventory and confirms this proposal through the serialized reservation policy.")
     new_version = ("The direct-build gate remains bound to the recorded native acceptance digest. Version reservation\n"
                    "and release eligibility remain separate requirements.")
     if build.count(old_version) != 1:
-        raise ValueError('expected exact blocked version proposal explanation in BUILD.md')
+        raise ValueError('expected exact blocked version proposal explanation in docs/BUILD.md')
     build = build.replace(old_version, new_version)
     old_native_notice = ("accepted native bytes. Their public immutable repository has not been supplied\n"
                          "or independently downloaded. `native-publication.json` records this gap. Do not\n"
@@ -903,7 +903,7 @@ def transition_outputs(state_raw, gradle_raw, workflow_raw, build_raw, propertie
         "substitute upstream native libraries or disable strict dependency verification.\n"
         f"Native evidence SHA-256: `{proof['evidence_sha256']}`.")
     if build.count(old_native_notice) != 1:
-        raise ValueError('expected exact stale native publication notice in BUILD.md')
+        raise ValueError('expected exact stale native publication notice in docs/BUILD.md')
     build = build.replace(old_native_notice, new_native_notice)
     old_repository_notice = ("The retained local operator route is in collie-release-engineering and still\n"
                              "requires its explicit trusted-local native acceptance. That is not independent\n"
@@ -916,7 +916,7 @@ def transition_outputs(state_raw, gradle_raw, workflow_raw, build_raw, propertie
         "GitHub attestation or an origin-verification claim. No native init script, local Maven lookup or "
         "external native source includeBuild is part of this direct-source recipe.")
     if build.count(old_repository_notice) != 1:
-        raise ValueError('expected exact stale repository notice in BUILD.md')
+        raise ValueError('expected exact stale repository notice in docs/BUILD.md')
     build = build.replace(old_repository_notice, new_repository_notice)
     old_identity = ("**DRAFT candidate proposal:** 8.35.1-2-rc1 / 177703. This value is not allocated\n"
                     "or reserved. The direct-build gate remains bound to the recorded native acceptance digest. Version reservation\n"
@@ -925,15 +925,15 @@ def transition_outputs(state_raw, gradle_raw, workflow_raw, build_raw, propertie
                     "hold must be bound to the actual unsigned manifest before signing. The direct-build gate remains\n"
                     "bound to the recorded native acceptance digest. Build and runtime acceptance remain required.")
     if build.count(old_identity) != 1:
-        raise ValueError('expected exact draft identity notice in BUILD.md')
+        raise ValueError('expected exact draft identity notice in docs/BUILD.md')
     build = build.replace(old_identity, new_identity)
     build += (
         "\n\n### Preserve build outputs before source receipt collection\n\n"
         "Build only from the registered agent-owned G checkout after recording its clean HEAD, index tree, "
         "and worktree tree. Before Gradle runs, expand and verify this exact generated-path set is absent: "
         "`.gradle/`, `.kotlin/`, `.cxx/`, root `build/`, `app/build/`, and each included module's `build/` "
-        "under `core/*`, `core-gms/*`, `lib/*`, and `feature/*`, plus `screener/build/`, `lintchecks/build/`, "
-        "and `fast-lint/build/`. Record the expanded paths. After the unsigned APK and required reports are complete, copy "
+        "under `core/*`, `core/gms/*`, `lib/*`, and `feature/*`, plus `tooling/screener/build/`, `tooling/lintchecks/build/`, "
+        "and `tooling/fast-lint/build/`. Record the expanded paths. After the unsigned APK and required reports are complete, copy "
         "the APK, reports, build log, exact command, and tool-version record to the separate receipt directory "
         "outside the G checkout. Then remove only the recorded paths that were absent before the build and "
         "were created by that build. Do not remove `local.properties`, source files, pre-existing paths, or "
@@ -952,7 +952,7 @@ def transition_outputs(state_raw, gradle_raw, workflow_raw, build_raw, propertie
         'build-inputs/native-publication.json': updated_state,
         'app/build.gradle.kts': gradle.encode(),
         '.github/workflows/source.yml': workflow.encode(),
-        'BUILD.md': build.encode(),
+        'docs/BUILD.md': build.encode(),
         'gradle.properties': properties.encode(),
     }, source_evidence
 

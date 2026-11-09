@@ -93,7 +93,8 @@ def group_for_path(path):
     name = parts[-1]
     if path in SHARED_PATHS:
         return 'integration'
-    if path.startswith(('demo/', 'baseline-profile/', 'benchmark/', 'microbenchmark/', 'lib/spinner/')):
+    if path.startswith(('demo/', 'baseline-profile/', 'tooling/baseline-profile/',
+                        'benchmark/', 'microbenchmark/', 'lib/spinner/')):
         return 'module-pruning'
     if path.startswith(('app/src/spinner/', 'app/src/benchmark/', 'app/src/benchmarkShared/',
                         'app/src/quickstart/', 'app/src/canary/', 'app/src/perf/',
@@ -110,7 +111,7 @@ def group_for_path(path):
         return 'build-and-release'
     if name in ('.gitignore', '.gitattributes', '.editorconfig'):
         return 'build-and-release'
-    if path.startswith('core-gms/'):
+    if path.startswith(('core-gms/', 'core/gms/')):
         return 'google-services'
     if path.startswith('lib/donations/') or '/org/signal/billing/' in path:
         return 'payments-and-donations'
@@ -120,7 +121,8 @@ def group_for_path(path):
     if path.startswith('lib/netcipher/'):
         return 'networking-and-proxies'
     if len(parts) == 1 or path.startswith(('.github/', '.idea/', 'build-logic/', 'buildSrc/',
-                                        'gradle/', 'mk/', 'reproducible-builds/', 'wire-handler/', 'lintchecks/')):
+                                        'gradle/', 'mk/', 'reproducible-builds/', 'wire-handler/', 'lintchecks/',
+                                        'tooling/')):
         return 'build-and-release'
     if path.startswith('feature/registration/') or '/registration/' in path or '/linkdevice/' in path:
         return 'registration-and-linking'

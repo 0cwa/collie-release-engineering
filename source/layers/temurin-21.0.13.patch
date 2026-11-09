@@ -5,10 +5,10 @@ index 4e8b348..e1165d5 100644
 @@ -1 +1 @@
 -java openjdk-21.0.2
 +java temurin-21.0.13+9
-diff --git a/BUILD.md b/BUILD.md
-index f0cfe39..bc594c4 100644
---- a/BUILD.md
-+++ b/BUILD.md
+diff --git a/docs/BUILD.md b/docs/BUILD.md
+index a75a047..09c6319 100644
+--- a/docs/BUILD.md
++++ b/docs/BUILD.md
 @@ -6,2 +6,4 @@ This checkout contains the reconstructed application source; Gradle does not run
 -an assembler or inject source from another worktree. JDK/Gradle/SDK/NDK and strict
 -dependency inputs are declared in this tree. Canonical identity is im.collie.app,

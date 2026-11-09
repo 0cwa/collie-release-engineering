@@ -18,6 +18,60 @@ def git_environment():
     return env
 
 
+def _asset_source_path(previous_application, application_base):
+    trees = {}
+    for name in ('docs/assets', 'assets'):
+        result = subprocess.run(
+            ['git', '-C', str(previous_application), 'ls-tree', '-r', '-z',
+             '--full-tree', application_base, '--', name],
+            env=git_environment(), stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
+        if result.returncode != 0:
+            raise ValueError('cannot inspect approved application assets')
+        trees[name] = bool(result.stdout)
+    if all(trees.values()):
+        raise ValueError('approved application contains both old and grouped assets')
+    if trees['docs/assets']:
+        return 'docs/assets'
+    if trees['assets']:
+        return 'assets'
+    raise ValueError('approved application assets are missing')
+
+
+def _published_source_dates(previous_application, application_base):
+    """Retain the trusted publication-date note when regenerating the build guide."""
+    locations = {}
+    for path in ('BUILD.md', 'docs/BUILD.md'):
+        result = subprocess.run(
+            ['git', '-C', str(previous_application), 'ls-tree', '-r', '-z',
+             '--full-tree', application_base, '--', path],
+            env=git_environment(), stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
+        if result.returncode != 0:
+            raise ValueError('cannot inspect approved build guide')
+        if result.stdout:
+            locations[path] = result.stdout
+    if len(locations) != 1:
+        raise ValueError('approved application must contain one build guide')
+    path = next(iter(locations))
+    result = subprocess.run(
+        ['git', '-C', str(previous_application), 'show', f'{application_base}:{path}'],
+        env=git_environment(), stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    if result.returncode != 0:
+        raise ValueError('cannot read approved build guide')
+    try:
+        text = result.stdout.decode()
+    except UnicodeDecodeError as exc:
+        raise ValueError('approved build guide is not UTF-8') from exc
+    marker = '## Published source dates\n'
+    if marker not in text:
+        return ''
+    if text.count(marker) != 1:
+        raise ValueError('approved build guide has ambiguous published-source-date sections')
+    section = text[text.index(marker):].rstrip()
+    if '\n## ' in section[len(marker):]:
+        raise ValueError('published-source-date section is not the final build-guide section')
+    return section
+
+
 def preserve_user_files(app, previous_application, application_base, publication_plan):
     """Copy only the explicitly pinned user-facing base; approval is external."""
     if not isinstance(application_base,str) or not re.fullmatch('[0-9a-f]{40}',application_base):
@@ -29,13 +83,151 @@ def preserve_user_files(app, previous_application, application_base, publication
     if resolved!=application_base:raise ValueError('application base must name the exact commit')
     # The final publisher independently compares these complete owner-file
     # blobs/modes with plan.old_main, in addition to checking the entire tree.
-    for name in ('README.md','LICENSE','NOTICE','assets'):
-        data=subprocess.check_output(['git','-C',str(previous_application),'archive',application_base,name],env=git_environment())
+    asset_source = _asset_source_path(previous_application, application_base)
+    for name in ('README.md','LICENSE','NOTICE','assets','docs/assets'):
         target=app/name
         if target.is_symlink() or target.is_file():target.unlink()
         elif target.exists():shutil.rmtree(target)
+    for name in ('README.md','LICENSE','NOTICE',asset_source):
+        data=subprocess.check_output(['git','-C',str(previous_application),'archive',application_base,name],env=git_environment())
         import io,tarfile
         with tarfile.open(fileobj=io.BytesIO(data)) as archive:archive.extractall(app,filter='data')
+
+
+def _replace_path(text, old, new):
+    if old == 'assets/':
+        pattern = re.compile(r'(?<!docs/)assets/')
+        if not pattern.search(text):
+            if 'docs/assets/' in text:
+                return text
+            raise ValueError(f'expected path reference is missing: {old}')
+        return pattern.sub(new, text)
+    if new == 'tooling/' + old:
+        pattern = re.compile(r'(?<!tooling/)' + re.escape(old))
+        if not pattern.search(text):
+            if new in text:
+                return text
+            raise ValueError(f'expected path reference is missing: {old}')
+        return pattern.sub(new, text)
+    if new in text and old not in text:
+        return text
+    count = text.count(old)
+    if count == 0 or new in text:
+        raise ValueError(f'expected path reference is missing: {old}')
+    return text.replace(old, new)
+
+
+def apply_root_layout(app):
+    """Group guides, assets, and build helpers while keeping Gradle IDs stable."""
+    app = Path(app)
+    docs = app / 'docs'
+    tooling = app / 'tooling'
+    docs.mkdir(exist_ok=True)
+    tooling.mkdir(exist_ok=True)
+
+    for name in ('BUILD.md', 'BUILDING.md', 'LEGAL.md', 'VERIFY.md'):
+        source, destination = app / name, docs / name
+        if source.exists() and destination.exists():
+            raise ValueError(f'both old and new documentation paths exist: {name}')
+        if source.exists():
+            source.rename(destination)
+        elif not destination.is_file():
+            raise ValueError(f'documentation path is missing: {name}')
+
+    if (app / 'assets').exists() and (docs / 'assets').exists():
+        raise ValueError('both old and new asset directories exist')
+    if (app / 'assets').exists():
+        (app / 'assets').rename(docs / 'assets')
+    elif not (docs / 'assets').is_dir():
+        raise ValueError('approved asset directory is missing')
+
+    for name in ('baseline-profile', 'fast-lint', 'lintchecks', 'screener', 'mk',
+                 'reproducible-builds', 'gradle.properties.docker'):
+        source, destination = app / name, tooling / name
+        if source.exists() and destination.exists():
+            raise ValueError(f'both old and new tooling paths exist: {name}')
+        if source.exists():
+            source.rename(destination)
+        elif not destination.exists():
+            raise ValueError(f'tooling path is missing: {name}')
+
+    source, destination = app / 'core-gms', app / 'core/gms'
+    if source.exists() and destination.exists():
+        raise ValueError('both old and new core Google services paths exist')
+    if source.exists():
+        destination.parent.mkdir(exist_ok=True)
+        source.rename(destination)
+    elif not destination.is_dir():
+        raise ValueError('core Google services path is missing')
+
+    readme = app / 'README.md'
+    text = readme.read_text()
+    text = _replace_path(text, 'assets/', 'docs/assets/')
+    text = _replace_path(text, '[LEGAL.md](LEGAL.md)', '[LEGAL.md](docs/LEGAL.md)')
+    readme.write_text(text)
+
+    building = docs / 'BUILDING.md'
+    text = building.read_text()
+    text = _replace_path(text, '(reproducible-builds/README.md)',
+                         '(../tooling/reproducible-builds/README.md)')
+    text = _replace_path(text, 'mollyim-android/reproducible-builds',
+                         'mollyim-android/tooling/reproducible-builds')
+    building.write_text(text)
+
+    reproducible_readme = tooling / 'reproducible-builds/README.md'
+    text = reproducible_readme.read_text()
+    text = _replace_path(text, 'mollyim-android/reproducible-builds',
+                         'mollyim-android/tooling/reproducible-builds')
+    reproducible_readme.write_text(text)
+
+    makefile = app / 'Makefile'
+    text = makefile.read_text()
+    text = _replace_path(text, 'mk/<platform>.mk', 'tooling/mk/<platform>.mk')
+    text = _replace_path(text, 'include mk/android.mk', 'include tooling/mk/android.mk')
+    makefile.write_text(text)
+
+    dockerfile = app / 'Dockerfile'
+    text = dockerfile.read_text()
+    text = _replace_path(text, 'COPY gradle.properties.docker ',
+                         'COPY tooling/gradle.properties.docker ')
+    dockerfile.write_text(text)
+
+    for name in ('.gitignore', '.dockerignore'):
+        path = app / name
+        text = path.read_text()
+        for leaf in ('certs', 'outputs'):
+            text = _replace_path(text, f'reproducible-builds/{leaf}',
+                                 f'tooling/reproducible-builds/{leaf}')
+        path.write_text(text)
+
+    settings = app / 'settings.gradle.kts'
+    text = settings.read_text()
+    marker = '// Stable Gradle project IDs backed by grouped source directories.'
+    mappings = '''// Stable Gradle project IDs backed by grouped source directories.
+project(":core-gms").projectDir = file("core/gms")
+project(":core-gms:base").projectDir = file("core/gms/base")
+project(":core-gms:cloud-messaging").projectDir = file("core/gms/cloud-messaging")
+project(":core-gms:safeparcel").projectDir = file("core/gms/safeparcel")
+project(":core-gms:safeparcel-processor").projectDir = file("core/gms/safeparcel-processor")
+project(":core-gms:tasks").projectDir = file("core/gms/tasks")
+project(":screener").projectDir = file("tooling/screener")
+project(":lintchecks").projectDir = file("tooling/lintchecks")
+project(":fast-lint").projectDir = file("tooling/fast-lint")
+'''
+    if marker in text:
+        if mappings not in text:
+            raise ValueError('stable Gradle path mapping differs')
+    else:
+        anchor = 'include(":fast-lint")\n'
+        if text.count(anchor) != 1:
+            raise ValueError('expected Gradle tooling module includes')
+        text = text.replace(anchor, anchor + '\n' + mappings, 1)
+    settings.write_text(text)
+
+    gradle = app / 'app/build.gradle.kts'
+    text = gradle.read_text()
+    text = _replace_path(text, 'see BUILD.md', 'see docs/BUILD.md')
+    gradle.write_text(text)
 
 
 SOURCE_WORKFLOW = '''name: Direct source checks
@@ -144,7 +336,7 @@ fun requireCommitTag(): String = providers.gradleProperty("releaseVersionName").
 throw GradleException("Direct Android builds BLOCKED: publish and verify locked native inputs first; see BUILD.md")
 '''
     gradle.write_text(text)
-    (app/'BUILD.md').write_text('''# Building Collie
+    build_guide = '''# Building Collie
 
 Reconstruction and release engineering live in [collie-release-engineering](https://github.com/0cwa/collie-release-engineering). See [VERIFY.md](VERIFY.md) for Git-only source inspection.
 
@@ -177,7 +369,11 @@ inventory and confirms this proposal through the serialized reservation policy.
 No parity with historical APK bytes is claimed after changing build metadata.
 Instrumentation remains opt-in. Physical-device/account/attachment/database
 upgrade acceptance and independently reproduced native outputs are NOT RUN.
-''')
+'''
+    source_dates = _published_source_dates(previous_application, application_base)
+    if source_dates:
+        build_guide = build_guide.rstrip() + '\n\n' + source_dates + '\n'
+    (app/'BUILD.md').write_text(build_guide)
     (app/'VERIFY.md').write_text('''# Git-only source inspection
 
 Use a clean Git environment with replace refs and grafts disabled. Review the
@@ -201,3 +397,4 @@ Git delta, commit it as an engineering layer, regenerate and compare the whole
 reviewed tree before release (source/PUBLICATION.md in engineering). The two
 representations may not silently diverge.
 ''')
+    apply_root_layout(app)

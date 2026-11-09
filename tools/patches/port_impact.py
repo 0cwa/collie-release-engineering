@@ -15,7 +15,8 @@ import verify_complete
 
 CATEGORIES = ('unchanged-base', 'already-upstream', 'upstream-changed')
 PRUNING_ROOTS = (
-    b'demo/', b'baseline-profile/', b'benchmark/', b'microbenchmark/', b'lib/spinner/',
+    b'demo/', b'baseline-profile/', b'tooling/baseline-profile/',
+    b'benchmark/', b'microbenchmark/', b'lib/spinner/',
     b'app/src/spinner/', b'app/src/benchmark/', b'app/src/benchmarkShared/',
     b'app/src/quickstart/', b'app/src/canary/', b'app/src/perf/',
     b'app/src/nightly/', b'app/src/nightlyStaging/',

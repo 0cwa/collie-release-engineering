@@ -3,10 +3,10 @@
   "kind": "feature-layer",
   "name": "Align the declared JDK with verified Temurin 21.0.13+9",
   "patch": "source/layers/temurin-21.0.13.patch",
-  "patch_sha256": "4dda4249ebcaa7ce69aafac73876c959c41b40dcd1298fe459740ff220297e71",
+  "patch_sha256": "331e9797d06eb58c137bed18b0b37844f52b120db2f7a92a9a36e1900bc404f6",
   "paths": [
     ".tool-versions",
-    "BUILD.md",
+    "docs/BUILD.md",
     "Dockerfile"
   ],
   "before": {
@@ -14,13 +14,13 @@
       "blob": "4e8b348598d6189630bcbc1fa96f1f9d2e09c118",
       "sha256": "298ce167c6dea0a22471d1146b91ce21399f567c2887315c93e7bc0d91a03762"
     },
-    "BUILD.md": {
-      "blob": "f0cfe39cbdcf6030e6ac276a79a8f8c06aa42c36",
-      "sha256": "eca398d092e622feb460ec5d2d7fdb79602fbd03bd5fce28ccc7cc5a6e5437c8"
-    },
     "Dockerfile": {
       "blob": "aad3588bc4593e887c5cfa7953617370447dcc43",
       "sha256": "1a733851f11654681b76165766d1cd8cf12ab973a48e8a28e5673c492feca398"
+    },
+    "docs/BUILD.md": {
+      "blob": "a75a04700d3223eaaac1c096da86ef5c2dad3341",
+      "sha256": "095072d51c802640ef51adf2d0af0af9b14e4707fef249c8bbbf8d3f18cb0d28"
     }
   },
   "after": {
@@ -28,13 +28,13 @@
       "blob": "e1165d522b8d2ca75072b8964cc5de87a2c3592a",
       "sha256": "0e0b74cd9e72c066be30b5dc9d6f9f9017d2ff87a6c9f3f967bbcdef08d500db"
     },
-    "BUILD.md": {
-      "blob": "bc594c4571b9a4c7b0dcbb9e223ead108e9bf231",
-      "sha256": "28b8d70f5cf49a3422abeab956fcc4d9ac49912e48d93138086aa36baee584b4"
-    },
     "Dockerfile": {
       "blob": "114ac3358449426c41220ca4dd4153bf7c10e2aa",
       "sha256": "dffa7ddd2bfdd83bcd78193fc5fc3b041eb121f57f11b26eb0cbcc22d5a09ebe"
+    },
+    "docs/BUILD.md": {
+      "blob": "09c6319de56ddb511ba4df529ed62217c2310ffb",
+      "sha256": "234770193cdf05c3b3338087e22927c8479e2cb1465920a6c4fbe22c1e1d6081"
     }
   },
   "java": "Eclipse Temurin 21.0.13+9",
@@ -55,5 +55,5 @@
     "https://github.com/actions/setup-java/blob/main/docs/advanced-usage.md",
     "https://github.com/adoptium/containers/blob/main/21/jdk/alpine/3.23/Dockerfile"
   ],
-  "application_base_commit": "f636568af237afa0161700a09b94b09f2b70d6f6"
+  "application_base_commit": "fd83dbfc5323f7fb8689b697f141656399e87249"
 }

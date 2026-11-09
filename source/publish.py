@@ -149,10 +149,60 @@ def validate_plan(plan):
 
 def verify_user_files(repo,published,application_base):
     """Preserve approved repository content, alongside full final-tree proof."""
-    for name in ('README.md','LICENSE','NOTICE','assets'):
+    for name in ('LICENSE','NOTICE'):
         expected=git(repo,'ls-tree','--full-tree',oid(application_base),'--',name)
         if git(repo,'ls-tree','--full-tree',oid(published),'--',name)!=expected:
             raise ValueError('published user-facing content differs from approved application base: '+name)
+
+    base_assets, published_assets = _asset_tree_path(repo, application_base), _asset_tree_path(repo, published)
+    base_readme_entry = git(repo, 'ls-tree', '--full-tree', oid(application_base), '--', 'README.md')
+    published_readme_entry = git(repo, 'ls-tree', '--full-tree', oid(published), '--', 'README.md')
+    if not base_readme_entry:
+        if published_readme_entry:
+            raise ValueError('published user-facing content differs from approved application base: README.md')
+    else:
+        base_readme = git(repo, 'show', f'{oid(application_base)}:README.md')
+        expected_readme = _relayout_readme(base_readme) if published_assets == 'docs/assets' else base_readme
+        if not published_readme_entry or git(repo, 'show', f'{oid(published)}:README.md') != expected_readme:
+            raise ValueError('published user-facing content differs from approved application base: README.md')
+    if base_assets is None:
+        if published_assets is not None:
+            raise ValueError('published user-facing content differs from approved application base: assets')
+    elif published_assets is None or _asset_tree_entries(repo, published, published_assets) != _asset_tree_entries(repo, application_base, base_assets):
+        raise ValueError('published user-facing content differs from approved application base: assets')
+
+
+def _relayout_readme(data):
+    """Allow only the relative links needed after moving approved assets/docs."""
+    data = re.sub(rb'(?<!docs/)assets/', b'docs/assets/', data)
+    return data.replace(b'[LEGAL.md](LEGAL.md)', b'[LEGAL.md](docs/LEGAL.md)')
+
+
+def _asset_tree_entries(repo, revision, path):
+    raw = git(repo, 'ls-tree', '-r', '-z', '--full-tree', oid(revision), '--', path)
+    entries = []
+    for record in raw.split(b'\0'):
+        if not record:
+            continue
+        metadata, name = record.split(b'\t', 1)
+        mode, kind, object_id = metadata.split()
+        prefix = path.encode() + b'/'
+        if not name.startswith(prefix):
+            raise ValueError('asset entry escaped its approved directory')
+        entries.append((name[len(prefix):], mode, kind, object_id))
+    return sorted(entries)
+
+
+def _asset_tree_path(repo, revision):
+    legacy = _asset_tree_entries(repo, revision, 'assets')
+    grouped = _asset_tree_entries(repo, revision, 'docs/assets')
+    if legacy and grouped:
+        raise ValueError('published tree contains both old and grouped asset directories')
+    if grouped:
+        return 'docs/assets'
+    if legacy:
+        return 'assets'
+    return None
 
 
 def publish(repo, path, approved_digest, expected_main, *, messages=None, approved_messages_sha256=None,

@@ -424,7 +424,7 @@ class NativeAcceptanceTests(unittest.TestCase):
         state = {'schema': 1, 'status': 'BLOCKED', 'repository': acceptance.NATIVE_REPOSITORY,
                  'publication_status': 'NOT PUBLISHED', 'reason': 'synthetic fixture only',
                  'lock': 'native-lock.json', 'production_version_floor': 177702}
-        gradle = ('before\nthrow GradleException("Direct Android builds BLOCKED: publish and verify locked native inputs first; see BUILD.md")\n')
+        gradle = ('before\nthrow GradleException("Direct Android builds BLOCKED: publish and verify locked native inputs first; see docs/BUILD.md")\n')
         workflow_line = """run: python3 -c 'import json; x=json.load(open("build-inputs/native-publication.json")); assert x["status"] == "BLOCKED"; print("Direct Android build acceptance BLOCKED pending public immutable native inputs; this source check is not build approval")'"""
         build = ("**Direct build readiness: BLOCKED.**\n"
                  "Every direct Android Gradle configuration deliberately fails until the required publication layer\n"
@@ -447,7 +447,7 @@ class NativeAcceptanceTests(unittest.TestCase):
             json.dumps(state).encode(), gradle.encode(), workflow_line.encode(), build.encode(),
             properties.encode(), proof)
         self.assertEqual(json.loads(outputs['build-inputs/native-publication.json'])['status'], 'ACCEPTED')
-        self.assertIn(b'Preserve build outputs before source receipt collection', outputs['BUILD.md'])
+        self.assertIn(b'Preserve build outputs before source receipt collection', outputs['docs/BUILD.md'])
 
         journal_path = directory / 'control/journal.json'
         journal = json.loads(journal_path.read_bytes())
@@ -644,7 +644,7 @@ class NativeAcceptanceTests(unittest.TestCase):
         state = {'schema': 1, 'status': 'BLOCKED', 'repository': acceptance.NATIVE_REPOSITORY,
                  'publication_status': 'NOT PUBLISHED', 'reason': 'test only',
                  'lock': 'native-lock.json', 'production_version_floor': 177702}
-        gradle = 'before\nthrow GradleException("Direct Android builds BLOCKED: publish and verify locked native inputs first; see BUILD.md")\n'
+        gradle = 'before\nthrow GradleException("Direct Android builds BLOCKED: publish and verify locked native inputs first; see docs/BUILD.md")\n'
         workflow_line = """      - name: Report direct-build gate
         run: python3 -c 'import json; x=json.load(open("build-inputs/native-publication.json")); assert x["status"] == "BLOCKED"; print("Direct Android build acceptance BLOCKED pending public immutable native inputs; this source check is not build approval")'
 """
@@ -676,7 +676,7 @@ class NativeAcceptanceTests(unittest.TestCase):
         workflow_result = output['.github/workflows/source.yml'].decode()
         self.assertIn('x.get("status") in ("BLOCKED","ACCEPTED")', workflow_result)
         self.assertIn('operation_inventory_sha256', workflow_result)
-        accepted_build = output['BUILD.md'].decode()
+        accepted_build = output['docs/BUILD.md'].decode()
         self.assertIn('Direct build readiness: ACCEPTED', accepted_build)
         self.assertIn('both readback phases verified all 15 canonical HTTPS paths', accepted_build)
         self.assertIn('this does not claim origin verification or cryptographic GitHub attestation', accepted_build)
@@ -685,9 +685,9 @@ class NativeAcceptanceTests(unittest.TestCase):
         self.assertNotIn('proposed origin in build-inputs/native-artifacts.json is NOT PUBLISHED', accepted_build)
         self.assertIn('177703 is held', output['gradle.properties'].decode())
         self.assertNotIn('not reserved', output['gradle.properties'].decode())
-        accepted_build = output['BUILD.md'].decode()
+        accepted_build = output['docs/BUILD.md'].decode()
         self.assertIn('app/build', accepted_build)
-        self.assertIn('`core/*`, `core-gms/*`, `lib/*`, and `feature/*`', accepted_build)
+        self.assertIn('`core/*`, `core/gms/*`, `lib/*`, and `feature/*`', accepted_build)
         self.assertIn('`.gradle/`, `.kotlin/`, `.cxx/`, root `build/`', accepted_build)
         self.assertIn('Do not remove `local.properties`', accepted_build)
         self.assertIn('Do not remove `local.properties`, source files, pre-existing paths, or anything with `git clean`', accepted_build)

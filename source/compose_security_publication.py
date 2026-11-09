@@ -28,7 +28,7 @@ import native_acceptance
 HEX40 = re.compile(r'[0-9a-f]{40}\Z')
 HEX64 = re.compile(r'[0-9a-f]{64}\Z')
 SECURITY_POLICY_REVISION = '7f9e63d6d55861c0c4e7757ba7eb07d6484289a6'
-OWNER_PATHS = ('README.md', 'LICENSE', 'NOTICE', 'assets')
+OWNER_PATHS = ('README.md', 'LICENSE', 'NOTICE', 'assets', 'docs/assets')
 SHORT_SUBJECTS = {
     'Resolve modify/delete conflicts for modules Molly removes and remove new upstream files added beneath those excluded modules':
         'Resolve excluded-module modify/delete conflicts',
@@ -159,7 +159,7 @@ def verify_feature_paths(repo, tree, source_repo, source_tree, paths):
 
 
 def verify_release_metadata(repo, tree):
-    build = git(repo, 'show', f'{tree}:BUILD.md')
+    build = git(repo, 'show', f'{tree}:docs/BUILD.md')
     gradle = git(repo, 'show', f'{tree}:app/build.gradle.kts')
     properties = git(repo, 'show', f'{tree}:gradle.properties')
     state = json.loads(git(repo, 'show', f'{tree}:build-inputs/native-publication.json'))
@@ -203,7 +203,7 @@ def verify_release_metadata(repo, tree):
 
 def apply_toolchain_layer(repo, stage, tree, application_base):
     manifest = load_json(ROOT / 'source/layers/temurin-21.0.13.json')
-    expected_paths = ['.tool-versions', 'BUILD.md', 'Dockerfile']
+    expected_paths = ['.tool-versions', 'docs/BUILD.md', 'Dockerfile']
     if (manifest.get('schema') != 1 or manifest.get('kind') != 'feature-layer'
             or manifest.get('paths') != expected_paths
             or manifest.get('application_base_commit') != application_base):
@@ -349,7 +349,10 @@ def set_owner_entries(repo, stage, current_main):
     existing = [path for path in existing if path]
     if existing:
         git(stage, 'update-index', '--force-remove', '-z', '--stdin', data=b'\0'.join(existing) + b'\0')
-    for path in OWNER_PATHS:
+    asset_paths = [path for path in ('docs/assets', 'assets') if tree_entries(repo, current_main, path)]
+    if len(asset_paths) != 1:
+        raise ValueError('current application base must have one approved asset directory')
+    for path in ('README.md', 'LICENSE', 'NOTICE', asset_paths[0]):
         entries = tree_entries(repo, current_main, path)
         if not entries:
             raise ValueError('current application base is missing owner path: ' + path)
@@ -432,7 +435,7 @@ def compose(repo, checkpoint_repo, stage, engineering, plan_path,
     record('publication',
            f'Regenerate publication from {current_main[:12]}',
            plan['reconstructed_tree'], tree,
-           f'Ran source/layers/publication.py from exact committed engineering revision {engineering_revision} with recipe pin {publication.RECIPE_REVISION} and explicit application_base={current_main}. The producer copies README/LICENSE/NOTICE/assets from that exact commit, replaces legacy workflows with the reviewed source-only gate, and regenerates BUILD.md, VERIFY.md, build-input metadata, release version properties, and the unconditional direct-build gate. The ordinary pull-request workflow remains usable; release assembly remains blocked.')
+           f'Ran source/layers/publication.py from exact committed engineering revision {engineering_revision} with recipe pin {publication.RECIPE_REVISION} and explicit application_base={current_main}. The producer preserves the approved README/LICENSE/NOTICE and asset bytes, relocates assets and build helpers, replaces legacy workflows with the reviewed source-only gate, and regenerates docs/BUILD.md, docs/VERIFY.md, build-input metadata, release version properties, and the unconditional direct-build gate. The ordinary pull-request workflow remains usable; release assembly remains blocked.')
     verify_release_metadata(repo, tree)
     verify_ordinary_pr_policy(repo, tree, stage)
     publication_tree = tree
@@ -496,7 +499,7 @@ def compose(repo, checkpoint_repo, stage, engineering, plan_path,
         state_raw = git(repo, 'show', f'{tree}:build-inputs/native-publication.json')
         gradle_raw = git(repo, 'show', f'{tree}:app/build.gradle.kts')
         workflow_raw = git(repo, 'show', f'{tree}:.github/workflows/source.yml')
-        build_raw = git(repo, 'show', f'{tree}:BUILD.md')
+        build_raw = git(repo, 'show', f'{tree}:docs/BUILD.md')
         properties_raw = git(repo, 'show', f'{tree}:gradle.properties')
         changes, _ = native_acceptance.transition_outputs(
             state_raw, gradle_raw, workflow_raw, build_raw, properties_raw, proof)

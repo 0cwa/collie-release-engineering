@@ -31,3 +31,9 @@ Instrumentation remains opt-in. Physical-device/account/attachment/database
 upgrade acceptance and independently reproduced native outputs are NOT RUN.
 
 Native JVM regression readiness is separate: build-inputs/host-test-inputs.json records the historical Linux testing-JNI candidate and immutable staging-guard recipe. No public host-test input or complete host build recipe is supplied; those tests are NOT RUN, not skipped/passed. Do not package test JNI in a release or treat the six production Maven files as all-test readiness.
+
+## Published source dates
+
+The [v8.35.1-2-rc1 release](https://github.com/0cwa/collieim-android/releases/tag/v8.35.1-2-rc1) was published on 2026-11-09 13:57:11 UTC. Its signed tag, `v8.35.1-2-rc1`, points to source G `72e1b84383d068c488e96ca9cd451e730e6e4e77` and is dated 2026-11-09 13:38:34 UTC. The release record establishes when this release became public; the tag object records its tagger date separately.
+
+Generated publication commits in this source snapshot show `2000-01-01T00:00:00Z` because the historical publisher used a fixed fixture timestamp for reproducibility. That date describes generated commit metadata; it is not the age of the application or the original upstream work. Authentic upstream commits remain in the ancestry with their original metadata, and generated-layer messages retain source provenance.

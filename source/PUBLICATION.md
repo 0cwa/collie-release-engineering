@@ -51,12 +51,23 @@ copy later permanent-policy documentation from the old application PR.
 
 The publication layer receives `application_base=plan['old_main']` and the same
 approved plan. That exact immutable application commit supplies `README.md`,
-`LICENSE`, `NOTICE`, and `assets`; these user-facing files are preserved without
-rewriting the README. `publish.py` and candidate verification compare their
-complete Git entries, including asset modes and symlinks, to `plan.old_main`.
-When an ordinary source contribution becomes part of application main, bind
-the regenerated plan and publication layer to that newly reviewed main tip. A
-stale baseline is rejected instead of silently restoring old user content.
+`LICENSE`, `NOTICE`, and the approved asset tree. The producer places assets in
+`docs/assets/`, moves the build guides into `docs/`, and rewrites only the
+README's relative asset and legal-document links. `publish.py` checks the exact
+README bytes after those path rewrites, preserves LICENSE/NOTICE entries, and
+compares every asset's relative path, mode, type, blob, and symlink target with
+the approved base. It accepts `assets/` as the historical base path and
+`docs/assets/` after migration. Regenerating `docs/BUILD.md` also carries forward
+the approved final `Published source dates` section from either supported build-guide path.
+
+The same output pass places build helpers under `tooling/` and FOSS Google
+service modules under `core/gms/`. Gradle project IDs such as `:core-gms:base`
+remain stable through explicit `projectDir` mappings in `settings.gradle.kts`.
+Root build entrypoints and root `LICENSE`, `NOTICE`, and `README.md` remain in
+place. When an ordinary source contribution becomes part of application main,
+bind the regenerated plan and publication layer to that newly reviewed main
+tip. A stale baseline is rejected instead of silently restoring old user
+content.
 
 Source receipts are emitted *after* G exists and live outside G. Receipt hashes
 are implementation evidence unless separately signed; they do not prove

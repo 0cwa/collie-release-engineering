@@ -32,7 +32,7 @@
     "assets/collie-icon.svg": {
       "sha256": "391414d6a855c9b5d1d2858dcf7bef563c150ce2cf5f64c5a94f16bd651ec4e8",
       "bytes": 23983,
-      "origin": "0cwa/collieim-android assets/collie-icon.svg",
+      "origin": "0cwa/collieim-android docs/assets/collie-icon.svg",
       "source_revision": "62db1d3e13d53286a720c3cebc6e26561a982dd5",
       "license": "existing approved Collie branding; preserved unchanged"
     },

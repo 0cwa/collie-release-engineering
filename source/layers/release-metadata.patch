@@ -1,7 +1,7 @@
-diff --git a/BUILD.md b/BUILD.md
+diff --git a/docs/BUILD.md b/docs/BUILD.md
 index 2d2b79e09b024efe2ebea4660fa1c141e3db9290..0f573a86832abfafae790a836dada94868453d60 100644
---- a/BUILD.md
-+++ b/BUILD.md
+--- a/docs/BUILD.md
++++ b/docs/BUILD.md
 @@ -9,7 +9,7 @@ Collie backup names and optional FCM; legacy filename aliases are one product.
  accepted native bytes. Their public immutable repository has not been supplied
  or independently downloaded. `native-publication.json` records this gap. Do not
@@ -40,6 +40,6 @@ index c7d5ad88724379d290ad1271032c54f63fb35f37..98851fe08b7e497f91a31256a05c3f2c
  // Publication migration gate: remove only with reviewed public native inputs and
  // direct-source acceptance. The legacy operator route is retained in engineering.
 -if (gradle.startParameter.taskNames.any { it.contains("Release", ignoreCase = true) }) {
--  throw GradleException("Direct release build BLOCKED: publish and verify locked native inputs first; see BUILD.md")
+-  throw GradleException("Direct release build BLOCKED: publish and verify locked native inputs first; see docs/BUILD.md")
 -}
-+throw GradleException("Direct Android builds BLOCKED: publish and verify locked native inputs first; see BUILD.md")
++throw GradleException("Direct Android builds BLOCKED: publish and verify locked native inputs first; see docs/BUILD.md")

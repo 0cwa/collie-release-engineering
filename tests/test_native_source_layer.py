@@ -47,7 +47,7 @@ signal-ringrtc = "im.collie.native:ringrtc-android:2.74.0-collie.1"
           'gradle.properties':b'# fixture\n',
           'build-inputs/native-publication.json':b'{"status":"BLOCKED"}',
           'app/build.gradle.kts':b'throw GradleException("Direct Android builds BLOCKED: fixture")\n',
-          'BUILD.md':b'fixture not an Android build\n'}
+          'docs/BUILD.md':b'fixture not an Android build\n'}
     def test_tracked_graph_replaces_init_and_local_native_inputs_without_opening_gate(self):
         changes=m.materialize(self.files,self.fixture.lock,self.plan,self.metadata)
         settings=changes['settings.gradle.kts'].decode();build=changes['build.gradle.kts'].decode()

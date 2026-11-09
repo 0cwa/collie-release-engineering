@@ -46,7 +46,7 @@ CLASS_NOTES = {
     'repository': 'patch series, pipeline tools, documentation and CI',
 }
 TESTS = re.compile(r'(^|/)src/(test|androidTest|testShared|testFixtures|screenshotTest\w*|benchmark\w*)/'
-                   r'|^(benchmark|microbenchmark|baseline-profile)/')
+                   r'|^(benchmark|microbenchmark|baseline-profile)/|^tooling/baseline-profile/')
 TRANSLATIONS = re.compile(r'(^|/)res/values-[a-z]{2,3}(-r[A-Z]{2,3})?/strings[^/]*\.xml$')
 GENERATED = re.compile(r'^gradle/verification-metadata\.xml$')
 REPOSITORY = re.compile(r'^(patches|tools|docs|\.github)/|^[^/]+\.md$|^(molly-build|native-ringrtc)\.json$')
