@@ -256,7 +256,7 @@ def audit_run(run: dict, language: str, source: str) -> dict:
 
 
 def audit(paths: list[Path], language: str) -> dict:
-    report = {"schema": 1, "language": language, "runs": [], "errors": []}
+    report = {"schema": 1, "language": language, "runs": [], "errors": [], "retired_reviews": []}
     if not paths:
         report["errors"].append("No SARIF files were found")
     for path in paths:
@@ -317,12 +317,26 @@ def apply_reviews(report: dict, review_file: Path, source_root: Path) -> None:
                 raise SarifError(f"Review {identifier} source escapes its checkout")
             if not re.fullmatch(r"[0-9a-f]{64}", review.get("source_sha256", "")):
                 raise SarifError(f"Review {identifier} needs a SHA-256 source fingerprint")
-            if hashlib.sha256(source.read_bytes()).hexdigest() != review["source_sha256"]:
-                raise SarifError(f"Review {identifier} is stale: source bytes changed; re-review required")
-            matches = []
             fields = ("rule", "level", "security_severity", "query_kind", "query_precision", "message")
             if any(field not in review for field in fields) or not review.get("tool_version") or not review.get("category"):
                 raise SarifError(f"Review {identifier} is missing an exact finding identity")
+            try:
+                source_bytes = source.read_bytes()
+            except FileNotFoundError:
+                # A base-bound review for a source file removed from this revision
+                # cannot match or suppress a current SARIF result. Retain its exact
+                # old digest in the audit for migration visibility; findings remain
+                # unreviewed unless an active source-bound review matches them.
+                report["retired_reviews"].append({
+                    "id": identifier,
+                    "path": where["uri"],
+                    "source_sha256": review["source_sha256"],
+                    "reason": "source path absent from analyzed revision",
+                })
+                continue
+            if hashlib.sha256(source_bytes).hexdigest() != review["source_sha256"]:
+                raise SarifError(f"Review {identifier} is stale: source bytes changed; re-review required")
+            matches = []
             for run in report["runs"]:
                 if (run["category"], run["tool_version"]) != (review["category"], review["tool_version"]):
                     continue
@@ -359,6 +373,14 @@ def markdown(report: dict) -> str:
              "Unreviewed findings fail this gate regardless of severity, suppression or baseline state. "
              "Reviewed false positives must match the exact rule, location, message, tool version and source-file SHA-256; all remain in SARIF. "
              "Extraction warnings, errors and missing expected files also fail. This result covers only the selected language.", ""]
+    if report.get("retired_reviews"):
+        lines += ["", "### Retired source-bound reviews", ""]
+        for retired in report["retired_reviews"]:
+            lines.append(
+                f"- {cell(retired['id'])}: {cell(retired['path'])} is absent from the analyzed revision; "
+                f"recorded source SHA-256 `{cell(retired['source_sha256'])}` retained. "
+                "This record does not suppress SARIF findings."
+            )
     for error in report["errors"]:
         lines.append(f"- {cell(error)}")
     for run in report["runs"]:

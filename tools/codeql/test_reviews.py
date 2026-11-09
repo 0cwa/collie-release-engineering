@@ -67,6 +67,39 @@ class ReviewedFindingTests(unittest.TestCase):
         self.assertEqual(result['reviewed_finding_count'], 0)
         self.assertTrue(any('source bytes changed' in error for error in result['errors']))
 
+    def test_removed_source_review_is_retired_without_counting_as_a_finding(self):
+        self.source.unlink()
+        self.data['runs'][0]['results'] = []
+        result = self.apply()
+        self.assertTrue(result['passed'])
+        self.assertEqual(result['finding_count'], 0)
+        self.assertEqual(result['reviewed_finding_count'], 0)
+        self.assertEqual(result['retired_reviews'], [{
+            'id': self.review['id'],
+            'path': self.review['location']['uri'],
+            'source_sha256': self.review['source_sha256'],
+            'reason': 'source path absent from analyzed revision',
+        }])
+        self.assertIn('Retired source-bound reviews', report.markdown(result))
+        self.assertIn(self.review['source_sha256'], report.markdown(result))
+
+    def test_removed_source_review_does_not_suppress_stale_sarif_finding(self):
+        self.source.unlink()
+        result = self.apply()
+        self.assertFalse(result['passed'])
+        self.assertEqual(result['finding_count'], 1)
+        self.assertEqual(result['reviewed_finding_count'], 0)
+        self.assertEqual(result['unreviewed_finding_count'], 1)
+        self.assertEqual(len(result['retired_reviews']), 1)
+
+    def test_removed_source_review_still_requires_sha256_identity(self):
+        self.source.unlink()
+        review = copy.deepcopy(self.review)
+        review['source_sha256'] = 'bad'
+        result = self.apply(review)
+        self.assertFalse(result['passed'])
+        self.assertTrue(any('needs a SHA-256 source fingerprint' in error for error in result['errors']))
+
     def test_rule_location_severity_message_and_tool_changes_are_not_accepted(self):
         for key, value in (('rule', 'actions/code-injection/critical'), ('level', 'error'),
                            ('security_severity', '9.0'), ('query_kind', 'path-problem'),
