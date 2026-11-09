@@ -280,3 +280,33 @@ A proposed protected deployment must identify the exact reviewed commit,
 workflow/ref, preparation mode, approved bundle asset ID and SHA-256, and the
 environment approval being requested. The exact action must be shown for explicit
 approval before either operation; this audit authorizes neither.
+
+## Follow-up: cancellation boundary races
+
+Independent review of head `67e6527dd3347b8a9befa4f6a736a0f367af3d2e`
+reproduced two remaining signal races: an interruption after creation response
+validation but before the caller retained its ID, and a first signal during
+cleanup that had started because of a deadline or API error.
+
+The follow-up limits exception-raising signal handling to network waits, status
+calls, and poll sleeps. Signals outside those waits set the interruption flag,
+allowing creation-result parsing and handoff to complete before the monitor
+cancels the known ID. Cancellation deliberately does not enter an interruptible
+wait, so the first signal during non-signal-triggered cleanup also allows its
+single best-effort request to finish. This does not turn socket inactivity
+timeouts into a wall-clock guarantee or establish the remote cancellation state.
+
+Regressions send actual SIGINT and SIGTERM at three creation-result boundaries,
+during cleanup for malformed metadata, exhausted API errors, and the deadline,
+and during OIDC/creation network entry. The received response body is also
+retained if the first signal arrives during response close or wait teardown,
+including an interruption wrapped by urllib. The previous blocked-I/O subprocess
+regression remains in place. The three new race regressions fail on the prior
+head (fourteen failing subcases), while the corrected focused suite passes 36
+tests.
+
+Follow-up validation on Python 3.12.14: all 129 distribution tests passed with the
+exact hash-verified site requirements; 145 engineering tests passed (one skipped);
+and 43 patch-tool tests passed. All distribution entrypoints compile and
+`git diff --check` passes. These are local results, not protected-deployment
+evidence.

@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+from contextlib import contextmanager, nullcontext
 import json
 import os
 import re
@@ -31,6 +32,32 @@ FINAL_FAILURES = {
 
 class PagesApiError(RuntimeError):
     pass
+
+
+class _Interrupts:
+    """Raise only in blocking waits; defer signals while handing off state/cleaning up."""
+
+    def __init__(self):
+        self.requested = False
+        self.waiting = False
+
+    def request(self, _signum, _frame):
+        if self.requested:
+            return
+        self.requested = True
+        if self.waiting:
+            raise InterruptedError("Pages deployment interrupted")
+
+    @contextmanager
+    def wait(self):
+        previous = self.waiting
+        try:
+            self.waiting = True
+            if self.requested:
+                raise InterruptedError("Pages deployment interrupted")
+            yield
+        finally:
+            self.waiting = previous
 
 
 class _NoRedirect(HTTPRedirectHandler):
@@ -64,9 +91,28 @@ class PagesApi:
         self.oidc_url = oidc_url
         self.oidc_request_token = oidc_request_token
         self.open_url = open_url if open_url is not None else build_opener(_NoRedirect()).open
+        self.interruptible = nullcontext
+
+    def _read_response(self, request: Request, timeout: float, *, interruptible=True):
+        raw = None
+        try:
+            with self.interruptible() if interruptible else nullcontext():
+                with self.open_url(request, timeout=timeout) as response:
+                    raw = response.read()
+        except InterruptedError:
+            if raw is None:
+                raise
+        except URLError as error:
+            if raw is None or not isinstance(error.reason, InterruptedError):
+                raise
+        # A signal during response close or wait teardown must not discard a
+        # fully buffered creation response. Parse it and hand off the ID; the
+        # recorded interruption will then cancel it before the first poll.
+        return raw
 
     def _json_request(self, method: str, url: str, *, bearer: str,
-                      payload: dict | None = None, timeout: float = 30) -> dict:
+                      payload: dict | None = None, timeout: float = 30,
+                      interruptible: bool = True) -> dict:
         data = None if payload is None else json.dumps(payload).encode("utf-8")
         headers = {
             "Accept": "application/vnd.github+json",
@@ -77,8 +123,7 @@ class PagesApi:
             headers["Content-Type"] = "application/json"
         request = Request(url, data=data, headers=headers, method=method)
         try:
-            with self.open_url(request, timeout=timeout) as response:
-                raw = response.read()
+            raw = self._read_response(request, timeout, interruptible=interruptible)
         except HTTPError as error:
             raise PagesApiError(f"Pages API request failed with HTTP {error.code}") from None
         except InterruptedError:
@@ -106,8 +151,7 @@ class PagesApi:
             headers={"Authorization": f"Bearer {self.oidc_request_token}", "Accept": "application/json"},
         )
         try:
-            with self.open_url(request, timeout=30) as response:
-                value = json.loads(response.read())
+            value = json.loads(self._read_response(request, 30))
         except HTTPError as error:
             raise PagesApiError(f"OIDC token request failed with HTTP {error.code}") from None
         except InterruptedError:
@@ -166,7 +210,7 @@ class PagesApi:
     def cancel(self, deployment_id: str) -> None:
         self._json_request(
             "POST", f"{self.api_url}/repos/{self.repository}/pages/deployments/{deployment_id}/cancel",
-            bearer=self.github_token, timeout=CANCEL_TIMEOUT_SECONDS,
+            bearer=self.github_token, timeout=CANCEL_TIMEOUT_SECONDS, interruptible=False,
         )
 
 
@@ -186,7 +230,8 @@ def _cancel_and_raise(api: PagesApi, deployment_id: str, error: Exception) -> No
 
 def deploy_and_wait(api: PagesApi, artifact_id: int, build_version: str, *,
                     wait_seconds: int = DEFAULT_WAIT_SECONDS, poll_seconds: int = POLL_SECONDS,
-                    clock=time.monotonic, sleep=time.sleep, interrupted=lambda: False) -> str:
+                    clock=time.monotonic, sleep=time.sleep, interrupted=lambda: False,
+                    interruptible=nullcontext) -> str:
     if wait_seconds <= 600 or poll_seconds <= 0:
         raise ValueError("wait must exceed 600 seconds and polling interval must be positive")
     if interrupted():
@@ -204,7 +249,8 @@ def deploy_and_wait(api: PagesApi, artifact_id: int, build_version: str, *,
             if remaining <= 0:
                 raise TimeoutError("Pages deployment exceeded its final wait deadline")
             try:
-                status = api.status(deployment_id, timeout=min(30, remaining))
+                with interruptible():
+                    status = api.status(deployment_id, timeout=min(30, remaining))
             except PagesApiError:
                 # Like the pinned official action, count errors cumulatively.
                 api_errors += 1
@@ -223,7 +269,8 @@ def deploy_and_wait(api: PagesApi, artifact_id: int, build_version: str, *,
                     raise PagesApiError(f"Pages deployment {deployment_id} ended with status {status}")
             remaining = deadline - clock()
             if remaining > 0:
-                sleep(min(poll_seconds, remaining))
+                with interruptible():
+                    sleep(min(poll_seconds, remaining))
     except (PagesApiError, TimeoutError, InterruptedError) as error:
         if pending and deployment_id is not None:
             _cancel_and_raise(api, deployment_id, error)
@@ -257,28 +304,24 @@ def main() -> int:
         os.environ.get("ACTIONS_ID_TOKEN_REQUEST_URL", ""),
         os.environ.get("ACTIONS_ID_TOKEN_REQUEST_TOKEN", ""),
     )
-    interrupted = False
-
-    def request_interrupt(_signum, _frame):
-        nonlocal interrupted
-        if interrupted:
-            return
-        interrupted = True
-        # A flag alone leaves blocking I/O asleep past the runner's kill grace.
-        # Further signals must not interrupt the best-effort cancellation request.
-        raise InterruptedError("Pages deployment interrupted")
+    interrupts = _Interrupts()
+    api.interruptible = interrupts.wait
 
     old_handlers = {}
     try:
         for signum in (signal.SIGINT, signal.SIGTERM):
-            old_handlers[signum] = signal.signal(signum, request_interrupt)
+            old_handlers[signum] = signal.signal(signum, interrupts.request)
         try:
             page_url = deploy_and_wait(
                 api, args.artifact_id, build_version,
-                wait_seconds=args.timeout_seconds, interrupted=lambda: interrupted,
+                wait_seconds=args.timeout_seconds, interrupted=lambda: interrupts.requested,
+                interruptible=interrupts.wait,
             )
         except (PagesApiError, TimeoutError, InterruptedError, ValueError) as error:
             print(str(error), file=sys.stderr)
+            return 1
+        if interrupts.requested:
+            print("Pages deployment interrupted", file=sys.stderr)
             return 1
         _write_output("page_url", page_url)
         print(f"Pages deployment succeeded; build {build_version}")

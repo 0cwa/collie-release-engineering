@@ -178,8 +178,10 @@ malformed-response errors consume a cumulative ten-error budget. An interruption
 exhausted error budget, or final deadline attempts cancellation of the known
 deployment ID and fails the step. Both deployment commands use `exec` so the
 runner's signal to the step process reaches Python directly. Signals interrupt
-blocking I/O immediately; cleanup uses a five-second socket timeout and ignores
-repeated signals during that attempt. Socket timeouts are not a hard wall-clock
+blocking I/O and poll sleeps immediately. They are deferred while creation results
+are handed to the monitor, so a received deployment ID remains available for
+cleanup. Cleanup uses a five-second socket timeout and defers all signals during
+that attempt, including the first signal if cleanup began for another failure. Socket timeouts are not a hard wall-clock
 guarantee, and cancellation
 is best effort: an accepted cancellation request does not establish the remote
 final state or rollback. A lost creation response can leave an unknown deployment;

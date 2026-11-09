@@ -2,6 +2,7 @@
 
 import contextlib
 import io
+import inspect
 import json
 import os
 from pathlib import Path
@@ -265,6 +266,150 @@ class DeployPagesLifecycleTest(unittest.TestCase):
         finally:
             for number, handler in original.items():
                 signal.signal(number, handler)
+
+    def run_main(self, api, *, clock=None):
+        clock = clock or Clock()
+        run = deploy_pages.deploy_and_wait
+        stderr = io.StringIO()
+        with mock.patch.object(deploy_pages, "PagesApi", return_value=api), \
+             mock.patch.object(sys, "argv", ["deploy_pages.py", "--artifact-id", "1234"]), \
+             mock.patch.dict(os.environ, {"GITHUB_SHA": "a" * 40}, clear=True), \
+             mock.patch.object(deploy_pages, "deploy_and_wait", side_effect=lambda *a, **kw: run(
+                 *a, **kw, clock=clock.now, sleep=clock.sleep,
+             )), contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(stderr):
+            result = deploy_pages.main()
+        return result, stderr.getvalue()
+
+    @unittest.skipUnless(os.name == "posix", "The publication runner uses POSIX signals")
+    def test_signals_during_creation_result_handoff_cancel_known_id(self):
+        # Signal at each boundary after a usable response, including before the
+        # caller has assigned its ID. Use actual handlers, not a fake exception.
+        boundaries = (
+            (PagesApi._json_request, "        return value"),
+            (PagesApi.create, "        return str(deployment_id), page_url"),
+            (deploy_pages.deploy_and_wait, "        deadline = clock() + wait_seconds"),
+        )
+        for signum in (signal.SIGINT, signal.SIGTERM):
+            for function, statement in boundaries:
+                with self.subTest(signal=signum, boundary=statement):
+                    api, calls = api_with_responses([])
+                    source, start = inspect.getsourcelines(function)
+                    target = start + next(i for i, line in enumerate(source)
+                                          if line.rstrip() == statement)
+                    signalled = []
+
+                    def trace(frame, event, arg):
+                        if (not signalled and event == "line"
+                                and frame.f_code is function.__code__
+                                and frame.f_lineno == target):
+                            signalled.append(True)
+                            os.kill(os.getpid(), signum)
+                        return trace
+
+                    previous = sys.gettrace()
+                    sys.settrace(trace)
+                    try:
+                        result, stderr = self.run_main(api)
+                    finally:
+                        sys.settrace(previous)
+                    self.assertEqual(signalled, [True])
+                    self.assertEqual(result, 1)
+                    self.assertIn("cancellation requested", stderr)
+                    self.assertEqual(sum(url.endswith("/deployment-1/cancel")
+                                         for _, url, _ in calls), 1)
+                    self.assertFalse(any(method == "GET" and "/pages/deployments/" in url
+                                         for method, url, _ in calls))
+
+    @unittest.skipUnless(os.name == "posix", "The publication runner uses POSIX signals")
+    def test_signal_during_creation_response_close_retains_buffered_id(self):
+        for signum in (signal.SIGINT, signal.SIGTERM):
+            for wrapped in (False, True):
+                with self.subTest(signal=signum, wrapped=wrapped):
+                    api, calls = api_with_responses([])
+                    open_url = api.open_url
+
+                    class SignalOnClose:
+                        def __enter__(self):
+                            return Response({"id": "deployment-1", "page_url": "https://pages.test/"})
+
+                        def __exit__(self, *_args):
+                            try:
+                                os.kill(os.getpid(), signum)
+                            except InterruptedError as error:
+                                if wrapped:
+                                    raise URLError(error) from None
+                                raise
+
+                    def open_with_signal_on_close(request, timeout):
+                        response = open_url(request, timeout)
+                        if request.full_url.endswith("/pages/deployments"):
+                            return SignalOnClose()
+                        return response
+
+                    api.open_url = open_with_signal_on_close
+                    result, stderr = self.run_main(api)
+                    self.assertEqual(result, 1)
+                    self.assertIn("cancellation requested", stderr)
+                    self.assertEqual(sum(url.endswith("/deployment-1/cancel")
+                                         for _, url, _ in calls), 1)
+
+    @unittest.skipUnless(os.name == "posix", "The publication runner uses POSIX signals")
+    def test_first_signal_during_non_signal_cleanup_allows_request_to_finish(self):
+        for signum in (signal.SIGINT, signal.SIGTERM):
+            for reason in ("malformed_metadata", "error_budget", "deadline"):
+                with self.subTest(signal=signum, reason=reason):
+                    clock = Clock()
+                    api, calls = api_with_responses(
+                        [IncompleteRead(b"", 1)] * 10 if reason == "error_budget" else [],
+                        created={"id": "deployment-1", "page_url": 123}
+                        if reason == "malformed_metadata" else None,
+                    )
+                    open_url = api.open_url
+                    completed = []
+
+                    def signal_during_cancel(request, timeout):
+                        if request.full_url.endswith("/cancel"):
+                            os.kill(os.getpid(), signum)
+                            response = open_url(request, timeout)
+                            completed.append(True)
+                            return response
+                        if reason == "deadline" and "/pages/deployments/" in request.full_url:
+                            clock.value = 1801
+                            return Response({"status": "syncing_files"})
+                        return open_url(request, timeout)
+
+                    api.open_url = signal_during_cancel
+                    result, stderr = self.run_main(api, clock=clock)
+                    self.assertEqual(result, 1)
+                    self.assertEqual(completed, [True])
+                    self.assertEqual(sum(url.endswith("/deployment-1/cancel")
+                                         for _, url, _ in calls), 1)
+                    self.assertIn("cancellation requested", stderr)
+                    self.assertNotIn("cancellation request failed", stderr)
+
+    @unittest.skipUnless(os.name == "posix", "The publication runner uses POSIX signals")
+    def test_first_signal_still_interrupts_creation_network_waits(self):
+        for signum in (signal.SIGINT, signal.SIGTERM):
+            for route in ("oidc", "create"):
+                with self.subTest(signal=signum, route=route):
+                    api, calls = api_with_responses([])
+                    open_url = api.open_url
+                    reached_after_signal = []
+
+                    def interrupt_open(request, timeout):
+                        is_oidc = request.full_url == "https://oidc.example.test/token"
+                        if is_oidc == (route == "oidc"):
+                            os.kill(os.getpid(), signum)
+                            reached_after_signal.append(True)
+                        return open_url(request, timeout)
+
+                    api.open_url = interrupt_open
+                    result, stderr = self.run_main(api)
+                    self.assertEqual(result, 1)
+                    self.assertIn("interrupted", stderr)
+                    self.assertEqual(reached_after_signal, [])
+                    self.assertFalse(any(url.endswith("/cancel") for _, url, _ in calls))
+                    self.assertEqual(len(calls), 0 if route == "oidc" else 1)
 
     @unittest.skipUnless(os.name == "posix", "The publication runner uses POSIX signals")
     def test_signals_interrupt_blocked_io_and_second_signal_allows_cleanup(self):
