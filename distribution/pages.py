@@ -208,7 +208,7 @@ def observe(url):
     def fresh_headers(headers):
         values={k:headers.get(k) for k in ('Cache-Control','ETag','Last-Modified','Age','X-Cache')}
         age=values['Age']
-        if age not in (None,''):
+        if age is not None:
             try:
                 age_value=int(age)
             except ValueError:
