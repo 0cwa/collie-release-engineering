@@ -176,9 +176,11 @@ deployment step to succeed. The five terminal failure statuses match the pinned
 official action. Other statuses remain pending; HTTP, transport, protocol and
 malformed-response errors consume a cumulative ten-error budget. An interruption,
 exhausted error budget, or final deadline attempts cancellation of the known
-deployment ID and fails the step. Signals interrupt blocking I/O immediately;
-cleanup uses a five-second socket timeout and ignores repeated signals during
-that attempt. Socket timeouts are not a hard wall-clock guarantee, and cancellation
+deployment ID and fails the step. Both deployment commands use `exec` so the
+runner's signal to the step process reaches Python directly. Signals interrupt
+blocking I/O immediately; cleanup uses a five-second socket timeout and ignores
+repeated signals during that attempt. Socket timeouts are not a hard wall-clock
+guarantee, and cancellation
 is best effort: an accepted cancellation request does not establish the remote
 final state or rollback. A lost creation response can leave an unknown deployment;
 the client never retries creation automatically or cancels by the shared build SHA.

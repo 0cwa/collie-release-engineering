@@ -5,8 +5,9 @@
 PR #11's custom deployment client has reproducible credential-redirect and
 cancellation defects. Focused corrections and offline regressions are prepared
 against main commit `9cbf2c865a5973398847c12d0d024114b0031aad`. The publication
-workflow, token permissions, artifact packaging, signed content, and readback
-implementation are not changed by these corrections.
+workflow changes only to use `exec python` in both deployment commands for signal
+delivery. Token permissions, artifact packaging, signed content, publication
+ordering, and the readback implementation are unchanged.
 
 The review compared:
 
@@ -100,20 +101,33 @@ GitHub documents those grace periods before killing the process tree. The
 original implementation therefore cannot be relied on to issue its cancellation
 request during runner cancellation.
 
-**Correction:** the first signal raises an interruption immediately; repeated
+There is also a shell boundary: the workflow's plain `python ...` command leaves
+Bash as the step entry process. The runner's Unix signal implementation calls
+`kill(_proc.Id, signal)` on that positive PID, rather than signaling the process
+group. A faithful local Bash script reproduction did not forward SIGINT or
+SIGTERM to the Python handler. Using `exec python ...` makes Python the entry
+process and delivers the signal immediately.
+
+**Correction:** both deployment commands use `exec python`. The first signal
+raises an interruption immediately; repeated
 signals allow the one cleanup attempt to proceed. Both HTTP adapters preserve
 direct interruptions and `URLError(InterruptedError(...))`, which urllib can
 produce during connect/send. Known-ID bookkeeping and deadline initialization
 are inside the cleanup guard. Interruption already known before creation causes
 no creation side effect. Original signal handlers are restored when `main()`
-returns.
+returns. The workflow regression requires `exec`, and the subprocess signal test
+now enters through a Bash script and signals the step PID, matching this boundary.
 
 Cancellation uses a five-second **socket inactivity timeout**, not a guaranteed
 wall-clock bound. Tests use real POSIX signals and blocked socket reads in a
 subprocess, plus a second signal during cleanup. They do not emulate every
 runner or network condition.
 
-Source: [GitHub workflow cancellation reference](https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-cancellation).
+Sources: [GitHub workflow cancellation reference](https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-cancellation),
+[runner signal implementation](https://github.com/actions/runner/blob/d1eb12d4b115c301201de27d667284e1a80f2ab5/src/Runner.Sdk/ProcessInvoker.cs),
+[runner shell arguments](https://github.com/actions/runner/blob/d1eb12d4b115c301201de27d667284e1a80f2ab5/src/Runner.Worker/Handlers/ScriptHandlerHelpers.cs).
+The inspected runner tag v2.338.2 resolves to that exact commit; a future hosted
+runner's binary revision was not established.
 
 ### 3. Truncated or malformed HTTP transport responses bypass cleanup
 
@@ -240,7 +254,7 @@ the repository's exact, hash-verified `distribution/site-requirements.txt`
 (Pillow 13.0.0 and qrcode 8.2).
 
 - Focused deployer/HTTP/lifecycle/workflow suite: **32 tests passed**, including
-  80 redirect subcases and both actual SIGINT/SIGTERM subprocess cases.
+  80 redirect subcases and both actual SIGINT/SIGTERM cases through a Bash script.
 - Complete distribution suite: **125 tests passed**.
 - Workflow mutation checks: removed phase1 readback, removed final readback,
   and wrong phase1 artifact were rejected.

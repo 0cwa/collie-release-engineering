@@ -6,9 +6,11 @@ import json
 import os
 from pathlib import Path
 import selectors
+import shlex
 import signal
 import subprocess
 import sys
+import tempfile
 import textwrap
 import unittest
 from http.client import BadStatusLine, IncompleteRead
@@ -299,30 +301,43 @@ class DeployPagesLifecycleTest(unittest.TestCase):
             deploy_pages.PagesApi = Api
             sys.exit(deploy_pages.main())
         """)
-        for signum in (signal.SIGINT, signal.SIGTERM):
-            with self.subTest(signum=signum):
-                process = subprocess.Popen(
-                    [sys.executable, "-B", "-c", source],
-                    cwd=Path(__file__).resolve().parents[1],
-                    stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
-                )
-                try:
-                    with selectors.DefaultSelector() as selector:
-                        selector.register(process.stdout, selectors.EVENT_READ)
-                        self.assertTrue(selector.select(timeout=5), "child did not reach status polling")
-                    self.assertEqual(process.stdout.readline().strip(), "STATUS_WAITING")
-                    process.send_signal(signum)
+        with tempfile.TemporaryDirectory(prefix="pages-signal-") as temporary:
+            script = Path(temporary) / "deployment-step.sh"
+            # Actions sends cancellation to the shell's PID, not its children.
+            # Match the workflow's exec so Python becomes that entry process.
+            script.write_text(
+                f"exec {shlex.quote(sys.executable)} -B -c {shlex.quote(source)}\n",
+                encoding="utf-8",
+            )
+            for signum in (signal.SIGINT, signal.SIGTERM):
+                with self.subTest(signum=signum):
+                    process = subprocess.Popen(
+                        ["/bin/bash", "-e", str(script)],
+                        cwd=Path(__file__).resolve().parents[1],
+                        stdin=subprocess.DEVNULL,
+                        stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+                        start_new_session=True,
+                    )
                     try:
-                        stdout, stderr = process.communicate(timeout=2)
-                    except subprocess.TimeoutExpired:
-                        self.fail("signal did not interrupt a blocking status read promptly")
-                    self.assertEqual(process.returncode, 1, stderr)
-                    self.assertEqual(stdout.count("CANCELLED"), 1, stdout + stderr)
-                    self.assertIn("interrupted", stderr.lower())
-                finally:
-                    if process.poll() is None:
-                        process.kill()
-                    process.communicate()
+                        with selectors.DefaultSelector() as selector:
+                            selector.register(process.stdout, selectors.EVENT_READ)
+                            self.assertTrue(selector.select(timeout=5), "child did not reach status polling")
+                        self.assertEqual(process.stdout.readline().strip(), "STATUS_WAITING")
+                        process.send_signal(signum)
+                        try:
+                            stdout, stderr = process.communicate(timeout=2)
+                        except subprocess.TimeoutExpired:
+                            self.fail("entry-process signal did not interrupt the status read promptly")
+                        self.assertEqual(process.returncode, 1, stderr)
+                        self.assertEqual(stdout.count("CANCELLED"), 1, stdout + stderr)
+                        self.assertIn("interrupted", stderr.lower())
+                    finally:
+                        # Also clean up a child if a broken shell invocation fails.
+                        try:
+                            os.killpg(process.pid, signal.SIGKILL)
+                        except ProcessLookupError:
+                            pass
+                        process.communicate(timeout=3)
 
 
 if __name__ == "__main__":

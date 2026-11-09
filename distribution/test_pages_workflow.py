@@ -112,7 +112,7 @@ class WorkflowBoundaryTest(unittest.TestCase):
                 self.assertEqual(self.field(env,'ARTIFACT_ID',10),route)
                 self.assertEqual(self.field(env,'GITHUB_TOKEN',10),'${{ github.token }}')
                 self.assertEqual(self.field(deploy,'run',8),
-                                 'python distribution/deploy_pages.py --artifact-id "$ARTIFACT_ID" --timeout-seconds 1800')
+                                 'exec python distribution/deploy_pages.py --artifact-id "$ARTIFACT_ID" --timeout-seconds 1800')
         relay=self.block(jobs['phase1-readback'],'    outputs:')
         self.assertEqual(self.field(relay,'phase2_artifact_id',6),'${{ needs.prepare.outputs.phase2_artifact_id }}')
 
