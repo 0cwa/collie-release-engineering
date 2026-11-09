@@ -77,6 +77,33 @@ class PagesArchiveHeaderTests(unittest.TestCase):
             with self.assertRaises(ValueError):p.archive(site,root/'unsupported.tar',manifest)
 
 class PagesFreshInventoryTests(unittest.TestCase):
+    def test_observe_zero_byte_limit_accepts_only_an_empty_body(self):
+        url='https://repo.collie.im/empty-asset'
+        class Response:
+            status=200
+            headers=Message()
+            def __init__(self,content):
+                self.content=io.BytesIO(content);self.bytes_returned=0
+            def __enter__(self):return self
+            def __exit__(self,*_args):self.content.close()
+            def geturl(self):return url
+            def read(self,size=-1):
+                block=self.content.read(size);self.bytes_returned+=len(block);return block
+        with patch('urllib.request.urlopen',return_value=Response(b'')):
+            observed=p.observe(url,max_bytes=0)
+        self.assertEqual(observed['bytes'],0)
+        self.assertEqual(observed['sha256'],hashlib.sha256(b'').hexdigest())
+        oversized=Response(b'xmore')
+        with patch('urllib.request.urlopen',return_value=oversized):
+            with self.assertRaisesRegex(ValueError,'maximum byte budget'):
+                p.observe(url,max_bytes=0)
+        self.assertEqual(oversized.bytes_returned,1)
+        for invalid in (-1,True,p.MAX_BYTES+1):
+            with self.subTest(limit=invalid),patch('urllib.request.urlopen') as opened:
+                with self.assertRaisesRegex(ValueError,'invalid readback byte limit'):
+                    p.observe(url,max_bytes=invalid)
+                opened.assert_not_called()
+
     def test_observe_head_requests_fresh_headers_for_absence(self):
         url='https://repo.collie.im/native-inputs/example'
         headers=Message();headers['Age']='0';headers['X-Cache']='MISS'

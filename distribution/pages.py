@@ -246,7 +246,7 @@ def observe_head(url,*,allow_unverified=False):
 def observe(url,*,allow_unverified=False,max_bytes=None):
     import urllib.error
     if max_bytes is None:max_bytes=MAX_BYTES
-    if type(max_bytes) is not int or not 0<max_bytes<=MAX_BYTES:raise ValueError('invalid readback byte limit')
+    if type(max_bytes) is not int or not 0<=max_bytes<=MAX_BYTES:raise ValueError('invalid readback byte limit')
     request=urllib.request.Request(url,headers={'Cache-Control':'no-cache, no-store','Pragma':'no-cache'})
 
     try:
