@@ -274,6 +274,17 @@ class NativePagesTest(unittest.TestCase):
         p.preflight(plan,journal,fetch=fetch,head=head)
         self.assertEqual(len(seen),8)
         self.assertTrue(b.load(journal)['previous_verified'])
+    def test_native_head_200_requires_exact_get_hash_before_preflight(self):
+        self.add_native(only=True);plan=self.prepare();journal=self.output/'journal.json';fetched=[]
+        def head(url):
+            if '/native-inputs/' in url:return {'status':200,'headers':{'Age':'0','X-Cache':'MISS'}}
+            return {'status':404,'headers':{'Age':'0','X-Cache':'MISS'}}
+        def fetch(url):
+            name=url.removeprefix(plan['origin']);fetched.append(name)
+            return dict(plan['manifests']['phase1'][name],status=200,headers={'Age':'0','X-Cache':'MISS'})
+        p.preflight(plan,journal,fetch=fetch,head=head)
+        self.assertEqual(set(fetched),{name for name in plan['manifests']['phase1'] if name.startswith('native-inputs/')})
+        self.assertTrue(b.load(journal)['previous_verified'])
     def test_native_feed_both_phases_same_six_files(self):
         files=self.add_native();plan=self.prepare()
         for phase in ('phase1','phase2'):self.assertEqual({n:e for n,e in plan['manifests'][phase].items() if n.startswith('native-inputs/')},files)
