@@ -20,6 +20,7 @@ import stage_artifacts
 ORIGIN='https://repo.collie.im/native-inputs/v1/maven/'
 SETTINGS_MARKER='// Collie native repository: reviewed source input, NOT PUBLISHED.'
 BUILD_MARKER='// Collie native substitutions: ordinary tracked project configuration.'
+REVIEWED_G2_TREE='50f5c32b8dd11cac12520bcacb9e7dbb5e2ea74d'
 
 
 def repository_block(lock):
@@ -144,11 +145,12 @@ def materialize(files,lock,plan,metadata):
     if b'throw GradleException("Direct Android builds BLOCKED:' not in files['app/build.gradle.kts']:
         raise ValueError('unconditional Android build gate missing')
     # This layer intentionally never edits app/build.gradle.kts or the gate.
-    build=files['docs/BUILD.md'].decode()
+    build_path='BUILD.md' if 'BUILD.md' in files else 'docs/BUILD.md'
+    build=files[build_path].decode()
     build=build.replace('Obtain the three locked artifacts and POMs from approved\npublic immutable URLs, verify all hashes, materialize their exclusive repository\nand verification entries in source, then run a fresh controlled Gradle build.',
         'The three locked binaries and transformed POMs now have tracked exclusive repository, catalog, substitutions and strict verification entries. The proposed origin in build-inputs/native-artifacts.json is NOT PUBLISHED. Obtain operator publication approval, independently read back all six exact files, review a separate acceptance/gate layer, then run a fresh controlled Gradle build. No native init script, local Maven lookup or external native source includeBuild is part of this direct-source recipe.')
     build+='\nNative JVM regression readiness is separate: build-inputs/host-test-inputs.json records the historical Linux testing-JNI candidate and immutable staging-guard recipe. No public host-test input or complete host build recipe is supplied; those tests are NOT RUN, not skipped/passed. Do not package test JNI in a release or treat the six production Maven files as all-test readiness.\n'
-    result['docs/BUILD.md']=build.encode()
+    result[build_path]=build.encode()
     return {path:data for path,data in result.items() if files.get(path)!=data}
 
 
@@ -164,15 +166,19 @@ def verified_stage(engineering,stage,original_verification):
     return lock,frozen,(stage/'verification-metadata.xml').read_bytes()
 
 
-if __name__=='__main__':
+def main(argv=None):
     p=argparse.ArgumentParser(description=__doc__)
     p.add_argument('--app',required=True,type=Path);p.add_argument('--engineering',type=Path,default=Path('.'))
     p.add_argument('--verified-stage',required=True,type=Path)
-    a=p.parse_args();app=a.app.resolve();engineering=a.engineering.resolve()
-    if subprocess.check_output(['git','-C',str(app),'rev-parse','HEAD^{tree}'],text=True).strip()!='50f5c32b8dd11cac12520bcacb9e7dbb5e2ea74d':raise ValueError('native layer requires exact reviewed G2 tree')
+    a=p.parse_args(argv);app=a.app.resolve();engineering=a.engineering.resolve()
+    if subprocess.check_output(['git','-C',str(app),'rev-parse','HEAD^{tree}'],text=True).strip()!=REVIEWED_G2_TREE:raise ValueError('native layer requires exact reviewed G2 tree')
     if subprocess.check_output(['git','-C',str(app),'status','--porcelain'],text=True).strip():raise ValueError('native layer requires a clean source checkout')
-    names=['settings.gradle.kts','build.gradle.kts','gradle/libs.versions.toml','gradle/verification-metadata.xml','gradle.properties','build-inputs/native-publication.json','app/build.gradle.kts','docs/BUILD.md']
+    names=['settings.gradle.kts','build.gradle.kts','gradle/libs.versions.toml','gradle/verification-metadata.xml','gradle.properties','build-inputs/native-publication.json','app/build.gradle.kts','BUILD.md']
     files={name:(app/name).read_bytes() for name in names}
     lock,plan,metadata=verified_stage(engineering,a.verified_stage.resolve(),app/'gradle/verification-metadata.xml')
     for path,data in materialize(files,lock,plan,metadata).items():
         (app/path).parent.mkdir(parents=True,exist_ok=True);(app/path).write_bytes(data)
+
+
+if __name__=='__main__':
+    main()

@@ -1,9 +1,12 @@
 import copy
 import importlib.util
 import json
+import os
 from pathlib import Path
 import sys
+import subprocess
 import unittest
+from unittest import mock
 
 ROOT=Path(__file__).parents[1]
 sys.path.insert(0,str(ROOT/'tools/native'))
@@ -68,3 +71,21 @@ signal-ringrtc = "im.collie.native:ringrtc-android:2.74.0-collie.1"
         with self.assertRaises(ValueError):m.materialize(self.files,self.fixture.lock,self.plan,self.metadata+b'\n')
         files=dict(self.files);files['app/build.gradle.kts']=b'// removed acceptance gate\n'
         with self.assertRaises(ValueError):m.materialize(files,self.fixture.lock,self.plan,self.metadata)
+
+    def test_cli_reads_and_updates_root_build_guide_from_reviewed_source_tree(self):
+        app=self.fixture.root/'cli-app';app.mkdir()
+        cli_files=dict(self.files)
+        cli_files['BUILD.md']=cli_files.pop('docs/BUILD.md')
+        for name,data in cli_files.items():
+            path=app/name;path.parent.mkdir(parents=True,exist_ok=True);path.write_bytes(data)
+        env={key:value for key,value in os.environ.items() if not key.startswith('GIT_')}
+        subprocess.run(['git','-C',str(app),'init','-q'],check=True,env=env)
+        subprocess.run(['git','-C',str(app),'add','-A'],check=True,env=env)
+        subprocess.run(['git','-C',str(app),'-c','user.name=Fixture','-c','user.email=fixture@example.invalid',
+                        'commit','-qm','Fixture reviewed source tree'],check=True,env=env)
+        tree=subprocess.check_output(['git','-C',str(app),'rev-parse','HEAD^{tree}'],text=True,env=env).strip()
+        with mock.patch.object(m,'REVIEWED_G2_TREE',tree), \
+             mock.patch.object(m,'verified_stage',return_value=(self.fixture.lock,self.plan,self.metadata)):
+            m.main(['--app',str(app),'--engineering',str(ROOT),'--verified-stage',str(self.fixture.output)])
+        self.assertIn(b'Native JVM regression readiness is separate',(app/'BUILD.md').read_bytes())
+        self.assertFalse((app/'docs/BUILD.md').exists())
