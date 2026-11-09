@@ -42,6 +42,86 @@ currently a draft until public native inputs and direct build acceptance pass.
    move old release tags. Keep candidate refs through review and protect retained
    release source refs using separately approved repository settings.
 
+## Optional local SSH signatures for generated commits
+
+Normal candidate generation remains unsigned and deterministic. Candidate CI
+stays credential-free. For a GitHub-verified source candidate, an operator may
+take a separately reviewed unsigned G/I pair through `source/sign_publication.py`
+on the trusted local publication machine. It creates a signing request that
+binds the plan and message digests, current main, unsigned G/I IDs, publication
+timestamp, SSH public-key fingerprint, and committer identity. Review and approve
+the exact request digest out of band before using the `sign` action. Preparation
+does not invoke the signer; signing refuses any mismatch with the approved
+request.
+
+The signing helper asks `ssh-keygen` to sign through the already-running local
+SSH agent, selecting the supplied public `.pub` key. It does not read a private
+key file, capture private-key or passphrase values, or write key material into
+the repository. This requires Git 2.34+ and an OpenSSH `ssh-keygen` with agent
+signing support. Register a dedicated public key with the GitHub account using
+the `signing` key type. Do not reuse an authentication key, the normal GitHub
+signing key, or an APK/repository-index key. The committer email is explicit in
+the approval request and must be an email GitHub attributes to that account;
+the account's private `noreply` address is suitable when selected by the owner.
+The tool cannot verify account email ownership or key registration locally.
+
+The signing action reconstructs only generated layer commits and I, preserving
+the approved trees, messages, parents, authors, and schema-2 timestamps while
+using the approved committer identity. It never signs or rewrites upstream
+commits. The signed object IDs differ from the unsigned IDs; the signed I points
+to signed G. The output creates no refs and performs no push. Run the candidate
+verifier with the independent public key, expected fingerprint, identity email,
+and one-key `allowed-signers` file. It checks every generated layer and I in
+addition to the existing tree, ancestry, message, and date checks. Do not claim
+GitHub verification until the commits have been pushed through the ordinary
+review process and GitHub reports each signature as verified. A local signature
+check is not publication approval. Schema-1 historical replay cannot be signed
+by this path.
+
+The `prepare` action needs the approved plan, message file, current-main SHA,
+unsigned G/I IDs, public `.pub` selector, and committer name/email. It reserves a
+new signing-request file and reports its SHA-256. Independently review that
+request, then supply the same inputs and that exact digest to the `sign` action.
+The verifier additionally requires the approved message file/digest and signing
+request/digest. It revalidates the request's unsigned G/I against the same plan,
+messages, base, and timestamp, checks its author inventory, and compares each
+signed commit with its unsigned counterpart for tree, message, author, date, and
+translated parents. Keep the unsigned objects available to the verifier; when
+they are in a separate object store, pass `--unsigned-repo UNSIGNED_REPLAY`. Its
+`allowed-signers` input must contain exactly one entry in the form
+`EMAIL namespaces="git" KEY_TYPE PUBLIC_KEY_DATA` matching the requested public
+key and identity. These are interface placeholders, not key paths or secret
+values.
+
+The command interfaces are:
+
+```
+python3 source/sign_publication.py prepare --repo REPLAY --plan PLAN \
+  --approved-plan-sha256 PLAN_SHA256 --messages MESSAGES \
+  --approved-messages-sha256 MESSAGES_SHA256 --current-main CURRENT_MAIN \
+  --source UNSIGNED_G --integration UNSIGNED_I \
+  --signing-public-key SIGNER_PUBLIC_KEY.pub --committer-name NAME \
+  --committer-email VERIFIED_OR_NOREPLY_EMAIL --output SIGNING_REQUEST
+
+python3 source/sign_publication.py sign --repo REPLAY --plan PLAN \
+  --approved-plan-sha256 PLAN_SHA256 --messages MESSAGES \
+  --approved-messages-sha256 MESSAGES_SHA256 --current-main CURRENT_MAIN \
+  --source UNSIGNED_G --integration UNSIGNED_I \
+  --signing-request SIGNING_REQUEST \
+  --approved-signing-request-sha256 APPROVED_REQUEST_SHA256 \
+  --signing-public-key SIGNER_PUBLIC_KEY.pub --allowed-signers ALLOWED_SIGNERS
+```
+
+Signed verification adds `--messages MESSAGES --expected-messages-sha256
+MESSAGES_SHA256 --signing-public-key SIGNER_PUBLIC_KEY.pub
+--expected-signer-fingerprint SHA256_FINGERPRINT --signing-identity-email
+VERIFIED_OR_NOREPLY_EMAIL --allowed-signers ALLOWED_SIGNERS --signing-request
+SIGNING_REQUEST --expected-signing-request-sha256 APPROVED_REQUEST_SHA256` to
+the read-only `verify_candidate.py` command above. Add `--unsigned-repo
+UNSIGNED_REPLAY` when the approved unsigned G/I objects are not present in
+`--repo`. No command in this flow
+updates a ref or pushes a commit.
+
 The required MollySocket TLS correction is a feature layer for the next release.
 Apply its exact reviewed patch from `source/layers/mollysocket.patch` after the
 complete source checkpoint recorded in `source/layers/mollysocket.json`; retain
