@@ -27,6 +27,7 @@ import native_acceptance
 
 HEX40 = re.compile(r'[0-9a-f]{40}\Z')
 HEX64 = re.compile(r'[0-9a-f]{64}\Z')
+SECURITY_POLICY_REVISION = '7f9e63d6d55861c0c4e7757ba7eb07d6484289a6'
 OWNER_PATHS = ('README.md', 'LICENSE', 'NOTICE', 'assets')
 SHORT_SUBJECTS = {
     'Resolve modify/delete conflicts for modules Molly removes and remove new upstream files added beneath those excluded modules':
@@ -284,7 +285,7 @@ def validate_security_manifest(manifest):
         raise ValueError('security layer publication marker digest is invalid')
     policy = manifest.get('policy', {})
     template_paths = policy.get('template_paths')
-    if (policy.get('revision') != 'f3710fcc2af4f7c3a6118a904e9030fbf42f86e9'
+    if (policy.get('revision') != SECURITY_POLICY_REVISION
             or policy.get('renderer') != 'tools/codeql/render_publication.py'
             or not HEX40.fullmatch(policy.get('renderer_blob', ''))
             or not HEX64.fullmatch(policy.get('renderer_sha256', ''))
@@ -392,7 +393,7 @@ def compose(repo, checkpoint_repo, stage, engineering, plan_path,
     security_patch_path = ROOT / security_manifest['patch']
     if hashlib.sha256(security_patch_path.read_bytes()).hexdigest() != security_manifest['patch_sha256']:
         raise ValueError('security layer patch digest differs from checked-in manifest')
-    if security_manifest['policy']['revision'] != 'f3710fcc2af4f7c3a6118a904e9030fbf42f86e9':
+    if security_manifest['policy']['revision'] != SECURITY_POLICY_REVISION:
         raise ValueError('security renderer policy pin differs from reviewed immutable revision')
 
     # This is the production publication producer. It updates owner content,

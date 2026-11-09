@@ -4,7 +4,7 @@
   "name": "Pinned Actions security and screenshot workflows for published application source",
   "application_base": "f636568af237afa0161700a09b94b09f2b70d6f6",
   "before_tree": "5fe046686b3d9d9121125bb5f1505a5c3d090f6a",
-  "after_tree": "d349045df2fd1871aa542117a0b157a5cdaf798d",
+  "after_tree": "691d0c2af5fb3253668b5d0bcc54f63990ec04a9",
   "tree_scope": "publication-workflow-replacement-fixture only; not complete reconstructed application G/I",
   "paths": [
     ".github/codeql/codeql-config.yml",
@@ -16,9 +16,9 @@
   "files": {
     ".github/codeql/codeql-config.yml": "61d120d00ff16b9c25303e245d6a08b286b9836f3c29a822b81d03f9f9601e0e",
     ".github/codeql/reviewed-findings.json": "d1240327219f44e01b73eeae84e9b53aea21d51d1cca3da0dd3d62fc2ceaa465",
-    ".github/workflows/codeql.yml": "97ccb3a64056c27c8099c9c2aafcf04b25369fba8b54b12f521ce3a3b93db5b0",
-    ".github/workflows/publish-screenshots.yml": "61be668fc5ac676b7a1c80c203025cc2552d96f10a76db8916397e5f714ca091",
-    ".github/workflows/update-screenshots.yml": "b20e624fef2a9f832e5243483bf2033587a890146313b744f8eb0787b926c042"
+    ".github/workflows/codeql.yml": "6c132511ed6e4b9ae4349cd5bbbe28b977b997f765180f9921ac1780e2526af3",
+    ".github/workflows/publish-screenshots.yml": "7fa34415492f2bf3748e449f65b561b5894e3952d4b6df1e2d6f570e5cf38c6b",
+    ".github/workflows/update-screenshots.yml": "a609eab4b3397d547ea71e1494b4619293fd97df2f596534b11554727db0ed86"
   },
   "modes": {
     ".github/codeql/codeql-config.yml": "100644",
@@ -28,10 +28,10 @@
     ".github/workflows/update-screenshots.yml": "100644"
   },
   "patch": "source/layers/security-workflows.patch",
-  "patch_sha256": "fc937e17c41a769e57230e2ea57cc3fd3ad4251b8d914043d61193141bc458db",
+  "patch_sha256": "8319bad5a6d966e62c1fac4859ad263a25a25c28fb3e118e7c8aa4e0f1e42c61",
   "policy": {
     "origin": "https://github.com/0cwa/collie-release-engineering.git",
-    "revision": "f3710fcc2af4f7c3a6118a904e9030fbf42f86e9",
+    "revision": "7f9e63d6d55861c0c4e7757ba7eb07d6484289a6",
     "renderer": "tools/codeql/render_publication.py",
     "renderer_blob": "383a44dbd2aa26225db8e67fdb4ea34272db2b3c",
     "renderer_sha256": "fcc6c7bb970d05597c3c4333c04288e98cbe090a9cfab1e1acd33d99f56bc936",

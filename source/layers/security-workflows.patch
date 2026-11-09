@@ -19,7 +19,7 @@ index 0000000000000000000000000000000000000000..4e49c62f6d2e6a25532522e1e9704c86
 +{"schema": 1, "reviews": []}
 diff --git a/.github/workflows/codeql.yml b/.github/workflows/codeql.yml
 new file mode 100644
-index 0000000000000000000000000000000000000000..a412d629b3f8d4eb760c32febefbe249e7dc306b
+index 0000000000000000000000000000000000000000..995ae0be7311fee0b0b5e8eac3d46247d4f8411f
 --- /dev/null
 +++ b/.github/workflows/codeql.yml
 @@ -0,0 +1,89 @@
@@ -67,7 +67,7 @@ index 0000000000000000000000000000000000000000..a412d629b3f8d4eb760c32febefbe249
 +        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 +        with:
 +          repository: 0cwa/collie-release-engineering
-+          ref: f3710fcc2af4f7c3a6118a904e9030fbf42f86e9
++          ref: 7f9e63d6d55861c0c4e7757ba7eb07d6484289a6
 +          path: policy
 +          sparse-checkout: tools/codeql
 +          persist-credentials: false
@@ -114,7 +114,7 @@ index 0000000000000000000000000000000000000000..a412d629b3f8d4eb760c32febefbe249
 +          retention-days: 14
 diff --git a/.github/workflows/publish-screenshots.yml b/.github/workflows/publish-screenshots.yml
 new file mode 100644
-index 0000000000000000000000000000000000000000..713069f1bb1226a8e351fbfce26e877109198fb0
+index 0000000000000000000000000000000000000000..d2b40c885a979f27794a4311375416a366013058
 --- /dev/null
 +++ b/.github/workflows/publish-screenshots.yml
 @@ -0,0 +1,67 @@
@@ -165,7 +165,7 @@ index 0000000000000000000000000000000000000000..713069f1bb1226a8e351fbfce26e8771
 +        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 +        with:
 +          repository: 0cwa/collie-release-engineering
-+          ref: f3710fcc2af4f7c3a6118a904e9030fbf42f86e9
++          ref: 7f9e63d6d55861c0c4e7757ba7eb07d6484289a6
 +          path: policy
 +          sparse-checkout: tools/screenshots
 +          persist-credentials: false
@@ -187,7 +187,7 @@ index 0000000000000000000000000000000000000000..713069f1bb1226a8e351fbfce26e8771
 +            --attempt "$ATTEMPT" --pr-number "$PR_NUMBER"
 diff --git a/.github/workflows/update-screenshots.yml b/.github/workflows/update-screenshots.yml
 new file mode 100644
-index 0000000000000000000000000000000000000000..c57857c23ac7860d6d1410cafe837335d1cb1e24
+index 0000000000000000000000000000000000000000..c957b62047c888a33fb1b39c0b256016485f60da
 --- /dev/null
 +++ b/.github/workflows/update-screenshots.yml
 @@ -0,0 +1,101 @@
@@ -263,7 +263,7 @@ index 0000000000000000000000000000000000000000..c57857c23ac7860d6d1410cafe837335
 +        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 +        with:
 +          repository: 0cwa/collie-release-engineering
-+          ref: f3710fcc2af4f7c3a6118a904e9030fbf42f86e9
++          ref: 7f9e63d6d55861c0c4e7757ba7eb07d6484289a6
 +          path: policy
 +          sparse-checkout: tools/screenshots
 +          persist-credentials: false

@@ -18,7 +18,7 @@ EXPECTED_PATHS = {
     '.github/codeql/codeql-config.yml',
     '.github/codeql/reviewed-findings.json',
 }
-POLICY_REVISION = 'f3710fcc2af4f7c3a6118a904e9030fbf42f86e9'
+POLICY_REVISION = '7f9e63d6d55861c0c4e7757ba7eb07d6484289a6'
 
 
 def load_publication():
