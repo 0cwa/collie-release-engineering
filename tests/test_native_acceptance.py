@@ -137,6 +137,14 @@ class RetainedDispatchAdapterTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'pre-dispatch-inventory.json'):
             acceptance.load_run_evidence(actual)
 
+    def test_run_evidence_directory_must_match_dispatch_run_id(self):
+        with tempfile.TemporaryDirectory(prefix='run-id-binding-') as parent:
+            directory = Path(parent) / 'run-4001'
+            directory.mkdir()
+            self.assertIsNone(acceptance.verify_run_directory(directory, {'run_id': 4001}))
+            with self.assertRaisesRegex(ValueError, 'directory does not match'):
+                acceptance.verify_run_directory(directory, {'run_id': 4002})
+
 
 def sha(data):
     return hashlib.sha256(data).hexdigest()

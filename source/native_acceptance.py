@@ -50,6 +50,13 @@ def load(path):
     return json.loads(Path(path).read_bytes(), object_pairs_hook=unique)
 
 
+def verify_run_directory(directory, dispatch_inputs):
+    if (not isinstance(dispatch_inputs, dict) or type(dispatch_inputs.get('run_id')) is not int
+            or dispatch_inputs['run_id'] <= 0
+            or Path(directory).name != 'run-' + str(dispatch_inputs['run_id'])):
+        raise ValueError('retained evidence directory does not match dispatched run ID')
+
+
 def load_run_evidence(directory):
     """Load the retained per-run files using their actual controller/API names."""
     directory = Path(directory)
@@ -79,9 +86,11 @@ def load_run_evidence(directory):
         if expected_hashes.get(relative) != sha(raw):
             raise ValueError('retained run evidence digest differs: ' + relative)
         contents[relative] = raw
+    dispatch_inputs = json.loads(contents['actual-dispatch-inputs.json'], object_pairs_hook=unique)
+    verify_run_directory(directory, dispatch_inputs)
     return {
         'approval_raw': contents['actual-approval.json'],
-        'dispatch_inputs': json.loads(contents['actual-dispatch-inputs.json'], object_pairs_hook=unique),
+        'dispatch_inputs': dispatch_inputs,
         'release_metadata': json.loads(contents['published-release-asset.json'], object_pairs_hook=unique),
         'controller_raw': contents['controller-at-dispatch.sh'],
         'prepare_log_raw': contents['prepare-safe-log.txt'],
