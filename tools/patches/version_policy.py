@@ -41,12 +41,21 @@ def _read_inventory(path, approved_sha256):
     if not re.fullmatch(r'[0-9a-f]{64}', str(approved_sha256)) or hashlib.sha256(raw).hexdigest() != approved_sha256:
         raise ValueError('published inventory digest differs from approval')
     published = json.loads(raw)
+    _validate_inventory(published)
+    return published
+
+
+def _validate_inventory(published):
     if not isinstance(published, list) or not published:
         raise ValueError('verified published inventory required')
     for item in published:
-        if not isinstance(item, dict) or set(item) != {'release', 'code', 'sha256'} or type(item['code']) is not int:
+        if (not isinstance(item, dict) or set(item) != {'release', 'code', 'sha256'}
+                or type(item['code']) is not int
+                or not isinstance(item['release'], str)
+                or not re.fullmatch(r'[A-Za-z0-9._+-]+', item['release'])
+                or not isinstance(item['sha256'], str)
+                or not re.fullmatch(r'[0-9a-f]{64}', item['sha256'])):
             raise ValueError('invalid inventory')
-    return published
 
 
 def _ledger_records(path):
@@ -97,9 +106,7 @@ def reserve(path, release, code, artifact_sha256, published):
     if type(code) is not int or not 1<=code<=2100000000: raise ValueError('invalid version code')
     if not re.fullmatch(r'[0-9a-f]{64}',artifact_sha256): raise ValueError('invalid artifact digest')
     if not re.fullmatch(r'[A-Za-z0-9._+-]+',release): raise ValueError('invalid release identity')
-    if not isinstance(published,list) or not published: raise ValueError('verified published inventory required')
-    for item in published:
-        if set(item) != {'release','code','sha256'} or type(item['code']) is not int: raise ValueError('invalid inventory')
+    _validate_inventory(published)
     path=Path(path)
     with _locked(path):
         records=_ledger_records(path)

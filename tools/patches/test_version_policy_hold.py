@@ -14,7 +14,7 @@ PUBLISHED = [
     {'release': '8.33.2-1-rc1', 'code': 177201, 'sha256': '9748ae89caf809274d234d5c2a22f60c1303fea3d895c2452cf1051933d2ecbd'},
     {'release': '8.33.2-1-rc2', 'code': 177202, 'sha256': '1105fb90a7f963ebe85e365e1d7ca7cfc185c8447a5c4baa10f98cf4683c1439'},
     {'release': '8.33.2-1-rc3', 'code': 177203, 'sha256': '189b0bf0056945bd6dde9a9e9f5a9e664f8aa5e294de3ade77d2850ce7d3a313'},
-    {'release': '8.35.1-1-rc1', 'code': 177702, 'sha256': '5fbd0fe817bc6711c56fbc39b8479cc0a68a7d7fe921a7d9c9fab5933fda9ee'},
+    {'release': '8.35.1-1-rc1', 'code': 177702, 'sha256': '5fbd0fe817bc6711c56fbc39b8479cc0a68a7d7fe921a7d9c9fab59333fda9ee'},
 ]
 INVENTORY_BYTES = json.dumps(PUBLISHED, separators=(',', ':')).encode()
 INVENTORY_SHA = hashlib.sha256(INVENTORY_BYTES).hexdigest()
@@ -125,6 +125,25 @@ class HoldAndBind(unittest.TestCase):
             with self.subTest(code=code), self.assertRaisesRegex(ValueError, 'reserved|exceed'):
                 self.hold(release, code)
         self.assertFalse(self.ledger.exists())
+
+    def test_unused_codes_below_published_maximum_are_rejected(self):
+        for code in (177204, 177701):
+            with self.subTest(code=code), self.assertRaisesRegex(ValueError, 'exceed'):
+                self.hold('unused-code', code)
+        self.assertFalse(self.ledger.exists())
+
+    def test_authenticated_inventory_still_requires_valid_release_and_digest(self):
+        for field, value in [('release', None), ('release', ''), ('release', 'bad release'),
+                             ('sha256', None), ('sha256', 'a' * 63), ('sha256', 'A' * 64)]:
+            published = [dict(PUBLISHED[-1], **{field: value})]
+            raw = json.dumps(published).encode()
+            self.inventory.write_bytes(raw)
+            with self.subTest(field=field, value=value):
+                with self.assertRaisesRegex(ValueError, 'invalid inventory'):
+                    policy.hold(self.ledger, RELEASE, CODE, self.inventory, hashlib.sha256(raw).hexdigest())
+                with self.assertRaisesRegex(ValueError, 'invalid inventory'):
+                    policy.reserve(self.ledger, RELEASE, CODE, MANIFEST_SHA, published)
+                self.assertFalse(self.ledger.exists())
 
     def test_unbound_hold_cannot_pass_signed_binding(self):
         self.hold()
