@@ -331,8 +331,8 @@ def verify_terminal_operation_inventory(runs,deployments,expected_run_ids,expect
         raise ValueError('unexpected or missing workflow run/deployment')
     if any(run.get('status')!='completed' or run.get('conclusion')!='failure' for run in runs):
         raise ValueError('workflow run is active or not a known terminal failure')
-    if any(item.get('state')!='failure' for item in deployments):
-        raise ValueError('deployment is active or not a known terminal failure')
+    if any(item.get('state') not in ('failure','success') for item in deployments):
+        raise ValueError('deployment is active or not a known terminal state')
     return True
 
 def preflight(plan,journal_path,*,fetch=observe,head=None):
@@ -403,12 +403,17 @@ def readback(plan,journal_path,phase,*,fetch=None):
     with b.locked(journal_path.parent):
         journal=b.load(journal_path)
         if journal['plan_sha256']!=digest(plan):raise ValueError('journal belongs to another plan')
-        if not journal.get('previous_verified') and not _recovery_journal_authorized(plan,journal):
+        recovery=not journal.get('previous_verified') and _recovery_journal_authorized(plan,journal)
+        if not journal.get('previous_verified') and not recovery:
             raise ValueError('live previous preflight or owner-authorized first-publication recovery required')
         if phase=='phase2' and 'phase1' not in journal['completed']:raise ValueError('phase1 readback required before phase2')
         observed={}
         for name,expected in plan['manifests'][phase].items():
-            safe_name(name);actual=fetch(plan['origin']+name)
+            safe_name(name)
+            # In the exact empty-native recovery, cache metadata is not origin
+            # proof. Still GET every URL and require the exact planned bytes/hash.
+            actual=(fetch(plan['origin']+name,allow_unverified=True)
+                    if recovery and fetch is observe else fetch(plan['origin']+name))
             if actual.get('status',200)!=200 or actual.get('sha256')!=expected['sha256'] or actual.get('bytes')!=expected['bytes']:raise ValueError('readback mismatch: '+name)
             observed[name]=actual
         journal['readbacks'][phase]=observed

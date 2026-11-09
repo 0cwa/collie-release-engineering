@@ -331,6 +331,25 @@ class NativePagesTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError,'canonical readback differs'):
             p.verify_completed_readbacks(plan,changed)
 
+    def test_owner_authorized_recovery_hashes_cached_200_for_both_readbacks(self):
+        self.add_native(only=True);plan=self.prepare();journal=self.output/'journal.json'
+        p.preflight(plan,journal,head=lambda _url:{'status':404,'headers':{'Age':'1468','X-Cache':'HIT'}})
+        phase='phase1'
+        def cached_exact(url,*,allow_unverified=False):
+            if not allow_unverified:raise ValueError('cached response is not a fresh canonical inventory')
+            name=url.removeprefix(p.ORIGIN)
+            return dict(plan['manifests'][phase][name],status=200,headers={'Age':'1468','X-Cache':'HIT'})
+        with patch.object(p,'observe',side_effect=cached_exact):
+            p.readback(plan,journal,'phase1')
+            phase='phase2'
+            p.readback(plan,journal,'phase2')
+        receipt=b.load(journal)
+        self.assertFalse(receipt['previous_verified'])
+        self.assertTrue(p.verify_completed_readbacks(plan,receipt))
+        for name in plan['manifests']['phase1']:
+            self.assertEqual(receipt['readbacks']['phase1'][name]['headers']['X-Cache'],'HIT')
+            self.assertEqual(receipt['readbacks']['phase2'][name]['headers']['X-Cache'],'HIT')
+
     def test_recovery_rejects_unapproved_feed_sentinel(self):
         self.add_native(only=True);plan=self.prepare();journal=self.output/'journal.json'
         def head(url):
@@ -410,13 +429,14 @@ class NativePagesTest(unittest.TestCase):
         runs=[{'id':1,'status':'completed','conclusion':'failure'}]
         deployments=[{'id':10,'state':'failure'}]
         self.assertTrue(p.verify_terminal_operation_inventory(runs,deployments,[1],[10]))
+        self.assertTrue(p.verify_terminal_operation_inventory(runs,[{'id':10,'state':'success'}],[1],[10]))
         with self.assertRaisesRegex(ValueError,'active or not a known terminal failure'):
             p.verify_terminal_operation_inventory([{'id':1,'status':'in_progress','conclusion':None}],deployments,[1],[10])
         with self.assertRaisesRegex(ValueError,'unexpected or missing'):
             p.verify_terminal_operation_inventory(runs+[{'id':2,'status':'completed','conclusion':'failure'}],deployments,[1],[10])
         with self.assertRaisesRegex(ValueError,'duplicated'):
             p.verify_terminal_operation_inventory(runs,deployments,[1,1],[10])
-        with self.assertRaisesRegex(ValueError,'active or not a known terminal failure'):
+        with self.assertRaisesRegex(ValueError,'active or not a known terminal state'):
             p.verify_terminal_operation_inventory(runs,[{'id':10,'state':'in_progress'}],[1],[10])
     def test_native_head_200_requires_exact_get_hash_before_preflight(self):
         self.add_native(only=True);plan=self.prepare();journal=self.output/'journal.json';fetched=[]
