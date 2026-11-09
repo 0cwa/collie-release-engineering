@@ -201,22 +201,40 @@ def prepare(bundle,output,expected_policy):
         shutil.rmtree(output)
         raise
 
+def _fresh_cache_headers(headers):
+    values={k:headers.get(k) for k in ('Cache-Control','ETag','Last-Modified','Age','X-Cache')}
+    age=values['Age']
+    if age is not None:
+        try:
+            age_value=int(age)
+        except ValueError:
+            raise ValueError('invalid Age header; canonical inventory freshness is unknown') from None
+        if age_value!=0:raise ValueError('cached response is not a fresh canonical inventory')
+    if re.search(r'\bhit\b',values['X-Cache'] or '',re.IGNORECASE):
+        raise ValueError('cached response is not a fresh canonical inventory')
+    return values
+
+def observe_head(url):
+    import urllib.error
+    request=urllib.request.Request(url,headers={'Cache-Control':'no-cache, no-store','Pragma':'no-cache'},method='HEAD')
+    try:
+        response=urllib.request.urlopen(request,timeout=60)
+    except urllib.error.HTTPError as error:
+        if error.code==404:
+            try:
+                if not error.geturl().startswith('https://'):raise ValueError('HTTPS readback required')
+                headers=_fresh_cache_headers(error.headers)
+            finally:error.close()
+            return {'status':404,'headers':headers}
+        raise
+    with response:
+        if not response.geturl().startswith('https://'):raise ValueError('HTTPS readback required')
+        if response.status!=200:raise ValueError('canonical inventory HEAD was not 200 or 404')
+        return {'status':200,'headers':_fresh_cache_headers(response.headers)}
+
 def observe(url):
     import urllib.error
     request=urllib.request.Request(url,headers={'Cache-Control':'no-cache, no-store','Pragma':'no-cache'})
-
-    def fresh_headers(headers):
-        values={k:headers.get(k) for k in ('Cache-Control','ETag','Last-Modified','Age','X-Cache')}
-        age=values['Age']
-        if age is not None:
-            try:
-                age_value=int(age)
-            except ValueError:
-                raise ValueError('invalid Age header; canonical inventory freshness is unknown') from None
-            if age_value!=0:raise ValueError('cached response is not a fresh canonical inventory')
-        if re.search(r'\bhit\b',values['X-Cache'] or '',re.IGNORECASE):
-            raise ValueError('cached response is not a fresh canonical inventory')
-        return values
 
     try:
         response=urllib.request.urlopen(request,timeout=60)
@@ -224,27 +242,28 @@ def observe(url):
         if error.code==404:
             try:
                 if not error.geturl().startswith('https://'):raise ValueError('HTTPS readback required')
-                headers=fresh_headers(error.headers)
+                headers=_fresh_cache_headers(error.headers)
             finally:error.close()
             return {'status':404,'headers':headers}
         raise
     with response:
         if not response.geturl().startswith('https://'):raise ValueError('HTTPS readback required')
         if response.status!=200:raise ValueError('readback not200')
-        headers=fresh_headers(response.headers)
+        headers=_fresh_cache_headers(response.headers)
         h=hashlib.sha256();size=0
         for block in iter(lambda:response.read(1024*1024),b''):h.update(block);size+=len(block)
         return {'status':200,'sha256':h.hexdigest(),'bytes':size,'headers':headers}
 
-def preflight(plan,journal_path,*,fetch=observe):
+def preflight(plan,journal_path,*,fetch=observe,head=None):
     if plan['origin']!=ORIGIN:raise ValueError('unapproved origin')
+    if head is None:head=observe_head if fetch is observe else fetch
     with b.locked(journal_path.parent):
         journal=b.load(journal_path)
         if journal['plan_sha256']!=digest(plan):raise ValueError('journal belongs to another plan')
         observations={}
         if not plan['previous_files']:
             for name in ('site-manifest.json','fdroid/repo/entry.jar'):
-                actual=fetch(plan['origin']+name)
+                actual=head(plan['origin']+name)
                 if actual.get('status')!=404:raise ValueError('initial origin is not the explicitly approved empty feed')
                 observations[name]=actual
         else:
@@ -256,7 +275,8 @@ def preflight(plan,journal_path,*,fetch=observe):
         # native URL: absence from its inventory does not prove the URL is empty.
         for name,expected in plan['manifests']['phase1'].items():
             if not name.startswith('native-inputs/') or name in plan['previous_files']:continue
-            actual=fetch(plan['origin']+name)
+            actual=head(plan['origin']+name)
+            if actual.get('status')==200:actual=fetch(plan['origin']+name)
             if actual.get('status')!=404 and (actual.get('status',200)!=200 or actual.get('sha256')!=expected['sha256'] or actual.get('bytes')!=expected['bytes']):raise ValueError('existing native URL differs before initial publication')
             observations[name]=actual
         journal['previous_verified']=True;journal['previous_readback']=observations
