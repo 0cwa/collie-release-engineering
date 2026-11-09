@@ -91,7 +91,9 @@ def apply_patch(stage, patch_path, expected_sha256=None, expected_paths=None):
     }
     if expected_paths is not None and names != set(expected_paths):
         raise ValueError('static feature patch path set differs from its manifest')
-    git(stage, 'apply', '--cached', '--binary', data=patch)
+    # The Temurin alignment patch intentionally contains zero-context hunks:
+    # its exact preimage and postimage are separately pinned in the manifest.
+    git(stage, 'apply', '--cached', '--binary', '--unidiff-zero', data=patch)
     return digest, names
 
 

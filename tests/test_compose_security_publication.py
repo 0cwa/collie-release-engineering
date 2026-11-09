@@ -28,6 +28,30 @@ class SecurityCompositionTests(unittest.TestCase):
                 os.umask(previous_umask)
             self.assertEqual(stat.S_IMODE(output.stat().st_mode), 0o600)
 
+    def test_zero_context_pinned_patch_updates_only_the_index(self):
+        with tempfile.TemporaryDirectory() as directory:
+            repo = Path(directory)
+            subprocess.run(['git', 'init', '-q', str(repo)], check=True)
+            subprocess.run(['git', '-C', str(repo), 'config', 'user.name', 'Fixture'], check=True)
+            subprocess.run(['git', '-C', str(repo), 'config', 'user.email', 'fixture@example.invalid'], check=True)
+            target = repo / '.tool-versions'
+            original = b'java openjdk-21.0.2\nuv   latest\n'
+            target.write_bytes(original)
+            subprocess.run(['git', '-C', str(repo), 'add', '.tool-versions'], check=True)
+            subprocess.run(['git', '-C', str(repo), 'commit', '-qm', 'Source fixture'], check=True)
+            patch = (b'diff --git a/.tool-versions b/.tool-versions\n'
+                     b'index 4e8b348..e1165d5 100644\n'
+                     b'--- a/.tool-versions\n+++ b/.tool-versions\n'
+                     b'@@ -1 +1 @@\n-java openjdk-21.0.2\n'
+                     b'+java temurin-21.0.13+9\n')
+            patch_path = repo / 'alignment.patch'
+            patch_path.write_bytes(patch)
+            composer.apply_patch(repo, patch_path, hashlib.sha256(patch).hexdigest(), {'.tool-versions'})
+            self.assertEqual(target.read_bytes(), original)
+            self.assertEqual(subprocess.check_output(
+                ['git', '-C', str(repo), 'show', ':.tool-versions']),
+                b'java temurin-21.0.13+9\nuv   latest\n')
+
     def test_security_manifest_binds_all_five_outputs_and_publication_order(self):
         composer.validate_security_manifest(self.manifest)
         changed = json.loads(json.dumps(self.manifest))
