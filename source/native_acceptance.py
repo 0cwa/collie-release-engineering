@@ -21,6 +21,7 @@ REPO = '0cwa/collie-release-engineering'
 WORKFLOW = '.github/workflows/pages-release.yml'
 ARTIFACT = 'collie-pages-completed-receipt'
 NATIVE_PREFIX = 'native-inputs/v1/maven/'
+NATIVE_REPOSITORY = ORIGIN + NATIVE_PREFIX
 FIRST_PUBLICATION_RECOVERY = 'owner-authorized-first-publication-unverified-origin'
 CACHED_NEGATIVE = 'cached_negative_unverified_origin'
 NEGATIVE_UNVERIFIED = 'negative_unverified_origin'
@@ -473,7 +474,7 @@ def validate(plan, journal, native_manifest_raw, source_native_artifacts, proof,
     a cryptographic GitHub attestation.
     """
     blocked_state = {
-        'schema': 1, 'status': 'BLOCKED', 'repository': ORIGIN,
+        'schema': 1, 'status': 'BLOCKED', 'repository': NATIVE_REPOSITORY,
         'publication_status': 'NOT PUBLISHED', 'reason': 'composition proof check',
         'lock': {}, 'production_version_floor': None,
     }
@@ -732,7 +733,7 @@ def transition_native_state(raw_state, proof):
     required = {'schema', 'status', 'repository', 'publication_status', 'reason', 'lock', 'production_version_floor'}
     exact(state, required, 'blocked native publication state')
     if (state['schema'] != 1 or state['status'] != 'BLOCKED'
-            or state['repository'] != ORIGIN or state['publication_status'] != 'NOT PUBLISHED'):
+            or state['repository'] != NATIVE_REPOSITORY or state['publication_status'] != 'NOT PUBLISHED'):
         raise ValueError('transition requires current blocked state for the approved origin')
     exact(proof, {'schema', 'status', 'artifact_id', 'journal_sha256', 'native_manifest_sha256',
                   'operation_inventory_sha256', 'input_approval_sha256', 'input_asset_id',

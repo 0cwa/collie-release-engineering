@@ -473,7 +473,7 @@ class NativeAcceptanceTests(unittest.TestCase):
 
     def test_transition_changes_only_blocked_synthetic_state_after_validation(self):
         proof = self.validate()
-        blocked = {'schema': 1, 'status': 'BLOCKED', 'repository': acceptance.ORIGIN,
+        blocked = {'schema': 1, 'status': 'BLOCKED', 'repository': acceptance.NATIVE_REPOSITORY,
                    'publication_status': 'NOT PUBLISHED', 'reason': 'test only', 'lock': 'native-lock.json',
                    'production_version_floor': 177702}
         updated, evidence = acceptance.transition_native_state(json.dumps(blocked).encode(), proof)
@@ -494,7 +494,7 @@ class NativeAcceptanceTests(unittest.TestCase):
 
     def test_accepted_transition_updates_gate_and_workflow_as_one_source_layer(self):
         proof = self.validate()
-        state = {'schema': 1, 'status': 'BLOCKED', 'repository': acceptance.ORIGIN,
+        state = {'schema': 1, 'status': 'BLOCKED', 'repository': acceptance.NATIVE_REPOSITORY,
                  'publication_status': 'NOT PUBLISHED', 'reason': 'test only',
                  'lock': 'native-lock.json', 'production_version_floor': 177702}
         gradle = 'before\nthrow GradleException("Direct Android builds BLOCKED: publish and verify locked native inputs first; see BUILD.md")\n'
@@ -523,7 +523,7 @@ class NativeAcceptanceTests(unittest.TestCase):
         self.assertEqual(evidence, proof['source_evidence'])
 
     def test_tampered_proof_or_inventory_digest_cannot_transition_blocked_state(self):
-        blocked = {'schema': 1, 'status': 'BLOCKED', 'repository': acceptance.ORIGIN,
+        blocked = {'schema': 1, 'status': 'BLOCKED', 'repository': acceptance.NATIVE_REPOSITORY,
                    'publication_status': 'NOT PUBLISHED', 'reason': 'test only', 'lock': 'native-lock.json',
                    'production_version_floor': 177702}
         for field in ('plan_sha256', 'operation_inventory_sha256', 'input_approval_sha256',
