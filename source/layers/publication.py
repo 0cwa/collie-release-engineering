@@ -96,12 +96,12 @@ def preserve_user_files(app, previous_application, application_base, publication
 
 def _replace_path(text, old, new):
     if old == 'assets/':
-        pattern = re.compile(r'(?<!docs/)assets/')
-        if not pattern.search(text):
+        rewritten = _relayout_root_asset_links(text)
+        if rewritten == text:
             if 'docs/assets/' in text:
                 return text
             raise ValueError(f'expected path reference is missing: {old}')
-        return pattern.sub(new, text)
+        return rewritten
     if new == 'tooling/' + old:
         pattern = re.compile(r'(?<!tooling/)' + re.escape(old))
         if not pattern.search(text):
@@ -115,6 +115,16 @@ def _replace_path(text, old, new):
     if count == 0 or new in text:
         raise ValueError(f'expected path reference is missing: {old}')
     return text.replace(old, new)
+
+
+def _relayout_root_asset_links(text):
+    """Rewrite recognized README links whose local target starts at repository root."""
+    text = re.sub(r'(?P<lead>\]\()(?P<root>/?)assets/',
+                  r'\g<lead>\g<root>docs/assets/', text)
+    text = re.sub(r"""(?P<lead>(?:^|[\s<])(?:src|href|poster)\s*=\s*["'])(?P<root>/?)assets/""",
+                  r'\g<lead>\g<root>docs/assets/', text, flags=re.IGNORECASE)
+    return re.sub(r'(?m)(?P<lead>^\s*\[[^]]+\]:\s*)(?P<root>/?)assets/',
+                  r'\g<lead>\g<root>docs/assets/', text)
 
 
 def apply_root_layout(app):

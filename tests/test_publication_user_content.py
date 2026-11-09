@@ -93,6 +93,28 @@ class UserContentPublicationTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError,'assets'):
             publish.verify_user_files(self.repo,altered,self.current)
 
+    def test_readme_asset_relayout_preserves_external_urls_and_unrelated_strings(self):
+        readme=('![local](assets/logo.svg)\n'
+                '[root](/assets/logo.svg)\n'
+                '[reference]: assets/logo.svg\n'
+                '<img src="assets/logo.svg">\n'
+                '<img src="/assets/logo.svg">\n'
+                '<img src="https://cdn.example.invalid/assets/logo.svg">\n'
+                '[external](https://cdn.example.invalid/assets/logo.svg)\n'
+                '[already](docs/assets/logo.svg)\n'
+                'literal assets/logo.svg and data-src="assets/logo.svg"\n')
+        expected=('![local](docs/assets/logo.svg)\n'
+                  '[root](/docs/assets/logo.svg)\n'
+                  '[reference]: docs/assets/logo.svg\n'
+                  '<img src="docs/assets/logo.svg">\n'
+                  '<img src="/docs/assets/logo.svg">\n'
+                  '<img src="https://cdn.example.invalid/assets/logo.svg">\n'
+                  '[external](https://cdn.example.invalid/assets/logo.svg)\n'
+                  '[already](docs/assets/logo.svg)\n'
+                  'literal assets/logo.svg and data-src="assets/logo.svg"\n')
+        self.assertEqual(layer._replace_path(readme,'assets/','docs/assets/'),expected)
+        self.assertEqual(publish._relayout_readme(readme.encode()),expected.encode())
+
     def test_build_guide_regeneration_retains_approved_published_source_dates(self):
         section = ('## Published source dates\n\n'
                    'This approved release-date clarification remains verbatim.\n')

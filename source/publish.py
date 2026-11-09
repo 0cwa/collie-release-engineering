@@ -174,7 +174,12 @@ def verify_user_files(repo,published,application_base):
 
 def _relayout_readme(data):
     """Allow only the relative links needed after moving approved assets/docs."""
-    data = re.sub(rb'(?<!docs/)assets/', b'docs/assets/', data)
+    data = re.sub(rb'(?P<lead>\]\()(?P<root>/?)assets/',
+                  rb'\g<lead>\g<root>docs/assets/', data)
+    data = re.sub(rb"""(?P<lead>(?:^|[\s<])(?:src|href|poster)\s*=\s*["'])(?P<root>/?)assets/""",
+                  rb'\g<lead>\g<root>docs/assets/', data, flags=re.IGNORECASE)
+    data = re.sub(rb'(?m)(?P<lead>^\s*\[[^]]+\]:\s*)(?P<root>/?)assets/',
+                  rb'\g<lead>\g<root>docs/assets/', data)
     return data.replace(b'[LEGAL.md](LEGAL.md)', b'[LEGAL.md](docs/LEGAL.md)')
 
 
