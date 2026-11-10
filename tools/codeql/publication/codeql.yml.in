@@ -63,6 +63,7 @@ jobs:
       - uses: github/codeql-action/analyze@33d7b85da1a04171e211befe2c739303b9a4c066 # v4.39.3
         with:
           category: /language:actions
+          checkout_path: ${{ github.workspace }}/source
           output: ${{ runner.temp }}/codeql-sarif
           upload: ${{ vars.CODEQL_ADVANCED_UPLOAD == 'true' && 'always' || 'never' }}
           upload-database: false

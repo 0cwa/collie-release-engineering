@@ -11,8 +11,8 @@ class RenderPublicationTests(unittest.TestCase):
                 text=(output/target).read_text()
                 for old in ('__ENGINEERING_POLICY_REVISION__','build_jni','lib/spinner','molly-build.json','secrets.'):
                     self.assertNotIn(old,text)
-            if target == '.github/workflows/codeql.yml':
-                                self.assertIn("CODEQL_ACTION_FILE_COVERAGE_ON_PRS: 'true'", text)
+                if target == '.github/workflows/codeql.yml':
+                    self.assertIn("CODEQL_ACTION_FILE_COVERAGE_ON_PRS: 'true'", text)
             self.assertIn('ref: '+revision,(output/'.github/workflows/codeql.yml').read_text())
             self.assertIn('languages: actions',(output/'.github/workflows/codeql.yml').read_text())
             self.assertIn('NOT RUN',result['coverage'])
@@ -57,6 +57,9 @@ class RenderPublicationTests(unittest.TestCase):
             rendered=(output/'.github/workflows/codeql.yml').read_text()
             self.assertIn('Published workflow CodeQL',rendered)
             self.assertNotIn('tampered mutable template',rendered)
+            analysis=rendered.split('      - uses: github/codeql-action/analyze@',1)[1].split('      - name:',1)[0]
+            self.assertIn('checkout_path: ${{ github.workspace }}/source',analysis)
+            self.assertIn('source-root: source',rendered)
     def test_trusted_review_checkout_includes_manifest_with_cone_sparse_checkout(self):
         repository_root=Path(__file__).resolve().parents[2]
         workflows=[repository_root/'tools/codeql/publication/codeql.yml.in']
