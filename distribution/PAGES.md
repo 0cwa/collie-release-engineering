@@ -165,11 +165,29 @@ The preparation job has no deployment/index-signing credentials and does not
 execute candidate code. Deployment jobs keep pages:write/id-token:write on the
 github-pages environment and use the artifact ID emitted by the pinned official
 Pages uploader to create a deployment through GitHub's documented Pages API. The
-local poller obtains its OIDC token from the Actions runtime, polls until success,
-a terminal failure, interruption, or its 30-minute deadline, and cancels pending
-deployments on interruption, repeated API errors, or that final deadline. It never
-prints either token. Read-back jobs have contents:read and no protected environment
-credentials; phase2 remains gated on the complete phase1 canonical read-back.
+local poller obtains its OIDC token from the Actions runtime and registers the
+issued token with the runner's log masking before sending it to the Pages API.
+Both credentialed clients reject redirects, and request errors omit response
+bodies and credential values. Initial API/OIDC endpoints remain trusted runner
+configuration; GitHub validates the OIDC claims and artifact ownership.
+
+Only an observed `succeed` before the 30-minute polling deadline permits the
+deployment step to succeed. The five terminal failure statuses match the pinned
+official action. Other statuses remain pending; HTTP, transport, protocol and
+malformed-response errors consume a cumulative ten-error budget. An interruption,
+exhausted error budget, or final deadline attempts cancellation of the known
+deployment ID and fails the step. Both deployment commands use `exec` so the
+runner's signal to the step process reaches Python directly. Signals interrupt
+blocking I/O and poll sleeps immediately. They are deferred while creation results
+are handed to the monitor, so a received deployment ID remains available for
+cleanup. Cleanup uses a five-second socket timeout and defers all signals during
+that attempt, including the first signal if cleanup began for another failure. Socket timeouts are not a hard wall-clock
+guarantee, and cancellation
+is best effort: an accepted cancellation request does not establish the remote
+final state or rollback. A lost creation response can leave an unknown deployment;
+the client never retries creation automatically or cancels by the shared build SHA.
+Read-back jobs have contents:read and no protected environment credentials;
+phase2 remains gated on the complete phase1 canonical read-back.
 
 Before enabling, provision and inspect: Pages Actions source, correct custom
 hostname/TLS, domain verification, github-pages required independent reviewers,

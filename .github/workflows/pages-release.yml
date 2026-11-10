@@ -130,7 +130,7 @@ jobs:
         env:
           ARTIFACT_ID: ${{ needs.prepare.outputs.phase1_artifact_id }}
           GITHUB_TOKEN: ${{ github.token }}
-        run: python distribution/deploy_pages.py --artifact-id "$ARTIFACT_ID" --timeout-seconds 1800
+        run: exec python distribution/deploy_pages.py --artifact-id "$ARTIFACT_ID" --timeout-seconds 1800
   phase1-readback:
     if: ${{ !cancelled() && needs.prepare.result == 'success' && (needs.phase1.result == 'success' || needs.prepare.outputs.mode == 'activate-links') }}
     needs: [prepare, phase1]
@@ -181,7 +181,7 @@ jobs:
         env:
           ARTIFACT_ID: ${{ needs['phase1-readback'].outputs.phase2_artifact_id }}
           GITHUB_TOKEN: ${{ github.token }}
-        run: python distribution/deploy_pages.py --artifact-id "$ARTIFACT_ID" --timeout-seconds 1800
+        run: exec python distribution/deploy_pages.py --artifact-id "$ARTIFACT_ID" --timeout-seconds 1800
   final-readback:
     if: ${{ !cancelled() && needs.phase2.result == 'success' }}
     needs: phase2
