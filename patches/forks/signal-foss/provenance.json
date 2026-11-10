@@ -105,11 +105,28 @@
       "source_bundle_prerequisite": "e4a00a4cd9a45cf5406e85a022565dadaf1ebf65",
       "source_bundle_ref": "refs/heads/source-checkpoint/fork-signal-foss/notification-default",
       "source_bundle_sha256": "548e6270fe5283507d6a0c9256218f738097363755a16e8cd24f8a7d95182d5c"
+    },
+    {
+      "id": "collie-branding-translations",
+      "author": "0cwa <1490936+0cwa@users.noreply.github.com>",
+      "upstream_credit": "ours",
+      "source_commit": "4be2bb725098566c2f7487e456effb9d7492a408",
+      "before_tree": "da5c03ff20ae2a672329eb8257bc33949845b268",
+      "after_tree": "8e8736f2131fa25d4e817e9baa851f36f10e1471",
+      "series": "collie-branding-translations/series",
+      "mailbox": "collie-branding-translations/0001-collie-branding-translations.patch",
+      "mailbox_sha256": "81a3faef9d17abdf8dd951e271598944cc52c3addca93d2c394abcb6eea0eb59",
+      "mailbox_bytes": 310570,
+      "source_bundle": "collie-branding-translations/source-checkpoint.bundle",
+      "source_bundle_bytes": 4000820,
+      "source_bundle_prerequisite": "5c765dd6af11ca4bbe384cca3bcde944b5890a79",
+      "source_bundle_ref": "refs/heads/source-checkpoint/fork-signal-foss/collie-branding-translations",
+      "source_bundle_sha256": "b03029d1b99c2fbd564b8796c8685e0fbdd1f64ba3e15b9c5d1e5524ef3767fb"
     }
   ],
   "reviewed_profiles": {
     "path": "reviewed-profiles.json",
-    "sha256": "6a83007ed81ea5311ad1abcc96af4724567a2c91aed2befa503030ba2cb4d864"
+    "sha256": "ed6d39192e636d8fe79a9b3b82225d1883d05f9751ad66dc966ac7db7168fa3b"
   },
   "schema": 1,
   "source_head": "b13bff463547475bbe1ae55335add689f52532e0",

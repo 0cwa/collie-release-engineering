@@ -80,7 +80,7 @@ def fork_layers(repo, selection, *, check_target=True):
     if (data['base_commit'], data['base_tree']) != (selection['base_checkpoint'], selection['base_tree']):
         raise forest.ForestError('fork base checkpoint or tree differs')
     layers = data['layers']
-    if not isinstance(layers, list) or [x['id'] for x in layers] != ['firebase-free-build', 'collie-icon', 'collie-branding', 'collie-visuals', 'restore-picker', 'notification-default']:
+    if not isinstance(layers, list) or [x['id'] for x in layers] != ['firebase-free-build', 'collie-icon', 'collie-branding', 'collie-visuals', 'restore-picker', 'notification-default', 'collie-branding-translations']:
         raise forest.ForestError('fork layer order differs')
     _, upstream_parents = verify_source_bundles.commit_info(repo, data['source_head'])
     if upstream_parents != [FORK_RETENTION_ANCESTOR]:
@@ -103,7 +103,7 @@ def fork_layers(repo, selection, *, check_target=True):
         if credit == 'ours':
             # Our fixes to an adapted layer: no upstream commit, never authored as the fork author.
             fixed = [x for x in layers if x['id'] == layer.get('fixes')]
-            if layer['id'] in ('collie-icon', 'collie-branding', 'collie-visuals', 'restore-picker', 'notification-default'):
+            if layer['id'] in ('collie-icon', 'collie-branding', 'collie-visuals', 'restore-picker', 'notification-default', 'collie-branding-translations'):
                 if 'fixes' in layer or 'upstream_commit' in layer or 'upstream_author' in layer:
                     raise forest.ForestError('Collie-owned layer must be original work')
                 fixed = None

@@ -49,14 +49,14 @@ class ForkProfilesTests(unittest.TestCase):
         self.git('bundle', 'create', str(upstream_bundle), upstream_ref, '^' + base)
         previous, before = base, base_tree
         layers = []
-        for label in ('firebase-free-build', 'collie-icon', 'collie-branding', 'collie-visuals', 'restore-picker', 'notification-default'):
+        for label in ('firebase-free-build', 'collie-icon', 'collie-branding', 'collie-visuals', 'restore-picker', 'notification-default', 'collie-branding-translations'):
             directory = self.root / label
             directory.mkdir()
             path = 'icon' if label == 'collie-icon' else 'app'
             (self.repo / path).write_text(label + '\n')
             self.git('add', path)
             inspired = label == 'firebase-free-build'
-            ours = label in ('retention-controls-fixes', 'collie-icon', 'collie-branding', 'collie-visuals', 'restore-picker', 'notification-default')
+            ours = label in ('retention-controls-fixes', 'collie-icon', 'collie-branding', 'collie-visuals', 'restore-picker', 'notification-default', 'collie-branding-translations')
             if inspired or ours:
                 self.git('-c', 'user.name=Port Author', '-c', 'user.email=port@example.invalid', 'commit', '-qm',
                          label + ('' if ours else '\n\nInspired by ' + upstream_head + '.\n\nInspired-by: Fork Author <author@example.invalid>'))
@@ -95,7 +95,7 @@ class ForkProfilesTests(unittest.TestCase):
         self.selection = {'base_checkpoint': base, 'base_tree': base_tree,
                           'target_tree': layers[-1]['after_tree'],
                           'signal_commit': base, 'fork_source': {'url': self.data['source_url'], 'head': upstream_head},
-                          'fork_series': [release_profiles.FIREBASE, release_profiles.COLLIE_ICON, release_profiles.COLLIE_BRANDING, release_profiles.COLLIE_VISUALS, release_profiles.RESTORE_PICKER, release_profiles.NOTIFICATION_DEFAULT]}
+                          'fork_series': [release_profiles.FIREBASE, release_profiles.COLLIE_ICON, release_profiles.COLLIE_BRANDING, release_profiles.COLLIE_VISUALS, release_profiles.RESTORE_PICKER, release_profiles.NOTIFICATION_DEFAULT, release_profiles.COLLIE_BRANDING_TRANSLATIONS]}
         self.save()
 
     def git(self, *args):
@@ -123,7 +123,7 @@ class ForkProfilesTests(unittest.TestCase):
             ['git', '-C', str(self.repo), 'commit-tree', self.data['base_tree'], '-p', base],
             input='new Signal target\n', text=True).strip()
         selection = dict(self.selection, signal_commit=newer)
-        self.assertEqual(len(fork_profiles.fork_layers(self.repo, selection)), 6)
+        self.assertEqual(len(fork_profiles.fork_layers(self.repo, selection)), 7)
         self.data['upstream_bundle_prerequisite'] = newer
         self.save()
         with self.assertRaisesRegex(forest.ForestError, 'historical Signal source'):
