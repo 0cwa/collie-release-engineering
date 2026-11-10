@@ -15,6 +15,8 @@ from typing import Any
 
 
 LANGUAGES = {"actions": "actions", "python": "py", "javascript-typescript": "js", "c-cpp": "cpp"}
+# CLI baseline descriptors use extractor names, not query ID prefixes.
+EXTRACTORS = {"actions": "actions", "python": "python", "javascript-typescript": "javascript", "c-cpp": "cpp"}
 LEVELS = {"none", "note", "warning", "error"}
 
 
@@ -214,7 +216,14 @@ def audit_run(run: dict, language: str, source: str) -> dict:
                 tags = metadata.get("properties", {}).get("tags", [])
                 where = locations(run, notification.get("locations", []))
                 file_set = None
-                if identifier.startswith(prefix):
+                # The CLI emits baselines outside the query language namespace
+                # (for example cli/expected-extracted-files/actions). Match the
+                # exact extractor suffix so another language cannot supply the
+                # baseline, and never treat CLI baseline locations as extracted.
+                if (identifier == f"cli/expected-extracted-files/{EXTRACTORS[language]}"
+                        and "expected-extracted-files" in tags):
+                    file_set = expected
+                elif identifier.startswith(prefix):
                     if "successfully-extracted-files" in tags:
                         file_set = extracted
                     elif "expected-extracted-files" in tags:
@@ -233,6 +242,8 @@ def audit_run(run: dict, language: str, source: str) -> dict:
                     })
     if not extracted:
         errors.append(f"No successfully extracted {language} files were reported")
+    if not expected:
+        errors.append(f"No matching expected-file baseline establishes {language} coverage")
     missing = expected - extracted
     if missing:
         errors.append(f"{len(missing)} expected {language} file(s) were not extracted")
