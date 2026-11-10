@@ -521,9 +521,9 @@ Instrumented sources are recorded separately for the device test gate. The deriv
 are part of the source proof fingerprint.
 
 All five profiles select the verified port prefix ending at
-`followups/view-once-open-guard`, followed by the same six fork layers:
+`followups/view-once-open-guard`, followed by the same seven fork layers:
 `firebase-free-build`, `collie-icon`, `collie-branding`, `collie-visuals`,
-`restore-picker`, and `notification-default`. The identity layers provide
+`restore-picker`, `notification-default`, and `collie-branding-translations`. The identity layers provide
 Collie launcher artwork, app identity and visual styling. The restore picker
 recognizes timestamped backups in a selected folder, and the final layer changes
 the fallback for an unset notification-content preference.
