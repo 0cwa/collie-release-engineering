@@ -242,6 +242,8 @@ def audit_run(run: dict, language: str, source: str) -> dict:
                     })
     if not extracted:
         errors.append(f"No successfully extracted {language} files were reported")
+    if not expected:
+        errors.append(f"No matching expected-file baseline establishes {language} coverage")
     missing = expected - extracted
     if missing:
         errors.append(f"{len(missing)} expected {language} file(s) were not extracted")

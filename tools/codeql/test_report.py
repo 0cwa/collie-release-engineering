@@ -274,9 +274,18 @@ class ReportTests(unittest.TestCase):
         data = fixture()
         del data["runs"][0]["invocations"][0]["toolExecutionNotifications"][1]
         result = self.audit(data)
-        self.assertTrue(result["passed"])
+        self.assertFalse(result["passed"])
         self.assertIsNone(result["runs"][0]["coverage"]["expected_file_count"])
         self.assertIn("Expected baseline: not recorded", report.markdown(result))
+
+    def test_wrong_extractor_baseline_cannot_disable_coverage_gate(self):
+        data = fixture()
+        data["runs"][0]["tool"]["driver"]["notifications"][1]["id"] = "cli/expected-extracted-files/actions"
+        data["runs"][0]["invocations"][0]["toolExecutionNotifications"][1]["descriptor"]["id"] = "cli/expected-extracted-files/actions"
+        result = self.audit(data)
+        self.assertFalse(result["passed"])
+        self.assertIsNone(result["runs"][0]["coverage"]["expected_file_count"])
+        self.assertIn("No matching expected-file baseline", result["runs"][0]["errors"][0])
 
     def test_action_incremental_modes_cannot_pass_a_full_repository_audit(self):
         # codeql-action v4.39.3 src/analyze.ts emits this run property for PR
