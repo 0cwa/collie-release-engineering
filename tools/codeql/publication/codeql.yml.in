@@ -17,6 +17,7 @@ jobs:
       security-events: write
     env:
       CODEQL_ACTION_DIFF_INFORMED_QUERIES: 'false'
+      CODEQL_ACTION_FILE_COVERAGE_ON_PRS: 'true'
       CODEQL_OVERLAY_DATABASE_MODE: 'none'
     steps:
       - name: Check out exact source under analysis
