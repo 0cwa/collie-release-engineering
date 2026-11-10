@@ -19,7 +19,7 @@ concurrency:
   cancel-in-progress: false
 env:
   APP_REPO: 0cwa/collieim-android
-  KEEP_RELEASES: ${{ vars.FEEDS_KEEP_RELEASES || '3' }}
+  KEEP_RELEASES: ${{ vars.FEEDS_KEEP_RELEASES || '1' }}
 jobs:
   check:
     if: vars.FEEDS_ENABLED == 'true' && github.ref == 'refs/heads/main'
@@ -90,11 +90,17 @@ jobs:
             --latest "$LATEST" --keystore "$RUNNER_TEMP/repo.p12" --build-tools "$bt"
           rm -f "$RUNNER_TEMP/repo.p12"
           rm -rf "$RUNNER_TEMP/fdroid-work"
-      - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
+      - id: upload
+        uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
         with:
           path: ${{ runner.temp }}/site
-      - id: deployment
-        uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1
+      # The stock deploy-pages action gives up after 10 minutes and cancels the deployment; a site
+      # with the native libraries and an APK needs longer, so poll the Pages API for up to 30.
+      - name: Deploy and poll until success or the deadline
+        env:
+          ARTIFACT_ID: ${{ steps.upload.outputs.artifact_id }}
+          GITHUB_TOKEN: ${{ github.token }}
+        run: python distribution/deploy_pages.py --artifact-id "$ARTIFACT_ID" --timeout-seconds 1800
       - name: Read back the deployed site
         run: |
           for _ in $(seq 20); do
