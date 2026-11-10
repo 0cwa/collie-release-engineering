@@ -802,7 +802,11 @@ as `MOLLY_KEYSTORE`, `MOLLY_KEY_ALIAS`, and, optionally,
    `--dry-run`; the following `draft` command creates a tag at the approved
    commit as a signed annotated SSH tag, requires GitHub to verify its signature,
    creates a draft and uploads the APKs, checksums, final manifest,
-   provenance and notes. It downloads every asset again and compares its hash.
+   provenance and notes. The draft check and the pre-publication check verify
+   the exact GitHub asset IDs, names, sizes and server-computed SHA-256 digests.
+   If digest metadata is absent, unsupported or malformed, the publisher falls
+   back to downloading and hashing the assets. After publication it downloads
+   every asset and compares its bytes with the approved digests.
 
    ```sh
    python3 tools/patches/release_publish.py draft --repo OWNER/REPO --tag vVERSION \
@@ -825,8 +829,11 @@ as `MOLLY_KEYSTORE`, `MOLLY_KEY_ALIAS`, and, optionally,
    attempt may leave a tag or draft behind; inspect and resolve that state
    explicitly. Publishing is a separate command with the same arguments, using
    `publish` in place of `draft` (without the signing options). It rechecks
-   the signed tag, draft, exact asset list
-   and downloaded hashes immediately before publishing.
+   the signed tag, draft and exact asset metadata immediately before publishing.
+   The final full-byte readback is required after the release is public. Add
+   `--phase-report FILE` to write a separate, exclusive mode-0600 JSON report of
+   publisher phase durations and asset-file byte counts; it contains no CLI
+   arguments or environment values and is not uploaded with the release.
 
 If a published immutable release is bad, issue a new tag with a higher version
 code. Before shipping the replacement, check that database migrations and data
