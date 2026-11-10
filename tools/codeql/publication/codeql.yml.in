@@ -55,7 +55,6 @@ jobs:
         with:
           tools: linked
           languages: actions
-          build-mode: none
           source-root: source
           config-file: ./trusted-policy/.github/codeql/codeql-config.yml
           trap-caching: false

@@ -60,6 +60,7 @@ class RenderPublicationTests(unittest.TestCase):
             analysis=rendered.split('      - uses: github/codeql-action/analyze@',1)[1].split('      - name:',1)[0]
             self.assertIn('checkout_path: ${{ github.workspace }}/source',analysis)
             self.assertIn('source-root: source',rendered)
+            self.assertNotIn('build-mode:',rendered)
     def test_trusted_review_checkout_includes_manifest_with_cone_sparse_checkout(self):
         repository_root=Path(__file__).resolve().parents[2]
         workflows=[repository_root/'tools/codeql/publication/codeql.yml.in']
