@@ -34,12 +34,12 @@ class ResumeEntryPointTests(unittest.TestCase):
             return types.SimpleNamespace(stdout=json.dumps(self.remote))
         if action=='create':
             self.remote_bytes={p.name:p.read_bytes() for p in inputs.iterdir()}
-            self.remote={'isDraft':True,'isPrerelease':False,'assets':[{'name':n} for n in self.remote_bytes]}
+            self.remote={'isDraft':True,'isPrerelease':False,'assets':[{'id':'fixture-'+n,'name':n,'size':len(data)} for n,data in self.remote_bytes.items()]}
             if self.interrupt=='create':self.interrupt=None;raise subprocess.CalledProcessError(1,cmd,stderr='lost create response')
         if action=='upload':
             for path in cmd[cmd.index('--repo')+2:]:
                 path=Path(path);self.remote_bytes[path.name]=path.read_bytes()
-            self.remote['assets']=[{'name':n} for n in self.remote_bytes]
+            self.remote['assets']=[{'id':'fixture-'+n,'name':n,'size':len(data)} for n,data in self.remote_bytes.items()]
         if action=='download':
             dest=Path(cmd[cmd.index('--dir')+1])
             for name,data in self.remote_bytes.items():(dest/name).write_bytes(data)
@@ -71,7 +71,7 @@ class ResumeEntryPointTests(unittest.TestCase):
         self.assertEqual(self.invoke('publish'),1)
     def test_partial_draft_upload_resumes_without_replacement(self):
         self.assertEqual(self.invoke('draft'),0)
-        del self.remote_bytes['collie.apk'];self.remote['assets']=[{'name':n} for n in self.remote_bytes]
+        del self.remote_bytes['collie.apk'];self.remote['assets']=[{'id':'fixture-'+n,'name':n,'size':len(data)} for n,data in self.remote_bytes.items()]
         self.assertEqual(self.invoke('draft'),0)
         upload=[c for c in self.calls if c[2]=='upload']
         self.assertEqual(len(upload),1)
