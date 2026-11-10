@@ -9,11 +9,19 @@ button:focus-visible{outline:3px solid var(--bark);outline-offset:4px}
 .verification{border-top:1px solid #96390c;padding-top:26px;margin-top:28px}
 .verification-heading{display:flex;align-items:center;gap:12px}
 .verification-heading h2{margin:0}
-.copy-verification{display:grid;place-items:center;flex:0 0 44px;width:44px;height:44px;padding:0;border:0;border-radius:12px;background:#dfe9cc;color:var(--bark);cursor:pointer;transition:background-color .18s ease,transform .18s ease}
-.copy-verification:hover{background:#edf2e4}
-.copy-verification:active{transform:translateY(1px)}
-.copy-verification:focus-visible{outline:3px solid var(--bark);outline-offset:4px}
-.copy-verification svg{width:18px;height:18px}
+.copy-icon{display:inline-grid;place-items:center;flex:0 0 28px;width:28px;height:28px;margin:0;padding:0;border:0;border-radius:6px;background:none;color:var(--bark);cursor:pointer;opacity:.75;transition:opacity .18s ease}
+.copy-icon:hover{opacity:1}
+.copy-icon:focus{outline:none}
+.copy-icon:focus-visible{outline:3px solid var(--bark);outline-offset:2px;opacity:1}
+.copy-icon svg{width:18px;height:18px}
+.copy-row{display:flex;align-items:flex-start;gap:8px}
+.copy-row code{min-width:0;flex:1 1 auto}
+.repo-address{margin-top:22px}
+.repo-values{display:grid;gap:14px;margin:0;padding:0}
+.repo-values>div{min-width:0}
+.repo-values dt{font-size:14px;font-weight:400}
+.repo-values dd{margin:6px 0 0}
+.repo-values code{display:block;max-width:100%;overflow-wrap:anywhere;font:14px/1.65 Manrope,sans-serif;letter-spacing:.025em}
 .verification-values{display:grid;grid-template-columns:minmax(0,.65fr) minmax(0,1fr);gap:28px;margin:18px 0 0;padding:0}
 .verification-values>div{min-width:0}
 .verification-values dt{font-size:14px;font-weight:400}
@@ -22,6 +30,6 @@ button:focus-visible{outline:3px solid var(--bark);outline-offset:4px}
 .copy-status{font-size:14px;line-height:1.5;margin:12px 0 0;color:var(--bark)}
 .copy-status:empty{display:none}
 .copy-fallback{display:block;width:100%;max-width:100%;min-height:4.5em;margin:12px 0 0;padding:12px;border:1px solid #96390c;border-radius:8px;background:var(--cream);color:var(--bark);font:14px/1.5 Manrope,sans-serif;white-space:pre-wrap;overflow-wrap:anywhere;resize:vertical}
-.copy-fallback[hidden],.copy-verification[hidden]{display:none}
+.copy-fallback[hidden],.copy-icon[hidden]{display:none}
 .verification-docs{font-size:14px;margin:14px 0 0}
 @media(max-width:650px){.verification-values{grid-template-columns:minmax(0,1fr);gap:18px}}

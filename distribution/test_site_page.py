@@ -44,6 +44,14 @@ class SitePageTest(unittest.TestCase):
         self.render('preview');text=(self.root/'preview/index.html').read_text();pinned=s.links('https://repo.collie.im/fdroid/repo/','a'*64)['https']
         self.assertIn('>'+pinned+'</a>',text)
 
+    def test_active_page_shows_repository_url_and_deep_link_with_icon_only_copy(self):
+        self.render('preview');text=(self.root/'preview/index.html').read_text();urls=s.links('https://repo.collie.im/fdroid/repo/','a'*64)
+        self.assertIn('<code id="repo-url"><a href="'+urls['https']+'">'+urls['https']+'</a></code>',text)
+        self.assertIn('<code id="repo-deep"><a href="'+urls['deep']+'">'+urls['deep']+'</a></code>',text)
+        self.assertIn('data-copy-source="repo-url"',text);self.assertIn('aria-label="Copy repository address with fingerprint"',text)
+        self.assertEqual(text.count('class="copy-icon"'),2);self.assertNotIn('class="copy-verification"',text)
+        css=(s.ROOT/'assets/site.css').read_text();self.assertIn('.copy-icon{',css);self.assertIn('.copy-icon:focus-visible{',css);self.assertIn('background:none',css)
+
     def test_verification_shows_canonical_package_and_signer_with_accessible_copy_fallback(self):
         self.render('preview');text=(self.root/'preview/index.html').read_text();signer=':'.join(binary_repo.APK_CERTIFICATE.upper()[i:i+2] for i in range(0,64,2))
         self.assertIn('<section class="verification" id="verification"',text)

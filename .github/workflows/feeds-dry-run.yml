@@ -1,0 +1,52 @@
+name: F-Droid and Pages dry run
+# Builds the full site exactly like feeds.yml, but with a throwaway repository key and no deploy.
+on:
+  pull_request:
+    paths:
+      - distribution/feed.py
+      - distribution/metadata/**
+      - distribution/config.public.yml
+      - distribution/site/**
+      - .github/workflows/feeds.yml
+      - .github/workflows/feeds-dry-run.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+env:
+  APP_REPO: 0cwa/collieim-android
+jobs:
+  dry-run:
+    runs-on: ubuntu-24.04
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: '3.12.14'
+      - run: python -m pip install --require-hashes -r distribution/requirements.txt
+      - name: Inputs
+        run: |
+          latest=$(gh api "repos/$APP_REPO/releases/latest" -q .tag_name)
+          echo "LATEST=$latest" >> "$GITHUB_ENV"
+          mkdir -p "$RUNNER_TEMP/apks"
+          gh release download "$latest" -R "$APP_REPO" --pattern collie.apk --output "$RUNNER_TEMP/apks/$latest.apk"
+          curl -fsSL "https://raw.githubusercontent.com/$APP_REPO/main/build-inputs/native-artifacts.json" -o "$RUNNER_TEMP/native-artifacts.json"
+          jq -r '.files[].path' "$RUNNER_TEMP/native-artifacts.json" | while read -r path; do
+            mkdir -p "$RUNNER_TEMP/native/$(dirname "$path")"
+            curl -fsSL "https://repo.collie.im/native-inputs/v1/maven/$path" -o "$RUNNER_TEMP/native/$path"
+          done
+      - name: Build the site with a throwaway key
+        run: |
+          export FDROID_KEYSTORE_PASS=$(openssl rand -hex 16)
+          keytool -genkeypair -keystore "$RUNNER_TEMP/repo.p12" -storetype PKCS12 -alias collie-repo \
+            -keyalg RSA -keysize 2048 -validity 2 -dname "CN=dry run" \
+            -storepass:env FDROID_KEYSTORE_PASS -keypass:env FDROID_KEYSTORE_PASS
+          bt=$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)
+          python distribution/feed.py --site "$RUNNER_TEMP/site" --apks "$RUNNER_TEMP/apks" \
+            --native "$RUNNER_TEMP/native" --native-plan "$RUNNER_TEMP/native-artifacts.json" \
+            --latest "$LATEST" --keystore "$RUNNER_TEMP/repo.p12" --build-tools "$bt"
+          find "$RUNNER_TEMP/site" -maxdepth 3 | sort | head -40
+          grep -c 'Add repository' "$RUNNER_TEMP/site/index.html"
