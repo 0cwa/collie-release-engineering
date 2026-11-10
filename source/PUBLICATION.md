@@ -42,6 +42,33 @@ currently a draft until public native inputs and direct build acceptance pass.
    move old release tags. Keep candidate refs through review and protect retained
    release source refs using separately approved repository settings.
 
+## Optional SSH signatures for generated commits
+
+Unsigned generation remains the default, and candidate CI needs no signing credentials. An approved signing request can bind the publication plan and message digests, current main, unsigned G/I commits, schema-2 timestamp, public-key fingerprint, committer identity, and generated-author inventory. The request is a protocol record; its values identify one exact candidate graph.
+
+The shape-only example below uses placeholders; a real request lists every generated author. It identifies the unsigned graph and signer without prescribing where or how an operator carries out signing:
+
+```json
+{
+  "schema": 1,
+  "purpose": "collie-source-publication-ssh-signing",
+  "publication_plan_sha256": "<plan-digest>",
+  "messages_sha256": "<message-digest>",
+  "current_main": "<base-commit>",
+  "unsigned_source": "<generated-G>",
+  "unsigned_integration": "<generated-I>",
+  "publication_timestamp": "<approved-UTC-timestamp>",
+  "signer_fingerprint": "SHA256:<public-key-fingerprint>",
+  "committer_name": "<committer>",
+  "committer_email": "<verified-identity@example.invalid>",
+  "authors": [{"name": "<author>", "email": "<author@example.invalid>"}]
+}
+```
+
+The implementation also binds the approved plan and message digests, committer identity, and author inventory. A public-key verifier checks signatures on every generated layer and I, then verifies that signing preserved each approved tree, message, author, date, and parent relationship. I retains parents `[old main, signed G]`; upstream commits are neither signed nor rewritten. Signed output creates no refs and performs no push. The unsigned objects remain available for comparison.
+
+The verifier requires a public key and an allowed-signers policy matching the approved signer. Schema-1 historical replay cannot use this signing path; signed candidates use timestamp-bound schema 2. A local signature check does not establish publication approval or GitHub's verified-signature status. Only GitHub's status after ordinary review can establish the latter. Git 2.34 or later and OpenSSH SSH-signing support are required by the implementation.
+
 The required MollySocket TLS correction is a feature layer for the next release.
 Apply its exact reviewed patch from `source/layers/mollysocket.patch` after the
 complete source checkpoint recorded in `source/layers/mollysocket.json`; retain

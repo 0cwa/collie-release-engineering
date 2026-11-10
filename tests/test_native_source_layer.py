@@ -50,7 +50,7 @@ signal-ringrtc = "im.collie.native:ringrtc-android:2.74.0-collie.1"
           'gradle.properties':b'# fixture\n',
           'build-inputs/native-publication.json':b'{"status":"BLOCKED"}',
           'app/build.gradle.kts':b'throw GradleException("Direct Android builds BLOCKED: fixture")\n',
-          'docs/BUILD.md':b'fixture not an Android build\n'}
+          'docs/BUILD.md':b'# Building Collie\n\nObtain the three locked artifacts and POMs from approved\npublic immutable URLs, verify all hashes, materialize their exclusive repository\nand verification entries in source, then run a fresh controlled Gradle build.\n\n## Published source dates\n\nApproved date clarification remains verbatim.\n'}
     def test_tracked_graph_replaces_init_and_local_native_inputs_without_opening_gate(self):
         changes=m.materialize(self.files,self.fixture.lock,self.plan,self.metadata)
         settings=changes['settings.gradle.kts'].decode();build=changes['build.gradle.kts'].decode()
@@ -60,6 +60,38 @@ signal-ringrtc = "im.collie.native:ringrtc-android:2.74.0-collie.1"
         self.assertEqual(changes['gradle/verification-metadata.xml'],self.metadata)
         self.assertEqual(build.count('substitute(module('),6)
         self.assertEqual(json.loads(changes['build-inputs/native-publication.json'])['publication_status'],'NOT PUBLISHED')
+        host=json.loads(changes['build-inputs/host-test-inputs.json'])
+        self.assertEqual(host['status'],'NOT RUN')
+        self.assertTrue(host['never_package_in_apk'])
+        for private_field in ('historical_local_candidate_sha256','historical_receipt_lock_sha256',
+                              'prepared_libsignal_tree','staging_guard','platform','resource'):
+            self.assertNotIn(private_field,host)
+        generated=changes['docs/BUILD.md']
+        self.assertIn(b'## Build and verification',generated)
+        self.assertNotIn(b'operator publication approval',generated)
+        self.assertNotIn(b'host-test-inputs.json',generated)
+        self.assertTrue(generated.endswith(b'## Published source dates\n\nApproved date clarification remains verbatim.\n'))
+    def test_native_build_guide_removes_runbook_and_preserves_dates(self):
+        files=dict(self.files)
+        dates=b'## Published source dates\n\nApproved date clarification remains verbatim.\n'
+        files['docs/BUILD.md']=(
+            b'# Building Collie\n\nJDK and Android SDK requirements remain public.\n\n'
+            b'**Direct build readiness: ACCEPTED for a specific evidence record.**\n'
+            b'POLICY_RUN_ID_PRIVATE attempt ATTEMPT_PRIVATE. Evidence digest EVIDENCE_PRIVATE.\n\n'
+            b'Release versions must be externally reserved above RESERVED_VERSION_PRIVATE.\n\n'
+            b'### Preserve build outputs before source receipt collection\n'
+            b'Copy local artifacts from /workstation/private-checkout and then clean generated paths.\n\n'
+            + dates)
+        changes=m.materialize(files,self.fixture.lock,self.plan,self.metadata)
+        guide=changes['docs/BUILD.md']
+        self.assertIn(b'JDK and Android SDK requirements remain public.',guide)
+        self.assertIn(b'./gradlew --dependency-verification=strict :app:assembleProdWebsiteRelease',guide)
+        for private_marker in (b'POLICY_RUN_ID_PRIVATE',b'ATTEMPT_PRIVATE',b'EVIDENCE_PRIVATE',
+                               b'RESERVED_VERSION_PRIVATE',b'/workstation/private-checkout',b'releaseVersionCode',b'agent-heavy',
+                               b'Preserve build outputs before source receipt collection'):
+            self.assertNotIn(private_marker,guide)
+        self.assertTrue(guide.endswith(dates))
+
     def test_native_substitution_origin_or_incomplete_plan_rejected(self):
         for mutation in ('origin','binary','missing-pom'):
             plan=copy.deepcopy(self.plan)
@@ -67,6 +99,24 @@ signal-ringrtc = "im.collie.native:ringrtc-android:2.74.0-collie.1"
             if mutation=='binary':plan['files'][0]['sha256']='a'*64
             if mutation=='missing-pom':plan['files']=[f for f in plan['files'] if not f['path'].endswith('libsignal-client-0.106.1-collie.1.pom')]
             with self.subTest(mutation=mutation),self.assertRaises(ValueError):m.materialize(self.files,self.fixture.lock,plan,self.metadata)
+    def test_static_native_patch_has_only_public_build_and_host_test_status(self):
+        patch=(ROOT/'source/layers/native-repository.patch').read_text()
+        docs_start=patch.index('diff --git a/docs/BUILD.md b/docs/BUILD.md\n')
+        host_start=patch.index('diff --git a/build-inputs/host-test-inputs.json b/build-inputs/host-test-inputs.json\n',docs_start)
+        docs_added='\n'.join(line[1:] for line in patch[docs_start:host_start].splitlines()
+                               if line.startswith('+') and not line.startswith('+++'))
+        for private_marker in ('agent-heavy','agent-scratch','Preserve build outputs',
+                               'releaseVersionCode','trusted-local','staging-guard'):
+            self.assertNotIn(private_marker,docs_added)
+        host_end=patch.index('diff --git a/build-inputs/native-artifacts.json b/build-inputs/native-artifacts.json\n',host_start)
+        host_added='\n'.join(line[1:] for line in patch[host_start:host_end].splitlines()
+                               if line.startswith('+') and not line.startswith('+++'))
+        host=json.loads(host_added)
+        self.assertEqual(host['status'],'NOT RUN')
+        for private_field in ('historical_local_candidate_sha256','historical_receipt_lock_sha256',
+                              'prepared_libsignal_tree','staging_guard','platform','resource'):
+            self.assertNotIn(private_field,host)
+
     def test_metadata_and_gate_tamper_rejected(self):
         with self.assertRaises(ValueError):m.materialize(self.files,self.fixture.lock,self.plan,self.metadata+b'\n')
         files=dict(self.files);files['app/build.gradle.kts']=b'// removed acceptance gate\n'
@@ -87,5 +137,11 @@ signal-ringrtc = "im.collie.native:ringrtc-android:2.74.0-collie.1"
         with mock.patch.object(m,'REVIEWED_G2_TREE',tree), \
              mock.patch.object(m,'verified_stage',return_value=(self.fixture.lock,self.plan,self.metadata)):
             m.main(['--app',str(app),'--engineering',str(ROOT),'--verified-stage',str(self.fixture.output)])
-        self.assertIn(b'Native JVM regression readiness is separate',(app/'BUILD.md').read_bytes())
+        generated=(app/'BUILD.md').read_bytes()
+        self.assertIn(b'Native JVM regression is separate',generated)
+        self.assertIn(b'native JVM regression is NOT RUN',generated)
+        self.assertNotIn(b'operator publication approval',generated)
+        self.assertNotIn(b'host-test-inputs.json',generated)
+        self.assertNotIn(b'staging-guard',generated)
+        self.assertTrue(generated.endswith(b'## Published source dates\n\nApproved date clarification remains verbatim.\n'))
         self.assertFalse((app/'docs/BUILD.md').exists())

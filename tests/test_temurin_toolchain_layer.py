@@ -13,7 +13,7 @@ APP_BASE = 'fd83dbfc5323f7fb8689b697f141656399e87249'
 
 
 class TemurinToolchainLayerTests(unittest.TestCase):
-    def test_exact_file_pins_apply_to_the_small_historical_composition_fixture(self):
+    def test_production_patch_applies_to_synthetic_build_guide_fixture(self):
         manifest = json.loads(MANIFEST.read_text())
         patch = PATCH.read_bytes()
         self.assertEqual(manifest['schema'], 1)
@@ -26,7 +26,11 @@ class TemurinToolchainLayerTests(unittest.TestCase):
         self.assertEqual(fixture_files, set(manifest['paths']))
         for path in manifest['paths']:
             before = (FIXTURE / path).read_bytes()
-            self.assertEqual(hashlib.sha256(before).hexdigest(), manifest['before'][path]['sha256'])
+            if path == 'docs/BUILD.md':
+                self.assertEqual(hashlib.sha256(before).hexdigest(),
+                                 'd5220c8cc66de6052e571d1c9a0bb55064d482b524f50e59a4d632dcb1cce9f0')
+            else:
+                self.assertEqual(hashlib.sha256(before).hexdigest(), manifest['before'][path]['sha256'])
             self.assertRegex(manifest['before'][path]['blob'], r'^[0-9a-f]{40}$')
             self.assertRegex(manifest['after'][path]['blob'], r'^[0-9a-f]{40}$')
         patch_text = patch.decode()
@@ -52,11 +56,32 @@ class TemurinToolchainLayerTests(unittest.TestCase):
         }
         for path in manifest['paths']:
             before = (FIXTURE / path).read_bytes()
-            self.assertEqual(hashlib.sha256(before).hexdigest(), manifest['before'][path]['sha256'])
             old, new = replacements[path]
             self.assertEqual(before.count(old), 1, path)
             output = before.replace(old, new, 1)
-            self.assertEqual(hashlib.sha256(output).hexdigest(), manifest['after'][path]['sha256'])
+            if path != 'docs/BUILD.md':
+                self.assertEqual(hashlib.sha256(output).hexdigest(), manifest['after'][path]['sha256'])
+            else:
+                # Production preimage pins remain historical; the public fixture
+                # deliberately contains no actual operator procedure.
+                self.assertEqual(manifest['before'][path]['sha256'],
+                                 '095072d51c802640ef51adf2d0af0af9b14e4707fef249c8bbbf8d3f18cb0d28')
+                self.assertEqual(manifest['after'][path]['sha256'],
+                                 '234770193cdf05c3b3338087e22927c8479e2cb1465920a6c4fbe22c1e1d6081')
+        # Exercise the actual production patch against portable synthetic files.
+        with tempfile.TemporaryDirectory(prefix='temurin-patch-') as directory:
+            stage = Path(directory)
+            for path in manifest['paths']:
+                target = stage / path
+                target.parent.mkdir(parents=True, exist_ok=True)
+                target.write_bytes((FIXTURE / path).read_bytes())
+            result = subprocess.run(['git', 'apply', '--unidiff-zero', '-'],
+                                    cwd=stage, input=patch, capture_output=True)
+            self.assertEqual(result.returncode, 0, result.stderr.decode())
+            for path in manifest['paths']:
+                before = (FIXTURE / path).read_bytes()
+                old, new = replacements[path]
+                self.assertEqual((stage / path).read_bytes(), before.replace(old, new, 1))
         self.assertEqual(manifest['java'], 'Eclipse Temurin 21.0.13+9')
         self.assertEqual(manifest['image']['manifest_digest'],
                          'sha256:f1d8aa86ba3a2a7119b157df01d1832281cd122989cddb46bc86a9f49f99cc42')
