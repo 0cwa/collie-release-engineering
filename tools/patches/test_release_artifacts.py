@@ -98,6 +98,22 @@ class ReleaseArtifactsTests(unittest.TestCase):
             self.assertEqual(release_sign.main(), 1)
             run.assert_not_called()
 
+    def test_sign_rejects_dangling_output_symlink_before_binding_or_keys(self):
+        output = self.root / 'out'
+        output.symlink_to(self.root / 'absent')
+        args = ['release_sign', '--manifest', str(self.root / 'unused.json'),
+                '--manifest-sha256', '0' * 64, '--approved-commit', self.commit,
+                '--approved-run', '123', '--certificate-sha256', self.cert,
+                '--apks', str(self.root), '--output', str(output),
+                '--build-tools', str(self.root), '--scratch', str(self.root)]
+        with patch('sys.argv', legacy_args(args, self.root)), \
+             patch.object(release_sign.version_policy, 'enforce') as enforce, \
+             patch.object(release_sign, 'run') as run:
+            self.assertEqual(release_sign.main(), 1)
+            enforce.assert_not_called()
+            run.assert_not_called()
+        self.assertTrue(output.is_symlink())
+
     def test_current_signer_rejects_legacy_profiles_before_keys(self):
         for mode in (None,'five-profiles'):
             m=dict(self.manifest)
