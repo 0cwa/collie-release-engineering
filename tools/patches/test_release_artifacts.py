@@ -279,8 +279,10 @@ class ReleaseArtifactsTests(unittest.TestCase):
             run.assert_not_called()
 
     def test_publish_remote_verification_and_input_replacement(self):
-        cases = [('publish', x) for x in ('none', 'tag', 'non-draft', 'wrong-prerelease', 'missing', 'extra', 'download', 'snapshot-and-download')]
-        cases += [('draft', 'none'), ('draft', 'download')]
+        cases = [('publish', x) for x in ('none', 'tag', 'non-draft', 'wrong-prerelease', 'missing', 'extra',
+                                           'digest-mismatch', 'missing-digest', 'wrong-size', 'duplicate-id',
+                                           'download', 'snapshot-and-download')]
+        cases += [('draft', 'none'), ('draft', 'missing-digest')]
         cases += [('prerelease-' + action, failure) for action in ('draft', 'publish')
                   for failure in ('none', 'wrong-prerelease')]
         for action, failure in cases:
@@ -325,12 +327,29 @@ class ReleaseArtifactsTests(unittest.TestCase):
                             self.assertIn(inputs / entry['file'], command)
                             self.assertEqual(a.sha256(inputs / entry['file']), entry['signed_sha256'])
                     if command[2] == 'view':
-                        names = [p.name for p in inputs.iterdir()]
-                        if failure == 'missing': names.pop()
-                        if failure == 'extra': names.append('extra.apk')
+                        remote_assets = []
+                        for index, path in enumerate(sorted(inputs.iterdir())):
+                            if not path.is_file():
+                                continue
+                            digest = 'sha256:' + a.sha256(path)
+                            size = path.stat().st_size
+                            if failure == 'digest-mismatch' and index == 0:
+                                digest = 'sha256:' + ('0' * 64)
+                            if failure == 'missing-digest' and index == 0:
+                                digest = None
+                            if failure == 'wrong-size' and index == 0:
+                                size += 1
+                            remote_assets.append({'id': 'asset-' + str(index), 'name': path.name,
+                                                  'size': size, 'digest': digest})
+                        if failure == 'missing': remote_assets.pop()
+                        if failure == 'extra':
+                            remote_assets.append({'id': 'asset-extra', 'name': 'extra.apk',
+                                                  'size': 0, 'digest': 'sha256:' + ('0' * 64)})
+                        if failure == 'duplicate-id' and len(remote_assets) > 1:
+                            remote_assets[1]['id'] = remote_assets[0]['id']
                         return types.SimpleNamespace(stdout=json.dumps({'isDraft': failure != 'non-draft' and not any(c[1:3] == ['release', 'edit'] for c in commands),
                                                                          'isPrerelease': (not prerelease if failure == 'wrong-prerelease' else prerelease),
-                                                                         'assets': [{'name': n} for n in names]}))
+                                                                         'assets': remote_assets}))
                     if command[2] == 'download':
                         dest = Path(command[command.index('--dir') + 1])
                         if failure == 'snapshot-and-download':
@@ -345,9 +364,10 @@ class ReleaseArtifactsTests(unittest.TestCase):
                      patch.object(release_publish, 'create_signed_tag'), \
                      patch.object(release_publish, 'verify_remote_tag',
                                   side_effect=ValueError('wrong tag') if failure == 'tag' else None):
-                    self.assertEqual(release_publish.main(), 0 if failure in ('none', 'non-draft') else 1)
+                    self.assertEqual(release_publish.main(), 0 if failure in ('none', 'non-draft', 'missing-digest') else 1)
                 self.assertEqual(any(len(c) > 2 and c[1:3] == ['release', 'edit'] for c in commands),
-                                 action == 'publish' and failure == 'none')
+                                 action == 'publish' and failure in ('none', 'missing-digest', 'download',
+                                                                      'snapshot-and-download'))
 
     def test_signed_tag_creation_passes_keychain_helper_and_removes_local_tag(self):
         with patch.object(release_publish, 'command') as command:
