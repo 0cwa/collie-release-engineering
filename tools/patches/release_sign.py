@@ -98,7 +98,7 @@ def main():
             identities=runtime.identities(context)
         if not args.scratch.is_dir():
             raise ValueError('--scratch must be an existing private directory')
-        if args.output.exists():
+        if args.output.exists() or args.output.is_symlink():
             raise ValueError('output directory already exists')
         with tempfile.TemporaryDirectory(prefix='release-sign-', dir=args.scratch) as temp:
             temp = Path(temp)
