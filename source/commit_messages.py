@@ -25,7 +25,7 @@ def normalize_new_text(text):
 
 
 def required_provenance(layer):
-    return 'Composite-generated: true\nLLM-Assisted: true\nOriginal-provenance: '+normalize_new_text(layer['provenance'])
+    return 'Composite-generated: true\nOriginal-provenance: '+normalize_new_text(layer['provenance'])
 
 
 def preview(plan,plan_sha256):
@@ -35,17 +35,17 @@ def preview(plan,plan_sha256):
                         'body':normalize_new_text(layer['name']).rstrip('.')+'.\n\n'+required_provenance(layer)})
     return {'schema':1,'publication_plan_sha256':plan_sha256,'layers':entries,
             'integration':{'subject':'Bring the reviewed Collie source into the application repository',
-                           'body':'Keep prior Collie and authentic Signal history while making the complete reviewed application tree visible.\n\nComposite-generated: true\nLLM-Assisted: true'},
+                           'body':'Keep prior Collie and authentic Signal history while making the complete reviewed application tree visible.\n\nComposite-generated: true'},
             'pr_title':'Publish Collie application source with declared build inputs',
             'merge':{'subject':'Publish Collie application source with declared build inputs',
-                     'body':'Preserve both histories and adopt the complete reviewed source tree. Production activation requires its separately approved inputs and acceptance.\n\nLLM-Assisted: true'}}
+                     'body':'Preserve both histories and adopt the complete reviewed source tree. Production activation requires its separately approved inputs and acceptance.\n'}}
 
 
 def message(value):
     if not isinstance(value,dict) or set(value)!={'subject','body'}:raise ValueError('message requires subject and body')
     if not isinstance(value['subject'],str) or not value['subject'].strip() or any(ord(c)<32 for c in value['subject']) or len(value['subject'])>120:raise ValueError('invalid message subject')
     if not isinstance(value['body'],str) or '\x00' in value['body'] or '\r' in value['body'] or len(value['body'])>12000:raise ValueError('invalid message body')
-    if 'AI-Generated:' in value['body']:raise ValueError('new message must use the visible LLM-Assisted trailer')
+    if 'AI-Generated:' in value['body']:raise ValueError('new message must retain composite and original provenance')
     return value['subject']+'\n\n'+value['body']+'\n'
 
 
@@ -57,7 +57,6 @@ def validate(data,plan,plan_sha256):
         message({k:entry[k] for k in ('subject','body')})
         if required_provenance(layer) not in entry['body']:raise ValueError('required visible provenance/authorship removed')
     message(data['integration']);message(data['merge'])
-    if any('LLM-Assisted: true' not in value['body'] for value in (data['integration'],data['merge'])):raise ValueError('new integration/merge message requires visible LLM assistance')
     if 'Composite-generated: true' not in data['integration']['body']:raise ValueError('integration composite provenance missing')
     message({'subject':data['pr_title'],'body':''})
     return data

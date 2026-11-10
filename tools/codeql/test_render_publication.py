@@ -11,6 +11,8 @@ class RenderPublicationTests(unittest.TestCase):
                 text=(output/target).read_text()
                 for old in ('__ENGINEERING_POLICY_REVISION__','build_jni','lib/spinner','molly-build.json','secrets.'):
                     self.assertNotIn(old,text)
+            if target == '.github/workflows/codeql.yml':
+                                self.assertIn("CODEQL_ACTION_FILE_COVERAGE_ON_PRS: 'true'", text)
             self.assertIn('ref: '+revision,(output/'.github/workflows/codeql.yml').read_text())
             self.assertIn('languages: actions',(output/'.github/workflows/codeql.yml').read_text())
             self.assertIn('NOT RUN',result['coverage'])
