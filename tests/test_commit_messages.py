@@ -34,12 +34,15 @@ class CommitMessageInputs(unittest.TestCase):
             publish.publish(self.fixture.repo,self.fixture.path,self.plan_sha,self.fixture.old,messages=self.file,approved_messages_sha256='0'*64)
         self.wording['publication_plan_sha256']='0'*64
         with self.assertRaisesRegex(ValueError,'exact publication plan'):self.emit()
-    def test_assistance_and_provenance_are_visible_without_rewriting_original_data(self):
+    def test_source_provenance_remains_without_process_trailers_or_rewriting_original_data(self):
         original=copy.deepcopy(self.fixture.plan)
         original['layers'][0]['name']='Keep source meaning\n\nAI-Generated: true\n\nBased-On-Source-Commit: '+'a'*40
         data=messages.preview(original,'1'*64);messages.validate(data,original,'1'*64)
         self.assertIn('AI-Generated: true',original['layers'][0]['name'])
-        self.assertNotIn('AI-Generated:',data['layers'][0]['body']);self.assertIn('LLM-Assisted: true',data['layers'][0]['body'])
+        self.assertNotIn('AI-Generated:',data['layers'][0]['body']);self.assertNotIn('LLM-Assisted:',data['layers'][0]['body'])
+        self.assertNotIn('LLM-Assisted:',data['integration']['body'])
+        self.assertNotIn('LLM-Assisted:',data['merge']['body'])
+        self.assertIn('Composite-generated: true',data['layers'][0]['body'])
         data['layers'][0]['body']='Removed provenance\nLLM-Assisted: true'
         with self.assertRaisesRegex(ValueError,'provenance'):messages.validate(data,original,'1'*64)
 
