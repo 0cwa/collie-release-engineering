@@ -125,6 +125,7 @@ class PagesApi:
         try:
             raw = self._read_response(request, timeout, interruptible=interruptible)
         except HTTPError as error:
+            error.close()
             raise PagesApiError(f"Pages API request failed with HTTP {error.code}") from None
         except InterruptedError:
             raise
@@ -153,6 +154,7 @@ class PagesApi:
         try:
             value = json.loads(self._read_response(request, 30))
         except HTTPError as error:
+            error.close()
             raise PagesApiError(f"OIDC token request failed with HTTP {error.code}") from None
         except InterruptedError:
             raise

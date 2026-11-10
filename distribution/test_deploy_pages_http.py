@@ -162,6 +162,17 @@ class PagesHttpBoundaryTest(unittest.TestCase):
                     for credential in (GITHUB_TOKEN, REQUEST_TOKEN, OIDC_TOKEN):
                         self.assertNotIn(credential, output)
 
+    def test_http_error_response_is_closed_before_discarding_it(self):
+        for route in ("oidc", "pages"):
+            with self.subTest(route=route):
+                body = io.BytesIO(b"private response")
+                def open_url(request, timeout):
+                    raise HTTPError(request.full_url, 503, "private message", Message(), body)
+                api = make_api(open_url)
+                with self.assertRaises(PagesApiError):
+                    api.get_oidc_token() if route == "oidc" else api.status("deployment-1")
+                self.assertTrue(body.closed)
+
     def test_malformed_responses_fail_without_logging_raw_data(self):
         private = " ".join((GITHUB_TOKEN, REQUEST_TOKEN, OIDC_TOKEN))
         responses = (private.encode(), b"\xff", b"", b"[]", b"null", b"true",
