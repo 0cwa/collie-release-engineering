@@ -6,13 +6,25 @@ Decided 2026-11-10. Where this conflicts with older docs here (`source/PUBLICATI
 
 - App `main` (`0cwa/collieim-android`) is the source. Change app code directly in ordinary PRs; do not re-import app changes as engineering layers.
 - Every non-merge app commit carries one `Layer: <feature>` trailer (lowercase, hyphens), e.g. `Layer: collie-branding`. The app `pr.yml` check enforces it.
-- Required app PR checks: source checks, fast lint, Collie unit tests. A debug APK build runs on every PR but is not required.
-- `main` in both repos: PRs only, required checks green, signed commits, no force pushes, no required human review. Agents merge with `gh pr merge`. (Enabled after the 8.35.1 release that ships on the old flow.)
+- Required app PR checks: fast lint and `Layer:` trailers. Unit tests and a debug APK build run on every PR but are not required.
+- `main` in both repos: PRs only, required checks green, signed commits, no force pushes, no required human review. Agents merge with `gh pr merge`.
 
 ## Upstream upgrades (Signal / Molly)
 
-- This repo generates feature layers from app `main` (Collie's changes against the Molly base, grouped by `Layer:` trailer), replays them onto the new base, and opens one app PR. Each conflict fix is its own reviewed patch.
-- The Molly/Signal reconstruction proof (`tools/patches`, `patches/molly`, `patches/ports`) stays for upgrades.
+Take every Signal tag as one ordinary signed app PR, applying only what upstream changed since the last tag:
+
+```
+OLD=v<canonicalVersionName in app/build.gradle.kts>; NEW=<new Signal tag>
+git fetch --no-tags https://github.com/signalapp/Signal-Android.git refs/tags/$OLD:refs/tags/signal-$OLD refs/tags/$NEW:refs/tags/signal-$NEW
+git diff --binary -M signal-$OLD signal-$NEW | git apply --3way --index
+```
+
+- Never `git merge` an upstream tag: its commits are unsigned and `main` requires signatures. The diff gives the same tree (checked on 8.35.2), and it bumps `canonicalVersionName`, which records the base for next time.
+- Resolve conflicts, then commit with `Layer: upgrade`, `Upstream: signalapp/Signal-Android $OLD..$NEW` and one `Co-authored-by:` per upstream author.
+- Read the tag-to-tag diff for what applies cleanly but doesn't belong, and remove it or adapt it: network calls that skip the proxy code, Google or Firebase dependencies, new strings that say "Signal", donation or payment entry points. Donation UI stays out.
+- If the diff changes the libsignal or ringrtc version in `gradle/libs.versions.toml`, the native libraries must be rebuilt (`tools/native`) and published first, or the app build fails.
+- Molly: read Molly's own commits since the last one taken (`git log <last>..<new> --no-merges --not signal-<tag Molly merged>`; the last taken is `892d6264ba0`). Cherry-pick the ones Collie wants, keeping their authors, with `Upstream: mollyim/mollyim-android <sha>`. Skip Molly's Signal merges.
+- Agents may merge upgrade PRs once checks pass and CI runs the unit tests. Until CI runs them, upgrade PRs wait for the maintainer.
 
 ## Releases
 
@@ -25,6 +37,8 @@ Process: app `docs/RELEASING.md`.
 - Release notes: `distribution/release-notes/<version>.md` here, in the maintainer's style (see existing files). App CI refuses to publish without one. In-app notices (e.g. the later move to one `collie.apk`) ship as ordinary app PRs.
 - F-Droid and Pages carry verified full releases only.
 
-## To retire once the new flow has shipped a release
+## To retire
 
-Generated publication commits on app `main` (G/I), the plan/receipt approval chain and the composer (`source/compose_security_publication.py`, `source/publish.py`, candidate plans/receipts). Keep native-input delivery (`repo.collie.im/native-inputs`) and Pages/F-Droid publishing.
+Now: generated publication commits on app `main` (G/I), the plan/receipt approval chain and the composer (`source/`, candidate plans/receipts). Keep native-input delivery (`repo.collie.im/native-inputs`) and Pages/F-Droid publishing; `pages-release.yml` stays until native files have another publishing route.
+
+After the first diff-based upgrade ships as a full release: `patches/molly`, `patches/ports`, `patches/forks` and their tools in `tools/patches`, after tagging `archive/patch-forest`.
