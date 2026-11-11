@@ -144,7 +144,7 @@ def validate_index_parity(data,v1):
 
 def public_path(rel):
     root_files={'entry.jar','entry.json','index-v2.json','index-v1.jar','index-v1.json','index.jar','index.xml','index.html','index.css','index.png'}
-    return bool(rel in root_files or re.fullmatch(r'im\.collie\.app_[1-9][0-9]*\.apk',rel) or re.fullmatch(r'diff/[0-9]+\.json',rel) or re.fullmatch(r'(icons(?:-[0-9]+)?)/[A-Za-z0-9_.-]+\.(png|jpg|webp|svg)',rel) or rel in {'status/running.json','status/update.json'})
+    return bool(rel in root_files or re.fullmatch(r'im\.collie\.app_[1-9][0-9]*\.apk',rel) or re.fullmatch(r'diff/[0-9]+\.json',rel) or re.fullmatch(r'(icons(?:-[0-9]+)?)/[A-Za-z0-9_.-]+\.(png|jpg|webp|svg)',rel) or re.fullmatch(r'im\.collie\.app/[A-Za-z-]+/(?:[A-Za-z]+Screenshots/)?[A-Za-z0-9_.=-]+\.(png|jpg)',rel) or rel in {'status/running.json','status/update.json'})
 
 def public_files(generation):
     if generation.is_symlink():raise ValueError('symlink generation')

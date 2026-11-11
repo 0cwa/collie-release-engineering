@@ -27,6 +27,14 @@ jobs:
         with:
           python-version: '3.12.14'
       - run: python -m pip install --require-hashes -r distribution/requirements.txt
+      - name: Check out the store listing from the app repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: ${{ env.APP_REPO }}
+          ref: main
+          path: app-listing
+          sparse-checkout: fastlane
+          persist-credentials: false
       - name: Inputs
         run: |
           latest=$(gh api "repos/$APP_REPO/releases/latest" -q .tag_name)
@@ -47,6 +55,6 @@ jobs:
           bt=$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)
           python distribution/feed.py --site "$RUNNER_TEMP/site" --apks "$RUNNER_TEMP/apks" \
             --native "$RUNNER_TEMP/native" --native-plan "$RUNNER_TEMP/native-artifacts.json" \
-            --latest "$LATEST" --keystore "$RUNNER_TEMP/repo.p12" --build-tools "$bt"
+            --latest "$LATEST" --fastlane app-listing/fastlane/metadata/android --keystore "$RUNNER_TEMP/repo.p12" --build-tools "$bt"
           find "$RUNNER_TEMP/site" -maxdepth 3 | sort | head -40
           grep -c 'Add repository' "$RUNNER_TEMP/site/index.html"

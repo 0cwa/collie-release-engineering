@@ -1,6 +1,7 @@
 repo_url: https://repo.collie.im/fdroid/repo
 repo_name: Collie
-repo_description: Canonical signed Collie APKs; custom binary repository.
+repo_description: "Collie's own F-Droid repository: the same signed APKs as our GitHub releases."
+repo_icon: collie-icon.png
 archive_older: 0
 make_current_version_link: false
 # Private signing configuration belongs outside the checkout and public origin.
