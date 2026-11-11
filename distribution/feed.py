@@ -5,6 +5,7 @@ Inputs (prepared by .github/workflows/feeds.yml):
   --native DIR     the native-input Maven files, at their repository paths
   --native-plan F  app build-inputs/native-artifacts.json (paths, sizes, SHA-256)
   --latest TAG     newest full release; the landing page links its collie.apk
+  --fastlane DIR   app fastlane/metadata/android: store listing, graphics and changelogs
   --keystore F     F-Droid repository keystore (PKCS12); password in $FDROID_KEYSTORE_PASS
 Output: --site DIR, ready for upload-pages-artifact.
 """
@@ -56,13 +57,31 @@ def apk_identity(apk, build_tools):
     return int(m.group(2))
 
 
-def build_fdroid(apks, keystore, build_tools, work, site):
+def stage_fastlane(fastlane, work):
+    # fdroid update reads build/<app>/fastlane and fills the listing, app icon and changelog.
+    # The same icon is the repository's own icon, which fdroid would otherwise generate.
+    source = Path(fastlane)
+    if any(p.is_symlink() for p in source.rglob('*')):
+        raise SystemExit('symlink in Fastlane metadata')
+    shutil.copytree(source, work / 'build' / binary_repo.APP / 'fastlane/metadata/android')
+    shutil.copyfile(source / 'en-US/images/icon.png', work / 'collie-icon.png')
+
+
+def build_fdroid(apks, fastlane, keystore, build_tools, work, site):
     work.mkdir(parents=True)
     shutil.copytree(HERE / 'metadata', work / 'metadata')
+    stage_fastlane(fastlane, work)
     (work / 'repo').mkdir()
+    builds = []
     for apk in sorted(Path(apks).glob('*.apk')):
         code = apk_identity(apk, build_tools)
         shutil.copyfile(apk, work / 'repo' / f'{binary_repo.APP}_{code}.apk')
+        builds.append((code, apk.stem))
+    # index-v2 only carries a changelog for versions that have a Builds entry. Nothing is built.
+    with open(work / 'metadata' / f'{binary_repo.APP}.yml', 'a') as metadata:
+        metadata.write('Builds:\n')
+        for code, tag in sorted(builds):
+            metadata.write(f"  - versionName: '{tag.removeprefix('v')}'\n    versionCode: {code}\n    commit: {tag}\n")
     config = (HERE / 'config.public.yml').read_text()
     config += (f'\nkeystore: {Path(keystore).resolve()}\nrepo_keyalias: collie-repo\n'
                'keystorepass: {env: FDROID_KEYSTORE_PASS}\nkeypass: {env: FDROID_KEYSTORE_PASS}\n'
@@ -83,7 +102,7 @@ def keystore_fingerprint(keystore):
 
 def main():
     p = argparse.ArgumentParser()
-    for name in ('site', 'apks', 'native', 'native-plan', 'latest', 'keystore', 'build-tools'):
+    for name in ('site', 'apks', 'native', 'native-plan', 'latest', 'fastlane', 'keystore', 'build-tools'):
         p.add_argument('--' + name, required=True)
     a = p.parse_args()
     site, work = Path(a.site), Path(a.site).parent / 'fdroid-work'
@@ -94,7 +113,7 @@ def main():
     build_tools = Path(a.build_tools)
     site.mkdir(parents=True)
     native_count = copy_native(a.native, a.native_plan, site)
-    build_fdroid(a.apks, a.keystore, build_tools, work, site)
+    build_fdroid(a.apks, a.fastlane, a.keystore, build_tools, work, site)
     fingerprint = keystore_fingerprint(a.keystore)
     site_page.render(site, REPO_URL, fingerprint, binary_repo.APK_CERTIFICATE,
                      f'{APP_RELEASES}{a.latest}/collie.apk', state='active')

@@ -2,16 +2,12 @@ Categories:
   - Internet
 License: AGPL-3.0-only
 Name: Collie
-Summary: Private messaging with optional notification services
-Description: |-
-  Collie provides private messaging. This repository distributes the canonical
-  upstream-signed Collie APK, including optional FCM support, without rebuilding
-  or re-signing it. This is a custom repository, separate from the official
-  F-Droid catalogue. Native inputs have not been independently reproduced.
-WebSite: https://collie.im
+AuthorName: Collie
+WebSite: https://repo.collie.im/
 SourceCode: https://github.com/0cwa/collieim-android
 IssueTracker: https://github.com/0cwa/collieim-android/issues
-Donate: https://liberapay.com/Collie/
+Changelog: https://github.com/0cwa/collieim-android/releases
+Liberapay: Collie
 AllowedAPKSigningKeys:
   - 'f8cc0c0c052e5635c26fcd293c2b0af3e87d61ff7f2df3602a9af6e91f73c826'
 AutoUpdateMode: None
