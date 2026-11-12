@@ -94,20 +94,6 @@ class TemurinToolchainLayerTests(unittest.TestCase):
         self.assertNotIn('openjdk-21.0.2', additions)
         self.assertIn('Its JDK is Eclipse Temurin', additions)
 
-    def test_composer_layer_is_application_base_bound_and_native_gate_independent(self):
-        source = (ROOT / 'source/compose_security_publication.py').read_text()
-        security_record = source.index("record('feature', security_manifest['name']")
-        jdk_record = source.index('apply_toolchain_layer(\n        repo, stage, tree, current_main)')
-        final_plan = source.index("plan['old_main'] = current_main")
-        self.assertLess(security_record, jdk_record)
-        self.assertLess(jdk_record, final_plan)
-        self.assertIn("manifest.get('application_base_commit') != application_base", source)
-        helper_start = source.index('def apply_toolchain_layer(')
-        helper_end = source.index('def verify_ordinary_pr_policy(', helper_start)
-        helper = source[helper_start:helper_end]
-        self.assertNotIn('native_acceptance', helper)
-        self.assertNotIn('transition_native_state', helper)
-
     def test_metadata_is_official_and_does_not_claim_image_execution(self):
         manifest = json.loads(MANIFEST.read_text())
         self.assertTrue(any('Docker Hub API tag metadata' in item for item in manifest['provenance']))

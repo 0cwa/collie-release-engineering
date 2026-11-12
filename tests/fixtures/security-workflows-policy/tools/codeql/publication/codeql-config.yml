@@ -1,0 +1,6 @@
+name: Collie security analysis
+
+# Includes the default security queries. Additional findings need review; do not
+# hide them with directory exclusions or blanket query/severity filters.
+queries:
+  - uses: security-extended

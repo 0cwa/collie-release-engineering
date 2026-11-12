@@ -52,12 +52,12 @@ native.init.gradle, operator paths/config or private workspace. Index signing
 and APK signing are unrelated. A provider with an existing object must compare
 hashes and refuse a different body. Keep the plan digest and provider readback.
 
-The reviewed native source layer is now implemented in
-source/layers/native_repository.py and native-repository.patch; source candidate
-G3 contains the exact exclusive repository, six ordinary project substitutions,
-strict stage XML and typed catalog pins. mavenLocal/external native includeBuild
-and temporary native init/verification injection are absent from this direct
-source path. See NATIVE-SOURCE-LAYER.md for code and executed resolver checks.
+The source-layer candidate and its resolver exercise belonged to the retired
+G/I workflow. Current native-input staging and review use the `tools/native`
+commands above; current upgrade and release guidance is in
+[the development cycle](../docs/DEVELOPMENT-CYCLE.md). For historical
+verification of the source-layer materializer, use commit
+`d7ae1aa651009ea2dec8db76ac8f6d079e9efa62`, the last commit containing it.
 
 After approval and actual publication, independently download every plan URL and
 hash all six bodies, approve final immutable recipe/dependency pins and a separate

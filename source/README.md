@@ -1,22 +1,5 @@
-# Construction adapter
+# Historical generated-source publication
 
-```sh
-python3 source/reconstruct.py --workspace REPLAY_WORKSPACE
-```
+The G/I generated-source workflow is retired. Current development, upstream upgrades, and releases follow [the development cycle](../docs/DEVELOPMENT-CYCLE.md).
 
-Replace `REPLAY_WORKSPACE` with an empty workspace path. The adapter creates a
-Git object store, fetches the exact Signal and Molly prerequisites from their
-official origins, imports hash-checked historical checkpoint bundles, then
-runs the original complete-tree assembler. The default product is `collie`.
-`--historical-profile` exists solely for old-release verification.
-
-No signing or production credentials are needed. This is source construction,
-not the future direct-source build command. No private object stores, Git
-alternates or branches posing as immutable historical inputs are required by
-the adapter. Upstream Git signatures are not claimed.
-
-The exported original tools remain at their original paths with their module
-boundaries intact. Some historical tests deliberately require the original
-application history/workflows; run those in the immutable original application
-checkout named by `EXTRACTION.json`. Extraction does not authorize the old
-hosted release workflows in this new repository.
+This directory retains historical plans, receipts, layer records, and acceptance evidence. For historical verification of the retired composer and its tools, use engineering commit `d7ae1aa651009ea2dec8db76ac8f6d079e9efa62`, the last commit containing them. Those records do not authorize a current publication.
