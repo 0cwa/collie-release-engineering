@@ -1,5 +1,4 @@
 import hashlib
-import importlib.util
 import json
 from pathlib import Path
 import re
@@ -10,7 +9,8 @@ import unittest
 ROOT = Path(__file__).parents[1]
 MANIFEST_PATH = ROOT / 'source/layers/security-workflows.json'
 PATCH_PATH = ROOT / 'source/layers/security-workflows.patch'
-PUBLICATION_PATH = ROOT / 'source/layers/publication.py'
+PUBLICATION_PATCH_PATH = ROOT / 'source/layers/publication.patch'
+POLICY_FIXTURE_ROOT = ROOT / 'tests/fixtures/security-workflows-policy'
 EXPECTED_PATHS = {
     '.github/workflows/codeql.yml',
     '.github/workflows/update-screenshots.yml',
@@ -19,13 +19,6 @@ EXPECTED_PATHS = {
     '.github/codeql/reviewed-findings.json',
 }
 POLICY_REVISION = '7f9e63d6d55861c0c4e7757ba7eb07d6484289a6'
-
-
-def load_publication():
-    spec = importlib.util.spec_from_file_location('publication_workflow_fixture', PUBLICATION_PATH)
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
 
 
 class SecurityWorkflowFeatureLayerTests(unittest.TestCase):
@@ -74,20 +67,24 @@ class SecurityWorkflowFeatureLayerTests(unittest.TestCase):
         self.assertNotIn('source_g', self.manifest)
         self.assertNotIn('source_commit', self.manifest)
 
-    def test_publication_replacement_then_layer_replays_exact_fixture_tree(self):
+    def test_frozen_publication_output_then_layer_replays_exact_fixture_tree(self):
+        publication_patch = PUBLICATION_PATCH_PATH.read_text()
+        escaped = re.escape('.github/workflows/source.yml')
+        section = re.search(rf'(?ms)^diff --git a/{escaped} b/{escaped}\n(.*?)(?=^diff --git |\Z)', publication_patch)
+        self.assertIsNotNone(section, 'frozen publication patch lacks its source workflow output')
+        self.assertIn('new file mode 100644', section.group(1))
+        source_bytes = ('\n'.join(line[1:] for line in section.group(1).splitlines()
+                                   if line.startswith('+') and not line.startswith('+++')) + '\n').encode()
+        self.assertEqual(hashlib.sha256(source_bytes).hexdigest(),
+                         self.manifest['ordering']['publication_output_sha256'])
+        self.assertIn(b'pull_request', source_bytes)
+        self.assertNotIn(b'publication_plan_sha256', source_bytes)
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             workflows = root / '.github/workflows'
             workflows.mkdir(parents=True)
-            legacy = workflows / 'update-screenshots.yml'
-            legacy.write_text('name: Legacy screenshot updater\npermissions:\n  contents: write\n')
-            publication = load_publication()
-            publication.replace_application_workflows(root)
             source_workflow = root / '.github/workflows/source.yml'
-            self.assertTrue(source_workflow.is_file())
-            self.assertEqual(hashlib.sha256(source_workflow.read_bytes()).hexdigest(),
-                             self.manifest['ordering']['publication_output_sha256'])
-            self.assertFalse(legacy.exists())
+            source_workflow.write_bytes(source_bytes)
 
             subprocess.run(['git', 'init', '-q', str(root)], check=True)
             subprocess.run(['git', '-C', str(root), 'add', '-A'], check=True)
@@ -106,6 +103,18 @@ class SecurityWorkflowFeatureLayerTests(unittest.TestCase):
             })
             for path in EXPECTED_PATHS:
                 self.assertEqual(hashlib.sha256((root / path).read_bytes()).hexdigest(), self.manifest['files'][path])
+
+    def test_frozen_renderer_and_template_blob_pins_match_checked_in_fixtures(self):
+        policy = self.manifest['policy']
+        pinned_paths = [policy['renderer'], *policy['template_paths']]
+        for path in pinned_paths:
+            with self.subTest(path=path):
+                raw = (POLICY_FIXTURE_ROOT / path).read_bytes()
+                blob = hashlib.sha1(b'blob ' + str(len(raw)).encode() + b'\0' + raw).hexdigest()
+                expected_blob = policy['renderer_blob'] if path == policy['renderer'] else policy['template_blobs'][path]
+                expected_sha = policy['renderer_sha256'] if path == policy['renderer'] else policy['template_sha256'][path]
+                self.assertEqual(blob, expected_blob)
+                self.assertEqual(hashlib.sha256(raw).hexdigest(), expected_sha)
 
     def test_layer_is_additive_and_policy_preserves_security_and_screenshot_guards(self):
         self.assertEqual(hashlib.sha256(self.patch).hexdigest(), self.manifest['patch_sha256'])

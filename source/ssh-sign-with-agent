@@ -1,5 +1,0 @@
-#!/bin/sh
-# Git's SSH signer normally asks ssh-keygen to load a private-key file. This
-# wrapper selects the explicitly configured public key and delegates signing to
-# the operator's already-running SSH agent instead.
-exec ssh-keygen -U "$@"
