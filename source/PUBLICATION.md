@@ -1,5 +1,7 @@
 # Source publication and contributor round trip
 
+> **Historical workflow.** The current source and release process is [the development cycle](../docs/DEVELOPMENT-CYCLE.md): app `main` is the source and application changes go through ordinary signed app PRs. This page describes the former generated G/I publication commits and plan/receipt composer; retain it for historical replay, not new publication work.
+
 The application is intended to contain the code Gradle compiles. Engineering
 construction is a maintainer operation before compilation. Publication is
 currently a draft until public native inputs and direct build acceptance pass.
