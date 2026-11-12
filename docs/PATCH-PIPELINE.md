@@ -1,5 +1,7 @@
 # Molly releases as patches on a Signal base
 
+> **Historical workflow.** The current process is [the development cycle](DEVELOPMENT-CYCLE.md): app `main` is the source, Signal upgrades use tag-to-tag diffs in signed app PRs, and selected Molly commits are cherry-picked with provenance. Use this guide only to inspect or reproduce existing patch-built releases; do not use it for new application work or Signal upgrades.
+
 The tracked application source on these branches is the exact Signal release.
 The build reconstructs Molly in a separate worktree. Review the pipeline,
 the original Molly snapshot, and any compatibility changes as separate commits.
