@@ -80,9 +80,73 @@ WebRTC setup removes inherited Python module paths and depot_tools bypass overri
 
 The libsignal helper accepts `--fresh` for an offline diagnostic that requires its named Cargo, Gradle and generated JNI outputs to be absent, fixes the Rust compiler and target directory, disables Gradle build and configuration caches, and reruns tasks. The helper never deletes existing outputs. Its local failure record binds output hashes to selected inputs and commands, but cannot authorize staging or release; host compiler/runtime, Cargo cache and other unchecked inputs remain part of the builder trust assumption.
 
+## Fresh native diagnostics and exact archive comparison
+
+The RingRTC helper also accepts `--fresh`. Use a newly prepared RingRTC source
+tree and newly set up WebRTC workspace. The guard rejects existing WebRTC `out`
+and Ninja state, RingRTC Gradle/Cargo/build outputs, and local Siso option files.
+It does not delete existing files to make a contaminated workspace pass. Fresh
+mode runs Siso with `--offline` to disable remote execution, disables Cargo
+incremental compilation, and passes `--offline --no-daemon --no-build-cache
+--no-configuration-cache --rerun-tasks` to the verified Gradle distribution.
+Both native helpers reject inherited compiler, build-output, remote-cache and
+Python injection overrides, and external or untracked Cargo configuration,
+including nested `.cargo` directories. Custom Cargo/Gradle cache homes must be
+absolute paths so the parent check and child process refer to the same location.
+Fresh mode also rejects Maven local artifacts and user Maven settings or
+environment redirects; native upstream builds contain `mavenLocal()` lookups.
+
+Source verification hashes tracked working files directly, including executable
+bits and symlink targets. It rejects `assume-unchanged` and `skip-worktree` flags,
+local Git filters and attributes, and unexpected populated Gitlinks. This applies
+to the active WebRTC compile checkout as well as the prepared sources and tracked
+depot_tools files, so cached Git status cannot hide changed compilation inputs.
+
+These checks do not bootstrap or authenticate the remaining dependency closure.
+Fresh compilation still needs populated, reviewed dependency caches, pinned
+toolchains and sufficient disk/memory. An empty offline Cargo/Gradle cache is a
+blocked build, not a reason to reuse previous compiler outputs or disable the
+checks. The diagnostic receipts retain `release_allowed: false`; a fresh output
+check is not an independent source-to-binary attestation.
+
+Compare all three supplied build outputs against the published binary pins:
+
+```sh
+python3 tools/native/compare_reproduction.py \
+  --lock tools/native/native-lock.json \
+  --reference-dir "$PUBLISHED_NATIVE_FILES" \
+  --libsignal-android "$LIBSIGNAL_AAR" \
+  --libsignal-client "$LIBSIGNAL_JAR" \
+  --ringrtc-android "$RINGRTC_AAR" \
+  --report "$NEW_COMPARISON_JSON"
+```
+
+`PUBLISHED_NATIVE_FILES` is a flat directory containing the three distributed
+filenames, for example `libsignal-android-0.106.1-collie.1.aar`. Each reference
+must match its checked-in `binary_sha256`. The other three arguments point to
+the actual diagnostic build outputs; the comparison rejects symlinks and using
+the same file or hard link as both reference and output. It hashes every ZIP
+entry, including testing JNI, and checks the required libraries for all four
+ABIs with ELF class, byte-order, type and machine sanity checks. It never
+extracts, normalizes, replaces or updates either input or the native lock.
+
+The JSON result is `EXACT_BYTES_MATCH` (exit 0), `ARTIFACT_MISMATCH` (exit 1), or
+`BLOCKED_INPUT` (exit 1). A timestamp, compression or other container difference
+may be diagnosed as `ZIP_METADATA_ONLY`; it remains a mismatch. Changed payloads
+are listed with reference/output hashes to support investigation. An existing
+report is never overwritten (exit 2); preserve each attempt's report and honor
+the command's exit status. Missing or invalid inputs produce a blocked report.
+
+Even an exact match only compares the supplied files. It cannot distinguish an
+independent build from a copied published binary. Every report therefore says
+`independence_verified: false` and `release_allowed: false`. Reviewed build logs,
+authenticated dependency inputs, fresh build receipts and real proxy/call
+runtime evidence remain necessary. The operational sequence and remaining
+bootstrap work are in [the native verification runbook](../../docs/NATIVE-VERIFICATION.md).
+
 ## Local diagnostic candidate provenance
 
-The diagnostic candidate changes the original native lock SHA-256 `9866196dec36f096d2757bbf9e9d774c7147548542dd2a041e6438f79dbd73e4` to `557e20c3f8c1d6290af3007bb8eba5469e5a77f569b8eba5469e5a77f569b8efc7dc2edc1e68ba7856`. Its libsignal Android AAR, libsignal client JAR and RingRTC AAR hashes are respectively `4247031a753f73f12753d04f14d9316436bbf07af2097c1b897feedd360dbd9a`, `c361b8e905c770b838535fdac5a0bdf0f995f8ed6ce0a6837cb4c7360e8c5a79` and `51f1f9b1f2335ba1b6557b5f0810227ac66a54ec8cbf0f2c789091b0ab5d245b`.
+The diagnostic candidate changes the original native lock SHA-256 `9866196dec36f096d2757bbf9e9d774c7147548542dd2a041e6438f79dbd73e4` to `557e20c3f8c1d6290af3007bb8eba5469e5a77f569b8efc7dc2edc1e68ba7856`. Its libsignal Android AAR, libsignal client JAR and RingRTC AAR hashes are respectively `4247031a753f73f12753d04f14d9316436bbf07af2097c1b897feedd360dbd9a`, `c361b8e905c770b838535fdac5a0bdf0f995f8ed6ce0a6837cb4c7360e8c5a79` and `51f1f9b1f2335ba1b6557b5f0810227ac66a54ec8cbf0f2c789091b0ab5d245b`.
 
 Each source diagnostic checked the prepared source trees against patch replay: libsignal `de930179286b4fe68875475c1b0678615e180908`, RingRTC `e993dcb5807367a5aab4c9620fdb1f039ae0a013` and WebRTC `46c89976e694cb5c3ea74e2632df7600ab693918`. The libsignal build required the specified output directories to be absent, used offline dependency caches and executed all 35 Gradle tasks; four proxy-mode host tests passed. The RingRTC build reused existing WebRTC and compiler outputs. Neither is an independent reproducibility proof. Both original comparisons to the prior lock failed and their failure records remain part of the diagnostic evidence.
 

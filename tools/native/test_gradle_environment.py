@@ -23,6 +23,10 @@ class GradleEnvironmentTest(unittest.TestCase):
         (self.home / 'wrapper').mkdir()
         native_driver.audit_gradle_environment(self.env)
 
+    def test_relative_home_cannot_hide_child_process_init_scripts(self):
+        with self.assertRaisesRegex(ValueError, 'absolute GRADLE_USER_HOME'):
+            native_driver.audit_gradle_environment({'GRADLE_USER_HOME': 'relative-home'})
+
     def test_inherited_jvm_injection_variables_are_rejected(self):
         for key in ('GRADLE_OPTS', 'JAVA_OPTS', 'JAVA_TOOL_OPTIONS', '_JAVA_OPTIONS', 'JDK_JAVA_OPTIONS', 'GRADLE_HOME'):
             with self.subTest(key=key):

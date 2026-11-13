@@ -1,0 +1,141 @@
+{
+  "schema": 1,
+  "observed_date_utc": "2026-11-13",
+  "scope": "Published bytes, archive coverage and ELF ABI identity only; independent native source build NOT RUN",
+  "independence_verified": false,
+  "release_allowed": false,
+  "app_commit": "75192c5b92c50af23b0c5f8fd92891c4a8e5398e",
+  "app_recipe_revision": "36779887ffc0bb1ecff55a87c350740662570039",
+  "engineering_base_commit": "b6ec5ca32e97136ba83488a1b7b86f7559d5a4e2",
+  "lock_sha256": "557e20c3f8c1d6290af3007bb8eba5469e5a77f569b8efc7dc2edc1e68ba7856",
+  "files": [
+    {
+      "path": "im/collie/native/libsignal-android/0.106.1-collie.1/libsignal-android-0.106.1-collie.1.aar",
+      "url": "https://repo.collie.im/native-inputs/v1/maven/im/collie/native/libsignal-android/0.106.1-collie.1/libsignal-android-0.106.1-collie.1.aar",
+      "sha256": "4247031a753f73f12753d04f14d9316436bbf07af2097c1b897feedd360dbd9a",
+      "bytes": 215587114,
+      "status": "MATCH"
+    },
+    {
+      "path": "im/collie/native/libsignal-android/0.106.1-collie.1/libsignal-android-0.106.1-collie.1.pom",
+      "url": "https://repo.collie.im/native-inputs/v1/maven/im/collie/native/libsignal-android/0.106.1-collie.1/libsignal-android-0.106.1-collie.1.pom",
+      "sha256": "94432b6fefcb0eeaae4622dc3d381b4ed1ae7c2a453967db6f416a636c25ad87",
+      "bytes": 1718,
+      "status": "MATCH"
+    },
+    {
+      "path": "im/collie/native/libsignal-client/0.106.1-collie.1/libsignal-client-0.106.1-collie.1.jar",
+      "url": "https://repo.collie.im/native-inputs/v1/maven/im/collie/native/libsignal-client/0.106.1-collie.1/libsignal-client-0.106.1-collie.1.jar",
+      "sha256": "c361b8e905c770b838535fdac5a0bdf0f995f8ed6ce0a6837cb4c7360e8c5a79",
+      "bytes": 1003356,
+      "status": "MATCH"
+    },
+    {
+      "path": "im/collie/native/libsignal-client/0.106.1-collie.1/libsignal-client-0.106.1-collie.1.pom",
+      "url": "https://repo.collie.im/native-inputs/v1/maven/im/collie/native/libsignal-client/0.106.1-collie.1/libsignal-client-0.106.1-collie.1.pom",
+      "sha256": "cb706c8229ba35967c285a4f28e0049769e904b9cc9fbbb6c97d37596690cd23",
+      "bytes": 1693,
+      "status": "MATCH"
+    },
+    {
+      "path": "im/collie/native/ringrtc-android/2.74.0-collie.1/ringrtc-android-2.74.0-collie.1.aar",
+      "url": "https://repo.collie.im/native-inputs/v1/maven/im/collie/native/ringrtc-android/2.74.0-collie.1/ringrtc-android-2.74.0-collie.1.aar",
+      "sha256": "51f1f9b1f2335ba1b6557b5f0810227ac66a54ec8cbf0f2c789091b0ab5d245b",
+      "bytes": 94240994,
+      "status": "MATCH"
+    },
+    {
+      "path": "im/collie/native/ringrtc-android/2.74.0-collie.1/ringrtc-android-2.74.0-collie.1.pom",
+      "url": "https://repo.collie.im/native-inputs/v1/maven/im/collie/native/ringrtc-android/2.74.0-collie.1/ringrtc-android-2.74.0-collie.1.pom",
+      "sha256": "ab10045f321d1023e3c810625a209c0c8e007db7622fa4a0fdfcf1156e115b8b",
+      "bytes": 1572,
+      "status": "MATCH"
+    }
+  ],
+  "archive_audit": [
+    {
+      "module": "libsignal-android",
+      "archive_sha256": "4247031a753f73f12753d04f14d9316436bbf07af2097c1b897feedd360dbd9a",
+      "payload_entries": 14,
+      "native_libraries": {
+        "jni/arm64-v8a/libsignal_jni.so": {
+          "sha256": "b0c2b7ffc9cfd8b72c0a1ed75fc1d4e24857321f051fd85dc05924415d8a7a20",
+          "bytes": 123925872
+        },
+        "jni/arm64-v8a/libsignal_jni_testing.so": {
+          "sha256": "cc4e64e40ea589120c4e959f30dc3030470c3babddfabf173f4ca91f1e09acff",
+          "bytes": 150730376
+        },
+        "jni/armeabi-v7a/libsignal_jni.so": {
+          "sha256": "f1e09abc05cf41a9ef320dd09378a1290ebe66aeecc0685cef2d312e61e133e4",
+          "bytes": 112925536
+        },
+        "jni/armeabi-v7a/libsignal_jni_testing.so": {
+          "sha256": "c4b8cc9d8659961e192b24feaac668498b435c9aefcfd630d65ab02055222760",
+          "bytes": 137920476
+        },
+        "jni/x86/libsignal_jni.so": {
+          "sha256": "bc5c22647fdd537dec6282616353d38426ac1928538f94f2364dd9833db59779",
+          "bytes": 115128388
+        },
+        "jni/x86/libsignal_jni_testing.so": {
+          "sha256": "d84f6d187d8b84cafa87b7df89382da273226d75a1ff2ffcc11124a4cbbcab6a",
+          "bytes": 140493752
+        },
+        "jni/x86_64/libsignal_jni.so": {
+          "sha256": "9c033e2551ab9b63c06f7fc819d4b832bd54146f709aab668b09bc1428645f84",
+          "bytes": 123638768
+        },
+        "jni/x86_64/libsignal_jni_testing.so": {
+          "sha256": "b685222fce735cd1d2158afb6921db3bcfff89686403bf90056a0312f4463c3f",
+          "bytes": 150522216
+        }
+      }
+    },
+    {
+      "module": "libsignal-client",
+      "archive_sha256": "c361b8e905c770b838535fdac5a0bdf0f995f8ed6ce0a6837cb4c7360e8c5a79",
+      "payload_entries": 723,
+      "native_libraries": {}
+    },
+    {
+      "module": "ringrtc-android",
+      "archive_sha256": "51f1f9b1f2335ba1b6557b5f0810227ac66a54ec8cbf0f2c789091b0ab5d245b",
+      "payload_entries": 15,
+      "native_libraries": {
+        "jni/arm64-v8a/libringrtc.so": {
+          "sha256": "c6995145cc93aa4a89d1fd7932b7cfd32aefe630311265e521064ed54c37210c",
+          "bytes": 4580560
+        },
+        "jni/arm64-v8a/libringrtc_rffi.so": {
+          "sha256": "4cf76c4b63e91c2dc3e637048ec7da1ee84e583352a169ce1498be03fdb83b0f",
+          "bytes": 30755568
+        },
+        "jni/armeabi-v7a/libringrtc.so": {
+          "sha256": "782e58e896fe6dd96a362ab7be4df877c13ad89a50491c02a5ed3bc57ae72f75",
+          "bytes": 3346348
+        },
+        "jni/armeabi-v7a/libringrtc_rffi.so": {
+          "sha256": "a263f536298e11aaa4ff8aaa82de0b3d27e384e86616ed2d489de94679a0dab3",
+          "bytes": 30162972
+        },
+        "jni/x86/libringrtc.so": {
+          "sha256": "ee5da3b0b66976cb1ce384c8859d89ae42baeae84a575f0de417a4f28fa47e80",
+          "bytes": 4836608
+        },
+        "jni/x86/libringrtc_rffi.so": {
+          "sha256": "afec7ace12fb7ba75d7d3ad9a98c2a362b7621ced7b90c2a60a0f24546414cf5",
+          "bytes": 32274300
+        },
+        "jni/x86_64/libringrtc.so": {
+          "sha256": "be34d889183670b355f8b1734bcea44a5ce968572f69965717274d27dddcc86f",
+          "bytes": 4630480
+        },
+        "jni/x86_64/libringrtc_rffi.so": {
+          "sha256": "cd2e0af6453c834e89ff5cd1cff099cf4e3a5ee738eed3783f3aae9419f7aec7",
+          "bytes": 31468952
+        }
+      }
+    }
+  ]
+}

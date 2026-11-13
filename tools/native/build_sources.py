@@ -100,12 +100,12 @@ def diagnostic_build(lock_path, source_root, sdk_root, java_home, rust_bin, repo
     require(stage_artifacts.digest(lock_path) == lock_sha, 'Native lock changed during preflight')
     libsignal = source_root / 'libsignal'
     if fresh:
-        require(not env.get('CARGO_TARGET_DIR') and not env.get('CARGO_BUILD_TARGET_DIR'), 'Fresh diagnostic requires the default Cargo target directory')
+        native_driver.audit_fresh_environment(libsignal, env)
         for relative in ('target', 'java/.gradle', 'java/build', 'java/android/build', 'java/client/build', 'java/server/build', 'java/android/src/main/jniLibs', 'java/android/src/main/assets'):
             require(not os.path.lexists(libsignal / relative), 'Fresh diagnostic output already exists: ' + relative)
-        require(not env.get('RUSTC_WRAPPER') and not env.get('RUSTC_WORKSPACE_WRAPPER'), 'Fresh diagnostic does not permit inherited Rust compiler wrappers')
         env.update(CARGO_NET_OFFLINE='true', CARGO_INCREMENTAL='0', CARGO_TARGET_DIR=str((libsignal / 'target').resolve()),
-                   RUSTC=str((rust_bin / 'rustc').resolve()), RUSTC_WRAPPER='', RUSTC_WORKSPACE_WRAPPER='')
+                   RUSTC=str((rust_bin / 'rustc').resolve()), RUSTC_WRAPPER='', RUSTC_WORKSPACE_WRAPPER='',
+                   CCACHE_DISABLE='1', SCCACHE_DISABLE='1', PYTHONNOUSERSITE='1')
     cargo_args = [cargo, 'test', '--locked', '-p', 'libsignal-net', 'configured_proxy_never_falls_back_to_direct']
     result = runner(cargo_args, libsignal, env)
     require(any(re.search(r'test result: ok[.]\s+4 passed;', line) for line in result), 'Expected four proxy-mode tests did not pass')

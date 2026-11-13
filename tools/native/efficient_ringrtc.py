@@ -5,8 +5,8 @@ import sys
 
 def adapt(text):
     changes = [
-        ("        './gradlew',\n        '-PringrtcVersion={}", "        os.environ['COLLIE_VERIFIED_GRADLE'],\n        '--project-dir', gradle_dir,\n        '-PringrtcVersion={}"),
-        ("ninja_args = ['third_party/siso/cipd/siso', 'ninja', '-C', webrtc_output_dir] + NINJA_TARGETS", "ninja_args = ['third_party/siso/cipd/siso', 'ninja', '-local_jobs', '12', '-C', webrtc_output_dir] + NINJA_TARGETS"),
+        ("        './gradlew',\n        '-PringrtcVersion={}", "        os.environ['COLLIE_VERIFIED_GRADLE'],\n        '--project-dir', gradle_dir,\n        *(['--offline', '--no-daemon', '--no-build-cache', '--no-configuration-cache', '--rerun-tasks'] if os.environ.get('COLLIE_NATIVE_FRESH') == '1' else []),\n        '-PringrtcVersion={}"),
+        ("ninja_args = ['third_party/siso/cipd/siso', 'ninja', '-C', webrtc_output_dir] + NINJA_TARGETS", "ninja_args = ['third_party/siso/cipd/siso', 'ninja', '-local_jobs', '12', *(['--offline'] if os.environ.get('COLLIE_NATIVE_FRESH') == '1' else []), '-C', webrtc_output_dir] + NINJA_TARGETS"),
         ('shutil.copytree(webrtc_output_dir, output_dir, dirs_exist_ok=True, ignore_dangling_symlinks=True)', 'os.makedirs(os.path.join(output_dir, "lib.unstripped"), exist_ok=True)\n        for lib in WEBRTC_SO_LIBS:\n            shutil.copyfile(os.path.join(webrtc_output_dir, "lib.unstripped", lib), os.path.join(output_dir, "lib.unstripped", lib))'),
         ('d = os.path.basename(jar)\n            os.makedirs(d, exist_ok=True)', 'os.makedirs(os.path.dirname(os.path.join(output_dir, jar)), exist_ok=True)'),
         ('[GetArchBuildDir(build_dir, arch, debug) for arch in ARCHS]', "[GetArchBuildDir(os.path.join(webrtc_src_dir, 'out'), arch, debug) for arch in ARCHS]"),

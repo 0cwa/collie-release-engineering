@@ -49,3 +49,23 @@ d = os.path.basename(jar)
             lines = log.read_text().splitlines()
             self.assertEqual(str(project), lines[0])
             self.assertEqual(['--project-dir', str(project), '-PringrtcVersion=2.74.0'], lines[1:])
+
+    def test_fresh_build_disables_gradle_caches_and_remote_siso(self):
+        source = """        './gradlew',
+        '-PringrtcVersion={}'.format(version),
+ninja_args = ['third_party/siso/cipd/siso', 'ninja', '-C', webrtc_output_dir] + NINJA_TARGETS
+shutil.copytree(webrtc_output_dir, output_dir, dirs_exist_ok=True, ignore_dangling_symlinks=True)
+d = os.path.basename(jar)
+            os.makedirs(d, exist_ok=True)
+[GetArchBuildDir(build_dir, arch, debug) for arch in ARCHS]
+"""
+        adapted = efficient_ringrtc.adapt(source)
+        gradle = adapted.split('ninja_args', 1)[0]
+        ninja = next(line for line in adapted.splitlines() if line.startswith('ninja_args'))
+        with patch.dict(os.environ, {'COLLIE_NATIVE_FRESH': '1', 'COLLIE_VERIFIED_GRADLE': '/verified/gradle'}):
+            values = {'os': os, 'gradle_dir': '/project', 'version': '2.74.0',
+                      'webrtc_output_dir': '/webrtc/out', 'NINJA_TARGETS': ['ringrtc']}
+            exec('cmd = [\n' + gradle + ']\n' + ninja, values)
+        for flag in ('--offline', '--no-daemon', '--no-build-cache', '--no-configuration-cache', '--rerun-tasks'):
+            self.assertIn(flag, values['cmd'])
+        self.assertIn('--offline', values['ninja_args'])
