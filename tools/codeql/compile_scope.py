@@ -14,13 +14,15 @@ def check(root, inputs, extracted):
     except subprocess.CalledProcessError as error:
         raise ValueError('could not list tracked source files') from error
     expected = {'java': set(), 'kotlin': set()}
-    tasks = {'java': [], 'kotlin': []}
+    tasks = {'java': {}, 'kotlin': {}}
     for line in inputs.read_text().splitlines():
         record = json.loads(line)
         language = record['language']
         if language not in expected or not isinstance(record['task'], str) or not isinstance(record['files'], list):
             raise ValueError('invalid compiler input record')
-        tasks[language].append(record['task'])
+        if record['task'] in tasks[language]:
+            raise ValueError('duplicate compiler task record')
+        task_files = set()
         suffix = '.java' if language == 'java' else '.kt'
         for name in record['files']:
             path = Path(name)
@@ -32,6 +34,8 @@ def check(root, inputs, extracted):
                 continue
             if relative in tracked:
                 expected[language].add(relative)
+                task_files.add(relative)
+        tasks[language][record['task']] = task_files
     with extracted.open(newline='', encoding='utf-8') as handle:
         rows = list(csv.reader(handle))
     if any(len(row) != 1 for row in rows):
@@ -40,7 +44,9 @@ def check(root, inputs, extracted):
     result = {}
     for language, files in expected.items():
         matched = files & actual
-        result[language] = {'tasks': sorted(set(tasks[language])), 'expected': sorted(files),
+        task_results = {name: {'expected': sorted(paths), 'missing': sorted(paths - actual)}
+                        for name, paths in sorted(tasks[language].items())}
+        result[language] = {'tasks': task_results, 'expected': sorted(files),
                             'extracted': sorted(matched), 'missing': sorted(files - actual)}
     result['passed'] = all(expected[lang] and not result[lang]['missing'] for lang in expected)
     return result

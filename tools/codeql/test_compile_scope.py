@@ -32,6 +32,9 @@ class ScopeTests(unittest.TestCase):
             inputs.write_text(''.join(json.dumps(record) + '\n' for record in records))
             extracted.write_text('A.java\nB.kt\n')
             self.assertFalse(compile_scope.check(root, inputs, extracted)['passed'])
+            inputs.write_text(''.join(json.dumps(record) + '\n' for record in records + [records[0]]))
+            with self.assertRaisesRegex(ValueError, 'duplicate compiler task'):
+                compile_scope.check(root, inputs, extracted)
 
     def test_java_kotlin_sarif_alone_cannot_pass(self):
         with tempfile.TemporaryDirectory() as directory:

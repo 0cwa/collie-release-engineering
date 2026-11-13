@@ -11,5 +11,9 @@ where
   file = compilation.getFileCompiled(index) and
   compilation.extractionSuccessful() and
   compilation.fileCompiledSuccessful(index) and
-  file.isSourceFile()
+  file.isSourceFile() and
+  not exists(Compilation failed, int failedIndex |
+    file = failed.getFileCompiled(failedIndex) and
+    not (failed.extractionSuccessful() and failed.fileCompiledSuccessful(failedIndex))
+  )
 select file.getRelativePath()
