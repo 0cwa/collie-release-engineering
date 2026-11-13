@@ -11,20 +11,20 @@ Decided 2026-11-10. Where this conflicts with older docs here (`source/PUBLICATI
 
 ## Merging PRs
 
-When an agent merges a PR, this is the evidence it needs, in both repos: required checks, plus every line below that the PR's changes match. Docs need only required checks. Upgrade PRs follow "Upstream upgrades" below instead. Don't add evidence beyond this, but a job that fails on the PR head because of the PR's own change gets fixed before merging. Reviews still follow `full-send` and `orchestrate`.
+When an agent merges a PR, it needs required checks plus each line below that the PR's changes match, and nothing more. A job the PR itself breaks gets fixed first. Upgrade PRs follow "Upstream upgrades".
 
-- CI, tooling and tests: the job the PR changes, or the job that runs the changed tests, green on the PR head when that job runs on PRs.
-- App code, Gradle files and dependency versions: a passing `Unit tests` job on the PR head.
+- CI, tooling and tests: the job the PR changes or that runs the changed tests, green on the PR head (if that job runs on PRs).
+- App code, Gradle files and dependency versions: `Unit tests` green on the PR head.
 - UI: the API 35 screenshot from app `AGENTS.md`.
-- Keys, signing, permissions, updater, backup and database migrations, encrypted push, the proxy/network path, release or publishing workflows, and workflow `permissions:`, secrets or `pull_request_target`: the PR's one review is the security review from `full-send` step 3 (`$sol-loop` in Codex).
+- Keys, signing, permissions, updater, backup and database migrations, encrypted push, the proxy/network path, release or publishing workflows, workflow `permissions:`, secrets or `pull_request_target`: the PR's one review is the security review (`$sol-loop` in Codex).
 
 Then:
 
-- Merge each PR as soon as it has its evidence, unless it depends on another PR. Don't hold it for another PR's order.
-- PRs need not be up to date with `main` (the ruleset doesn't require it). Update a branch only for a conflict, or when commits that landed since its last green run touch its files, Gradle files, dependency versions or shared test fixtures. When unsure, merge `main` locally and run a compile instead of the whole suite.
-- A known out-of-memory or race failure gets one re-run. When a failure has a shared cause (it shows up on more than one PR or on `main`), fix it once in its own PR, merge that first, then update only the PRs that failed on it. PRs that don't hit it keep merging.
-- A check added during the current task doesn't hold PRs that were already open; land it in its own PR. When it flags a real bug in code a PR changed, fix that in the PR. During a landing task, don't build new checks: note them for a separate task.
-- Keep merging after a merge. Before each later merge in the same task, look at `main`'s latest finished `PR checks` run (`gh run list --branch main --workflow pr.yml --limit 3`) without waiting for a running one. If it is red because of a merged PR (not a known out-of-memory or race failure, which gets one re-run), fix or revert in a PR before merging other app code.
+- Merge each PR as soon as it has its evidence, unless it depends on another PR.
+- PRs need not be up to date with `main`. Update a branch only for a conflict, or when commits that landed since its last green run touch its files, Gradle files, dependency versions or shared test fixtures. When unsure, merge `main` locally and compile instead of re-running everything.
+- A known out-of-memory or race failure gets one re-run. A failure with a shared cause (on more than one PR or on `main`) is fixed once in its own PR and merged first; then update only the PRs that failed on it.
+- A landing task doesn't build new checks; note them for later. A check added during a task doesn't hold PRs that were already open, but a real bug it finds in a PR's own code gets fixed in that PR.
+- Before each later merge in a task, look at `main`'s latest finished `PR checks` run (`gh run list --branch main --workflow pr.yml --limit 3`) without waiting for a running one. If a merged PR turned it red, fix or revert that in a PR before merging other app code.
 
 ## Upstream upgrades (Signal / Molly)
 
@@ -41,7 +41,7 @@ git diff --binary -M signal-$OLD signal-$NEW | git apply --3way --index
 - Read the tag-to-tag diff for what applies cleanly but doesn't belong, and remove it or adapt it: network calls that skip the proxy code, Google or Firebase dependencies, new strings that say "Signal", donation or payment entry points. Donation UI stays out.
 - If the diff changes the libsignal or ringrtc version in `gradle/libs.versions.toml`, the native libraries must be rebuilt (`tools/native`) and published first, or the app build fails.
 - Molly: read Molly's own commits since the last one taken (`git log <last>..<new> --no-merges --not signal-<tag Molly merged>`; the last taken is `892d6264ba0`). Cherry-pick the ones Collie wants, keeping their authors, with `Upstream: mollyim/mollyim-android <sha>`. Skip Molly's Signal merges.
-- Agents may merge upgrade PRs once checks pass and CI runs the unit tests. Until CI runs them, upgrade PRs wait for the maintainer.
+- Agents may merge upgrade PRs once required checks and `Unit tests` are green.
 
 ## Releases
 
