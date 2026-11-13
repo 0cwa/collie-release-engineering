@@ -1,6 +1,7 @@
 import hashlib
 import importlib.util
 import json
+import os
 from pathlib import Path
 import shutil
 import subprocess
@@ -95,6 +96,47 @@ class SourcePreparationTest(unittest.TestCase):
         with (output / 'webrtc' / 'sample.txt').open('a') as stream:
             stream.write('unexpected change\n')
         with self.assertRaises(subject.Failure):
+            subject.verify_prepared(self.lock_file, output)
+
+    def test_verifier_rejects_hidden_index_flags_on_every_native_project(self):
+        output = self.root / 'prepared'
+        subject.prepare(self.lock_file, self.sources, output)
+        for name in ('libsignal', 'ringrtc', 'webrtc'):
+            repo = output / name
+            path = repo / 'sample.txt'
+            original = path.read_bytes()
+            for flag in ('assume-unchanged', 'skip-worktree'):
+                with self.subTest(project=name, flag=flag):
+                    self.git(repo, 'update-index', '--' + flag, 'sample.txt')
+                    path.write_bytes(b'changed source hidden by index flag\n')
+                    with self.assertRaisesRegex(subject.Failure, 'hidden or unmerged'):
+                        subject.verify_prepared(self.lock_file, output)
+                    self.git(repo, 'update-index', '--no-' + flag, 'sample.txt')
+                    path.write_bytes(original)
+
+    def test_verifier_hashes_bytes_even_when_size_and_mtime_are_preserved(self):
+        output = self.root / 'prepared'
+        subject.prepare(self.lock_file, self.sources, output)
+        path = output / 'libsignal/sample.txt'
+        before = path.stat()
+        contents = path.read_bytes()
+        path.write_bytes(b'X' + contents[1:])
+        os.utime(path, ns=(before.st_atime_ns, before.st_mtime_ns))
+        with self.assertRaisesRegex(subject.Failure, 'worktree bytes differ'):
+            subject.verify_prepared(self.lock_file, output)
+
+    def test_verifier_rejects_local_filters_and_attributes(self):
+        output = self.root / 'prepared'
+        subject.prepare(self.lock_file, self.sources, output)
+        repo = output / 'libsignal'
+        self.git(repo, 'config', 'filter.custom.clean', 'cat')
+        with self.assertRaisesRegex(subject.Failure, 'Local Git filters'):
+            subject.verify_prepared(self.lock_file, output)
+        self.git(repo, 'config', '--remove-section', 'filter.custom')
+        attributes = repo / '.git/info/attributes'
+        attributes.parent.mkdir(exist_ok=True)
+        attributes.write_text('sample.txt -text\n')
+        with self.assertRaisesRegex(subject.Failure, 'Local Git attributes'):
             subject.verify_prepared(self.lock_file, output)
 
     def test_unknown_commit_fails_before_creating_output(self):

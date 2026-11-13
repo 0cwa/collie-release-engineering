@@ -5,11 +5,13 @@ No network fetch is performed. Results are not a native build or runtime proof.
 """
 from __future__ import annotations
 import argparse
+import hashlib
 import json
 import os
 from pathlib import Path
 import shutil
 import re
+import stat
 import tempfile
 import subprocess
 import sys
@@ -32,11 +34,69 @@ def git(repo, *arguments, data=None, extra_env=None, raw=False):
     if extra_env:
         env.update(extra_env)
     command = ['git', '-C', str(repo), '-c', 'core.hooksPath=/dev/null', '-c', 'core.autocrlf=false',
+               '-c', 'core.fsmonitor=false', '-c', 'core.attributesFile=/dev/null',
                '-c', 'commit.gpgsign=false', '-c', 'rerere.enabled=false', *arguments]
     result = subprocess.run(command, input=data, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=env)
     if result.returncode:
         raise Failure('Git source preparation failed: ' + result.stderr.decode(errors='replace').strip())
     return result.stdout if raw else result.stdout.decode().strip()
+
+
+def verify_worktree(repo):
+    """Check tracked bytes directly, independent of Git's cached stat promises."""
+    repo = repo.resolve(strict=True)
+    configuration = git(repo, 'config', '--local', '--null', '--list', raw=True)
+    for record in configuration.split(b'\0'):
+        key = record.split(b'\n', 1)[0].lower()
+        require(not key.startswith((b'filter.', b'include.', b'includeif.')),
+                'Local Git filters and included configuration are not allowed in prepared source')
+    attributes = Path(git(repo, 'rev-parse', '--path-format=absolute', '--git-path', 'info/attributes'))
+    require(not os.path.lexists(attributes) or
+            (attributes.is_file() and not attributes.is_symlink() and attributes.stat().st_size == 0),
+            'Local Git attributes are not allowed in prepared source')
+    flags = [entry for entry in git(repo, 'ls-files', '-v', '-z', raw=True).split(b'\0') if entry]
+    require(all(entry.startswith(b'H ') for entry in flags),
+            'Prepared source has hidden or unmerged tracked files')
+    for entry in git(repo, 'ls-files', '--stage', '-z', raw=True).split(b'\0'):
+        if not entry:
+            continue
+        metadata, filename = entry.split(b'\t', 1)
+        mode, expected, stage = metadata.split(b' ')
+        require(stage == b'0', 'Prepared source has unmerged tracked files')
+        relative = os.fsdecode(filename)
+        path = repo / relative
+        require(path.parent.resolve() == path.parent and path.parent.is_relative_to(repo),
+                'Prepared source file has a symlinked parent or escapes checkout: ' + relative)
+        if mode == b'160000':
+            require(not os.path.lexists(path) or
+                    (path.is_dir() and not path.is_symlink() and not any(path.iterdir())),
+                    'Prepared source has an unverified populated Gitlink: ' + relative)
+            continue
+        details = path.lstat()
+        if mode == b'120000':
+            require(stat.S_ISLNK(details.st_mode), 'Prepared source symlink changed: ' + relative)
+            contents = os.fsencode(os.readlink(path))
+            actual = hashlib.sha1(b'blob ' + str(len(contents)).encode() + b'\0' + contents).hexdigest().encode()
+        else:
+            require(mode in (b'100644', b'100755') and stat.S_ISREG(details.st_mode),
+                    'Prepared source file type changed: ' + relative)
+            require(bool(details.st_mode & stat.S_IXUSR) == (mode == b'100755'),
+                    'Prepared source executable mode changed: ' + relative)
+            digest = hashlib.sha1(b'blob ' + str(details.st_size).encode() + b'\0')
+            with path.open('rb') as stream:
+                for block in iter(lambda: stream.read(1024 * 1024), b''):
+                    digest.update(block)
+            actual = digest.hexdigest().encode()
+        if actual != expected and mode in (b'100644', b'100755') and details.st_size <= 8 * 1024 * 1024:
+            # Honor only CRLF conversion explicitly selected by pinned attributes.
+            values = git(repo, 'check-attr', '--cached', '-z', 'text', 'eol', '--', relative, raw=True).split(b'\0')
+            if values in ([filename, b'text', b'set', filename, b'eol', b'crlf', b''],
+                          [filename, b'text', b'unspecified', filename, b'eol', b'crlf', b'']):
+                contents = path.read_bytes()
+                normalized = contents.replace(b'\r\n', b'\n')
+                require(normalized.count(b'\n') == contents.count(b'\r\n'), 'Mixed line endings in prepared source')
+                actual = hashlib.sha1(b'blob ' + str(len(normalized)).encode() + b'\0' + normalized).hexdigest().encode()
+        require(actual == expected, 'Prepared source worktree bytes differ: ' + relative)
 
 def prepare(lock_path, inputs, output):
     lock_path = lock_path.resolve(strict=True)
@@ -102,6 +162,7 @@ def verify_prepared(lock_path, source_root):
         require(repo.is_dir() and not repo.is_symlink(), 'Prepared source is missing or a symlink')
         base = lock['source_provenance'][name]
         require(git(repo, 'cat-file', '-t', base) == 'commit', 'Pinned source base is unavailable')
+        verify_worktree(repo)
         if name == 'webrtc':
             deps = git(repo, 'show', base + ':DEPS', raw=True)
             try:

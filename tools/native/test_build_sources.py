@@ -26,6 +26,10 @@ class PartialSourceBuildTest(unittest.TestCase):
         environment = isolated_gradle_environment(self.root / 'gradle-user-home')
         environment.start()
         self.addCleanup(environment.stop)
+        native_environment = patch.dict(os.environ, {key: value for key, value in os.environ.items()
+                                        if key not in ('PYTHONPATH', 'PYTHONHOME', 'PYTHONUSERBASE')}, clear=True)
+        native_environment.start()
+        self.addCleanup(native_environment.stop)
         self.sources = self.root / 'prepared'
         subject.prepare_sources.prepare(self.fixture.lock_file, self.fixture.sources, self.sources)
         (self.sources / 'libsignal/.git/info').mkdir(exist_ok=True)
@@ -109,14 +113,14 @@ class PartialSourceBuildTest(unittest.TestCase):
 
     def test_fresh_mode_rejects_redirected_cargo_target(self):
         with patch.dict(os.environ, {'CARGO_TARGET_DIR': str(self.root / 'old-target')}):
-            with self.assertRaisesRegex(subject.Failure, 'default Cargo target'):
+            with self.assertRaisesRegex(ValueError, 'CARGO_TARGET_DIR'):
                 self.run_build(fresh=True)
         self.assertFalse(self.report.exists())
 
     def test_fresh_mode_rejects_inherited_compiler_wrappers(self):
         for name in ('RUSTC_WRAPPER', 'RUSTC_WORKSPACE_WRAPPER'):
             with self.subTest(name=name), patch.dict(os.environ, {name: '/unexpected/cache'}):
-                with self.assertRaisesRegex(subject.Failure, 'compiler wrappers'):
+                with self.assertRaisesRegex(ValueError, name):
                     self.run_build(fresh=True)
         self.assertFalse(self.report.exists())
 

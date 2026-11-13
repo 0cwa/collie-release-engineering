@@ -34,6 +34,7 @@ def validate_depot(depot, reference):
     for override in ('.cipd_client_root', '.cipd_client_platform'):
         require(not os.path.lexists(depot / override), 'depot_tools CIPD override is not allowed: ' + override)
     require(prepare_sources.git(depot, 'rev-parse', '--show-toplevel') == str(depot), 'depot_tools is not a repository root')
+    prepare_sources.verify_worktree(depot)
     require(prepare_sources.git(depot, 'rev-parse', 'HEAD') == reference['webrtc_depot_tools_revision'], 'depot_tools revision differs from pinned DEPS')
     require(not prepare_sources.git(depot, 'diff', '--name-only') and not prepare_sources.git(depot, 'diff', '--cached', '--name-only'), 'depot_tools tracked files changed')
     gclient = depot / 'gclient'
