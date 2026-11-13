@@ -294,6 +294,10 @@ def update_outcome(report: dict) -> None:
     report["finding_count"] = sum(len(run["findings"]) for run in report["runs"])
     report["reviewed_finding_count"] = sum(bool(finding.get("review")) for run in report["runs"]
                                             for finding in run["findings"])
+    for disposition in ("false-positive", "intentional-use"):
+        key = disposition.replace("-", "_") + "_finding_count"
+        report[key] = sum(finding.get("review", {}).get("disposition") == disposition
+                          for run in report["runs"] for finding in run["findings"])
     report["unreviewed_finding_count"] = report["finding_count"] - report["reviewed_finding_count"]
     report["diagnostic_warning_count"] = sum(item["count"] for run in report["runs"]
                                              for item in run["diagnostic_counts"] if item["level"] == "warning")
@@ -305,7 +309,7 @@ def update_outcome(report: dict) -> None:
 
 
 def apply_reviews(report: dict, review_file: Path, source_root: Path) -> None:
-    """Recognize exact reviewed false positives without editing or dropping SARIF."""
+    """Recognize exact source-bound reviews without editing or dropping SARIF."""
     try:
         document = json.loads(review_file.read_text(encoding="utf-8"))
         if document.get("schema") != 1:
@@ -317,8 +321,8 @@ def apply_reviews(report: dict, review_file: Path, source_root: Path) -> None:
             if not isinstance(identifier, str) or not identifier or identifier in identifiers:
                 raise SarifError("Reviewed-finding IDs must be unique nonempty strings")
             identifiers.add(identifier)
-            if review.get("disposition") != "false-positive" or not review.get("reason"):
-                raise SarifError(f"Review {identifier} needs a false-positive explanation")
+            if review.get("disposition") not in ("false-positive", "intentional-use") or not review.get("reason"):
+                raise SarifError(f"Review {identifier} needs a supported disposition and explanation")
             if review.get("language") != report["language"]:
                 continue
             where = review.get("location")
@@ -357,10 +361,12 @@ def apply_reviews(report: dict, review_file: Path, source_root: Path) -> None:
                     continue
                 for finding in run["findings"]:
                     if (all(finding.get(field) == review[field] for field in fields) and
-                            finding["locations"] == [where] and not finding.get("review")):
+                            finding["locations"] == [where]):
                         matches.append(finding)
             if len(matches) > 1:
                 raise SarifError(f"Review {identifier} ambiguously matches multiple findings")
+            if matches and matches[0].get("review"):
+                raise SarifError(f"Review {identifier} duplicates another review of the same finding")
             if matches:
                 matches[0]["review"] = {"id": identifier, "disposition": review["disposition"],
                                          "reason": review["reason"], "source_sha256": review["source_sha256"]}
@@ -381,12 +387,13 @@ def location_text(where: list[dict]) -> str:
 def markdown(report: dict) -> str:
     lines = [f"## CodeQL audit: {cell(report['language'])}", "",
              f"**{'PASS' if report['passed'] else 'FAIL'}** — {report['finding_count']} raw findings; "
-             f"{report['reviewed_finding_count']} reviewed false positives; "
+             f"{report['false_positive_finding_count']} reviewed false positives; "
+             f"{report['intentional_use_finding_count']} reviewed intentional uses; "
              f"{report['unreviewed_finding_count']} unreviewed findings; "
              f"{report['diagnostic_error_count']} diagnostic errors; "
              f"{report['diagnostic_warning_count']} diagnostic warnings.", "",
              "Unreviewed findings fail this gate regardless of severity, suppression or baseline state. "
-             "Reviewed false positives must match the exact rule, location, message, tool version and source-file SHA-256; all remain in SARIF. "
+             "Both review dispositions must match the exact rule, location, message, tool version and source-file SHA-256; all remain in SARIF. "
              "Extraction warnings, errors and missing expected files also fail. This result covers only the selected language.", ""]
     if report.get("retired_reviews"):
         lines += ["", "### Retired source-bound reviews", ""]
@@ -424,7 +431,8 @@ def markdown(report: dict) -> str:
             for finding in run["findings"]:
                 lines.append("| " + " | ".join(cell(value) for value in (
                     finding["rule"], finding["level"], location_text(finding["locations"]), finding["message"],
-                    finding.get("review", {}).get("id", "unreviewed"))) + " |")
+                    (f"{finding['review']['id']} ({finding['review']['disposition']})"
+                     if finding.get("review") else "unreviewed"))) + " |")
             for finding in run["findings"]:
                 if finding.get("review"):
                     lines += ["", f"Review {cell(finding['review']['id'])}: {cell(finding['review']['reason'])}", ""]
@@ -452,7 +460,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--language", required=True, choices=sorted(LANGUAGES))
     parser.add_argument("--output", required=True, type=Path, help="JSON audit report")
     parser.add_argument("--summary", required=True, type=Path, help="Markdown audit report")
-    parser.add_argument("--reviews", type=Path, help="Exact source-bound false-positive reviews; SARIF remains unchanged")
+    parser.add_argument("--reviews", type=Path, help="Exact source-bound reviews; SARIF remains unchanged")
     parser.add_argument("--source-root", type=Path, default=Path("."))
     parser.add_argument("--compiler-inputs", type=Path)
     parser.add_argument("--extracted-inputs", type=Path)
