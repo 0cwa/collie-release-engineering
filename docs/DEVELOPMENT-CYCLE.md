@@ -37,6 +37,10 @@ Process: app `docs/RELEASING.md`.
 - Release notes: `distribution/release-notes/<version>.md` here, in the maintainer's style (see existing files). App CI refuses to publish without one. In-app notices (e.g. the later move to one `collie.apk`) ship as ordinary app PRs.
 - F-Droid and Pages carry verified full releases only.
 
+## Security fuzzing pilot
+
+The focused Socket/Android pilot and its evidence expectations are documented in [SECURITY-FUZZING.md](SECURITY-FUZZING.md). It is a development and release confidence measure; it does not change release approval or branch enforcement.
+
 ## To retire
 
 Now: generated publication commits on app `main` (G/I), the plan/receipt approval chain and the composer (`source/`, candidate plans/receipts). Keep native-input delivery (`repo.collie.im/native-inputs`) and Pages/F-Droid publishing; `pages-release.yml` stays until native files have another publishing route.
