@@ -11,14 +11,12 @@ Decided 2026-11-10. Where this conflicts with older docs here (`source/PUBLICATI
 
 ## Merging PRs
 
-When an agent merges a PR, this is the evidence it needs, in both repos. The highest matching line applies. Don't add evidence beyond it; reviews still follow `full-send` and `orchestrate`.
+When an agent merges a PR, this is the evidence it needs, in both repos: required checks, plus every line below that the PR's changes match. Docs need only required checks. Upgrade PRs follow "Upstream upgrades" below instead. Don't add evidence beyond this, but a job that fails on the PR head because of the PR's own change gets fixed before merging. Reviews still follow `full-send` and `orchestrate`.
 
-- Docs: required checks.
-- CI, tooling and tests: also the job the PR changes, green on the PR head.
-- App code, Gradle files and dependency versions: also a passing `Unit tests` job on the PR head.
-- UI: also the API 35 screenshot from app `AGENTS.md`.
-- Keys, signing, permissions, updater, backup and database migrations, encrypted push, the proxy/network path, release or publishing workflows, and workflow `permissions:` or secrets: also one Sol review (`$sol-loop` in Codex).
-- Upgrade PRs: "Upstream upgrades" below.
+- CI, tooling and tests: the job the PR changes, green on the PR head when that job runs on PRs.
+- App code, Gradle files and dependency versions: a passing `Unit tests` job on the PR head.
+- UI: the API 35 screenshot from app `AGENTS.md`.
+- Keys, signing, permissions, updater, backup and database migrations, encrypted push, the proxy/network path, release or publishing workflows, and workflow `permissions:`, secrets or `pull_request_target`: the PR's one review is the security review from `full-send` step 3 (`$sol-loop` in Codex).
 
 Then:
 
@@ -26,7 +24,7 @@ Then:
 - PRs need not be up to date with `main` (the ruleset doesn't require it). Update a branch only for a conflict, or when commits that landed since its last green run touch its files, Gradle files, dependency versions or shared test fixtures. When unsure, merge `main` locally and run a compile instead of the whole suite.
 - A known out-of-memory or race failure gets one re-run. When a failure has a shared cause (it shows up on more than one PR or on `main`), fix it once in its own PR, merge that first, then update only the PRs that failed on it. PRs that don't hit it keep merging.
 - A check added during the current task doesn't hold PRs that were already open; land it in its own PR. When it flags a real bug in code a PR changed, fix that in the PR. During a landing task, don't build new checks: note them for a separate task.
-- After merging, look at `main`'s next `PR checks` run. If it is red, fix or revert in a PR before merging more app code.
+- Keep merging after a merge. When `main`'s `PR checks` run finishes red, fix or revert in a PR before merging more app code.
 
 ## Upstream upgrades (Signal / Molly)
 
