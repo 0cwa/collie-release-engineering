@@ -20,7 +20,7 @@ The Android contract fixture is pinned under `app/src/test/resources/colliesocke
 
 ## Regression and discovery runs
 
-First add deterministic executable runtime fixtures for these responsibilities. The existing Android JUnit4 contract test inspects fixture values; it is not a production runtime adapter. Preserve existing fixture ownership rather than introducing a second canonical copy. Add bounded discovery fuzzing after the deterministic fixtures, limited to relevant pure actual sources under isolated Jazzer harnesses.
+First add deterministic executable runtime fixtures for these responsibilities. The existing Android JUnit4 contract test inspects fixture values; it is not a production runtime adapter. Preserve existing fixture ownership rather than introducing a second canonical copy. Add bounded discovery fuzzing after the deterministic fixtures, using Rust `cargo-fuzz` and isolated JVM Jazzer harnesses that compile the real pure sources.
 
 Run deterministic regressions on each PR and bounded discovery on a nightly schedule. Promote findings to deterministic regressions. Use synthetic accounts and data only; CI Actions receive no secrets or live-account access, and fuzz jobs are read-only.
 
