@@ -1,0 +1,29 @@
+// Record actual source inputs immediately before each compiler task executes.
+// Run with --no-build-cache --rerun-tasks and Kotlin incremental compilation off.
+import groovy.json.JsonOutput
+import org.gradle.api.tasks.compile.JavaCompile
+
+def destination = System.getenv('CODEQL_COMPILE_INPUTS')
+if (!destination) throw new GradleException('CODEQL_COMPILE_INPUTS is required')
+def output = new File(destination)
+gradle.beforeProject { project ->
+    project.tasks.configureEach { task ->
+        def javaTask = task instanceof JavaCompile
+        // KotlinCompileTool.sources is the documented Kotlin Gradle task input.
+        // Class name matching avoids adding a Kotlin plugin dependency to init.
+        def kotlinTask = task.class.name.contains('KotlinCompile') && task.hasProperty('sources')
+        if (javaTask || kotlinTask) {
+            task.doFirst {
+                def files = javaTask ? task.source.files : task.sources.files
+                def extension = javaTask ? '.java' : '.kt'
+                def record = [task: task.path, language: javaTask ? 'java' : 'kotlin',
+                              files: files.findAll { it.isFile() && it.name.endsWith(extension) }
+                                          .collect { it.canonicalPath }.sort()]
+                synchronized (gradle) {
+                    output.parentFile.mkdirs()
+                    output.append(JsonOutput.toJson(record) + '\n', 'UTF-8')
+                }
+            }
+        }
+    }
+}

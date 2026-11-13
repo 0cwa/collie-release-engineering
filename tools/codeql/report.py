@@ -14,9 +14,9 @@ import re
 from typing import Any
 
 
-LANGUAGES = {"actions": "actions", "python": "py", "javascript-typescript": "js", "c-cpp": "cpp"}
+LANGUAGES = {"actions": "actions", "python": "py", "javascript-typescript": "js", "c-cpp": "cpp", "java-kotlin": "java"}
 # CLI baseline descriptors use extractor names, not query ID prefixes.
-EXTRACTORS = {"actions": "actions", "python": "python", "javascript-typescript": "javascript", "c-cpp": "cpp"}
+EXTRACTORS = {"actions": "actions", "python": "python", "javascript-typescript": "javascript", "c-cpp": "cpp", "java-kotlin": "java"}
 LEVELS = {"none", "note", "warning", "error"}
 
 
@@ -242,9 +242,11 @@ def audit_run(run: dict, language: str, source: str) -> dict:
                     })
     if not extracted:
         errors.append(f"No successfully extracted {language} files were reported")
-    if not expected:
+    if not expected and language != "java-kotlin":
         errors.append(f"No matching expected-file baseline establishes {language} coverage")
-    missing = expected - extracted
+    # CLI's repository-wide baseline includes tests and variants not built by
+    # the selected Android task. Java/Kotlin uses the separate compiler scope.
+    missing = expected - extracted if language != "java-kotlin" else set()
     if missing:
         errors.append(f"{len(missing)} expected {language} file(s) were not extracted")
     return {
@@ -268,6 +270,8 @@ def audit_run(run: dict, language: str, source: str) -> dict:
 
 def audit(paths: list[Path], language: str) -> dict:
     report = {"schema": 1, "language": language, "runs": [], "errors": [], "retired_reviews": []}
+    if language == "java-kotlin":
+        report["errors"].append("Java/Kotlin compiler scope has not been verified")
     if not paths:
         report["errors"].append("No SARIF files were found")
     for path in paths:
@@ -394,6 +398,12 @@ def markdown(report: dict) -> str:
             )
     for error in report["errors"]:
         lines.append(f"- {cell(error)}")
+    if "compiler_scope" in report:
+        for language in ("java", "kotlin"):
+            scope = report["compiler_scope"].get(language, {})
+            lines.append(f"- {language}: {len(scope.get('expected', []))} tracked compiler inputs; "
+                         f"{len(scope.get('extracted', []))} successfully extracted; "
+                         f"{len(scope.get('missing', []))} missing.")
     for run in report["runs"]:
         coverage = run["coverage"]
         lines += ["", f"### {cell(run['source'])}", "",
@@ -444,6 +454,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--summary", required=True, type=Path, help="Markdown audit report")
     parser.add_argument("--reviews", type=Path, help="Exact source-bound false-positive reviews; SARIF remains unchanged")
     parser.add_argument("--source-root", type=Path, default=Path("."))
+    parser.add_argument("--compiler-inputs", type=Path)
+    parser.add_argument("--extracted-inputs", type=Path)
     args = parser.parse_args(argv)
     if not args.sarif and not args.sarif_options:
         parser.error("provide a SARIF file or directory")
@@ -452,6 +464,16 @@ def main(argv: list[str] | None = None) -> int:
     report = audit(paths, args.language)
     if args.reviews:
         apply_reviews(report, args.reviews, args.source_root)
+    if args.language == "java-kotlin" and args.compiler_inputs and args.extracted_inputs:
+        import compile_scope
+        try:
+            scope = compile_scope.check(args.source_root, args.compiler_inputs, args.extracted_inputs)
+            report["compiler_scope"] = scope
+            if scope["passed"]:
+                report["errors"].remove("Java/Kotlin compiler scope has not been verified")
+        except (OSError, ValueError, KeyError, TypeError) as error:
+            report["errors"].append(f"Compiler scope: {error}")
+        update_outcome(report)
     for path, content in ((args.output, json.dumps(report, indent=2) + "\n"), (args.summary, markdown(report))):
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(content, encoding="utf-8")
