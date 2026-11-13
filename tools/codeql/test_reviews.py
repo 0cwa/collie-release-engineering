@@ -60,6 +60,63 @@ class ReviewedFindingTests(unittest.TestCase):
         self.assertIn('1 raw findings', report.markdown(result))
         self.assertIn(self.review['reason'], report.markdown(result))
 
+    def test_intentional_use_is_visible_and_source_bound(self):
+        review = {**self.review, 'disposition': 'intentional-use'}
+        before = self.sarif.read_bytes()
+        result = self.apply(review)
+        self.assertTrue(result['passed'])
+        self.assertEqual(result['false_positive_finding_count'], 0)
+        self.assertEqual(result['intentional_use_finding_count'], 1)
+        self.assertEqual(result['runs'][0]['findings'][0]['review']['disposition'], 'intentional-use')
+        self.assertEqual(self.sarif.read_bytes(), before)
+        self.assertIn('1 reviewed intentional uses', report.markdown(result))
+        self.assertIn('manual-dispatch-checkout (intentional-use)', report.markdown(result))
+        self.source.write_text('changed')
+        result = self.apply(review)
+        self.assertFalse(result['passed'])
+        self.assertEqual(result['intentional_use_finding_count'], 0)
+
+    def test_supported_dispositions_share_exact_identity_guards(self):
+        for disposition in ('false-positive', 'intentional-use'):
+            for key, value in (('rule', 'other'), ('query_kind', 'other'),
+                               ('query_precision', 'other'), ('message', 'other'),
+                               ('tool_version', 'other'), ('category', 'other')):
+                with self.subTest(disposition=disposition, key=key):
+                    result = self.apply({**self.review, 'disposition': disposition, key: value})
+                    self.assertFalse(result['passed'])
+                    self.assertEqual(result['unreviewed_finding_count'], 1)
+            review = copy.deepcopy(self.review)
+            review['disposition'] = disposition
+            review['location']['start_line'] += 1
+            self.assertFalse(self.apply(review)['passed'])
+            self.data['runs'][0]['results'] *= 2
+            self.assertFalse(self.apply({**self.review, 'disposition': disposition})['passed'])
+            self.data['runs'][0]['results'].pop()
+
+    def test_duplicate_reviews_and_unknown_dispositions_fail(self):
+        for disposition in ('false-positive', 'intentional-use'):
+            reviews = [{**self.review, 'disposition': disposition},
+                       {**self.review, 'id': 'second', 'disposition': disposition}]
+            self.reviews.write_text(json.dumps({'schema': 1, 'reviews': reviews}))
+            result = report.audit([self.sarif], 'actions')
+            report.apply_reviews(result, self.reviews, self.root)
+            self.assertFalse(result['passed'])
+            self.assertTrue(any('duplicates another review' in e for e in result['errors']))
+        for disposition in ('confirmed-vulnerability', 'unknown', ''):
+            result = self.apply({**self.review, 'disposition': disposition})
+            self.assertFalse(result['passed'])
+            self.assertEqual(result['unreviewed_finding_count'], 1)
+
+    def test_other_language_reviews_cannot_match_actions(self):
+        self.reviews.write_text(json.dumps({'schema': 1, 'reviews': [
+            self.review, {**self.review, 'id': 'java-review', 'language': 'java-kotlin',
+                          'disposition': 'intentional-use'}]}))
+        result = report.audit([self.sarif], 'actions')
+        report.apply_reviews(result, self.reviews, self.root)
+        self.assertTrue(result['passed'])
+        self.assertEqual(result['false_positive_finding_count'], 1)
+        self.assertEqual(result['intentional_use_finding_count'], 0)
+
     def test_source_change_requires_a_new_review(self):
         self.source.write_text('on: pull_request_target\npermissions: write-all\n')
         result = self.apply()

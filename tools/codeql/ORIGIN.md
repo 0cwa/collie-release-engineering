@@ -69,3 +69,16 @@ findings remain unreviewed and fail the report gate. The workflow definition can
 still be changed in a pull request, so repositories must require external review
 and protect workflow edits with branch protection. This arrangement does not make
 workflow YAML tamperproof.
+
+Review entries may use `false-positive` or `intentional-use`. The latter is for
+independently reviewed, deliberate behavior; it is not a finding dismissal or a
+blanket approval. Both require the same exact finding identity, source SHA-256,
+explanation, and trusted-base policy process. Confirmed vulnerabilities and
+unreviewed findings remain blocking; SARIF retains every finding. Each actual
+entry needs independent review before a trusted-main policy PR.
+
+The older Actions checker pinned at `9b7803d` validates dispositions before
+filtering by language, so it rejects an `intentional-use` entry even for
+Java/Kotlin. Update the Actions checker pin to a compatible revision before
+adding any such entry to the shared manifest. Updating the checker alone does
+not approve any finding.
