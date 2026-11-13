@@ -9,6 +9,25 @@ Decided 2026-11-10. Where this conflicts with older docs here (`source/PUBLICATI
 - Required app PR checks: fast lint and `Layer:` trailers. Unit tests and a debug APK build run on every PR but are not required.
 - `main` in both repos: PRs only, required checks green, signed commits, no force pushes, no required human review. Agents merge with `gh pr merge`.
 
+## Merging PRs
+
+When an agent merges a PR, this is the evidence it needs, in both repos. The highest matching line applies. Don't add evidence beyond it; reviews still follow `full-send` and `orchestrate`.
+
+- Docs: required checks.
+- CI, tooling and tests: also the job the PR changes, green on the PR head.
+- App code, Gradle files and dependency versions: also a passing `Unit tests` job on the PR head.
+- UI: also the API 35 screenshot from app `AGENTS.md`.
+- Keys, signing, permissions, updater, backup and database migrations, encrypted push, the proxy/network path, release or publishing workflows, and workflow `permissions:` or secrets: also one Sol review (`$sol-loop` in Codex).
+- Upgrade PRs: "Upstream upgrades" below.
+
+Then:
+
+- Merge each PR as soon as it has its evidence, unless it depends on another PR. Don't hold it for another PR's order.
+- PRs need not be up to date with `main` (the ruleset doesn't require it). Update a branch only for a conflict, or when commits that landed since its last green run touch its files, Gradle files, dependency versions or shared test fixtures. When unsure, merge `main` locally and run a compile instead of the whole suite.
+- A known out-of-memory or race failure gets one re-run. When a failure has a shared cause (it shows up on more than one PR or on `main`), fix it once in its own PR, merge that first, then update only the PRs that failed on it. PRs that don't hit it keep merging.
+- A check added during the current task doesn't hold PRs that were already open; land it in its own PR. When it flags a real bug in code a PR changed, fix that in the PR. During a landing task, don't build new checks: note them for a separate task.
+- After merging, look at `main`'s next `PR checks` run. If it is red, fix or revert in a PR before merging more app code.
+
 ## Upstream upgrades (Signal / Molly)
 
 Take every Signal tag as one ordinary signed app PR, applying only what upstream changed since the last tag:
