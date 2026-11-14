@@ -6,7 +6,7 @@ import tempfile
 import unittest
 
 import report
-from test_report import fixture, problem
+from test_report import fixture, problem, location
 
 
 class ReviewedFindingTests(unittest.TestCase):
@@ -194,6 +194,110 @@ class ReviewedFindingTests(unittest.TestCase):
         result = self.apply(review)
         self.assertFalse(result['passed'])
         self.assertTrue(any('unsafe source path' in error for error in result['errors']))
+
+    def flow_review(self):
+        caller = self.root / 'caller.py'
+        caller.write_text('caller source')
+        related = self.root / 'related.py'
+        related.write_text('related source')
+        finding = self.data['runs'][0]['results'][0]
+        finding['codeFlows'] = [{'threadFlows': [{'locations': [
+            {'location': location('caller.py', line=5)},
+            {'location': location(index=0, line=105)}]}]}]
+        finding['relatedLocations'] = [location('related.py', line=7)]
+        self.sarif.write_text(json.dumps(self.data))
+        parsed = report.audit([self.sarif], 'actions')['runs'][0]['findings'][0]
+        return {**self.review, 'context_sha256': report.context_sha256(parsed, self.root)}
+
+    def test_flow_review_requires_unchanged_complete_context(self):
+        review = self.flow_review()
+        self.assertTrue(self.apply(review)['passed'])
+        self.assertFalse(self.apply(self.review)['passed'])
+        finding = self.data['runs'][0]['results'][0]
+        caller = finding['codeFlows'][0]['threadFlows'][0]['locations'][0]
+        for change in ('path', 'line', 'detail', 'related_path'):
+            with self.subTest(change=change):
+                original = copy.deepcopy(finding)
+                if change == 'path':
+                    caller['location']['physicalLocation']['artifactLocation']['uri'] = 'related.py'
+                elif change == 'line':
+                    caller['location']['physicalLocation']['region']['startLine'] += 1
+                elif change == 'detail':
+                    caller['importance'] = 'essential'
+                else:
+                    finding['relatedLocations'][0]['physicalLocation']['artifactLocation']['uri'] = 'caller.py'
+                self.assertFalse(self.apply(review)['passed'])
+                finding.clear()
+                finding.update(original)
+                caller = finding['codeFlows'][0]['threadFlows'][0]['locations'][0]
+        for path in ('caller.py', 'related.py'):
+            with self.subTest(path=path):
+                source = self.root / path
+                contents = source.read_text()
+                source.write_text(contents + ' changed')
+                self.assertFalse(self.apply(review)['passed'])
+                source.write_text(contents)
+        self.assertTrue(self.apply(review)['passed'])
+
+    def test_late_and_nested_indexed_flow_sources_are_content_bound(self):
+        review = self.flow_review()
+        finding = self.data['runs'][0]['results'][0]
+        entries = finding['codeFlows'][0]['threadFlows'][0]['locations']
+        # All serialized steps are traversed; neither source is a related location.
+        late = self.root / 'late.py'
+        nested = self.root / 'nested.py'
+        late.write_text('late source')
+        nested.write_text('nested source')
+        self.data['runs'][0]['artifacts'].append({'location': {'uri': 'nested.py', 'uriBaseId': '%SRCROOT%'}})
+        entries.extend([{'location': location('caller.py', line=n)} for n in range(20)])
+        entries.append({'location': location('late.py', line=33),
+                        'stack': {'frames': [{'location': location(index=1, line=4)}]}})
+        self.sarif.write_text(json.dumps(self.data))
+        parsed = report.audit([self.sarif], 'actions')['runs'][0]['findings'][0]
+        review['context_sha256'] = report.context_sha256(parsed, self.root)
+        self.assertTrue(self.apply(review)['passed'])
+        for source in (late, nested):
+            with self.subTest(source=source.name):
+                contents = source.read_text()
+                source.write_text(contents + ' changed')
+                result = self.apply(review)
+                self.assertEqual(result['reviewed_finding_count'], 0)
+                self.assertEqual(result['unreviewed_finding_count'], 1)
+                source.write_text(contents)
+        self.assertTrue(self.apply(review)['passed'])
+
+    def test_list_valued_nested_locations_fail_closed(self):
+        review = self.flow_review()
+        self.assertTrue(self.apply(review)['passed'])
+        entry = self.data['runs'][0]['results'][0]['codeFlows'][0]['threadFlows'][0]['locations'][0]
+        for invalid in ([], ['missing.py']):
+            with self.subTest(location=invalid):
+                entry['stack'] = {'frames': [{'location': invalid}]}
+                with self.assertRaisesRegex(report.SarifError, 'location must be an object'):
+                    report.nested_context_locations(self.data['runs'][0], entry)
+                result = self.apply(review)
+                self.assertFalse(result['passed'])
+                self.assertEqual(result['reviewed_finding_count'], 0)
+
+    def test_unavailable_or_external_flow_context_cannot_be_reviewed(self):
+        review = self.flow_review()
+        caller = self.data['runs'][0]['results'][0]['codeFlows'][0]['threadFlows'][0]['locations'][0]
+        artifact = caller['location']['physicalLocation']['artifactLocation']
+        for uri in ('missing-generated.py', '../outside', '%2e%2e/outside', 'https://example.com/file'):
+            with self.subTest(uri=uri):
+                artifact['uri'] = uri
+                result = self.apply(review)
+                self.assertFalse(result['passed'])
+                self.assertEqual(result['reviewed_finding_count'], 0)
+        artifact['uri'] = 'caller.py'
+        for base in ('%EXTERNAL%', None):
+            artifact['uriBaseId'] = base
+            self.assertFalse(self.apply(review)['passed'])
+
+    def test_path_problem_without_context_cannot_use_legacy_review(self):
+        self.data['runs'][0]['tool']['driver']['rules'][0]['properties']['kind'] = 'path-problem'
+        self.review['query_kind'] = 'path-problem'
+        self.assertFalse(self.apply()['passed'])
 
     def test_review_does_not_override_failed_extraction(self):
         self.data['runs'][0]['invocations'][0]['executionSuccessful'] = False
