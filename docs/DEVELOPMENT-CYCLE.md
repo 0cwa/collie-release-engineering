@@ -43,6 +43,15 @@ git diff --binary -M signal-$OLD signal-$NEW | git apply --3way --index
 - Molly: read Molly's own commits since the last one taken (`git log <last>..<new> --no-merges --not signal-<tag Molly merged>`; the last taken is `892d6264ba0`). Cherry-pick the ones Collie wants, keeping their authors, with `Upstream: mollyim/mollyim-android <sha>`. Skip Molly's Signal merges.
 - Agents may merge upgrade PRs once required checks and `Unit tests` are green.
 
+### Additional selected sources
+
+The [upstream source registry](../upstreams/README.md) tracks selected changes from
+other public forks, including `johanw666/Signal-Android`. Review custom release
+snapshots against their own Signal base, then port individual features in app PRs
+with `Layer:` and upstream attribution. Keep review decisions and merged app
+references in the source ledger. The registry does not revive the historical
+patch composer or make third-party changes automatic build inputs.
+
 ## Releases
 
 Process: app `docs/RELEASING.md`.
