@@ -1,0 +1,87 @@
+{
+  "schema": 1,
+  "source": "johanw666",
+  "reviewed_head": "8f4ad8577344e844945ee8e73d95fd1fcc7208bc",
+  "reviewed_date": "2026-11-14",
+  "scope": "Selected fork features at 8.36.0.0-JW; this is not an audit of every reachable commit.",
+  "features": [
+    {
+      "id": "group-profile-sharing",
+      "title": "Do not automatically share a group profile because a blocked inviter is a contact",
+      "status": "proposed",
+      "upstream_commits": ["8f4ad8577344e844945ee8e73d95fd1fcc7208bc"],
+      "paths": ["app/src/main/java/org/thoughtcrime/securesms/groups/v2/processing/GroupsV2StateProcessor.kt"],
+      "reason": "Add the fork's explicit blocked-contact guard to the trusted-inviter branch. An approval of a previous join request can avoid the existing blocked-new-inviter leave path, so the profile-sharing predicate must itself reject a blocked inviter.",
+      "integration": "adapted",
+      "application": {"layer": "group-profile-sharing", "pr": "https://github.com/0cwa/collieim-android/pull/142"},
+      "verification": "Six focused state-processor regressions cover blocked system/profile-sharing contacts accepting an earlier join request, both trusted unblocked contact types, hidden contacts, and unchanged blocked unsolicited-add behavior. Compilation and execution require the app PR checks."
+    },
+    {
+      "id": "text-only-web-previews",
+      "title": "Allow webpage previews without downloaded images",
+      "status": "deferred",
+      "upstream_commits": ["8f4ad8577344e844945ee8e73d95fd1fcc7208bc"],
+      "paths": ["app/src/main/java/org/thoughtcrime/securesms/linkpreview/LinkPreviewRepository.java", "app/src/main/java/org/thoughtcrime/securesms/keyvalue/MiscellaneousValues.kt"],
+      "reason": "Useful privacy and bandwidth control, but the fork checks the setting after obtaining and decoding the image. When images are disabled, even successful compression does not enter the branch containing the break, so the loop may try every size. A Collie implementation should stop the optional image fetch before decoding, preserve proxy and special preview behavior, and agree a settings location before UI work.",
+      "verification": "Test zero image requests when disabled, metadata-only preview success, unchanged default behavior, and existing special Signal preview routes; then verify the chosen settings UI."
+    },
+    {
+      "id": "group-admission-policy",
+      "title": "Control which contacts can add the user to groups",
+      "status": "deferred",
+      "upstream_commits": ["8f4ad8577344e844945ee8e73d95fd1fcc7208bc"],
+      "paths": ["app/src/main/java/org/thoughtcrime/securesms/groups/v2/processing/GroupsV2StateProcessor.kt"],
+      "reason": "Broader group spam controls may be useful, but the fork dereferences addedBy before its null check, computes a full-member mayAdd value without using it, and reverses the pending-member decision in a linked-device branch. Port the narrow blocked-inviter profile guard now; redesign the admission state machine separately.",
+      "verification": "Cover pending/full/requesting members, missing inviter data, primary/linked devices, self approvals, blocked contacts and explicit user acceptance before adding policy settings."
+    },
+    {
+      "id": "attachment-only-deletion",
+      "title": "Delete attachments while keeping message text",
+      "status": "deferred",
+      "upstream_commits": ["8f4ad8577344e844945ee8e73d95fd1fcc7208bc"],
+      "paths": ["app/src/main/java/org/thoughtcrime/securesms/util/AttachmentUtil.kt", "app/src/main/java/org/thoughtcrime/securesms/database/MessageTable.kt", "app/src/main/java/org/thoughtcrime/securesms/database/MediaTable.kt"],
+      "reason": "A useful storage feature with a larger data-lifecycle contract. Decide how local-only deletion interacts with linked-device sync, quotes, backups, message attachment counts and cached thread previews before porting the menu and database changes.",
+      "verification": "Exercise mixed text/media messages, quoted attachments, linked devices, backup/restore, and refreshed thread/gallery views."
+    },
+    {
+      "id": "initial-passphrase-keyboard-focus",
+      "title": "Focus the passphrase field when unlocking",
+      "status": "already-present",
+      "upstream_commits": ["8f4ad8577344e844945ee8e73d95fd1fcc7208bc"],
+      "paths": ["app/src/main/java/org/thoughtcrime/securesms/PassphrasePromptActivity.java", "app/src/main/AndroidManifest.xml"],
+      "reason": "Collie already carries Molly's stateVisible and onResume requestFocus behavior. The fork's additional keyboard hiding after successful unlock is a lower-priority separate refinement; importing initial-focus changes would duplicate existing behavior."
+    },
+    {
+      "id": "plaintext-and-cross-app-exports",
+      "title": "Raw database, XML and WhatsApp import/export tools",
+      "status": "rejected",
+      "upstream_commits": ["8f4ad8577344e844945ee8e73d95fd1fcc7208bc"],
+      "paths": ["app/src/main/java/org/thoughtcrime/securesms/database/EncryptedBackupExporter.java", "app/src/main/java/org/thoughtcrime/securesms/util/FileUtilsJW.java", "app/src/main/java/org/thoughtcrime/securesms/database/PlaintextBackupExporter.java", "app/src/main/java/org/thoughtcrime/securesms/database/PlaintextBackupImporter.java", "app/src/main/java/org/thoughtcrime/securesms/database/WhatsappBackupImporter.java", "app/src/main/AndroidManifest.xml"],
+      "reason": "Do not import these implementations: raw export stages database/attachment secrets in external plaintext files; an empty password selects an unencrypted ZIP; archive failure is ignored before raw files are deleted; the feature family also adds MANAGE_EXTERNAL_STORAGE. Any future migration feature needs its own narrow storage and confidentiality design."
+    },
+    {
+      "id": "message-retention-bypasses",
+      "title": "Bypass view-once and remote or admin deletion",
+      "status": "rejected",
+      "upstream_commits": ["8f4ad8577344e844945ee8e73d95fd1fcc7208bc"],
+      "paths": ["app/src/main/java/org/thoughtcrime/securesms/messages/DataMessageProcessor.kt", "app/src/main/java/org/thoughtcrime/securesms/messages/SyncMessageProcessor.kt"],
+      "reason": "These changes alter message-retention semantics and sender expectations. They are outside the selected privacy and reliability improvements and must not accompany an unrelated feature port."
+    },
+    {
+      "id": "internal-and-service-overrides",
+      "title": "Internal-user, expiry and client-limit overrides",
+      "status": "rejected",
+      "upstream_commits": ["8f4ad8577344e844945ee8e73d95fd1fcc7208bc"],
+      "paths": ["lib/remote-config/src/main/java/org/signal/remoteconfig/RemoteConfig.kt", "core/util/src/main/java/org/signal/core/util/Util.java", "app/src/main/java/org/thoughtcrime/securesms/keyvalue/MiscellaneousValues.kt"],
+      "reason": "Do not import internal-user status, expiry bypasses or maximum-device/share-limit overrides as part of this patchset. They change service assumptions and release behavior without being required by the selected features."
+    },
+    {
+      "id": "google-maps-and-build-identity",
+      "title": "Google Maps controls and fork build overrides",
+      "status": "rejected",
+      "upstream_commits": ["8f4ad8577344e844945ee8e73d95fd1fcc7208bc"],
+      "paths": ["app/src/main/java/org/thoughtcrime/securesms/components/location/SignalMapView.java", "app/src/main/java/org/thoughtcrime/securesms/maps/PlacePickerActivity.java", "app/build.gradle.kts"],
+      "reason": "Collie retains its existing non-Google map and build/release configuration. Fork-specific Google Maps UI, branding, keys and build identity are not dependencies of the selected feature changes."
+    }
+  ]
+}
