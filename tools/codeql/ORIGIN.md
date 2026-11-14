@@ -82,3 +82,19 @@ filtering by language, so it rejects an `intentional-use` entry even for
 Java/Kotlin. Update the Actions checker pin to a compatible revision before
 adding any such entry to the shared manifest. Updating the checker alone does
 not approve any finding.
+
+Flow and related-location reviews require `context_sha256` in addition to the
+existing source fingerprint. The digest is calculated with
+`report.context_sha256(finding, source_root)` from the audited finding and the
+analyzed checkout. It binds the complete SARIF `codeFlows` and
+`relatedLocations`, their resolved locations, and the contents of every
+referenced source file. Missing, unavailable generated, external, unsafe, or otherwise
+unbound locations cannot be approved through this mechanism. A path-problem or
+finding with flow or related-location evidence without this field remains
+unreviewed. Direct findings without such evidence retain the existing contract.
+
+Deploy this checker to both Java/Kotlin and Actions policy pins before adding
+any `context_sha256` records to the shared manifest: older checkers ignore the
+field and therefore cannot enforce its binding. Checker deployment does not
+approve any finding; existing flow records without the field remain blocking
+under the updated checker.

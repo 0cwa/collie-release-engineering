@@ -12,6 +12,7 @@ import math
 from pathlib import Path
 import re
 from typing import Any
+from urllib.parse import unquote, urlsplit
 
 
 LANGUAGES = {"actions": "actions", "python": "py", "javascript-typescript": "js", "c-cpp": "cpp", "java-kotlin": "java"}
@@ -106,6 +107,26 @@ def locations(run: dict, entries: list) -> list[dict]:
     return result
 
 
+def nested_context_locations(run: dict, value: Any) -> list[dict]:
+    """Resolve locations anywhere in flow/related evidence, including stacks."""
+    found = []
+
+    def visit(item: Any, is_location: bool = False) -> None:
+        if is_location and not isinstance(item, dict):
+            raise SarifError("Flow context location must be an object")
+        if isinstance(item, dict):
+            if is_location or "physicalLocation" in item:
+                found.extend(locations(run, [item]))
+            for key, child in item.items():
+                visit(child, key == "location")
+        elif isinstance(item, list):
+            for child in item:
+                visit(child)
+
+    visit(value)
+    return found
+
+
 def level(item: dict, metadata: dict) -> str:
     value = item.get("level", metadata.get("defaultConfiguration", {}).get("level", "warning"))
     if value not in LEVELS:
@@ -164,6 +185,11 @@ def audit_run(run: dict, language: str, source: str) -> dict:
             "locations": locations(run, result.get("locations", [])),
             "related_locations": locations(run, result.get("relatedLocations", [])),
             "code_flows": flow,
+            "context_locations": nested_context_locations(
+                run, [result.get("codeFlows", []), result.get("relatedLocations", [])]),
+            # Preserve every SARIF flow/related field as well as resolved paths.
+            "review_context": {"codeFlows": result.get("codeFlows", []),
+                               "relatedLocations": result.get("relatedLocations", [])},
             "baseline_state": result.get("baselineState"),
             "suppressions": result.get("suppressions", []),
         })
@@ -308,6 +334,45 @@ def update_outcome(report: dict) -> None:
                             any(run["errors"] for run in report["runs"]))
 
 
+def context_sha256(finding: dict, source_root: Path) -> str:
+    """Bind complete SARIF context and resolved checkout files to a review.
+
+    External, missing, unavailable generated, ambiguous and unsafe paths cannot establish
+    source-bound evidence. They are never read outside the checkout.
+    """
+    paths = set()
+    evidence = [*finding["context_locations"], *finding["related_locations"],
+                *(location for thread in finding["code_flows"] for location in thread)]
+    for location in evidence:
+        uri = location.get("uri")
+        if not isinstance(uri, str) or not uri or location.get("uri_base_id") != "%SRCROOT%":
+            raise SarifError("Flow context contains an unbound or external location")
+        parts = urlsplit(uri)
+        path = unquote(parts.path, errors="strict")
+        relative = Path(path)
+        if (parts.scheme or parts.netloc or parts.query or parts.fragment or not path or
+                "\\" in path or relative.is_absolute() or ".." in relative.parts):
+            raise SarifError("Flow context contains an unsafe or external source path")
+        source = source_root / relative
+        if not source.resolve().is_relative_to(source_root.resolve()):
+            raise SarifError("Flow context source escapes its checkout")
+        paths.add(path)
+    if not evidence:
+        raise SarifError("Flow context has no bound source locations")
+    hashes = {}
+    for path in sorted(paths):
+        source = source_root / path
+        if source.is_symlink() or not source.is_file():
+            raise SarifError(f"Flow context source is unavailable or a symlink: {path}")
+        hashes[path] = hashlib.sha256(source.read_bytes()).hexdigest()
+    context = {"version": 1, "sarif": finding["review_context"],
+               "resolved_context_locations": finding["context_locations"],
+               "resolved_code_flows": finding["code_flows"],
+               "resolved_related_locations": finding["related_locations"], "sources": hashes}
+    encoded = json.dumps(context, sort_keys=True, separators=(",", ":"), ensure_ascii=True).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
+
+
 def apply_reviews(report: dict, review_file: Path, source_root: Path) -> None:
     """Recognize exact source-bound reviews without editing or dropping SARIF."""
     try:
@@ -368,6 +433,17 @@ def apply_reviews(report: dict, review_file: Path, source_root: Path) -> None:
             if matches and matches[0].get("review"):
                 raise SarifError(f"Review {identifier} duplicates another review of the same finding")
             if matches:
+                finding = matches[0]
+                needs_context = (finding["query_kind"] == "path-problem" or
+                                 finding["review_context"]["codeFlows"] or
+                                 finding["review_context"]["relatedLocations"] or
+                                 "context_sha256" in review)
+                if needs_context:
+                    fingerprint = review.get("context_sha256")
+                    if not isinstance(fingerprint, str) or not re.fullmatch(r"[0-9a-f]{64}", fingerprint):
+                        continue
+                    if context_sha256(finding, source_root) != fingerprint:
+                        continue
                 matches[0]["review"] = {"id": identifier, "disposition": review["disposition"],
                                          "reason": review["reason"], "source_sha256": review["source_sha256"]}
     except (OSError, ValueError, KeyError, TypeError, AttributeError) as error:
@@ -393,7 +469,7 @@ def markdown(report: dict) -> str:
              f"{report['diagnostic_error_count']} diagnostic errors; "
              f"{report['diagnostic_warning_count']} diagnostic warnings.", "",
              "Unreviewed findings fail this gate regardless of severity, suppression or baseline state. "
-             "Both review dispositions must match the exact rule, location, message, tool version and source-file SHA-256; all remain in SARIF. "
+             "Both review dispositions must match the exact rule, location, message, tool version and source-file SHA-256; flow and related evidence also requires a matching context SHA-256. All remain in SARIF. "
              "Extraction warnings, errors and missing expected files also fail. This result covers only the selected language.", ""]
     if report.get("retired_reviews"):
         lines += ["", "### Retired source-bound reviews", ""]
