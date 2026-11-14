@@ -334,8 +334,8 @@ def update_outcome(report: dict) -> None:
                             any(run["errors"] for run in report["runs"]))
 
 
-def context_sha256(finding: dict, source_root: Path) -> str:
-    """Bind complete SARIF context and resolved checkout files to a review.
+def context_source_hashes(finding: dict, source_root: Path) -> dict[str, str]:
+    """Return hashes of checkout files referenced by the complete SARIF context.
 
     External, missing, unavailable generated, ambiguous and unsafe paths cannot establish
     source-bound evidence. They are never read outside the checkout.
@@ -365,12 +365,44 @@ def context_sha256(finding: dict, source_root: Path) -> str:
         if source.is_symlink() or not source.is_file():
             raise SarifError(f"Flow context source is unavailable or a symlink: {path}")
         hashes[path] = hashlib.sha256(source.read_bytes()).hexdigest()
+    return hashes
+
+
+def context_sha256(finding: dict, source_root: Path) -> str:
+    """Bind complete SARIF context and resolved checkout files to a review."""
+    hashes = context_source_hashes(finding, source_root)
     context = {"version": 1, "sarif": finding["review_context"],
                "resolved_context_locations": finding["context_locations"],
                "resolved_code_flows": finding["code_flows"],
                "resolved_related_locations": finding["related_locations"], "sources": hashes}
     encoded = json.dumps(context, sort_keys=True, separators=(",", ":"), ensure_ascii=True).encode("utf-8")
     return hashlib.sha256(encoded).hexdigest()
+
+
+def reviewed_source_hashes(review: dict, source_root: Path) -> None:
+    """Require every explicitly reviewed dependency to retain its bytes."""
+    sources = review.get("reviewed_sources", {})
+    if not isinstance(sources, dict):
+        raise SarifError("reviewed_sources must be a map of source paths to SHA-256 hashes")
+    root = source_root.resolve()
+    for path, expected in sources.items():
+        if (not isinstance(path, str) or not path or "\\" in path or
+                Path(path).is_absolute() or any(part in (".", "..", "") for part in path.split("/"))):
+            raise SarifError("reviewed_sources contains an unsafe source path")
+        if not isinstance(expected, str) or not re.fullmatch(r"[0-9a-f]{64}", expected):
+            raise SarifError("reviewed_sources needs lowercase SHA-256 hashes")
+        source = source_root / path
+        if not source.resolve().is_relative_to(root):
+            raise SarifError("reviewed_sources source escapes its checkout")
+        current = source_root
+        for part in Path(path).parts:
+            current = current / part
+            if current.is_symlink():
+                raise SarifError("reviewed_sources does not allow symlinks")
+        if not source.is_file():
+            raise SarifError(f"reviewed_sources source is unavailable: {path}")
+        if hashlib.sha256(source.read_bytes()).hexdigest() != expected:
+            raise SarifError(f"reviewed_sources source bytes changed: {path}")
 
 
 def apply_reviews(report: dict, review_file: Path, source_root: Path) -> None:
@@ -434,6 +466,7 @@ def apply_reviews(report: dict, review_file: Path, source_root: Path) -> None:
                 raise SarifError(f"Review {identifier} duplicates another review of the same finding")
             if matches:
                 finding = matches[0]
+                reviewed_source_hashes(review, source_root)
                 needs_context = (finding["query_kind"] == "path-problem" or
                                  finding["review_context"]["codeFlows"] or
                                  finding["review_context"]["relatedLocations"] or

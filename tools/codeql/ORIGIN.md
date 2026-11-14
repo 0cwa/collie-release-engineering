@@ -98,3 +98,15 @@ any `context_sha256` records to the shared manifest: older checkers ignore the
 field and therefore cannot enforce its binding. Checker deployment does not
 approve any finding; existing flow records without the field remain blocking
 under the updated checker.
+
+A review may additionally declare `reviewed_sources`, a map of checkout-relative
+source paths to lowercase SHA-256 hashes. Reviewers must include the source
+files on which a nonlocal judgment depends, even when those files do not appear
+in SARIF. Each declared file must exist, remain inside the checkout without
+symlinks, and match its recorded hash; otherwise the review fails closed. This
+list does not discover future callers or prove a complete call graph. Automatic
+flow context and primary-source binding remain required as applicable.
+
+Both app Actions and Java/Kotlin checker pins must include support for
+`reviewed_sources` before such records land. Earlier checker versions ignore
+that field and cannot enforce the declared dependencies.
