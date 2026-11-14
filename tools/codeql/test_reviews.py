@@ -299,6 +299,56 @@ class ReviewedFindingTests(unittest.TestCase):
         self.review['query_kind'] = 'path-problem'
         self.assertFalse(self.apply()['passed'])
 
+    def test_explicit_reviewed_source_binds_direct_finding(self):
+        dependency = self.root / 'BackupAgent.kt'
+        dependency.write_text('selected credential')
+        review = {**self.review, 'disposition': 'intentional-use', 'reviewed_sources': {
+            'BackupAgent.kt': hashlib.sha256(dependency.read_bytes()).hexdigest()}}
+        self.assertTrue(self.apply(review)['passed'])
+        dependency.write_text('different credential')
+        result = self.apply(review)
+        self.assertFalse(result['passed'])
+        self.assertEqual(result['unreviewed_finding_count'], 1)
+        self.assertTrue(any('source bytes changed' in error for error in result['errors']))
+        dependency.unlink()
+        result = self.apply(review)
+        self.assertFalse(result['passed'])
+        self.assertEqual(result['unreviewed_finding_count'], 1)
+        self.assertTrue(any('source is unavailable' in error for error in result['errors']))
+
+    def test_explicit_sources_reject_unsafe_and_malformed_entries(self):
+        digest = hashlib.sha256(b'selected credential').hexdigest()
+        (self.root / 'link').symlink_to(self.source)
+        (self.root / 'out').symlink_to(self.root.parent, target_is_directory=True)
+        for sources in ([], None, {'': digest}, {'../outside': digest},
+                        {'/absolute': digest}, {'a/../b': digest}, {'a//b': digest},
+                        {'link': digest}, {'out/file': digest}, {'file': 'bad'},
+                        {'file': None}, {'file': digest.upper()}):
+            with self.subTest(sources=sources):
+                result = self.apply({**self.review, 'reviewed_sources': sources})
+                self.assertFalse(result['passed'])
+                self.assertEqual(result['unreviewed_finding_count'], 1)
+                self.assertTrue(result['errors'])
+
+    def test_explicit_sources_do_not_replace_automatic_flow_binding(self):
+        review = self.flow_review()
+        review['reviewed_sources'] = {'caller.py': hashlib.sha256((self.root / 'caller.py').read_bytes()).hexdigest()}
+        self.assertTrue(self.apply(review)['passed'])
+        del review['context_sha256']
+        self.assertFalse(self.apply(review)['passed'])
+
+    def test_context_hash_and_source_details_match_merged_checker(self):
+        self.flow_review()
+        finding = report.audit([self.sarif], 'actions')['runs'][0]['findings'][0]
+        # Computed by immutable engineering checker 55010328660eab26c71b5c681cd56f903eacb78c.
+        self.assertEqual(report.context_sha256(finding, self.root),
+                         '8f4d9e0d5e480579b1b0448116e33401052ff61a905efa64d695d1ffc293c208')
+        self.assertEqual(report.context_source_hashes(finding, self.root), {
+            '.github/workflows/build-artifacts.yml': hashlib.sha256(self.source.read_bytes()).hexdigest(),
+            'caller.py': hashlib.sha256((self.root / 'caller.py').read_bytes()).hexdigest(),
+            'related.py': hashlib.sha256((self.root / 'related.py').read_bytes()).hexdigest(),
+        })
+
     def test_review_does_not_override_failed_extraction(self):
         self.data['runs'][0]['invocations'][0]['executionSuccessful'] = False
         result = self.apply()
