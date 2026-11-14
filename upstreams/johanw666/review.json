@@ -19,11 +19,13 @@
     {
       "id": "text-only-web-previews",
       "title": "Allow webpage previews without downloaded images",
-      "status": "deferred",
+      "status": "proposed",
       "upstream_commits": ["8f4ad8577344e844945ee8e73d95fd1fcc7208bc"],
       "paths": ["app/src/main/java/org/thoughtcrime/securesms/linkpreview/LinkPreviewRepository.java", "app/src/main/java/org/thoughtcrime/securesms/keyvalue/MiscellaneousValues.kt"],
-      "reason": "Useful privacy and bandwidth control, but the fork checks the setting after obtaining and decoding the image. When images are disabled, even successful compression does not enter the branch containing the break, so the loop may try every size. A Collie implementation should stop the optional image fetch before decoding, preserve proxy and special preview behavior, and agree a settings location before UI work.",
-      "verification": "Test zero image requests when disabled, metadata-only preview success, unchanged default behavior, and existing special Signal preview routes; then verify the chosen settings UI."
+      "reason": "Implemented a Collie proposal inspired by the fork's separate image preference. Unlike the reviewed fork code, the generic-web path gates before the optional image fetch and decode. A backed-up local preference defaults to true, with a Chats control below Generate link previews. Cache refresh, callback invalidation and conversation/story/share submission guards apply the latest preference, clear both thumbnail and attachment ID, and preserve special Signal cards without a global forwarding change.",
+      "integration": "inspired",
+      "application": {"layer": "web-link-preview-images", "pr": "https://github.com/0cwa/collieim-android/pull/143"},
+      "verification": "Added repository request-count and response-close tests, policy/metadata tests, legacy and V2 preview-cache/race tests, real share/story submission tests, settings persistence and ViewModel tests, and Compose screen tests. These app tests have not been compiled or executed in this environment; the app PR checks and API 35 screen verification remain required before merge."
     },
     {
       "id": "group-admission-policy",

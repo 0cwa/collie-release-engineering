@@ -29,7 +29,7 @@ Signal/Molly updates.
 | Priority | Feature | Decision and next step |
 | --- | --- | --- |
 | 1 | Blocked inviter and automatic profile sharing | Propose one narrow app PR with a state-processor regression. |
-| 2 | Text-only webpage previews | Recommend for a later PR after choosing the setting location; move the gate before the image request. |
+| 2 | Text-only webpage previews | Implemented as an independent app proposal with an early image gate, cache/submission guards and a Chats setting; app checks and API 35 verification remain pending. |
 | 3 | Group admission policy | Redesign the policy and member-state handling before exposing a setting. |
 | 4 | Attachment-only deletion | Define sync, quote, backup and thread-cache behavior before implementing. |
 | Existing | Initial passphrase keyboard focus | Already supplied by Molly in Collie; avoid a duplicate port. |
@@ -65,65 +65,61 @@ image has already been obtained and decoded. When images are disabled, even
 successful compression does not enter the branch containing `break`, so the
 loop may try every compression size.
 
-A Collie implementation should stop the optional webpage image request before
-fetching or decoding, retain the existing title/description path and keep the
-current proxy policy. Special Signal previews need explicit tests rather than a
-blanket change to all preview types. Keep today's behavior as the default, agree
-the setting location under the app's UI workflow, and test request counts with
-images disabled. The current fork code should not be copied wholesale.
+The implemented Collie proposal uses this feature idea without copying the
+fork's gating and compression behavior. It gates the optional webpage image
+request before fetching or decoding, retains the existing title/description path
+and keeps the current proxy policy. Signal sticker, group and call-link cards
+retain their existing behavior.
 
-#### Concrete port design
+#### Implemented proposal
 
-1. Propose **Web link preview images** immediately below the existing **Generate
-   link previews** control in Chats. The app's `AGENTS.md` requires the location
-   of new UI to be chosen explicitly; this is a proposal, not a new control in
-   the first patchset. Extend the current Compose `ChatsSettingsScreen`,
-   `ChatsSettingsState` and `ChatsSettingsEvents`, plus the app's
-   `ChatsSettingsViewModel` and `ChatsSettingsRepository`. Do not bring back
-   Johan's legacy settings entry points.
-2. Store a local boolean in `SettingsValues`, defaulting to `true` to preserve
-   existing behavior, and include it in the existing backup-key list. Keep it
-   independent of `isLinkPreviewsEnabled`. The existing master switch sends a
+1. **Web link preview images** appears immediately below the existing
+   **Generate link previews** control in Chats. It uses the current Compose
+   settings screen, state and events, plus the app's settings repository and
+   ViewModel. The new row is disabled while its parent setting is off, and the
+   saved image choice is retained when the parent is toggled.
+2. `SettingsValues.isWebLinkPreviewImagesEnabled` is a local boolean that defaults
+   to `true`, preserving existing behavior for upgrades and old backups. Its key
+   is included in the existing backup list. It stays independent of
+   `isLinkPreviewsEnabled`. The existing master switch sends a
    `MultiDeviceConfigurationUpdateJob`; there is no corresponding protocol field
-   for image preference, so the new preference should not claim to sync.
-3. In the generic-web branch of `LinkPreviewRepository.getLinkPreview`, gate
-   before `fetchThumbnail`. Retain useful metadata, existing proxy/DNS/redirect
-   policy, cancellation and error behavior. Explain that webpage metadata still
-   requires contacting the site. Leave Signal sticker, group and call-link cards
-   on their explicit existing routes; the option's label must match that scope.
+   for image preference, so the new preference does not schedule remote sync.
+3. The generic-web branch of `LinkPreviewRepository.getLinkPreview` checks the
+   preference before `fetchThumbnail`, retaining useful metadata and the existing
+   proxy/DNS/redirect policy. The settings description explains that pages are
+   still fetched for titles and descriptions. Signal sticker, group and call-link
+   cards keep their explicit existing routes.
    Direct image URLs can deliver response bytes on the initial request before
-   their content type is known, so promise avoidance of the separate thumbnail
-   request and decoding, not that no image bytes can ever arrive.
-4. Apply a shared generic-web image policy when a preview is restored, adopted
-   or sent. `LinkPreviewViewModelV2` retains `savedLinkPreviewState`, adopts
-   already-resolved state in `onLinkPreviewResolved`, and skips refetching when
-   `activeUrl` is unchanged. Its `onSend()` returns the stored preview. The
-   legacy `LinkPreviewViewModel` also caches previews. Merely changing the fetch
-   path can therefore send an image obtained before the setting changed.
-   Add an immutable thumbnail-free copy operation to `LinkPreview` that clears
-   both `thumbnail` and `attachmentId` while preserving its raw text fields;
-   rebuilding from HTML-decoded getters can alter the title and description.
-5. Cover send paths that bypass those view-model send helpers:
-   `mediasend/v2/text/TextStoryPostCreationFragment.getLinkPreview()` hands its
-   snapshot to the story sender, and
-   `sharing/interstitial/ShareInterstitialViewModel.send()` places a cached
-   preview into `MultiShareArgs.withLinkPreview`. Strip generic-web thumbnails
-   at submission, and refresh/cancel visible pending previews when the preference
-   changes. Do not remove received images or change stored message history.
-   `ConversationFragment.sendMessage()` also accepts explicitly supplied previews
-   instead of the view-model result. Decide how editing and intentional forwards
-   fit the new-composition scope, and test those paths without rewriting already
-   submitted send jobs. Omit a preview if stripping its image leaves no usable
-   text instead of displaying an empty card.
-6. Add request-count tests proving zero optional image requests when disabled;
-   positive default-on and metadata-only cases; stale callback, restored-state
-   and settings-toggle regressions; and assertions for conversation, story and
-   share-sheet submissions. Extend `ChatsSettingsViewModelTest` and
-   `ChatsSettingsScreenTest`, and inspect the chosen screen on API 35 before
-   merging, as the app workflow requires.
+   their content type is known; the feature avoids the separate thumbnail request
+   and image decoding when disabled, without claiming that no image bytes can
+   ever arrive.
+4. A shared generic-web image policy also handles restored and resolved previews
+   in both `LinkPreviewViewModelV2` and the legacy `LinkPreviewViewModel`. Settings
+   refresh removes stale images; Rx disposal and the legacy ViewModel's request
+   generations invalidate callbacks from canceled requests. The immutable `LinkPreview.withoutThumbnail()` copy clears
+   both `thumbnail` and `attachmentId` while preserving raw text fields, avoiding
+   a second round of HTML decoding.
+5. The latest preference is applied at conversation, text-story and share-sheet
+   submission boundaries, including explicitly supplied conversation previews
+   and cached `MultiShareArgs` inputs. Empty web cards are omitted. Image-only
+   share drafts retain their URL; text stories receive a URL-only fallback card
+   so a link-only story does not become blank. Composer resume paths refresh
+   visible previews. The proposal does not introduce a global forwarding filter,
+   remove received images or rewrite stored message history or submitted jobs.
+6. Tests were added for optional-image request counts, response closing,
+   metadata/default-on behavior, special cards, restored caches, preference
+   changes and stale callbacks in both preview ViewModels. Actual share and
+   text-story `send()` tests capture outgoing arguments after a preference
+   change, including attachment-ID removal and image-only URL retention. Settings
+   persistence/backup inclusion, settings ViewModel behavior and the Compose row
+   also have regression tests.
 
-Treat this as one independently reviewable app feature after the location is
-chosen. A title-only network test by itself does not establish text-only sends.
+[App PR #143](https://github.com/0cwa/collieim-android/pull/143) is an
+independently reviewable `Layer: web-link-preview-images` proposal,
+not an adopted change. The app tests have not been compiled or executed in this
+environment. CI and the required API 35 screen verification remain outstanding
+before merge; neither the source review nor these test additions establish a
+passing Android build.
 
 ### 3. Group admission controls
 
@@ -173,6 +169,7 @@ The engineering PR introduces the source index, this review and offline ledger
 checks. [App PR #142](https://github.com/0cwa/collieim-android/pull/142) carries
 only `Layer: group-profile-sharing`, upstream
 attribution and focused regression coverage. Future feature PRs should update
-their individual ledger entries; they need not depend on or re-import the
+their individual ledger entries; [app PR #143](https://github.com/0cwa/collieim-android/pull/143)
+uses `Layer: web-link-preview-images`. App features need not depend on or re-import the
 historical patch forest. After a PR merges, record its actual app SHA and move
 that entry from `proposed` to `adopted` in a small engineering follow-up.
