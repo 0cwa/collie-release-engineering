@@ -117,3 +117,34 @@ flow context and primary-source binding remain required as applicable.
 Both app Actions and Java/Kotlin checker pins must include support for
 `reviewed_sources` before such records land. Earlier checker versions ignore
 that field and cannot enforce the declared dependencies.
+
+
+## Optional trusted review snapshots
+
+A consumer may opt in with `--review-catalog`, `--trusted-policy-root`,
+`--analysis-config`, and `--analysis-config-sha256`, retaining `--reviews` as the
+default manifest. Catalog, manifest and config paths are relative to the trusted
+policy checkout. For a PR, use its trusted base checkout, never the analyzed PR's
+catalog. Supply the digest of the exact trusted config used by CodeQL init.
+Without these options, the existing `--reviews` behavior is unchanged.
+
+The catalog has `schema: 1`, `profile: "collie-android-v1"`, and a `snapshots`
+array. Each entry contains `language`, `source_sha256`, `analysis_config_sha256`,
+`manifest`, and `manifest_sha256`. The helper selects one complete manifest for
+an exact identity match; it never combines snapshots. A miss uses the default.
+Malformed, ambiguous, unsafe or hash-mismatched catalogs fail the audit.
+
+`review_snapshots.source_fingerprint(source_root, language)` computes the source
+key using the pinned profile's application and recipe paths. It hashes indexed
+paths, modes and actual bytes, and independently rejects additional disk inputs,
+including ignored source. Only fixed Gradle build/cache directories beneath
+indexed module build scripts are excluded from disk inventory. Symlinks and
+submodules in the profile are rejected. Policy payloads and ordinary root docs
+do not affect the key, so adding a reviewed snapshot does not invalidate itself.
+Generated output is outside this key; existing finding, context, generated-source,
+dependency, extraction and compiler-coverage guards still apply.
+
+Every snapshot record needs independent source review and exact analysis
+binding before it enters trusted main. This selector supplies no approvals and
+does not waive failures. Deploy compatible consumer wiring separately; the
+existing publication template does not opt in automatically.
