@@ -198,6 +198,91 @@ class CanonicalContextTests(unittest.TestCase):
                 context['codeFlows'][0]['threadFlows'][0]['locations'][0]['taxa'] = [value]
                 with self.assertRaises(report.SarifError): self.digest(run, context)
 
+    def test_logical_location_references_reject_changed_table_targets(self):
+        for field in ('index', 'parentIndex'):
+            for target in ({'name': 'original'}, {'name': 'changed', 'kind': 'function'}):
+                with self.subTest(field=field, target=target):
+                    run, context = fixture()
+                    run['logicalLocations'] = [target]
+                    context['relatedLocations'][0]['logicalLocations'] = [
+                        {'name': 'inline', field: 0}]
+                    with self.assertRaisesRegex(report.SarifError, 'Indexed logical'):
+                        self.digest(run, context)
+        run, context = fixture()
+        context['relatedLocations'][0]['logicalLocations'] = [{'name': 'inline'}]
+        before = self.digest(run, context)
+        context['relatedLocations'][0]['logicalLocations'][0]['name'] = 'different'
+        self.assertNotEqual(before, self.digest(run, context))
+
+    def test_artifact_parent_references_reject_changed_parent_targets(self):
+        for target in ({'location': {'uri': 'original.zip'}},
+                       {'location': {'uri': 'changed.zip'}, 'hashes': {'sha-256': 'changed'}}):
+            with self.subTest(target=target):
+                run, context = fixture()
+                run['artifacts'].append(target)
+                run['artifacts'][0]['parentIndex'] = 2
+                with self.assertRaisesRegex(report.SarifError, 'Indexed artifact parents'):
+                    self.digest(run, context)
+
+    def test_id_based_messages_reject_changed_templates_at_each_schema_path(self):
+        for path in ('codeFlow', 'threadFlow', 'location', 'related', 'stack',
+                     'stackFrameLocation', 'region', 'contextRegion', 'annotation', 'artifact'):
+            for template in ('Original {0}', 'Different {0}'):
+                with self.subTest(path=path, template=template):
+                    run, context = fixture()
+                    run['tool']['driver']['rules'] = [
+                        {'id': 'rule', 'messageStrings': {'step': {'text': template}}}]
+                    flow = context['codeFlows'][0]
+                    thread = flow['threadFlows'][0]
+                    entry = thread['locations'][0]
+                    loc = entry['location']
+                    physical = loc['physicalLocation']
+                    if path == 'codeFlow': container = flow
+                    elif path == 'threadFlow': container = thread
+                    elif path == 'location': container = loc
+                    elif path == 'related': container = context['relatedLocations'][0]
+                    elif path in ('stack', 'stackFrameLocation'):
+                        entry['stack'] = {'frames': [{'location': location('a.kt', 0)}]}
+                        container = (entry['stack'] if path == 'stack'
+                                     else entry['stack']['frames'][0]['location'])
+                    elif path == 'region': container = physical['region']
+                    elif path == 'contextRegion':
+                        container = physical.setdefault('contextRegion', {'startLine': 1})
+                    elif path == 'annotation':
+                        loc['annotations'] = [{'startLine': 7}]
+                        container = loc['annotations'][0]
+                    else:
+                        run['artifacts'][0]['description'] = {'id': 'step', 'arguments': ['value']}
+                        container = None
+                    if container is not None:
+                        container['message'] = {'id': 'step', 'arguments': ['value']}
+                    with self.assertRaisesRegex(report.SarifError, 'ID-based context messages'):
+                        self.digest(run, context)
+
+    def test_reference_shaped_property_bags_remain_literal(self):
+        run, context = fixture()
+        properties = {
+            'logicalLocations': [{'index': 0, 'parentIndex': 1}],
+            'parentIndex': 2, 'message': {'id': 'opaque'},
+        }
+        context['relatedLocations'][0]['properties'] = copy.deepcopy(properties)
+        canonical = report.canonical_context(run, context)
+        self.assertEqual(properties, canonical['relatedLocations'][0]['properties'])
+        before = self.digest(run, context)
+        context['relatedLocations'][0]['properties']['message']['id'] = 'changed'
+        self.assertNotEqual(before, self.digest(run, context))
+
+    def test_relationship_descriptions_reject_changed_message_templates(self):
+        for template in ('Original {0}', 'Different {0}'):
+            with self.subTest(template=template):
+                run, context = fixture()
+                run['tool']['driver']['rules'] = [
+                    {'id': 'rule', 'messageStrings': {'step': {'text': template}}}]
+                context['relatedLocations'][0]['relationships'] = [{
+                    'target': 1, 'description': {'id': 'step', 'arguments': ['value']}}]
+                with self.assertRaisesRegex(report.SarifError, 'ID-based context messages'):
+                    self.digest(run, context)
+
     def test_ambiguous_ids_and_component_names_fail_closed(self):
         run, context = fixture(); item = context['codeFlows'][0]['threadFlows'][0]['locations'][0]
         run['tool']['extensions'][0]['taxa'].append({'id': 'taxon-a'})
