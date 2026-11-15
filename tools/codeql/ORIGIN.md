@@ -93,6 +93,13 @@ unbound locations cannot be approved through this mechanism. A path-problem or
 finding with flow or related-location evidence without this field remains
 unreviewed. Direct findings without such evidence retain the existing contract.
 
+The field accepts one lowercase SHA-256 string, or a nonempty list of unique
+lowercase SHA-256 strings for independently reviewed exact contexts. The
+actual context is still hashed once by the same version-2 algorithm and must
+match one listed value. Unknown contexts fail closed; this does not normalize
+locations, IDs, flows, or messages. Lists must be deployed only after every
+checker consuming the manifest supports them; prior checkers do not match lists.
+
 Deploy this checker to both Java/Kotlin and Actions policy pins before adding
 any `context_sha256` records to the shared manifest: older checkers ignore the
 field and therefore cannot enforce its binding. Checker deployment does not
