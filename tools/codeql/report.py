@@ -127,6 +127,119 @@ def nested_context_locations(run: dict, value: Any) -> list[dict]:
     return found
 
 
+
+def canonical_context(run: dict, value: Any, kind: str | None = None) -> Any:
+    """Resolve ephemeral SARIF references while preserving their full targets.
+
+    The original SARIF is retained in the audit. Only verified redundant table
+    indices/identities are removed; all other context and target metadata stays.
+    """
+    if isinstance(value, list):
+        return [canonical_context(run, item, kind) for item in value]
+    if not isinstance(value, dict):
+        return value
+    if kind == "threadFlowLocation" and "index" in value:
+        raise SarifError("Indexed thread-flow locations are not supported")
+    if kind == "artifactLocation":
+        supplied = {k: v for k, v in value.items() if k != "index"}
+        metadata = {}
+        if "index" in value:
+            index = value["index"]
+            entry = indexed(objects(run.get("artifacts", []), "artifacts"), index, "artifact")
+            location = entry.get("location")
+            if not isinstance(location, dict):
+                raise SarifError("Indexed artifact lacks a location")
+            if "index" in location and (isinstance(location["index"], bool) or not isinstance(location["index"], int) or location["index"] != index):
+                raise SarifError("Mismatched artifact self-index")
+            resolved = {k: v for k, v in location.items() if k != "index"}
+            if not isinstance(resolved.get("uri"), str) or not resolved["uri"]:
+                raise SarifError("Indexed artifact has no resolved URI")
+            for key in supplied.keys() & resolved.keys():
+                if supplied[key] != resolved[key]:
+                    raise SarifError("Mismatched artifact location and index")
+            supplied = {**resolved, **supplied}
+            metadata = {k: v for k, v in entry.items() if k != "location"}
+        return {"resolved": supplied, "artifact_metadata": metadata}
+    if kind == "taxa-entry":
+        tool = run["tool"]
+        component = tool["driver"]
+        reference = value.get("toolComponent", {})
+        if not isinstance(reference, dict):
+            raise SarifError("Invalid tool component reference")
+        if reference:
+            extensions = objects(tool.get("extensions", []), "tool.extensions")
+            if "index" in reference:
+                component = indexed(extensions, reference["index"], "tool component")
+            else:
+                matches = [item for item in [component, *extensions]
+                           if any(reference.get(k) and reference[k] == item.get(k) for k in ("name", "guid"))]
+                if len(matches) != 1:
+                    raise SarifError("Unresolved tool component")
+                component = matches[0]
+            for key in ("name", "guid"):
+                if key in reference:
+                    if reference[key] != component.get(key):
+                        raise SarifError("Mismatched tool component reference")
+                    if sum(item.get(key) == reference[key] for item in [tool["driver"], *extensions]) != 1:
+                        raise SarifError("Ambiguous tool component reference")
+        candidates = objects(component.get("taxa", []), "taxa")
+        if "index" in value:
+            taxon = indexed(candidates, value["index"], "taxa")
+        elif (not reference and isinstance(value.get("id"), str) and value["id"]
+              and not any(item.get("id") == value["id"] for item in candidates)):
+            # CodeQL emits standalone heuristic IDs without a component/table.
+            # Preserve the whole object exactly, never equating it with a table reference.
+            return value
+        else:
+            matches = [item for item in candidates if value.get("id") and value["id"] == item.get("id")]
+            if len(matches) != 1:
+                raise SarifError("Unresolved taxon")
+            taxon = matches[0]
+        for key in ("id", "guid"):
+            if key in value:
+                if value[key] != taxon.get(key):
+                    raise SarifError("Mismatched taxa reference")
+                if sum(item.get(key) == value[key] for item in candidates) != 1:
+                    raise SarifError("Ambiguous taxa reference")
+        if not any(isinstance(component.get(k), str) and component[k] for k in ("name", "guid")):
+            raise SarifError("Tool component lacks stable identity")
+        components = [tool["driver"], *objects(tool.get("extensions", []), "tool.extensions")]
+        for key in ("name", "guid"):
+            if component.get(key) and sum(item.get(key) == component[key] for item in components) != 1:
+                raise SarifError("Ambiguous tool component identity")
+        if not any(isinstance(taxon.get(k), str) and taxon[k] for k in ("id", "guid")):
+            raise SarifError("Taxon lacks stable identity")
+        for key in ("id", "guid"):
+            if taxon.get(key) and sum(item.get(key) == taxon[key] for item in candidates) != 1:
+                raise SarifError("Ambiguous taxon identity")
+        component_identity = {k: v for k, v in component.items() if k not in ("taxa", "rules", "notifications")}
+        return {"resolved_taxon": taxon,
+                "component": canonical_context(run, component_identity, "component"),
+                "component_reference": {k: v for k, v in reference.items() if k not in ("index", "name", "guid")},
+                "reference": {k: v for k, v in value.items() if k not in ("index", "id", "guid", "toolComponent")}}
+    # Traverse only SARIF schema-defined reference-bearing paths. Property bags,
+    # extension fields, and other unknown objects are retained literally.
+    edges = {
+        None: {"codeFlows": "codeFlow", "relatedLocations": "location"},
+        "codeFlow": {"threadFlows": "threadFlow"},
+        "threadFlow": {"locations": "threadFlowLocation"},
+        "threadFlowLocation": {"location": "location", "taxa": "taxa-entry", "stack": "stack"},
+        "stack": {"frames": "stackFrame"},
+        "stackFrame": {"location": "location"},
+        "location": {"physicalLocation": "physicalLocation"},
+        "physicalLocation": {"artifactLocation": "artifactLocation"},
+        "component": {"locations": "artifactLocation"},
+    }
+    fields = edges.get(kind, {})
+    return {key: canonical_context(run, child, fields[key]) if key in fields else child
+            for key, child in value.items()}
+
+
+def canonical_context_sha256(run: dict, context: dict) -> str:
+    canonical = canonical_context(run, context)
+    encoded = json.dumps(canonical, sort_keys=True, separators=(",", ":"), ensure_ascii=True).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
+
 def level(item: dict, metadata: dict) -> str:
     value = item.get("level", metadata.get("defaultConfiguration", {}).get("level", "warning"))
     if value not in LEVELS:
@@ -190,6 +303,9 @@ def audit_run(run: dict, language: str, source: str) -> dict:
             # Preserve every SARIF flow/related field as well as resolved paths.
             "review_context": {"codeFlows": result.get("codeFlows", []),
                                "relatedLocations": result.get("relatedLocations", [])},
+            "canonical_context_sha256": canonical_context_sha256(
+                run, {"codeFlows": result.get("codeFlows", []),
+                      "relatedLocations": result.get("relatedLocations", [])}),
             "baseline_state": result.get("baselineState"),
             "suppressions": result.get("suppressions", []),
         })
@@ -371,7 +487,7 @@ def context_source_hashes(finding: dict, source_root: Path) -> dict[str, str]:
 def context_sha256(finding: dict, source_root: Path) -> str:
     """Bind complete SARIF context and resolved checkout files to a review."""
     hashes = context_source_hashes(finding, source_root)
-    context = {"version": 1, "sarif": finding["review_context"],
+    context = {"version": 2, "canonical_sarif_sha256": finding["canonical_context_sha256"],
                "resolved_context_locations": finding["context_locations"],
                "resolved_code_flows": finding["code_flows"],
                "resolved_related_locations": finding["related_locations"], "sources": hashes}
