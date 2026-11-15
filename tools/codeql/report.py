@@ -140,6 +140,12 @@ def canonical_context(run: dict, value: Any, kind: str | None = None) -> Any:
         return value
     if kind == "threadFlowLocation" and "index" in value:
         raise SarifError("Indexed thread-flow locations are not supported")
+    if kind == "logicalLocation" and ("index" in value or "parentIndex" in value):
+        raise SarifError("Indexed logical locations and parents are not supported")
+    if kind == "artifact" and "parentIndex" in value:
+        raise SarifError("Indexed artifact parents are not supported")
+    if kind == "message" and "id" in value:
+        raise SarifError("ID-based context messages are not supported")
     if kind == "artifactLocation":
         supplied = {k: v for k, v in value.items() if k != "index"}
         metadata = {}
@@ -159,7 +165,8 @@ def canonical_context(run: dict, value: Any, kind: str | None = None) -> Any:
                     raise SarifError("Mismatched artifact location and index")
             supplied = {**resolved, **supplied}
             metadata = {k: v for k, v in entry.items() if k != "location"}
-        return {"resolved": supplied, "artifact_metadata": metadata}
+        return {"resolved": supplied,
+                "artifact_metadata": canonical_context(run, metadata, "artifact")}
     if kind == "taxa-entry":
         tool = run["tool"]
         component = tool["driver"]
@@ -221,13 +228,18 @@ def canonical_context(run: dict, value: Any, kind: str | None = None) -> Any:
     # extension fields, and other unknown objects are retained literally.
     edges = {
         None: {"codeFlows": "codeFlow", "relatedLocations": "location"},
-        "codeFlow": {"threadFlows": "threadFlow"},
-        "threadFlow": {"locations": "threadFlowLocation"},
+        "codeFlow": {"threadFlows": "threadFlow", "message": "message"},
+        "threadFlow": {"locations": "threadFlowLocation", "message": "message"},
         "threadFlowLocation": {"location": "location", "taxa": "taxa-entry", "stack": "stack"},
-        "stack": {"frames": "stackFrame"},
+        "stack": {"frames": "stackFrame", "message": "message"},
         "stackFrame": {"location": "location"},
-        "location": {"physicalLocation": "physicalLocation"},
-        "physicalLocation": {"artifactLocation": "artifactLocation"},
+        "location": {"physicalLocation": "physicalLocation", "logicalLocations": "logicalLocation",
+                     "message": "message", "annotations": "region", "relationships": "locationRelationship"},
+        "locationRelationship": {"description": "message"},
+        "physicalLocation": {"artifactLocation": "artifactLocation", "region": "region",
+                             "contextRegion": "region"},
+        "region": {"message": "message"},
+        "artifact": {"description": "message"},
         "component": {"locations": "artifactLocation"},
     }
     fields = edges.get(kind, {})
