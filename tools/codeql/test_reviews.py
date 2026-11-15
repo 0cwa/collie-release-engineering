@@ -340,14 +340,55 @@ class ReviewedFindingTests(unittest.TestCase):
     def test_context_hash_and_source_details_match_merged_checker(self):
         self.flow_review()
         finding = report.audit([self.sarif], 'actions')['runs'][0]['findings'][0]
-        # Computed by immutable engineering checker 55010328660eab26c71b5c681cd56f903eacb78c.
+        # Version-2 canonical context digest for the fixed fixture.
         self.assertEqual(report.context_sha256(finding, self.root),
-                         '8f4d9e0d5e480579b1b0448116e33401052ff61a905efa64d695d1ffc293c208')
+                         '29e9066c39b8d91c61a266eb65a575ac2eaedb3694eedfbca8f27a0e7fea1139')
         self.assertEqual(report.context_source_hashes(finding, self.root), {
             '.github/workflows/build-artifacts.yml': hashlib.sha256(self.source.read_bytes()).hexdigest(),
             'caller.py': hashlib.sha256((self.root / 'caller.py').read_bytes()).hexdigest(),
             'related.py': hashlib.sha256((self.root / 'related.py').read_bytes()).hexdigest(),
         })
+
+    def test_reordered_reference_tables_still_match_exact_review(self):
+        self.flow_review()
+        run = self.data['runs'][0]
+        run['artifacts'].extend([
+            {'location': {'uri': 'caller.py', 'uriBaseId': '%SRCROOT%'}},
+            {'location': {'uri': 'related.py', 'uriBaseId': '%SRCROOT%'}},
+        ])
+        run['tool']['extensions'] = [{'name': 'pack', 'semanticVersion': '1', 'taxa': [
+            {'id': 'first', 'properties': {'detail': 'one'}},
+            {'id': 'second', 'properties': {'detail': 'two'}},
+        ]}]
+        finding = run['results'][0]
+        entries = finding['codeFlows'][0]['threadFlows'][0]['locations']
+        entries[0]['location']['physicalLocation']['artifactLocation']['index'] = 1
+        entries[0]['taxa'] = [{'index': 0, 'toolComponent': {'index': 0}, 'properties': {'role': 'step'}}]
+        finding['relatedLocations'][0]['physicalLocation']['artifactLocation']['index'] = 2
+        self.sarif.write_text(json.dumps(self.data))
+        original = report.audit([self.sarif], 'actions')['runs'][0]['findings'][0]
+        review = {**self.review, 'context_sha256': report.context_sha256(original, self.root)}
+        self.assertTrue(self.apply(review)['passed'])
+        run['artifacts'] = [run['artifacts'][2], run['artifacts'][0], run['artifacts'][1]]
+        run['tool']['extensions'][0]['taxa'].reverse()
+        finding['locations'][0]['physicalLocation']['artifactLocation']['index'] = 1
+        entries[0]['location']['physicalLocation']['artifactLocation']['index'] = 2
+        entries[1]['location']['physicalLocation']['artifactLocation']['index'] = 1
+        entries[0]['taxa'][0]['index'] = 1
+        finding['relatedLocations'][0]['physicalLocation']['artifactLocation']['index'] = 0
+        self.assertTrue(self.apply(review)['passed'])
+        run['tool']['extensions'][0]['taxa'][1]['properties']['detail'] = 'altered'
+        result = self.apply(review)
+        self.assertFalse(result['passed'])
+        self.assertEqual(result['unreviewed_finding_count'], 1)
+
+    def test_legacy_version_one_context_cannot_match_version_two(self):
+        review = self.flow_review()
+        self.assertTrue(self.apply(review)['passed'])
+        review['context_sha256'] = '8f4d9e0d5e480579b1b0448116e33401052ff61a905efa64d695d1ffc293c208'
+        result = self.apply(review)
+        self.assertFalse(result['passed'])
+        self.assertEqual(result['unreviewed_finding_count'], 1)
 
     def test_review_does_not_override_failed_extraction(self):
         self.data['runs'][0]['invocations'][0]['executionSuccessful'] = False

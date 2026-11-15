@@ -10,7 +10,7 @@ import report
 
 def finding(path):
     loc = {'uri': path, 'uri_base_id': '%SRCROOT%', 'start_line': 1, 'start_column': 1, 'end_line': None, 'end_column': None}
-    return {'rule': 'rule', 'level': 'warning', 'security_severity': '1', 'query_kind': 'path-problem', 'query_precision': 'high', 'message': 'message', 'locations': [loc], 'related_locations': [], 'code_flows': [], 'context_locations': [loc], 'review_context': {'codeFlows': [], 'relatedLocations': []}}
+    return {'rule': 'rule', 'level': 'warning', 'security_severity': '1', 'query_kind': 'path-problem', 'query_precision': 'high', 'message': 'message', 'locations': [loc], 'related_locations': [], 'code_flows': [], 'context_locations': [loc], 'review_context': {'codeFlows': [], 'relatedLocations': []}, 'canonical_context_sha256': report.canonical_context_sha256({'tool': {'driver': {}}}, {'codeFlows': [], 'relatedLocations': []})}
 
 
 class ExportTests(unittest.TestCase):
