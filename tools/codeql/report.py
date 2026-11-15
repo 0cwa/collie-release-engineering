@@ -14,6 +14,8 @@ import re
 from typing import Any
 from urllib.parse import unquote, urlsplit
 
+import review_snapshots
+
 
 LANGUAGES = {"actions": "actions", "python": "py", "javascript-typescript": "js", "c-cpp": "cpp", "java-kotlin": "java"}
 # CLI baseline descriptors use extractor names, not query ID prefixes.
@@ -638,6 +640,20 @@ def markdown(report: dict) -> str:
              "Unreviewed findings fail this gate regardless of severity, suppression or baseline state. "
              "Both review dispositions must match the exact rule, location, message, tool version and source-file SHA-256; flow and related evidence also requires a matching context SHA-256. All remain in SARIF. "
              "Extraction warnings, errors and missing expected files also fail. This result covers only the selected language.", ""]
+    selection = report.get("review_snapshot_selection")
+    if selection:
+        lines += ["### Trusted review snapshot", ""]
+        if selection.get("selection") == "error":
+            lines += ["Selection failed; no review manifest was applied.", ""]
+        else:
+            lines += [f"Selection: `{cell(selection['selection'])}` from `{cell(selection['catalog_path'])}` "
+                      f"(SHA-256 `{cell(selection['catalog_sha256'])}`).",
+                      f"Selected manifest: `{cell(selection['selected_review_path'])}` "
+                      f"(SHA-256 `{cell(selection['selected_review_sha256'])}`).",
+                      f"Language: `{cell(selection['language'])}`; profile: `{cell(selection['profile'])}`; "
+                      f"source SHA-256: `{cell(selection['source_sha256'])}`.",
+                      f"Trusted analysis config: `{cell(selection['analysis_config_path'])}` "
+                      f"(SHA-256 `{cell(selection['analysis_config_sha256'])}`).", ""]
     if report.get("retired_reviews"):
         lines += ["", "### Retired source-bound reviews", ""]
         for retired in report["retired_reviews"]:
@@ -705,6 +721,11 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--summary", required=True, type=Path, help="Markdown audit report")
     parser.add_argument("--reviews", type=Path, help="Exact source-bound reviews; SARIF remains unchanged")
     parser.add_argument("--source-root", type=Path, default=Path("."))
+    parser.add_argument("--review-catalog", help="Trusted-base catalog path relative to --trusted-policy-root")
+    parser.add_argument("--trusted-policy-root", type=Path,
+                        help="Checkout root containing trusted catalog, manifests, and CodeQL config")
+    parser.add_argument("--analysis-config", help="Trusted CodeQL config path relative to --trusted-policy-root")
+    parser.add_argument("--analysis-config-sha256", help="Expected SHA-256 of the exact config used by CodeQL init")
     parser.add_argument("--compiler-inputs", type=Path)
     parser.add_argument("--extracted-inputs", type=Path)
     args = parser.parse_args(argv)
@@ -713,7 +734,34 @@ def main(argv: list[str] | None = None) -> int:
     paths = sorted({file for path in [*args.sarif, *args.sarif_options] for file in
                     (path.rglob("*.sarif") if path.is_dir() else [path])})
     report = audit(paths, args.language)
-    if args.reviews:
+    selection_args = (args.review_catalog, args.trusted_policy_root, args.analysis_config,
+                      args.analysis_config_sha256)
+    use_snapshot_catalog = any(value is not None for value in selection_args)
+    if use_snapshot_catalog and (not all(value is not None for value in selection_args) or not args.reviews):
+        report["errors"].append("Trusted review snapshot selection requires catalog, policy root, reviews fallback, "
+                                "analysis config path, and config SHA-256")
+        report["review_snapshot_selection"] = {"selection": "error"}
+        update_outcome(report)
+    elif use_snapshot_catalog:
+        try:
+            selected_reviews, selection = review_snapshots.resolve_review_snapshot(
+                source_root=args.source_root,
+                trusted_policy_root=args.trusted_policy_root,
+                catalog_relative_path=args.review_catalog,
+                default_reviews_relative_path=args.reviews.as_posix(),
+                language=args.language,
+                analysis_config_relative_path=args.analysis_config,
+                analysis_config_sha256=args.analysis_config_sha256,
+            )
+            report["review_snapshot_selection"] = selection
+            apply_reviews(report, selected_reviews, args.source_root)
+        except review_snapshots.SnapshotSelectionError as error:
+            # Resolver messages are fixed and bounded; source-controlled paths and JSON
+            # contents are never echoed into the gate log.
+            report["errors"].append(f"Trusted review snapshot selection: {str(error)[:240]}")
+            report["review_snapshot_selection"] = {"selection": "error"}
+            update_outcome(report)
+    elif args.reviews:
         apply_reviews(report, args.reviews, args.source_root)
     if args.language == "java-kotlin" and args.compiler_inputs and args.extracted_inputs:
         import compile_scope
