@@ -600,10 +600,16 @@ def apply_reviews(report: dict, review_file: Path, source_root: Path) -> None:
                                  finding["review_context"]["relatedLocations"] or
                                  "context_sha256" in review)
                 if needs_context:
-                    fingerprint = review.get("context_sha256")
-                    if not isinstance(fingerprint, str) or not re.fullmatch(r"[0-9a-f]{64}", fingerprint):
+                    if "context_sha256" not in review:
                         continue
-                    if context_sha256(finding, source_root) != fingerprint:
+                    fingerprints = review["context_sha256"]
+                    if isinstance(fingerprints, str):
+                        fingerprints = [fingerprints]
+                    if (not isinstance(fingerprints, list) or not fingerprints or
+                            any(not isinstance(value, str) or not re.fullmatch(r"[0-9a-f]{64}", value)
+                                for value in fingerprints) or len(set(fingerprints)) != len(fingerprints)):
+                        raise SarifError(f"Review {identifier} needs a nonempty unique set of SHA-256 context fingerprints")
+                    if context_sha256(finding, source_root) not in fingerprints:
                         continue
                 matches[0]["review"] = {"id": identifier, "disposition": review["disposition"],
                                          "reason": review["reason"], "source_sha256": review["source_sha256"]}
