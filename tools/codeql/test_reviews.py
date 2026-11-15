@@ -390,6 +390,46 @@ class ReviewedFindingTests(unittest.TestCase):
         self.assertFalse(result['passed'])
         self.assertEqual(result['unreviewed_finding_count'], 1)
 
+    def test_exact_context_set_accepts_only_observed_variants(self):
+        review = self.flow_review()
+        first = review['context_sha256']
+        caller = self.data['runs'][0]['results'][0]['codeFlows'][0]['threadFlows'][0]['locations'][0]
+        region = caller['location']['physicalLocation']['region']
+        region['startLine'] += 1
+        self.sarif.write_text(json.dumps(self.data))
+        second = report.context_sha256(report.audit([self.sarif], 'actions')['runs'][0]['findings'][0], self.root)
+        self.assertNotEqual(first, second)
+        review['context_sha256'] = [first, second]
+        self.assertTrue(self.apply(review)['passed'])
+        region['startLine'] -= 1
+        self.assertTrue(self.apply(review)['passed'])
+        region['startLine'] += 2
+        result = self.apply(review)
+        self.assertFalse(result['passed'])
+        self.assertEqual(result['unreviewed_finding_count'], 1)
+
+    def test_context_sets_reject_malformed_values(self):
+        review = self.flow_review()
+        digest = review['context_sha256']
+        for bad in ([], [digest, digest], ['bad'], [None], [digest, 1],
+                    [digest, {}], None, True, 3, {'sha256': digest}, digest.upper()):
+            with self.subTest(value=bad):
+                review['context_sha256'] = bad
+                result = self.apply(review)
+                self.assertFalse(result['passed'])
+                self.assertEqual(result['unreviewed_finding_count'], 1)
+                self.assertTrue(result['errors'])
+
+    def test_context_set_does_not_allow_duplicate_reviews(self):
+        review = self.flow_review()
+        digest = review['context_sha256']
+        review['context_sha256'] = [digest, '1' * 64]
+        self.reviews.write_text(json.dumps({'schema': 1, 'reviews': [review, {**review, 'id': 'other'}]}))
+        result = report.audit([self.sarif], 'actions')
+        report.apply_reviews(result, self.reviews, self.root)
+        self.assertFalse(result['passed'])
+        self.assertTrue(any('duplicates another review' in error for error in result['errors']))
+
     def test_review_does_not_override_failed_extraction(self):
         self.data['runs'][0]['invocations'][0]['executionSuccessful'] = False
         result = self.apply()
