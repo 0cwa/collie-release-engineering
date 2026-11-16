@@ -93,6 +93,9 @@ def main():
                   if args.engineering_revision or args.workflow_revision else None)
     try:
         context=runtime.plan(args,historical_rehearsal=args.rehearse)
+        channel=args.channel
+        if channel=='trailblazer-beta' and context is None:
+            raise ValueError('Beta signing requires an approved production source/build plan')
         if context and context[0]['mode']=='new-source':
             if args.rehearse:raise ValueError('new-source fixtures must pin a pre-created test key; unknown rehearsal signer cannot satisfy plan')
             identities=runtime.identities(context)
@@ -110,12 +113,19 @@ def main():
                 raise ValueError('manifest differs from independently authenticated SHA-256')
             m = json.loads(manifest.read_text())
             runtime.check_manifest(context,m)
-            entries = artifacts.validate_manifest(m, args.approved_commit, args.approved_run, args.certificate_sha256, identities)
+            entries = artifacts.validate_manifest(m, args.approved_commit, args.approved_run,
+                                                  args.certificate_sha256, identities,channel)
+            if channel=='trailblazer-beta':
+                apk_names=sorted(path.name for path in args.apks.glob('*.apk'))
+                if apk_names!=['trailblazer-beta.apk']:
+                    raise ValueError('Beta signing accepts only trailblazer-beta.apk')
+                runtime.verify_beta_ci_run(m['run_id'],m['run_attempt'],m['commit'])
             graph=runtime.signing(args,context,m) if context and context[0]['mode']=='new-source' else None
             if not args.rehearse:
-                artifacts.require_canonical_release(m)
+                artifacts.require_canonical_release(m,channel)
                 reservation = dict(m, _unsigned_manifest_sha256=args.manifest_sha256)
-                version_policy.enforce(reservation, args.version_ledger, args.published_inventory, args.published_inventory_sha256)
+                version_policy.enforce(reservation, args.version_ledger, args.published_inventory,
+                                       args.published_inventory_sha256,channel=channel)
             checklist = read_instrumentation_checklist(args.instrumentation_checklist, args.approved_commit)
             print('Instrumentation checklist (maintainer-provided; not independently verified):')
             print(json.dumps(checklist, indent=2, ensure_ascii=True), flush=True)
@@ -132,7 +142,7 @@ def main():
                 if artifacts.sha256(apk) != e['sha256']:
                     raise ValueError('unsigned APK hash mismatch: ' + e['file'])
                 artifacts.check_unsigned(apk)
-                artifacts.check_metadata(args.build_tools / 'aapt2', apk, m['version_code'], m['version_name'])
+                artifacts.check_metadata(args.build_tools / 'aapt2', apk, m['version_code'], m['version_name'],channel)
             env = os.environ.copy()
             if args.rehearse:
                 keystore = temp / 'rehearsal.p12'
@@ -144,10 +154,16 @@ def main():
                      '-alias', alias, '-keyalg', 'RSA', '-keysize', '3072', '-validity', '7',
                      '-dname', 'CN=Disposable rehearsal'], env=env, stdout=subprocess.DEVNULL)
             else:
-                keystore = Path(os.environ['MOLLY_KEYSTORE'])
-                alias = os.environ['MOLLY_KEY_ALIAS']
-                env['MOLLY_KEYSTORE_PASSWORD'] = os.environ.get('MOLLY_KEYSTORE_PASSWORD') or getpass.getpass('Keystore password: ')
-                env['MOLLY_KEY_PASSWORD'] = os.environ.get('MOLLY_KEY_PASSWORD') or getpass.getpass('Key password: ')
+                prefix='TRAILBLAZER_BETA' if channel=='trailblazer-beta' else 'MOLLY'
+                key_path=os.environ.get(prefix+'_KEYSTORE')
+                alias=os.environ.get(prefix+'_KEY_ALIAS')
+                if not key_path or not alias:
+                    raise ValueError(prefix+' APK signing keystore and alias are required')
+                keystore=Path(key_path)
+                env['MOLLY_KEYSTORE_PASSWORD'] = (os.environ.get(prefix+'_KEYSTORE_PASSWORD') or
+                                                   getpass.getpass('Keystore password: '))
+                env['MOLLY_KEY_PASSWORD'] = (os.environ.get(prefix+'_KEY_PASSWORD') or
+                                             getpass.getpass('Key password: '))
             args.output.mkdir(parents=True)
             signed = []
             ordered = sorted(entries, key=lambda e: e['profile'] != 'collie') if single else entries
@@ -177,7 +193,7 @@ def main():
                     raise ValueError('unexpected APK signing certificate')
                 if not all(re.search(r'Verified using v' + v + r' scheme \([^\n]*\): true', result) for v in ('2', '3')):
                     raise ValueError('APK lacks verified v2 and v3 signatures')
-                artifacts.check_metadata(args.build_tools / 'aapt2', dest, m['version_code'], m['version_name'])
+                artifacts.check_metadata(args.build_tools / 'aapt2', dest, m['version_code'], m['version_name'],channel)
                 signed.append({'profile': e['profile'], 'file': e['file'], 'unsigned_sha256': e['sha256'],
                                'signed_sha256': artifacts.sha256(dest), 'certificate_sha256': digests[0].replace(':', '').lower()})
             final = {'schema': 1, 'rehearsal': args.rehearse, 'unsigned_manifest_sha256': args.manifest_sha256,
@@ -190,10 +206,14 @@ def main():
                 final['artifact_mode'] = 'single-collie'
                 final['source_profile'] = 'collie'
                 final['package'] = artifacts.PACKAGE
+            elif channel=='trailblazer-beta':
+                final.update(channel=channel,run_attempt=m['run_attempt'],tag=m['tag'],title=m['title'],prerelease=True,
+                             artifact_mode='single-trailblazer-beta',source_profile=channel,
+                             package=runtime.CHANNELS[channel]['package'])
             if any(x['certificate_sha256'] != final['certificate_sha256'] for x in signed):
                 raise ValueError('signed APKs have different certificates')
             if graph:
-                final.update(schema=2,package=artifacts.PACKAGE,release_mode='new-source',release_plan_sha256=context[1],source_receipt_sha256=m['source_receipt_sha256'],build_receipt_sha256=m['build_receipt_sha256'],**runtime.identities(context))
+                final.update(schema=2,package=runtime.CHANNELS[channel]['package'],release_mode='new-source',release_plan_sha256=context[1],source_receipt_sha256=m['source_receipt_sha256'],build_receipt_sha256=m['build_receipt_sha256'],**runtime.identities(context))
             raw_final=(json.dumps(final,indent=2)+'\n').encode()
             (args.output / 'final-manifest.json').write_bytes(raw_final)
             if graph:

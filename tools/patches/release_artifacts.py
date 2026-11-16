@@ -8,17 +8,22 @@ import stat
 import subprocess
 import zipfile
 from pathlib import Path
+import migration_receipts as receipt_policy
 
 PROFILES = {'molly-minimal', 'molly-continued', 'molly-foss-continued', 'collie', 'collie-foss'}
 PACKAGE = 'im.collie.app'
 RC3_VERSION_CODE = 177203  # Verified on the published, signed Collie RC3 APK.
+CHANNELS = receipt_policy.PROFILES
+TRAILBLAZER_CHANNEL = 'trailblazer-beta'
 
 
-def validate_version_code(code, package):
+def validate_version_code(code, package, channel='stable'):
     """Prevent releases that existing Collie RC3 installations cannot upgrade to."""
     if type(code) is not int or not 1 <= code <= 2100000000:
         raise ValueError('invalid version code')
-    if package == PACKAGE and code <= RC3_VERSION_CODE:
+    if channel not in CHANNELS or (channel != 'stable' and package != CHANNELS[channel]['package']):
+        raise ValueError('package differs from selected release channel')
+    if channel == 'stable' and package == PACKAGE and code <= RC3_VERSION_CODE:
         raise ValueError('Collie version code must exceed the verified RC3 version code')
 
 
@@ -52,8 +57,10 @@ def apk_metadata(aapt2, apk):
     return match.groups()
 
 
-def check_metadata(aapt2, apk, code, name):
-    if apk_metadata(aapt2, apk) != (PACKAGE, str(code), name):
+def check_metadata(aapt2, apk, code, name, channel='stable'):
+    if channel not in CHANNELS:
+        raise ValueError('unknown release channel')
+    if apk_metadata(aapt2, apk) != (CHANNELS[channel]['package'], str(code), name):
         raise ValueError('APK package or version differs from approved release')
 
 
@@ -70,7 +77,53 @@ def check_unsigned(apk):
                 raise ValueError('APK contains a signing block')
 
 
-def validate_manifest(m, commit, run, cert, identities=None):
+def validate_beta_identity(version_name, version_code, tag, title, prerelease):
+    if not isinstance(version_name, str) or re.fullmatch(r'[0-9]+(?:\.[0-9]+)+(?:[-+][A-Za-z0-9.+-]+)?', version_name) is None:
+        raise ValueError('Beta development or unvalidated version cannot be published')
+    if re.search(r'(?:^|[-+.])(?:dev|development|unvalidated|port|snapshot|local)(?:$|[-+.])', version_name, re.IGNORECASE):
+        raise ValueError('Beta development or unvalidated version cannot be published')
+    if type(version_code) is not int or not 1 <= version_code <= 2100000000:
+        raise ValueError('Beta versionCode must be a positive package version')
+    if tag != 'trailblazer-v' + version_name:
+        raise ValueError('Beta tag/version differs')
+    if title != 'Collie TrailBlazer Beta ' + version_name:
+        raise ValueError('Beta release title/version differs')
+    if prerelease is not True:
+        raise ValueError('Beta release must be a prerelease')
+
+
+def validate_manifest(m, commit, run, cert, identities=None, channel='stable'):
+    if channel not in CHANNELS:
+        raise ValueError('unknown release channel')
+    if channel == TRAILBLAZER_CHANNEL:
+        expected_identities = {'source_commit', 'engineering_revision', 'workflow_revision'}
+        if (not isinstance(identities, dict) or set(identities) != expected_identities or
+                m.get('schema') != 2 or m.get('channel') != TRAILBLAZER_CHANNEL):
+            raise ValueError('Beta release requires the explicit schema2 channel graph')
+        for field in expected_identities:
+            if not re.fullmatch(r'[0-9a-f]{40}', str(identities[field])) or m.get(field) != identities[field]:
+                raise ValueError('unapproved ' + field)
+        if m.get('source_commit') != commit:
+            raise ValueError('source commit differs from approved commit')
+        if m.get('commit') != commit or str(m.get('run_id')) != str(run):
+            raise ValueError('manifest does not match approved commit and run')
+        if (m.get('package') != CHANNELS[channel]['package'] or
+                cert != CHANNELS[channel]['apk_certificate'] or
+                m.get('certificate_sha256') != CHANNELS[channel]['apk_certificate']):
+            raise ValueError('Beta package or APK certificate differs from channel policy')
+        if not re.fullmatch(r'[1-9][0-9]*', str(m.get('run_attempt', ''))):
+            raise ValueError('invalid workflow run attempt')
+        validate_beta_identity(m.get('version_name'),m.get('version_code'),m.get('tag'),
+                               m.get('title'),m.get('prerelease'))
+        if m.get('artifact_mode') != 'single-trailblazer-beta' or m.get('source_profile') != TRAILBLAZER_CHANNEL:
+            raise ValueError('Beta release requires its single APK artifact profile')
+        entries = m.get('apks')
+        if (not isinstance(entries, list) or len(entries) != 1 or not isinstance(entries[0],dict) or
+                entries[0].get('profile') != TRAILBLAZER_CHANNEL or
+                entries[0].get('file') != 'trailblazer-beta.apk' or
+                not re.fullmatch(r'[0-9a-f]{64}', entries[0].get('sha256', ''))):
+            raise ValueError('Beta manifest must contain only trailblazer-beta.apk')
+        return entries
     schema=m.get('schema')
     if schema not in (1,2) or m.get('commit') != commit or str(m.get('run_id')) != str(run):
         raise ValueError('manifest does not match approved commit and run')
@@ -131,7 +184,41 @@ def validate_alias_provenance(final, unsigned, commit, identities=None):
         raise ValueError('compatibility aliases do not match unsigned provenance and certificate')
 
 
-def require_canonical_release(manifest):
+def validate_beta_signed_provenance(final,unsigned,commit,identities):
+    entries=validate_manifest(unsigned,commit,final.get('run_id'),CHANNELS[TRAILBLAZER_CHANNEL]['apk_certificate'],
+                              identities,
+                              TRAILBLAZER_CHANNEL)
+    signed_entries=final.get('apks')
+    if (final.get('channel')!=TRAILBLAZER_CHANNEL or
+            final.get('artifact_mode')!='single-trailblazer-beta' or
+            final.get('source_profile')!=TRAILBLAZER_CHANNEL or
+            final.get('package')!=CHANNELS[TRAILBLAZER_CHANNEL]['package'] or
+            final.get('version_code')!=unsigned.get('version_code') or
+            final.get('version_name')!=unsigned.get('version_name') or
+            str(final.get('run_id'))!=str(unsigned.get('run_id')) or
+            str(final.get('run_attempt'))!=str(unsigned.get('run_attempt')) or
+            final.get('tag')!=unsigned.get('tag') or final.get('title')!=unsigned.get('title') or
+            final.get('prerelease') is not True or not isinstance(signed_entries,list) or len(signed_entries)!=1 or
+            not isinstance(signed_entries[0],dict)):
+        raise ValueError('signed Beta release identity differs from unsigned provenance')
+    signed=signed_entries[0]
+    if (signed.get('profile')!=TRAILBLAZER_CHANNEL or signed.get('file')!='trailblazer-beta.apk' or
+            signed.get('unsigned_sha256')!=entries[0]['sha256'] or
+            signed.get('certificate_sha256')!=CHANNELS[TRAILBLAZER_CHANNEL]['apk_certificate'] or
+            not re.fullmatch(r'[0-9a-f]{64}',signed.get('signed_sha256',''))):
+        raise ValueError('signed Beta APK hash or certificate differs from collected input')
+    return True
+
+
+def require_canonical_release(manifest, channel='stable'):
     """Current production policy; historical parsers remain profile-aware."""
+    if channel == TRAILBLAZER_CHANNEL:
+        if (manifest.get('channel') != TRAILBLAZER_CHANNEL or
+                manifest.get('artifact_mode') != 'single-trailblazer-beta' or
+                manifest.get('source_profile') != TRAILBLAZER_CHANNEL):
+            raise ValueError('current Beta production requires its single APK artifact mode')
+        return
+    if channel != 'stable':
+        raise ValueError('unknown release channel')
     if manifest.get('artifact_mode') != 'single-collie' or manifest.get('source_profile') != 'collie':
         raise ValueError('current production requires single-collie artifact mode')
