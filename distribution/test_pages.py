@@ -5,6 +5,7 @@ from unittest.mock import patch
 from urllib.error import HTTPError
 import binary_repo as b
 import pages as p
+import channel_profile as channels
 
 # Approved phase metadata only: these sizes/names are exact, payloads stay tiny.
 NATIVE_PHASE_HEADER_FIXTURE=(
@@ -211,6 +212,74 @@ class PagesTest(unittest.TestCase):
         plan=self.prepare();self.assertFalse((self.output/'phase1/site/fdroid/repo/entry.jar').exists())
         self.assertIn('not active',(self.output/'phase1/site/index.html').read_text())
         preview=self.output/'phase1/site/_generations'/self.approval['candidate_generation_sha256']/'entry.jar';self.assertTrue(preview.is_file())
+    def test_unpublished_preview_cannot_be_promoted(self):
+        landing=self.bundle/'landing/index.html'
+        text=landing.read_text()
+        self.assertIn('data-repository-state="inactive"',text)
+        landing.write_text(text.replace('data-repository-state="inactive"','data-repository-state="preview"'))
+        self.approval['landing_sha256']=p.digest(p.inventory(self.bundle/'landing'));self.write()
+        with self.assertRaisesRegex(ValueError,'test preview cannot be a production landing'):
+            self.prepare()
+    def test_stable_promotion_retains_beta_feed_and_wrong_channel_is_rejected(self):
+        with self.assertRaisesRegex(ValueError,'approval channel differs'):
+            p.prepare(self.bundle,self.output,'c'*40,'trailblazer-beta')
+        beta=self.bundle/'previous/fdroid/beta/repo/im.collie.app.trailblazer_77.apk'
+        beta.parent.mkdir(parents=True);beta.write_bytes(b'previous beta APK')
+        (beta.parent/'entry.jar').write_bytes(b'previous Beta entry index')
+        (beta.parent/'index-v2.json').write_bytes(b'previous Beta index')
+        self.seal_previous();plan=self.prepare()
+        for phase in ('phase1','phase2'):
+            site=self.output/phase/'site'
+            self.assertEqual((site/'fdroid/beta/repo/im.collie.app.trailblazer_77.apk').read_bytes(),b'previous beta APK')
+            self.assertEqual((site/'fdroid/beta/repo/entry.jar').read_bytes(),b'previous Beta entry index')
+            self.assertEqual((site/'fdroid/beta/repo/index-v2.json').read_bytes(),b'previous Beta index')
+            self.assertTrue((site/'fdroid/repo/im.collie.app_1.apk').is_file())
+        with self.assertRaisesRegex(ValueError,'plan channel differs'):
+            p.readback(plan,self.output/'journal.json','phase1',expected_channel='trailblazer-beta')
+    def test_inventory_accepts_only_channel_package_at_its_explicit_route(self):
+        self.assertTrue(p.public_site_name('fdroid/repo/im.collie.app_1.apk'))
+        self.assertTrue(p.public_site_name('fdroid/beta/repo/im.collie.app.trailblazer_1.apk'))
+        self.assertFalse(p.public_site_name('fdroid/repo/im.collie.app.trailblazer_1.apk'))
+        self.assertFalse(p.public_site_name('fdroid/beta/repo/im.collie.app_1.apk'))
+    def test_beta_provenance_is_exact_branch_and_successful_same_commit(self):
+        approval=dict(source_branch='trailblazer-beta',source_commit='a'*40,
+                      readiness_workflow='.github/workflows/beta-readiness.yml',readiness_run_id=123,
+                      readiness_attempt=2,readiness_artifact_id=456,readiness_artifact_sha256='b'*64,
+                      readiness_commit='a'*40)
+        run=dict(id=123,run_attempt=2,head_repository={'full_name':'0cwa/collieim-android'},
+                 head_branch='trailblazer-beta',head_sha='a'*40,path='.github/workflows/beta-readiness.yml',
+                 status='completed',conclusion='success',event='workflow_dispatch')
+        artifact=dict(id=456,name='trailblazer-beta-readiness-123-2',expired=False,
+                      workflow_run={'id':123},digest='sha256:'+'b'*64)
+        manifest={'schema':1,'kind':'collie-trailblazer-readiness','repository':'0cwa/collieim-android',
+                  'branch':'trailblazer-beta','workflow_path':'.github/workflows/beta-readiness.yml',
+                  'run_id':123,'run_attempt':2,'head_sha':'a'*40,'package':channels.BETA.package,
+                  'version_name':'8.36.0','version_code':200,'tag':'trailblazer-v8.36.0',
+                  'title':'Collie TrailBlazer Beta 8.36.0','apk_asset':'trailblazer-beta.apk',
+                  **{key:'c'*64 for key in ('source_receipt_sha256','build_receipt_sha256','release_receipt_sha256',
+                    'repository_receipt_sha256','release_manifest_sha256','apk_sha256','apk_certificate_sha256')}}
+        import io,zipfile
+        archive_bytes=io.BytesIO()
+        with zipfile.ZipFile(archive_bytes,'w') as zf:zf.writestr(p.READINESS_MANIFEST,json.dumps(manifest))
+        archive_bytes=archive_bytes.getvalue();artifact['size_in_bytes']=len(archive_bytes)
+        artifact['digest']='sha256:'+hashlib.sha256(archive_bytes).hexdigest()
+        approval['readiness_artifact_sha256']=hashlib.sha256(archive_bytes).hexdigest()
+        def authoritative(endpoint):
+            return run if '/actions/runs/' in endpoint else artifact
+        p.validate_beta_provenance(approval,api=authoritative,download=lambda _id:archive_bytes)
+        with self.assertRaisesRegex(RuntimeError,'no authoritative API'):
+            with patch.object(p,'github_read',side_effect=RuntimeError('no authoritative API')):
+                p.validate_beta_provenance(approval)
+        cases=[('repository',run,{'head_repository':{'full_name':'attacker/repo'}}),
+               ('workflow',run,{'path':'.github/workflows/other.yml'}),
+               ('branch',run,{'head_branch':'attacker'}),('head',run,{'head_sha':'c'*40}),
+               ('conclusion',run,{'conclusion':'failure'}),('artifact hash',artifact,{'digest':'sha256:'+'c'*64})]
+        for label,source,mutation in cases:
+            changed=dict(source);changed.update(mutation)
+            def tampered(endpoint,changed=changed,label=label,source=source):
+                return changed if (('/actions/runs/' in endpoint) == (source is run)) else (run if '/actions/runs/' in endpoint else artifact)
+            with self.subTest(field=label),self.assertRaisesRegex(ValueError,'authoritative GitHub'):
+                p.validate_beta_provenance(approval,api=tampered,download=lambda _id:archive_bytes)
     def test_immutable_apk_conflict_rejected(self):
         old=self.bundle/'previous/fdroid/repo';old.mkdir(parents=True);(old/'im.collie.app_1.apk').write_bytes(b'otherAPK')
         self.seal_previous()

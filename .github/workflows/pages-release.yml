@@ -8,6 +8,12 @@ on:
         options: [feed, activate-links]
         default: feed
         required: true
+      feed_channel:
+        description: Independently approved repository channel in the input bundle
+        type: choice
+        options: [stable, trailblazer-beta]
+        default: stable
+        required: true
       trusted_policy_revision:
         description: Exact reviewed main commit containing this verifier/workflow
         type: string
@@ -63,17 +69,21 @@ jobs:
         env:
           APPROVED_POLICY: ${{ inputs.trusted_policy_revision }}
           PREPARATION_MODE: ${{ inputs.preparation_mode }}
+          FEED_CHANNEL: ${{ inputs.feed_channel }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           case "$PREPARATION_MODE" in feed|activate-links) ;; *) exit 1 ;; esac
+          case "$FEED_CHANNEL" in stable|trailblazer-beta) ;; *) exit 1 ;; esac
+          if [ "$PREPARATION_MODE" = activate-links ] && [ "$FEED_CHANNEL" != stable ]; then exit 1; fi
           echo "mode=$PREPARATION_MODE" >> "$GITHUB_OUTPUT"
           if [ "$PREPARATION_MODE" = feed ]; then
-            python distribution/pages.py prepare "$RUNNER_TEMP/inputs" "$RUNNER_TEMP/pages" --policy "$APPROVED_POLICY"
+            python distribution/pages.py prepare "$RUNNER_TEMP/inputs" "$RUNNER_TEMP/pages" --policy "$APPROVED_POLICY" --channel "$FEED_CHANNEL"
           else
             python distribution/pages_activation.py prepare "$RUNNER_TEMP/inputs" "$RUNNER_TEMP/pages" --policy "$APPROVED_POLICY"
           fi
-          python distribution/pages.py preflight "$RUNNER_TEMP/pages/plan.json" "$RUNNER_TEMP/pages/journal.json"
+          python distribution/pages.py preflight "$RUNNER_TEMP/pages/plan.json" "$RUNNER_TEMP/pages/journal.json" --channel "$FEED_CHANNEL"
           if [ "$PREPARATION_MODE" = activate-links ]; then
-            python distribution/pages.py readback "$RUNNER_TEMP/pages/plan.json" "$RUNNER_TEMP/pages/journal.json" --phase phase1
+            python distribution/pages.py readback "$RUNNER_TEMP/pages/plan.json" "$RUNNER_TEMP/pages/journal.json" --phase phase1 --channel "$FEED_CHANNEL"
           fi
           mkdir "$RUNNER_TEMP/control"
           cp "$RUNNER_TEMP/pages/plan.json" "$RUNNER_TEMP/pages/journal.json" "$RUNNER_TEMP/control/"
@@ -150,7 +160,9 @@ jobs:
           name: collie-pages-control
           path: ${{ runner.temp }}/control/
       - if: inputs.preparation_mode == 'feed'
-        run: python distribution/pages.py readback "$RUNNER_TEMP/control/plan.json" "$RUNNER_TEMP/control/journal.json" --phase phase1
+        env:
+          FEED_CHANNEL: ${{ inputs.feed_channel }}
+        run: python distribution/pages.py readback "$RUNNER_TEMP/control/plan.json" "$RUNNER_TEMP/control/journal.json" --phase phase1 --channel "$FEED_CHANNEL"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: collie-pages-after-phase1
@@ -198,7 +210,9 @@ jobs:
         with:
           name: collie-pages-after-phase1
           path: ${{ runner.temp }}/control/
-      - run: python distribution/pages.py readback "$RUNNER_TEMP/control/plan.json" "$RUNNER_TEMP/control/journal.json" --phase phase2
+      - env:
+          FEED_CHANNEL: ${{ inputs.feed_channel }}
+        run: python distribution/pages.py readback "$RUNNER_TEMP/control/plan.json" "$RUNNER_TEMP/control/journal.json" --phase phase2 --channel "$FEED_CHANNEL"
       - name: Preserve completed production link activation evidence
         if: inputs.preparation_mode == 'activate-links'
         run: python distribution/pages_activation.py record "$RUNNER_TEMP/control/activation" "$RUNNER_TEMP/control/plan.json" "$RUNNER_TEMP/control/journal.json" > "$RUNNER_TEMP/control/link-activation.json"
