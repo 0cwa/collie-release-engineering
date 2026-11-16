@@ -120,8 +120,15 @@ class WorkflowBoundaryTest(unittest.TestCase):
                 env=self.block(deploy,'        env:')
                 self.assertEqual(self.field(env,'ARTIFACT_ID',10),route)
                 self.assertEqual(self.field(env,'GITHUB_TOKEN',10),'${{ github.token }}')
-                self.assertEqual(self.field(deploy,'run',8),
-                                 'exec python distribution/deploy_pages.py --artifact-id "$ARTIFACT_ID" --timeout-seconds 1800')
+                self.assertIn('--pages-plan "$RUNNER_TEMP/control/plan.json"',deploy)
+                self.assertIn('--pages-journal "$RUNNER_TEMP/control/journal.json"',deploy)
+                self.assertIn('--channel "$FEED_CHANNEL"',deploy)
+                self.assertIn('--phase '+phase,deploy)
+                self.assertEqual(self.field(env,'FEED_CHANNEL',10),'${{ inputs.feed_channel }}')
+        for phase,artifact in (('phase1','collie-pages-control'),('phase2','collie-pages-after-phase1')):
+            download=self.step(jobs[phase],'uses','actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4')
+            self.assertIn('name: '+artifact,download)
+            self.assertIn('path: ${{ runner.temp }}/control/',download)
         relay=self.block(jobs['phase1-readback'],'    outputs:')
         self.assertEqual(self.field(relay,'phase2_artifact_id',6),'${{ needs.prepare.outputs.phase2_artifact_id }}')
 
@@ -132,7 +139,7 @@ class WorkflowBoundaryTest(unittest.TestCase):
             with self.subTest(job=name):
                 if name in ('phase1','phase2'):
                     self.assertEqual(self.block(job,'    permissions:').splitlines(),
-                                     ['      contents: read','      pages: write','      id-token: write'])
+                                     ['      contents: read','      deployments: write','      pages: write','      id-token: write'])
                     environment=self.block(job,'    environment:')
                     self.assertEqual(self.field(environment,'name',6),'github-pages')
                     self.assertEqual(self.field(environment,'url',6),'${{ steps.deploy.outputs.page_url }}')
@@ -143,6 +150,37 @@ class WorkflowBoundaryTest(unittest.TestCase):
                 self.assertEqual(self.field(inputs,'ref',10),'${{ github.sha }}')
                 self.assertEqual(self.field(inputs,'persist-credentials',10),'false')
                 self.assertNotRegex(checkout,r'(?m)^        (if|continue-on-error):')
+
+    def test_beta_candidate_is_manual_main_only_and_never_deploys(self):
+        text=(self.root/'beta-feed-candidate.yml').read_text()
+        self.assertIn('workflow_dispatch:',text)
+        self.assertIn("if: github.ref == 'refs/heads/main'",text)
+        self.assertIn('engineering_release_asset_id:',text)
+        self.assertIn('evidence_sha256:',text)
+        self.assertIn('verify-preindex',text)
+        self.assertIn('ref: ${{ steps.release.outputs.source_commit }}',text)
+        self.assertIn('fetch-depth: 0',text)
+        self.assertIn('--release-input-archive',text)
+        self.assertIn('trailblazer-beta-release-input.tar',text)
+        self.assertIn('fastlane/metadata/trailblazer-beta',text)
+        self.assertIn('--channel trailblazer-beta',text)
+        self.assertIn('collie-beta-feed-candidate',text)
+        self.assertIn('name: github-pages',text)
+        for forbidden in ('deploy_pages.py','upload-pages-artifact','pages: write','id-token: write'):
+            self.assertNotIn(forbidden,text)
+        self.assertIn('permissions:\n  contents: read',text)
+
+    def test_feed_workflows_pin_sdist_build_backends_before_nonisolated_lock_install(self):
+        for filename in ('feeds.yml','beta-feed-candidate.yml'):
+            with self.subTest(workflow=filename):
+                text=(self.root/filename).read_text()
+                self.assertIn('python -m pip install --require-hashes --only-binary=:all: -r distribution/build-requirements.txt',text)
+                self.assertIn('python -m pip install --require-hashes --no-build-isolation -r distribution/requirements.txt',text)
+                self.assertIn('cache-dependency-path:',text)
+        build=(self.root.parent.parent/'distribution/build-requirements.txt').read_text()
+        self.assertIn('setuptools==80.9.0',build)
+        self.assertIn('Babel==2.17.0',build)
+        self.assertEqual(build.count('--hash=sha256:'),2)
 
     def test_feed_and_final_readback_are_executable_success_gates(self):
         jobs=self.jobs()

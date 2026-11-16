@@ -17,6 +17,7 @@ from unittest.mock import patch
 import beta_evidence as evidence
 import binary_repo as binary
 import channel_profile as channels
+import feed
 import migration_receipts as receipts
 import pages
 import test_beta_release_producers as producer_tests
@@ -40,6 +41,24 @@ class BetaEvidenceTests(unittest.TestCase):
     def _write_json(self, path, value):
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(json.dumps(value, sort_keys=True, separators=(',', ':')) + '\n')
+
+    def _pack_preindex_input(self, archive):
+        files=[self.root/f'releases/{self.selected_id}.json']
+        files += [self.root/f'bundles/{self.selected_id}/{kind}.json' for kind in ('source','build','release')]
+        files += [self.root/'manifests/unsigned-manifest.json',self.root/'manifests/final-manifest.json',
+                  self.root/'apk/trailblazer-beta.apk']
+        with tarfile.open(archive,'w',format=tarfile.USTAR_FORMAT) as tar:
+            for path in sorted(files,key=lambda item:item.relative_to(self.root).as_posix()):
+                name=path.relative_to(self.root).as_posix();info=tarfile.TarInfo(name)
+                info.size=path.stat().st_size;info.mode=0o644;info.uid=info.gid=0;info.mtime=0
+                with path.open('rb') as stream:tar.addfile(info,stream)
+        return archive
+
+    def _preindex_api(self, endpoint, archive, digest):
+        if endpoint==f'repos/0cwa/collie-release-engineering/releases/assets/771':
+            return {'id':771,'name':evidence.RELEASE_INPUT_ASSET_NAME,'state':'uploaded',
+                    'size':archive.stat().st_size,'digest':'sha256:'+digest}
+        return self._source_api(endpoint)
 
     def _create_bundle_input(self):
         f = self.fixture
@@ -192,6 +211,194 @@ class BetaEvidenceTests(unittest.TestCase):
         self.assertEqual(set(emitted), pages.READINESS_FIELDS)
         self.assertEqual(json.loads(output.read_text()), emitted)
         self.assertNotIn('readiness_artifact', emitted)
+
+    def test_approved_beta_graph_generates_beta_route_candidate_end_to_end(self):
+        archive=self.fixture.root/'candidate-input.tar'
+        self._pack_preindex_input(archive)
+        self.bundle_sha=hashlib.sha256(archive.read_bytes()).hexdigest()
+        api=lambda endpoint:self._preindex_api(endpoint,archive,self.bundle_sha)
+        scratch=self.fixture.root/'feed-candidate-scratch';scratch.mkdir(mode=0o700)
+        source=self.fixture.root/'approved-source-checkout';source.mkdir()
+        metadata=source/'fastlane/metadata/trailblazer-beta';(metadata/'en-US/images').mkdir(parents=True)
+        (metadata/'en-US/title.txt').write_text('Collie TrailBlazer\n')
+        (metadata/'en-US/images/icon.png').write_bytes(b'fixture icon')
+        apk_hash=self.final['apks'][0]['signed_sha256'];code=self.fixture.version_code;version=self.fixture.version
+
+        real_subprocess_run=feed.subprocess.run
+        def fake_update(command,cwd=None,check=False,**kwargs):
+            if not command or command[0]!='fdroid':
+                return real_subprocess_run(command,cwd=cwd,check=check,**kwargs)
+            repo=Path(cwd)/'repo';apk=repo/f'{channels.BETA.package}_{code}.apk'
+            v2={'repo':{'address':channels.BETA.repository_url.rstrip('/')},'packages':{
+                channels.BETA.package:{'versions':{str(code):{'manifest':{'versionCode':code,
+                    'versionName':version,'signer':{'sha256':[channels.BETA.apk_certificate]}},
+                    'file':{'name':apk.name,'sha256':apk_hash}}}}}}
+            (repo/'index-v2.json').write_text(json.dumps(v2,sort_keys=True,separators=(',',':'))+'\n')
+            v1={'apps':[{'packageName':channels.BETA.package}],'packages':{channels.BETA.package:[{
+                'versionCode':code,'versionName':version,'hash':apk_hash,'apkName':apk.name,
+                'signer':channels.BETA.apk_certificate,'hashType':'sha256'}]}}
+            (repo/'index-v1.json').write_text(json.dumps(v1))
+            (repo/'entry.jar').write_bytes(b'test-only generated entry signature')
+            (repo/'index-v1.jar').write_bytes(b'test-only generated v1 signature')
+            shutil.copyfile(Path(cwd)/'collie-icon.png',repo/'collie-icon.png')
+
+        def get_index(path,_fingerprint,**_kwargs):
+            repo=Path(path).parent
+            index=json.loads((repo/'index-v2.json').read_text())
+            if Path(path).name=='entry.jar':
+                return ({'index':{'name':'/index-v2.json','sha256':hashlib.sha256((repo/'index-v2.json').read_bytes()).hexdigest()}},None,None)
+            versions=index['packages'][channels.BETA.package]['versions'].values()
+            return ({'apps':[{'packageName':channels.BETA.package}], 'packages':{channels.BETA.package:[{
+                'versionCode':row['manifest']['versionCode'],'versionName':row['manifest']['versionName'],
+                'hash':row['file']['sha256'],'apkName':row['file']['name'],
+                'signer':row['manifest']['signer']['sha256'][0],'hashType':'sha256'} for row in versions]}},None,None)
+        fdroidserver=types.ModuleType('fdroidserver');fdroidserver.index=types.SimpleNamespace(get_index_from_jar=get_index)
+        fdroidserver.common=types.SimpleNamespace(config={})
+        fdroid_index=types.ModuleType('fdroidserver.index');fdroid_index.get_index_from_jar=get_index
+        fdroid_common=types.ModuleType('fdroidserver.common');fdroid_common.config={}
+        with patch.dict(sys.modules,{'fdroidserver':fdroidserver,'fdroidserver.index':fdroid_index,
+                'fdroidserver.common':fdroid_common}), \
+                patch.dict(os.environ,{'FDROID_KEYSTORE_PASS':'test-only-not-a-key'}), \
+                patch.object(feed,'validate_beta_source_input',return_value=metadata), \
+                patch.object(feed,'stage_beta_source_metadata',return_value=metadata), \
+                patch.object(feed,'verified_public_beta_history',return_value=0) as public_history, \
+                patch.object(feed,'BETA_ICON_SHA256',hashlib.sha256(b'fixture icon').hexdigest()), \
+                patch.object(feed,'capture_beta_route',return_value={'release':{'version_code':code-1,'version_name':'8.34.0'},
+                    'files':{},'inventory_sha256':'f'*64}), \
+                patch.object(feed.subprocess,'run',side_effect=fake_update), \
+                patch.object(feed,'keystore_fingerprint',return_value=channels.BETA.repository_certificate):
+            public_history.return_value=code+1
+            with self.assertRaisesRegex((ValueError,SystemExit),'increas|version'):
+                feed.build_beta_candidate(archive,self.bundle_sha,771,scratch,source,metadata,
+                    self.fixture.root/'repo.p12',self.fixture.build_tools,self.fixture.root/'beta-site',
+                    api=api,run_api=self._source_api,tag_verifier=lambda _repo,_tag,_commit:None)
+            public_history.return_value=0
+            result=feed.build_beta_candidate(archive,self.bundle_sha,771,scratch,source,metadata,
+                self.fixture.root/'repo.p12',self.fixture.build_tools,self.fixture.root/'beta-site',
+                api=api,run_api=self._source_api,tag_verifier=lambda _repo,_tag,_commit:None)
+        self.assertEqual(result['source_commit'],self.fixture.commit)
+        self.assertEqual(result['apk_sha256'],apk_hash)
+        self.assertTrue((self.fixture.root/'beta-site/fdroid/beta/repo'/f'{channels.BETA.package}_{code}.apk').is_file())
+        self.assertEqual((self.fixture.root/'beta-site/fdroid/beta/repo/collie-icon.png').read_bytes(),b'fixture icon')
+        self.assertFalse((self.fixture.root/'beta-site/fdroid/repo').exists())
+        generated=json.loads((self.fixture.root/'beta-site/fdroid/beta/repo/index-v2.json').read_text())
+        self.assertEqual(set(generated['packages']),{channels.BETA.package})
+        self.assertNotIn('releaseChannels',generated['packages'][channels.BETA.package])
+
+    def test_preindex_rejection_preserves_preexisting_destination_and_parent(self):
+        archive=self._pack_preindex_input(self.fixture.root/'existing-input.tar')
+        digest=hashlib.sha256(archive.read_bytes()).hexdigest()
+        api=lambda endpoint:self._preindex_api(endpoint,archive,digest)
+        scratch=self.fixture.root/'existing-scratch';scratch.mkdir(mode=0o700)
+        existing=scratch/'existing';existing.mkdir()
+        sentinel=existing/'sentinel';sentinel.write_text('preserve')
+        for destination in (existing,scratch/'..'):
+            with self.subTest(destination=destination),self.assertRaises(ValueError):
+                evidence.verify_release_input_archive(archive,bundle_sha256=digest,asset_id=771,
+                    scratch=scratch,destination=destination,tools=self.tools,api=api)
+            self.assertEqual(sentinel.read_text(),'preserve')
+            self.assertTrue(archive.is_file())
+
+    def test_preindex_final_manifest_fields_must_match_approved_receipt(self):
+        archive=self._pack_preindex_input(self.fixture.root/'binding-input.tar')
+        for field in ('commit','source_commit','certificate_sha256','engineering_revision',
+                      'signed_sha256'):
+            with self.subTest(field=field):
+                root=self.fixture.root/('binding-'+field)
+                evidence.extract_release_input_archive(archive,root)
+                final_path=root/'manifests/final-manifest.json'
+                final=json.loads(final_path.read_text())
+                if field=='signed_sha256':final['apks'][0][field]='b'*64
+                else:
+                    width=64 if field=='certificate_sha256' else 40
+                    final[field]=('0' if final.get(field)!='0'*width else '1')*width
+                self._write_json(final_path,final)
+                digest=hashlib.sha256(final_path.read_bytes()).hexdigest()
+                release_path=root/f'bundles/{self.selected_id}/release.json'
+                release=receipts.load(release_path,'release',profile=channels.BETA.name)
+                release['payload']['release_manifest_sha256']=digest
+                self._write_json(release_path,release)
+                approval_path=root/f'releases/{self.selected_id}.json'
+                approval=json.loads(approval_path.read_text())
+                approval['release_manifest_sha256']=digest
+                approval['receipt_approvals']['release']=receipts.digest(release,profile=channels.BETA.name)
+                approval['release_receipt_sha256']=approval['receipt_approvals']['release']
+                self._write_json(approval_path,approval)
+                with self.assertRaisesRegex(ValueError,'manifest differs from pre-index release receipt'):
+                    evidence.validate_preindex_release(root,self.selected_id,self.tools,
+                        run_api=self._source_api,tag_verifier=lambda *_args:None)
+
+    def test_preindex_extraction_retains_canonical_parent_when_alias_changes(self):
+        archive=self._pack_preindex_input(self.fixture.root/'alias-input.tar')
+        digest=hashlib.sha256(archive.read_bytes()).hexdigest()
+        scratch=self.fixture.root/'alias-scratch';scratch.mkdir(mode=0o700)
+        outside=self.fixture.root/'outside';(outside/'new').mkdir(parents=True)
+        sentinel=outside/'new/sentinel';sentinel.write_text('preserve')
+        alias=self.fixture.root/'alias';alias.symlink_to(scratch,target_is_directory=True)
+        def change_alias(*_args,**_kwargs):
+            alias.unlink();alias.symlink_to(outside,target_is_directory=True)
+            raise ValueError('controlled extraction failure after creation')
+        with patch.object(evidence.tarfile,'open',side_effect=change_alias), \
+                self.assertRaisesRegex(ValueError,'controlled extraction failure'):
+            evidence.verify_release_input_archive(archive,bundle_sha256=digest,asset_id=771,
+                scratch=scratch,destination=alias/'new',tools=self.tools,
+                api=lambda endpoint:self._preindex_api(endpoint,archive,digest))
+        self.assertEqual(sentinel.read_text(),'preserve')
+        self.assertFalse((scratch/'new').exists())
+
+    def test_preindex_release_input_authenticates_archive_and_graph(self):
+        archive=self._pack_preindex_input(self.fixture.root/'approved-input.tar')
+        digest=hashlib.sha256(archive.read_bytes()).hexdigest()
+        api=lambda endpoint:self._preindex_api(endpoint,archive,digest)
+        scratch=self.fixture.root/'preindex-scratch';scratch.mkdir(mode=0o700)
+        extracted=scratch/'verified-input'
+        result=evidence.verify_release_input_archive(archive,bundle_sha256=digest,asset_id=771,
+            scratch=scratch,destination=extracted,tools=self.tools,api=api,run_api=self._source_api,
+            tag_verifier=lambda _repo,_tag,_commit:None)
+        self.assertEqual(result['source_commit'],self.fixture.commit)
+        self.assertEqual(result['package'],channels.BETA.package)
+        self.assertEqual(result['apk_sha256'],self.final['apks'][0]['signed_sha256'])
+        self.assertEqual(extracted.joinpath('apk/trailblazer-beta.apk').read_bytes(),
+                         (self.root/'apk/trailblazer-beta.apk').read_bytes())
+
+    def test_preindex_release_input_rejects_wrong_asset_digest_and_unknown_tar_member(self):
+        archive=self._pack_preindex_input(self.fixture.root/'bad-input.tar')
+        digest=hashlib.sha256(archive.read_bytes()).hexdigest()
+        api=lambda endpoint:self._preindex_api(endpoint,archive,digest)
+        scratch=self.fixture.root/'preindex-reject-scratch';scratch.mkdir(mode=0o700)
+        with self.assertRaisesRegex(ValueError,'metadata differs'):
+            evidence.verify_release_input_archive(archive,bundle_sha256='0'*64,asset_id=771,
+                scratch=scratch,tools=self.tools,api=api,run_api=self._source_api,
+                tag_verifier=lambda *_:None)
+        extra=self.fixture.root/'extra.txt';extra.write_text('unexpected')
+        unsafe=self.fixture.root/'unsafe-input.tar'
+        with tarfile.open(unsafe,'w',format=tarfile.USTAR_FORMAT) as tar:
+            for path in sorted([*self.root.rglob('*'),extra]):
+                if path.is_file():
+                    name=path.relative_to(self.root).as_posix() if path.is_relative_to(self.root) else 'unknown/extra.txt'
+                    info=tarfile.TarInfo(name);info.size=path.stat().st_size;info.mode=0o644;info.uid=info.gid=0;info.mtime=0
+                    with path.open('rb') as stream:tar.addfile(info,stream)
+        with self.assertRaisesRegex(ValueError,'unsafe|unexpected'):
+            evidence.extract_release_input_archive(unsafe,scratch/'unsafe-extracted')
+
+    def test_preindex_release_input_rejects_changed_bytes_and_duplicate_members(self):
+        archive=self._pack_preindex_input(self.fixture.root/'changed-input.tar')
+        digest=hashlib.sha256(archive.read_bytes()).hexdigest()
+        api=lambda endpoint:self._preindex_api(endpoint,archive,digest)
+        with archive.open('ab') as stream:stream.write(b'changed after approval')
+        scratch=self.fixture.root/'changed-input-scratch';scratch.mkdir(mode=0o700)
+        with self.assertRaisesRegex(ValueError,'local release-input bytes'):
+            evidence.verify_release_input_archive(archive,bundle_sha256=digest,asset_id=771,
+                scratch=scratch,tools=self.tools,api=api,run_api=self._source_api,
+                tag_verifier=lambda *_:None)
+        duplicate=self.fixture.root/'duplicate-input.tar'
+        with tarfile.open(duplicate,'w',format=tarfile.USTAR_FORMAT) as tar:
+            for index in range(2):
+                info=tarfile.TarInfo('apk/trailblazer-beta.apk');info.size=3;info.mode=0o644
+                info.uid=info.gid=info.mtime=0
+                tar.addfile(info,io.BytesIO(b'apk'))
+        with self.assertRaisesRegex(ValueError,'duplicate|unsafe'):
+            evidence.extract_release_input_archive(duplicate,scratch/'duplicate-extracted')
 
     def test_pack_rejects_wrong_channel_and_missing_indexed_bytes(self):
         approval_path = self.root / f'releases/{self.selected_id}.json'

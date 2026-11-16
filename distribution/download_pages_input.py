@@ -2,6 +2,27 @@
 import argparse,hashlib,json,os,re,urllib.request
 from pathlib import Path
 from pages import MAX_BYTES
+from urllib.parse import urlparse
+
+class FixedAssetRedirect(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self,req,fp,code,msg,headers,newurl):
+        parsed=urlparse(newurl)
+        if parsed.scheme!='https' or parsed.username or parsed.password or parsed.port not in (None,443):
+            raise ValueError('asset redirect is not fixed HTTPS')
+        if parsed.netloc=='api.github.com':
+            if not parsed.path.startswith('/repos/0cwa/collie-release-engineering/releases/assets/'):
+                raise ValueError('asset redirect left the fixed engineering API endpoint')
+        elif parsed.netloc=='release-assets.githubusercontent.com':
+            pass
+        elif parsed.netloc=='github.com':
+            if not parsed.path.startswith('/0cwa/collie-release-engineering/releases/download/'):
+                raise ValueError('asset redirect left the fixed engineering release path')
+        else:
+            raise ValueError('asset redirect left fixed GitHub hosts')
+        safe_headers={k:v for k,v in req.headers.items()
+                      if k.lower()!='authorization' or parsed.netloc=='api.github.com'}
+        return urllib.request.Request(newurl,headers=safe_headers,origin_req_host=req.origin_req_host,
+                                      unverifiable=True)
 
 def download(asset_id,expected,destination):
     if not re.fullmatch('[1-9][0-9]*',asset_id) or not re.fullmatch('[0-9a-f]{64}',expected):raise ValueError('asset identity/digest')
@@ -13,16 +34,38 @@ def download(asset_id,expected,destination):
     request=urllib.request.Request('https://api.github.com/repos/0cwa/collie-release-engineering/releases/assets/'+asset_id,headers=headers)
     with urllib.request.urlopen(request,timeout=60) as response:metadata=json.load(response)
     url=metadata['browser_download_url']
-    if metadata['id']!=int(asset_id) or not url.startswith('https://github.com/0cwa/collie-release-engineering/releases/download/'):raise ValueError('asset repository differs')
-    if metadata['size']>2*MAX_BYTES:raise ValueError('input archive budget')
-    # No token is forwarded to public release-asset redirects.
+    browser=urlparse(url)
+    if (type(metadata.get('id')) is not int or metadata['id']!=int(asset_id) or
+            type(metadata.get('size')) is not int or metadata['size']<=0 or
+            browser.scheme!='https' or browser.netloc!='github.com' or
+            not browser.path.startswith('/0cwa/collie-release-engineering/releases/download/') or
+            metadata.get('name') not in {'trailblazer-beta-release-input.tar','trailblazer-beta-release-evidence.tar','collie-pages-input.tar'}):
+        raise ValueError('asset repository or fixed archive name differs')
+    if metadata['size']>MAX_BYTES:raise ValueError('input archive budget')
     h=hashlib.sha256();size=0;created=False
     try:
-        with urllib.request.urlopen(url,timeout=60) as response,open(temporary,'xb') as stream:
+        # Fetch through the fixed API asset endpoint so an engineering-owned
+        # draft asset works with this repository's token. The redirect handler
+        # strips authorization on every cross-host redirect and validates targets.
+        binary_headers={'Accept':'application/octet-stream','User-Agent':'Collie-Pages-preparer'}
+        if token:binary_headers['Authorization']='Bearer '+token
+        binary_request=urllib.request.Request(
+            'https://api.github.com/repos/0cwa/collie-release-engineering/releases/assets/'+asset_id,
+            headers=binary_headers)
+        opener=urllib.request.build_opener(FixedAssetRedirect())
+        with opener.open(binary_request,timeout=60) as response,open(temporary,'xb') as stream:
+            final=urlparse(response.geturl())
+            if (final.username or final.password or final.port not in (None,443) or not (
+                    final.scheme=='https' and final.netloc=='api.github.com' and
+                    final.path.startswith('/repos/0cwa/collie-release-engineering/releases/assets/') or
+                    final.scheme=='https' and final.netloc=='release-assets.githubusercontent.com' or
+                    final.scheme=='https' and final.netloc=='github.com' and
+                    final.path.startswith('/0cwa/collie-release-engineering/releases/download/'))):
+                raise ValueError('asset download redirected outside fixed GitHub endpoints')
             created=True
             for block in iter(lambda:response.read(1024*1024),b''):
                 size+=len(block)
-                if size>2*MAX_BYTES:raise ValueError('input archive budget')
+                if size>MAX_BYTES:raise ValueError('input archive budget')
                 h.update(block);stream.write(block)
         if size!=metadata['size'] or h.hexdigest()!=expected:raise ValueError('approved input archive differs')
         # Exclusive atomic publication: a concurrently created destination or

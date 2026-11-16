@@ -122,6 +122,7 @@ jobs:
     runs-on: ubuntu-24.04
     permissions:
       contents: read
+      deployments: write
       pages: write
       id-token: write
     environment:
@@ -135,12 +136,17 @@ jobs:
       - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
         with:
           python-version: '3.12.14'
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: collie-pages-control
+          path: ${{ runner.temp }}/control/
       - name: Deploy phase 1 and poll until success or final deadline
         id: deploy
         env:
           ARTIFACT_ID: ${{ needs.prepare.outputs.phase1_artifact_id }}
           GITHUB_TOKEN: ${{ github.token }}
-        run: exec python distribution/deploy_pages.py --artifact-id "$ARTIFACT_ID" --timeout-seconds 1800
+          FEED_CHANNEL: ${{ inputs.feed_channel }}
+        run: exec python distribution/deploy_pages.py --artifact-id "$ARTIFACT_ID" --timeout-seconds 1800 --pages-plan "$RUNNER_TEMP/control/plan.json" --pages-journal "$RUNNER_TEMP/control/journal.json" --phase phase1 --channel "$FEED_CHANNEL"
   phase1-readback:
     if: ${{ !cancelled() && needs.prepare.result == 'success' && (needs.phase1.result == 'success' || needs.prepare.outputs.mode == 'activate-links') }}
     needs: [prepare, phase1]
@@ -175,6 +181,7 @@ jobs:
     runs-on: ubuntu-24.04
     permissions:
       contents: read
+      deployments: write
       pages: write
       id-token: write
     environment:
@@ -188,12 +195,17 @@ jobs:
       - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
         with:
           python-version: '3.12.14'
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: collie-pages-after-phase1
+          path: ${{ runner.temp }}/control/
       - name: Deploy phase 2 and poll until success or final deadline
         id: deploy
         env:
           ARTIFACT_ID: ${{ needs['phase1-readback'].outputs.phase2_artifact_id }}
           GITHUB_TOKEN: ${{ github.token }}
-        run: exec python distribution/deploy_pages.py --artifact-id "$ARTIFACT_ID" --timeout-seconds 1800
+          FEED_CHANNEL: ${{ inputs.feed_channel }}
+        run: exec python distribution/deploy_pages.py --artifact-id "$ARTIFACT_ID" --timeout-seconds 1800 --pages-plan "$RUNNER_TEMP/control/plan.json" --pages-journal "$RUNNER_TEMP/control/journal.json" --phase phase2 --channel "$FEED_CHANNEL"
   final-readback:
     if: ${{ !cancelled() && needs.phase2.result == 'success' }}
     needs: phase2

@@ -140,6 +140,43 @@ class PagesHttpBoundaryTest(unittest.TestCase):
             self.assertEqual(headers["accept"], "application/vnd.github+json")
         self.assertEqual([r.get_method() for r in calls], ["GET", "POST", "GET", "POST"])
 
+    def test_durable_guard_uses_only_repository_deployment_endpoints(self):
+        calls = []
+
+        def open_url(request, timeout):
+            calls.append(request)
+            if request.full_url.endswith("/deployments?environment=collie-pages-remote-deploy-guard&task=collie-pages-remote-deploy-guard&per_page=100&page=1"):
+                return Response([])
+            if request.full_url.endswith("/repos/owner/repo/deployments"):
+                return Response({"id": 42})
+            return Response(raw=b"")
+
+        api = make_api(open_url)
+        self.assertEqual(api.deployment_guard_records(), [])
+        guard_id = api.create_deployment_guard(
+            build_version="c" * 40, run_id=991, run_attempt=2, artifact_id=812,
+        )
+        api.set_deployment_guard_status(guard_id, "in_progress", "reserved")
+        self.assertEqual([request.get_method() for request in calls], ["GET", "POST", "POST"])
+        self.assertIn("environment=collie-pages-remote-deploy-guard", calls[0].full_url)
+        payload = json.loads(calls[1].data)
+        self.assertEqual(payload["ref"], "c" * 40)
+        self.assertFalse(payload["auto_merge"])
+        self.assertEqual(payload["required_contexts"], [])
+        self.assertTrue(payload["transient_environment"])
+        self.assertFalse(payload["production_environment"])
+        self.assertEqual(payload["payload"], {
+            "kind": "collie-pages-remote-deploy-guard-v1", "run_id": 991,
+            "run_attempt": 2, "artifact_id": 812,
+        })
+        self.assertEqual(json.loads(calls[2].data), {
+            "state": "in_progress", "description": "reserved", "auto_inactive": False,
+        })
+        for request in calls:
+            headers = {key.lower(): value for key, value in request.header_items()}
+            self.assertEqual(headers["authorization"], f"Bearer {GITHUB_TOKEN}")
+            self.assertEqual(headers["x-github-api-version"], "2022-11-28")
+
     def test_transport_errors_do_not_expose_credentials_or_response_bodies(self):
         private = " ".join((GITHUB_TOKEN, REQUEST_TOKEN, OIDC_TOKEN))
         for route in ("oidc", "pages"):

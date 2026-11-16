@@ -83,6 +83,37 @@ then the local complete archive bytes and every receipt/index/APK/provenance lin
 It prints a compact verified identity summary and does not produce a readiness
 record.
 
+## Pre-index candidate input
+
+Repository generation consumes a separate `trailblazer-beta-release-input.tar`
+asset. Its exact contents are one selected release approval, its source/build/
+release receipts, the unsigned/final manifests and `apk/trailblazer-beta.apk`.
+It excludes all repository indexes, repository receipt and readiness/Pages data.
+The operator stages this fixed asset in an engineering-owned draft release and
+approves its numeric asset ID plus complete raw SHA256. The candidate job can read
+that same-repository draft asset with its own token. It does not attempt to read an
+Android draft release, which the engineering token cannot access.
+
+The candidate CLI authenticates the asset through the fixed engineering API, then
+checks the archive against the source/build/release graph, actual APK bytes and
+package/certificate/version, exact successful source CI run and signed source tag.
+Its final source commit must contain the approved Fastlane branding commit
+`ae514b281b9c` and source-workflow commit
+`62e74987dcdb71bad6b4f52244e01c7d66cd51ba`; it reads only
+`fastlane/metadata/trailblazer-beta` from that exact receipt commit and checks the
+TrailBlazer title and pinned icon digest. The candidate path checks signed source
+release metadata for title/tag/prerelease but does not claim an independent API
+observation of the Android draft release or its upload state. The later full
+readiness/Pages verifier retains its existing strict draft-release lookup.
+
+```sh
+python distribution/beta_evidence.py verify-preindex <release-input.tar> \
+  --bundle-sha256 <independently-approved-complete-tar-sha256> \
+  --engineering-asset-id <fixed-repository-release-asset-id> \
+  --scratch <private-scratch-dir> --aapt <android-build-tools>/aapt \
+  --apksigner <android-build-tools>/apksigner
+```
+
 ## Emit the readiness JSON inside its own workflow
 
 The readiness job passes the approved complete archive SHA and fixed engineering
