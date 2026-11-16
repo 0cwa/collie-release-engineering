@@ -18,6 +18,8 @@ When an agent merges a PR, it needs required checks plus each line below that th
 - UI: the API 35 screenshot from app `AGENTS.md`.
 - Keys, signing, permissions, updater, backup and database migrations, encrypted push, the proxy/network path, release or publishing workflows, workflow `permissions:`, secrets or `pull_request_target`: the PR's one review is the security review (`$sol-loop` in Codex).
 
+Document PR implementation and review evidence in the GitHub PR description or comments, not under `docs/`. Do not commit screenshots, logs or acceptance transcripts as review records. Keep images only when they are actively used by the website, maintained documentation or Fastlane; keep active automated test baselines in test directories.
+
 Then:
 
 - Merge each PR as soon as it has its evidence, unless it depends on another PR.
