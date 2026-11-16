@@ -107,6 +107,7 @@ def verify_beta_ci_run(run_id,run_attempt,commit,*,transport=None):
             repository_name!=BETA_SOURCE_REPOSITORY or
             run.get('head_branch')!=BETA_SOURCE_BRANCH or run.get('head_sha')!=commit or
             run.get('path')!=BETA_BUILD_WORKFLOW or run.get('workflow_id')!=BETA_BUILD_WORKFLOW_ID or
+            run.get('referenced_workflows')!=[] or
             run.get('status')!='completed' or run.get('conclusion')!='success' or
             run.get('event')!='workflow_dispatch'):
         raise ValueError('authoritative Beta source CI run differs from approved source')

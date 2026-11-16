@@ -75,12 +75,14 @@ def verify_release_approval(a,bundle,profile=STABLE):
 
 def inspect(apk,aapt,apksigner,profile=STABLE):
     sig=subprocess.check_output([apksigner,'verify','--verbose','--print-certs',str(apk)],text=True)
-    certs=re.findall(r'Signer #\d+ certificate SHA-256 digest: ([0-9a-fA-F]+)',sig)
-    if len(certs)!=1: raise ValueError('expected one verified APK signer')
+    certs=[value.replace(':','').lower() for value in
+           re.findall(r'Signer #\d+ certificate SHA-256 digest: ([0-9a-fA-F:]+)',sig)]
+    if len(certs)!=1 or not re.fullmatch('[0-9a-f]{64}',certs[0]):
+        raise ValueError('expected one verified APK signer')
     badging=subprocess.check_output([aapt,'dump','badging',str(apk)],text=True)
     m=re.search(r"package: name='([^']+)' versionCode='([0-9]+)' versionName='([^']+)'",badging)
     if not m or 'application-debuggable' in badging: raise ValueError('APK metadata/debuggable')
-    return dict(package=m[1],version_code=int(m[2]),version_name=m[3],apk_certificate_sha256=certs[0].lower())
+    return dict(package=m[1],version_code=int(m[2]),version_name=m[3],apk_certificate_sha256=certs[0])
 
 @contextlib.contextmanager
 def locked(root):

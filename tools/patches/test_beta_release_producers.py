@@ -101,6 +101,7 @@ class BetaProducerTests(unittest.TestCase):
             'head_repository':{'full_name':'0cwa/collieim-android'},
             'head_branch':'trailblazer-beta','head_sha':self.commit,
             'path':runtime.BETA_BUILD_WORKFLOW,'workflow_id':runtime.BETA_BUILD_WORKFLOW_ID,
+            'referenced_workflows':[],
             'status':'completed','conclusion':'success','event':'workflow_dispatch'}
         self.beta_run_context=patch.object(runtime,'github_run_metadata',return_value=json.dumps(self.run_metadata))
         self.beta_run_context.start();self.addCleanup(self.beta_run_context.stop)
@@ -301,6 +302,8 @@ class BetaProducerTests(unittest.TestCase):
             {'head_branch':'main'}, {'head_sha':'d'*40},
             {'conclusion':'failure'}, {'status':'in_progress'},
             {'event':'pull_request'}, {'run_attempt':int(self.run_attempt)+1},
+            {'referenced_workflows':[{'path':'other/repo/.github/workflows/called.yml@main'}]},
+            {'referenced_workflows':None}, {'referenced_workflows':{}},
         ]
         for change in mutations:
             with self.subTest(change=change):
@@ -308,6 +311,10 @@ class BetaProducerTests(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError,'authoritative Beta source CI run'):
                     runtime.verify_beta_ci_run(self.run_id,self.run_attempt,self.commit,
                                                transport=lambda _endpoint:run)
+        missing=dict(self.run_metadata);missing.pop('referenced_workflows')
+        with self.assertRaisesRegex(ValueError,'authoritative Beta source CI run'):
+            runtime.verify_beta_ci_run(self.run_id,self.run_attempt,self.commit,
+                                       transport=lambda _endpoint:missing)
 
     def test_stale_unbound_beta_hold_cannot_sign_below_new_published_floor(self):
         version_policy.hold(self.ledger_path,self.version,self.version_code,
