@@ -1,5 +1,5 @@
 name: F-Droid and Pages dry run
-# Builds the full site exactly like feeds.yml, but with a throwaway repository key and no deploy.
+# Builds the full site with a throwaway key, an explicit preview marker, and no deploy.
 on:
   pull_request:
     paths:
@@ -55,6 +55,6 @@ jobs:
           bt=$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)
           python distribution/feed.py --site "$RUNNER_TEMP/site" --apks "$RUNNER_TEMP/apks" \
             --native "$RUNNER_TEMP/native" --native-plan "$RUNNER_TEMP/native-artifacts.json" \
-            --latest "$LATEST" --fastlane app-listing/fastlane/metadata/android --keystore "$RUNNER_TEMP/repo.p12" --build-tools "$bt"
+            --latest "$LATEST" --fastlane app-listing/fastlane/metadata/android --keystore "$RUNNER_TEMP/repo.p12" --build-tools "$bt" --preview
           find "$RUNNER_TEMP/site" -maxdepth 3 | sort | head -40
           grep -c 'Add repository' "$RUNNER_TEMP/site/index.html"

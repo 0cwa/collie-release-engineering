@@ -1,5 +1,7 @@
 import unittest
 import json
+import os
+import sys
 import tempfile
 from dataclasses import replace
 from pathlib import Path
@@ -10,6 +12,44 @@ from distribution import feed
 
 
 class ChannelProfileTest(unittest.TestCase):
+    def run_feed_cli(self, root, fingerprint, preview=False, channel='stable'):
+        arguments=['feed.py']
+        for name in ('site','apks','native','native-plan','fastlane','keystore','build-tools'):
+            arguments += ['--'+name,str(root/name)]
+        arguments += ['--latest','v8.35.2','--channel',channel]
+        if preview: arguments.append('--preview')
+        with patch.object(sys,'argv',arguments), \
+             patch.dict(os.environ,{'FDROID_KEYSTORE_PASS':'test-only-unused-value'}), \
+             patch.object(feed,'copy_native',return_value=0), \
+             patch.object(feed,'build_fdroid'), \
+             patch.object(feed,'keystore_fingerprint',return_value=fingerprint), \
+             patch.object(feed.site_page,'render') as render:
+            feed.main()
+        return render
+
+    def test_disposable_index_key_requires_explicit_preview(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root=Path(tmp)
+            with self.assertRaisesRegex(ValueError,'repository signer'):
+                self.run_feed_cli(root/'production','0'*64)
+            rendered=self.run_feed_cli(root/'preview','0'*64,preview=True)
+            self.assertEqual(rendered.call_args.kwargs['state'],'preview')
+            state=json.loads((root/'preview/site/feed-state.json').read_text())
+            self.assertTrue(state['preview'])
+            self.assertEqual(state['repository_fingerprint'],'0'*64)
+
+    def test_beta_cannot_bypass_repository_pin_with_preview(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            with self.assertRaisesRegex(ValueError,'Stable only'):
+                self.run_feed_cli(Path(tmp),'0'*64,preview=True,channel='trailblazer-beta')
+
+    def test_default_feed_cli_keeps_production_pin_and_active_render(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            rendered=self.run_feed_cli(Path(tmp),channels.STABLE.repository_certificate)
+            self.assertEqual(rendered.call_args.kwargs['state'],'active')
+            state=json.loads((Path(tmp)/'site/feed-state.json').read_text())
+            self.assertNotIn('preview',state)
+
     def test_stable_identity_and_trust_tuple_remain_unchanged(self):
         self.assertEqual(channels.STABLE.package, 'im.collie.app')
         self.assertEqual(channels.STABLE.apk_asset, 'collie.apk')

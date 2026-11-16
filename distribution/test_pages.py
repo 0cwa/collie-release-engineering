@@ -212,6 +212,14 @@ class PagesTest(unittest.TestCase):
         plan=self.prepare();self.assertFalse((self.output/'phase1/site/fdroid/repo/entry.jar').exists())
         self.assertIn('not active',(self.output/'phase1/site/index.html').read_text())
         preview=self.output/'phase1/site/_generations'/self.approval['candidate_generation_sha256']/'entry.jar';self.assertTrue(preview.is_file())
+    def test_unpublished_preview_cannot_be_promoted(self):
+        landing=self.bundle/'landing/index.html'
+        text=landing.read_text()
+        self.assertIn('data-repository-state="inactive"',text)
+        landing.write_text(text.replace('data-repository-state="inactive"','data-repository-state="preview"'))
+        self.approval['landing_sha256']=p.digest(p.inventory(self.bundle/'landing'));self.write()
+        with self.assertRaisesRegex(ValueError,'test preview cannot be a production landing'):
+            self.prepare()
     def test_stable_promotion_retains_beta_feed_and_wrong_channel_is_rejected(self):
         with self.assertRaisesRegex(ValueError,'approval channel differs'):
             p.prepare(self.bundle,self.output,'c'*40,'trailblazer-beta')

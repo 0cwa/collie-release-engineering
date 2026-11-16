@@ -188,8 +188,12 @@ def main():
     p.add_argument('--title')
     p.add_argument('--prior-version-code', type=int)
     p.add_argument('--prerelease', action='store_true')
+    p.add_argument('--preview', action='store_true',
+                   help='render an unpublished Stable preview with a disposable repository key')
     a = p.parse_args()
     profile=channels.STABLE if a.channel=='stable' else channels.BETA
+    if a.preview and profile.name!='stable':
+        raise ValueError('Preview generation supports Stable only')
     site, work = Path(a.site), Path(a.site).parent / 'fdroid-work'
     if site.exists() or work.exists():
         raise SystemExit('site and work directories must not exist yet')
@@ -202,17 +206,18 @@ def main():
                  tag=a.latest, title=a.title, prior_version_code=a.prior_version_code,
                  prerelease=a.prerelease)
     fingerprint = keystore_fingerprint(a.keystore)
-    if profile.repository_certificate is None or fingerprint != profile.repository_certificate:
+    if not a.preview and (profile.repository_certificate is None or fingerprint != profile.repository_certificate):
         raise ValueError(f'{profile.name} repository signer pin is unset or differs')
     if profile.name=='stable':
         site_page.render(site, REPO_URL, fingerprint, profile.apk_certificate,
-                         f'{APP_RELEASES}{a.latest}/collie.apk', state='active')
+                         f'{APP_RELEASES}{a.latest}/collie.apk', state='preview' if a.preview else 'active')
     (site / 'CNAME').write_text('repo.collie.im\n')
     repo_path='fdroid/repo' if profile.name=='stable' else 'fdroid/beta/repo'
     state = {'schema': 1, 'latest': a.latest, 'repository_fingerprint': fingerprint,
              'apks': sorted(p.name for p in (site / repo_path).glob('*.apk')),
              'native_files': native_count}
     if profile.name!='stable':state['channel']=profile.name
+    if a.preview:state['preview']=True
     (site / 'feed-state.json').write_text(json.dumps(state, indent=1) + '\n')
     total = sum(f.stat().st_size for f in site.rglob('*') if f.is_file())
     if total > SITE_LIMIT:
