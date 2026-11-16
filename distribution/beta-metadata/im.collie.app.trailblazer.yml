@@ -1,0 +1,19 @@
+Categories:
+  - Internet
+License: AGPL-3.0-only
+Name: Collie TrailBlazer Beta
+AuthorName: Collie
+WebSite: https://github.com/0cwa/collieim-android
+SourceCode: https://github.com/0cwa/collieim-android
+IssueTracker: https://github.com/0cwa/collieim-android/issues
+Changelog: https://github.com/0cwa/collieim-android/releases
+AllowedAPKSigningKeys:
+  - 'a515c03498bce8852b835544910b09ccc11a3abbed23e826e9c62c002680fe98'
+AutoUpdateMode: None
+UpdateCheckMode: None
+repo_url: https://repo.collie.im/fdroid/beta/repo
+repo_name: Collie TrailBlazer Beta
+repo_description: "Collie TrailBlazer Beta releases."
+repo_icon: collie-icon.png
+archive_older: 0
+make_current_version_link: false

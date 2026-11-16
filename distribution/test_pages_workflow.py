@@ -4,6 +4,15 @@ import re,unittest
 class WorkflowBoundaryTest(unittest.TestCase):
     def setUp(self):self.root=Path(__file__).resolve().parents[1]/'.github/workflows'
 
+    def test_pages_workflow_has_explicit_channel_selection_and_threads_it_to_readbacks(self):
+        text=(self.root/'pages-release.yml').read_text()
+        self.assertIn('options: [stable, trailblazer-beta]',text)
+        self.assertIn('GH_TOKEN: ${{ github.token }}',text)
+        self.assertIn('if [ "$PREPARATION_MODE" = activate-links ] && [ "$FEED_CHANNEL" != stable ]; then exit 1; fi',text)
+        self.assertIn('--channel "$FEED_CHANNEL"',text)
+        self.assertIn('FEED_CHANNEL: ${{ inputs.feed_channel }}',text)
+        self.assertIn('if: github.ref == \'refs/heads/main\' && vars.COLLIE_PAGES_PRODUCTION_ENABLED == \'true\'',text)
+
     def block(self,text,header):
         """Read one indentation-scoped block in these fixed-format workflows.
 
@@ -149,7 +158,7 @@ class WorkflowBoundaryTest(unittest.TestCase):
             self.assertNotRegex(jobs[name],r'(?m)^\s*continue-on-error:')
         for name,phase in (('phase1-readback','phase1'),('final-readback','phase2')):
             with self.subTest(job=name):
-                command='python distribution/pages.py readback "$RUNNER_TEMP/control/plan.json" "$RUNNER_TEMP/control/journal.json" --phase '+phase
+                command='python distribution/pages.py readback "$RUNNER_TEMP/control/plan.json" "$RUNNER_TEMP/control/journal.json" --phase '+phase+' --channel "$FEED_CHANNEL"'
                 readback=self.step(jobs[name],'run',command)
                 if phase=='phase1':
                     self.assertEqual(self.field(readback,'if',8),"inputs.preparation_mode == 'feed'")
@@ -189,15 +198,20 @@ class WorkflowBoundaryTest(unittest.TestCase):
         self.assertNotRegex(step,r'(?m)^        (if|continue-on-error):')
         env=self.block(step,'        env:')
         self.assertEqual(self.field(env,'PREPARATION_MODE',10),'${{ inputs.preparation_mode }}')
+        self.assertEqual(self.field(env,'FEED_CHANNEL',10),'${{ inputs.feed_channel }}')
         script=self.block(step,'        run: |')
-        branch='''          if [ "$PREPARATION_MODE" = feed ]; then
-            python distribution/pages.py prepare "$RUNNER_TEMP/inputs" "$RUNNER_TEMP/pages" --policy "$APPROVED_POLICY"
+        branch='''          case "$PREPARATION_MODE" in feed|activate-links) ;; *) exit 1 ;; esac
+          case "$FEED_CHANNEL" in stable|trailblazer-beta) ;; *) exit 1 ;; esac
+          if [ "$PREPARATION_MODE" = activate-links ] && [ "$FEED_CHANNEL" != stable ]; then exit 1; fi
+          echo "mode=$PREPARATION_MODE" >> "$GITHUB_OUTPUT"
+          if [ "$PREPARATION_MODE" = feed ]; then
+            python distribution/pages.py prepare "$RUNNER_TEMP/inputs" "$RUNNER_TEMP/pages" --policy "$APPROVED_POLICY" --channel "$FEED_CHANNEL"
           else
             python distribution/pages_activation.py prepare "$RUNNER_TEMP/inputs" "$RUNNER_TEMP/pages" --policy "$APPROVED_POLICY"
           fi'''
-        preflight='          python distribution/pages.py preflight "$RUNNER_TEMP/pages/plan.json" "$RUNNER_TEMP/pages/journal.json"'
+        preflight='          python distribution/pages.py preflight "$RUNNER_TEMP/pages/plan.json" "$RUNNER_TEMP/pages/journal.json" --channel "$FEED_CHANNEL"'
         readback='''          if [ "$PREPARATION_MODE" = activate-links ]; then
-            python distribution/pages.py readback "$RUNNER_TEMP/pages/plan.json" "$RUNNER_TEMP/pages/journal.json" --phase phase1
+            python distribution/pages.py readback "$RUNNER_TEMP/pages/plan.json" "$RUNNER_TEMP/pages/journal.json" --phase phase1 --channel "$FEED_CHANNEL"
           fi'''
         copy='          cp "$RUNNER_TEMP/pages/plan.json" "$RUNNER_TEMP/pages/journal.json" "$RUNNER_TEMP/control/"'
         for command in (branch,preflight,readback,copy):self.assertIn(command,script)

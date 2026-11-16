@@ -57,6 +57,102 @@ native-manifest.json  # optional schema2 feed approval; required native-only
 native/native-inputs/v1/maven/<exact six paths>
 ```
 
+### TrailBlazer Beta readiness artifact
+
+Beta Pages input is schema 2 and selects only `trailblazer-beta`. Its approved
+GitHub Actions run must belong to `0cwa/collieim-android`, use the exact
+`trailblazer-beta` branch and `.github/workflows/beta-readiness.yml` workflow,
+finish successfully, and point at the same immutable source commit named by the
+release receipts. `prepare` reads the run and artifact records from GitHub and
+downloads the approved artifact bytes. It checks the downloaded archive SHA256
+against both the API digest and `approval.json`; API metadata alone is not proof.
+
+The ZIP must contain exactly one regular file, `trailblazer-beta-readiness.json`,
+with no extra files or directories. The JSON schema is version 1 and has exactly
+these keys and types:
+
+```json
+{
+  "schema": 1,
+  "kind": "collie-trailblazer-readiness",
+  "repository": "0cwa/collieim-android",
+  "branch": "trailblazer-beta",
+  "workflow_path": ".github/workflows/beta-readiness.yml",
+  "run_id": 123,
+  "run_attempt": 1,
+  "head_sha": "<40 lowercase hex characters>",
+  "package": "im.collie.app.trailblazer",
+  "version_name": "<validated APK versionName>",
+  "version_code": 123,
+  "tag": "trailblazer-v<versionName>",
+  "title": "Collie TrailBlazer Beta <versionName>",
+  "apk_asset": "trailblazer-beta.apk",
+  "source_receipt_sha256": "<64 lowercase hex characters>",
+  "build_receipt_sha256": "<64 lowercase hex characters>",
+  "release_receipt_sha256": "<64 lowercase hex characters>",
+  "repository_receipt_sha256": "<64 lowercase hex characters>",
+  "release_manifest_sha256": "<64 lowercase hex characters>",
+  "apk_sha256": "<64 lowercase hex characters>",
+  "apk_certificate_sha256": "<64 lowercase hex characters>"
+}
+```
+
+The Android workflow must generate this JSON from the validated release inputs
+and upload it as the single member of the exact readiness artifact. This
+engineering checkout does not contain the app-side generator; the existence
+and implementation of the named Android workflow must be verified in its
+repository before an approved run is accepted. The current consumer/verifier
+is the existing Pages command, with no separate readiness command:
+
+```sh
+python distribution/pages.py prepare <bundle-dir> <new-output-dir> \
+  --policy <reviewed-40-hex-engineering-revision> --channel trailblazer-beta
+```
+
+Before it accepts the readiness manifest, the verifier runs the full selected
+Beta source/build/release/repository receipt graph, compares every manifest
+receipt hash and release identity against those documents, and compares the APK
+hash against the candidate APK bytes. Beta receipt validation accepts only the
+Beta package, `trailblazer-beta.apk` alias, and provisioned Beta APK certificate;
+the default migration-receipt profile remains stable. Promotion also verifies
+the prior signed Beta index and requires the candidate versionCode to exceed its
+maximum.
+
+### Beta repository evidence boundary
+
+The repository receipt used to prepare a Beta candidate is explicitly
+prepublication evidence. Produce it only after the signed local F-Droid indexes
+and APK have passed the pinned verifier, with the Beta-only stage argument:
+
+```sh
+python distribution/receipt.py <signed-beta-index-dir> \
+  --approval <release-approval.json> \
+  --receipt-bundle <source-build-release-receipts-dir> \
+  --metadata-revision <40-hex-metadata-commit> \
+  --fingerprint <beta-index-certificate-sha256> \
+  --generation <approved-generation-sha256> \
+  --channel trailblazer-beta --repository-stage prepublication \
+  --client-evidence <completed-isolated-client-evidence-file>
+```
+
+The receipt records local index verification as `PASS`, isolated client
+add/refresh/install/upgrade acceptance as `PASS` only when its evidence file is
+provided, and production HTTPS/provider read-back as `NOT RUN` with no digest.
+Pages preparation requires the completed client gate and rejects a missing
+client result. It accepts the explicitly pending production read-back because
+that observation cannot exist before deployment; source, build and release
+receipt evidence must still all pass. The shared verifier exposes this narrow
+boundary as `--promotion --channel trailblazer-beta --repository-stage
+prepublication` (or its equivalent API arguments). Ordinary promotion
+verification and stable defaults retain their all-evidence-passed behavior.
+
+Production endpoint and provider-cache observations are completed only after
+the approved snapshots are deployed. They are recorded and checked through the
+Pages journal's canonical preflight and phase1/phase2 read-backs; they are not
+written back as future `PASS` entries in the frozen repository receipt. A
+missing or incomplete journal therefore still blocks completed-publication
+verification.
+
 The complete archive SHA256 and explicit engineering release-asset ID are approved
 outside the candidate. No latest scraping, arbitrary remote URL, signing key,
 configuration/password, source injection or script execution. The downloader uses
@@ -65,7 +161,7 @@ never sends a token to the public download redirect. Extraction rejects duplicat
 traversal, link and special members and caps size/file count. Candidate data never
 replaces the checked-out trusted verifier.
 
-approval.json has exact fields: schema1, kind collie-pages-input,
+Stable `approval.json` schema 1 has exact fields: kind collie-pages-input,
 origin https://repo.collie.im/, policy_revision (reviewed Git commit),
 previous_site_sha256 (canonical inventory digest of complete previous snapshot),
 previous_manifest_sha256 (raw published site-manifest.json SHA256; explicit null
@@ -73,6 +169,12 @@ only for first empty origin), candidate_generation_sha256 (existing fdroid repo
 inventory digest), repository_certificate_sha256, repository_receipt_sha256
 (canonical shared schema2 receipt digest), release_approvals (JSON basenames),
 landing_sha256 (canonical landing inventory digest), maximum_bytes<=950000000.
+Beta requires schema 2 and adds exact fields `channel` (trailblazer-beta),
+`source_branch`, `source_commit`, `readiness_workflow`, `readiness_run_id`,
+`readiness_attempt`, `readiness_artifact_id`, `readiness_artifact_sha256`, and
+`readiness_commit`; the source and readiness commits must match. Beta release
+approvals and all four receipt documents must be schema 2. Stable schema 1 and
+schema 2 remain supported with their existing identity rules.
 The signing/publication receipt's raw final-manifest and canonical release-receipt
 links remain distinct; legacy RC1 has null canonical source link, never fake
 new-source evidence. New-v2 approvals require the approved source/build/release

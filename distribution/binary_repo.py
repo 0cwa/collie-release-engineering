@@ -12,6 +12,10 @@ import re
 import shutil
 import subprocess
 import tempfile
+try:
+    from .channel_profile import STABLE, ChannelProfile, require_trusted
+except ImportError:
+    from channel_profile import STABLE, ChannelProfile, require_trusted
 
 SERVER_VERSION = '2.4.5'
 APP = 'im.collie.app'
@@ -33,7 +37,7 @@ def load(path):
         return out
     return json.loads(Path(path).read_text(),object_pairs_hook=unique)
 
-def approval(path):
+def approval(path, profile=STABLE):
     a=load(path)
     fields={'schema','release_id','tag','release_manifest_sha256','apk_sha256','apk_certificate_sha256','package','version_code','version_name','aliases'}
     if a.get('schema')==2:fields|={'release_receipt_sha256','receipt_approvals'}
@@ -44,13 +48,17 @@ def approval(path):
         if a['receipt_approvals']['release']!=a['release_receipt_sha256']:raise ValueError('release receipt approval differs')
     for k in ('release_manifest_sha256','apk_sha256','apk_certificate_sha256'):
         if not re.fullmatch('[0-9a-f]{64}',a[k]): raise ValueError(k)
-    if a['apk_certificate_sha256']!=APK_CERTIFICATE:raise ValueError('production APK signing certificate differs')
-    if a['package']!=APP or type(a['version_code']) is not int or a['version_code']<=0: raise ValueError('package/version')
+    if profile.apk_certificate is None:raise ValueError(f'{profile.name} APK signer pin is not configured')
+    if a['apk_certificate_sha256']!=profile.apk_certificate:raise ValueError(f'{profile.name} APK signing certificate differs')
+    if a['package']!=profile.package or type(a['version_code']) is not int or a['version_code']<=0: raise ValueError('package/version')
     if type(a['release_id']) is not int or a['release_id']<=0 or not a['tag'] or not a['version_name']: raise ValueError('release identity')
-    if set(a['aliases'])!=ALIASES or any(v!=a['apk_sha256'] for v in a['aliases'].values()): raise ValueError('alias inequality')
+    if profile.name=='stable':
+        if set(a['aliases'])!=ALIASES or any(v!=a['apk_sha256'] for v in a['aliases'].values()): raise ValueError('alias inequality')
+    elif a['aliases']!={profile.apk_asset:a['apk_sha256']} or a['tag']!=profile.tag_prefix+a['version_name']:
+        raise ValueError('Beta asset/tag identity differs')
     return a
 
-def verify_release_approval(a,bundle):
+def verify_release_approval(a,bundle,profile=STABLE):
     if a['schema']==1:
         if bundle is not None:raise ValueError('legacy approval cannot claim a complete receipt graph')
         return None
@@ -58,14 +66,14 @@ def verify_release_approval(a,bundle):
     import sys
     sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'tools'/'patches'))
     import migration_receipts as receipts
-    documents={kind:receipts.load(bundle/(kind+'.json'),kind) for kind in ('source','build','release')}
-    receipts.verify_release_inputs(**documents,approved=a['receipt_approvals'],raw_manifest_sha256=a['release_manifest_sha256'],promotion=True)
+    documents={kind:receipts.load(bundle/(kind+'.json'),kind,profile=profile.name) for kind in ('source','build','release')}
+    receipts.verify_release_inputs(**documents,approved=a['receipt_approvals'],raw_manifest_sha256=a['release_manifest_sha256'],promotion=True,profile=profile.name)
     release=documents['release']['payload']
     links={'package':'package','version_code':'version_code','version_name':'version_name','apk_sha256':'apk_sha256','apk_certificate_sha256':'apk_certificate_sha256'}
     if any(a[left]!=release[right] for left,right in links.items()):raise ValueError('approved release receipt APK identity differs')
     return documents['release']
 
-def inspect(apk,aapt,apksigner):
+def inspect(apk,aapt,apksigner,profile=STABLE):
     sig=subprocess.check_output([apksigner,'verify','--verbose','--print-certs',str(apk)],text=True)
     certs=re.findall(r'Signer #\d+ certificate SHA-256 digest: ([0-9a-fA-F]+)',sig)
     if len(certs)!=1: raise ValueError('expected one verified APK signer')
@@ -93,23 +101,27 @@ def immutable_copy(source,dest,expected=None):
     if sha(temp)!=expected: raise ValueError('copy digest mismatch')
     os.replace(temp,dest)
 
-def ingest(approved,manifest,apk,workspace,aapt,apksigner,receipt_bundle=None):
-    a=approval(approved)
+def ingest(approved,manifest,apk,workspace,aapt,apksigner,receipt_bundle=None,profile=STABLE):
+    a=approval(approved,profile)
     if sha(manifest)!=a['release_manifest_sha256'] or sha(apk)!=a['apk_sha256']: raise ValueError('approved bytes mismatch')
-    verify_release_approval(a,receipt_bundle)
-    info=inspect(apk,aapt,apksigner)
+    verify_release_approval(a,receipt_bundle,profile)
+    info=inspect(apk,aapt,apksigner,profile)
     if any(a[k]!=v for k,v in info.items()): raise ValueError('APK identity substitution')
     with locked(workspace):
-        target=workspace/'repo'/f"{APP}_{a['version_code']}.apk"
+        target=workspace/'repo'/f"{profile.package}_{a['version_code']}.apk"
         immutable_copy(apk,target,a['apk_sha256'])
-        metadata=Path(__file__).parent/'metadata'/f'{APP}.yml'
+        metadata=Path(__file__).parent/('metadata' if profile.name=='stable' else 'beta-metadata')/f'{profile.package}.yml'
         text=metadata.read_text()
         (workspace/'metadata').mkdir(exist_ok=True)
         (workspace/'metadata'/metadata.name).write_text(text)
         (workspace/'approved-release.json').write_text(json.dumps(a,indent=2)+'\n')
     return target
 
-def verify_indexes(generation, fingerprint):
+def verify_indexes(generation, fingerprint, profile=STABLE):
+    if profile.repository_certificate is None:
+        raise ValueError(f'{profile.name} repository signer pin is not configured')
+    if fingerprint.lower() != profile.repository_certificate.lower():
+        raise ValueError(f'{profile.name} repository signer differs')
     from fdroidserver import index, common
     common.config = {"jarsigner": shutil.which("jarsigner")}
     entry, _, _ = index.get_index_from_jar(str(generation/'entry.jar'), fingerprint)
@@ -118,17 +130,25 @@ def verify_indexes(generation, fingerprint):
     name=ref['name'].lstrip('/')
     if name!='index-v2.json' or sha(generation/name)!=ref['sha256']: raise ValueError('v2 index digest mismatch')
     data=load(generation/name)
-    if set(data['packages'])!={APP}: raise ValueError('unexpected indexed app')
-    for version in data['packages'][APP]['versions'].values():
+    if set(data['packages'])!={profile.package}: raise ValueError('unexpected indexed app/channel package')
+    if profile.name!='stable' and data['packages'][profile.package].get('releaseChannels') not in (None,[]):
+        raise ValueError('Beta package index releaseChannels must be absent or empty')
+    for version in data['packages'][profile.package]['versions'].values():
         file=version['file']; filename=file['name'].lstrip('/')
         if Path(filename).name!=filename or not filename.endswith('.apk'): raise ValueError('unsafe APK URL')
         if sha(generation/filename)!=file['sha256']: raise ValueError('indexed APK digest mismatch')
-    validate_index_parity(data,v1)
+    if profile.name!='stable':
+        for item in release_tuples(data,profile):
+            if type(item[0]) is not int or item[0]<=0:
+                raise ValueError('indexed Beta versionCode must be a positive integer')
+            if profile.apk_certificate is None or item[4]!=profile.apk_certificate.lower():
+                raise ValueError('indexed Beta APK signer differs from channel pin')
+    validate_index_parity(data,v1,profile)
     return data
 
-def release_tuples(data):
+def release_tuples(data, profile=STABLE):
     tuples=[]
-    for version in data['packages'][APP]['versions'].values():
+    for version in data['packages'][profile.package]['versions'].values():
         manifest=version['manifest'];file=version['file']
         signers=manifest['signer']['sha256']
         if len(signers)!=1:raise ValueError('one APK signer required')
@@ -136,44 +156,47 @@ def release_tuples(data):
     if len({v[0] for v in tuples})!=len(tuples):raise ValueError('duplicate versionCode')
     return set(tuples)
 
-def validate_index_parity(data,v1):
-    if {p['packageName'] for p in v1['apps']}!={APP} or set(v1['packages'])!={APP}:raise ValueError('v1 package mismatch')
-    versions=v1['packages'][APP]
+def validate_index_parity(data,v1,profile=STABLE):
+    if {p['packageName'] for p in v1['apps']}!={profile.package} or set(v1['packages'])!={profile.package}:raise ValueError('v1 package mismatch')
+    versions=v1['packages'][profile.package]
     legacy={(v['versionCode'],v['versionName'],v['hash'],v['apkName'],v['signer'].lower()) for v in versions if v['hashType']=='sha256'}
-    if len(legacy)!=len(versions) or legacy!=release_tuples(data):raise ValueError('v1/v2 release mismatch')
+    if len(legacy)!=len(versions) or legacy!=release_tuples(data,profile):raise ValueError('v1/v2 release mismatch')
 
-def public_path(rel):
+def public_path(rel, profile=STABLE):
     root_files={'entry.jar','entry.json','index-v2.json','index-v1.jar','index-v1.json','index.jar','index.xml','index.html','index.css','index.png'}
-    return bool(rel in root_files or re.fullmatch(r'im\.collie\.app_[1-9][0-9]*\.apk',rel) or re.fullmatch(r'diff/[0-9]+\.json',rel) or re.fullmatch(r'(icons(?:-[0-9]+)?)/[A-Za-z0-9_.-]+\.(png|jpg|webp|svg)',rel) or re.fullmatch(r'im\.collie\.app/[A-Za-z-]+/(?:[A-Za-z]+Screenshots/)?[A-Za-z0-9_.=-]+\.(png|jpg)',rel) or rel in {'status/running.json','status/update.json'})
+    pkg=re.escape(profile.package)
+    return bool(rel in root_files or re.fullmatch(pkg+r'_[1-9][0-9]*\.apk',rel) or re.fullmatch(r'diff/[0-9]+\.json',rel) or re.fullmatch(r'(icons(?:-[0-9]+)?)/[A-Za-z0-9_.-]+\.(png|jpg|webp|svg)',rel) or re.fullmatch(pkg+r'/[A-Za-z-]+/(?:[A-Za-z]+Screenshots/)?[A-Za-z0-9_.=-]+\.(png|jpg)',rel) or rel in {'status/running.json','status/update.json'})
 
-def public_files(generation):
+def public_files(generation, profile=STABLE):
     if generation.is_symlink():raise ValueError('symlink generation')
     files=[]
     for p in generation.rglob('*'):
         if p.is_symlink():raise ValueError('symlink in public generation')
         if not p.is_file():continue
         rel=p.relative_to(generation).as_posix()
-        valid=public_path(rel)
+        valid=public_path(rel,profile)
         if not valid:raise ValueError('unexpected public file: '+rel)
         files.append(p)
     if not {'entry.jar','index-v2.json','index-v1.jar'}.issubset({p.name for p in files}):raise ValueError('missing signed indexes')
     return sorted(files)
 
-def generation_digest(generation):
-    return hashlib.sha256(json.dumps({str(p.relative_to(generation)):sha(p) for p in public_files(generation)},sort_keys=True).encode()).hexdigest()
+def generation_digest(generation,profile=STABLE):
+    return hashlib.sha256(json.dumps({str(p.relative_to(generation)):sha(p) for p in public_files(generation,profile)},sort_keys=True).encode()).hexdigest()
 
-def approved_generation(generation,fingerprint,expected_generation,approvals):
+def approved_generation(generation,fingerprint,expected_generation,approvals,profile=STABLE):
     # Both approvals and generation digest come from the operator's reviewed record,
     # outside the candidate. A repository signature alone is not promotion authority.
-    files=public_files(generation)
-    actual=generation_digest(generation)
+    if profile.name!='stable':
+        require_trusted(profile)
+    files=public_files(generation,profile)
+    actual=generation_digest(generation,profile)
     if not re.fullmatch('[0-9a-f]{64}',expected_generation) or actual!=expected_generation:raise ValueError('approved generation mismatch')
-    data=verify_indexes(generation,fingerprint)
+    data=verify_indexes(generation,fingerprint,profile)
     approved=[]
     for path in approvals:
-        a=approval(path)
-        approved.append((a['version_code'],a['version_name'],a['apk_sha256'],f"{APP}_{a['version_code']}.apk",a['apk_certificate_sha256']))
-    if not approved or len(set(approved))!=len(approved) or set(approved)!=release_tuples(data):raise ValueError('unapproved indexed release')
+        a=approval(path,profile)
+        approved.append((a['version_code'],a['version_name'],a['apk_sha256'],f"{profile.package}_{a['version_code']}.apk",a['apk_certificate_sha256']))
+    if not approved or len(set(approved))!=len(approved) or set(approved)!=release_tuples(data,profile):raise ValueError('unapproved indexed release')
     apks={p.name for p in files if p.suffix=='.apk'}
     if apks!={v[3] for v in approved}:raise ValueError('unapproved APK file')
     return actual,data
@@ -187,14 +210,18 @@ def atomic_json(path,data):
     try:os.fsync(directory)
     finally:os.close(directory)
 
-def publish_local(generation,origin,fingerprint,expected_generation,approvals):
+def publish_local(generation,origin,fingerprint,expected_generation,approvals,profile=STABLE):
     """Publish a signed generation; entry.jar last. Readers verify referenced hashes.
 
     This is intentionally not called atomic: clients crossing generations retry refresh.
     Keep old immutable index payloads and APKs. Never upload private workspace/config.
     """
-    generation_id,_=approved_generation(generation,fingerprint,expected_generation,approvals)
-    files=public_files(generation)
+    if profile.name!='stable':
+        raise ValueError('Beta publication requires approved Pages snapshots')
+    generation_id,data=approved_generation(generation,fingerprint,expected_generation,approvals,profile)
+    if profile.name!='stable' and data['repo']['address'].rstrip('/')!=profile.repository_url.rstrip('/'):
+        raise ValueError('signed index origin differs from selected channel')
+    files=public_files(generation,profile)
     pinned={str(p.relative_to(generation)):sha(p) for p in files}
     if hashlib.sha256(json.dumps(pinned,sort_keys=True).encode()).hexdigest()!=expected_generation:raise ValueError('generation changed after approval')
     control=origin.parent/(origin.name+'.control')
@@ -218,7 +245,7 @@ def publish_local(generation,origin,fingerprint,expected_generation,approvals):
             if pinned[str(rel)]!=sha(dest): raise ValueError('readback mismatch')
         for rel,expected in pinned.items():
             if sha(origin/rel)!=expected:raise ValueError('approved readback mismatch')
-        verify_indexes(origin,fingerprint)
+        verify_indexes(origin,fingerprint,profile)
         if generation_id not in journal['completed']:journal['completed'].append(generation_id)
         journal['active']=None
         atomic_json(state,journal)
@@ -235,10 +262,12 @@ def main():
     i=s.add_parser('ingest')
     for name in ('approval','manifest','apk','workspace'): i.add_argument('--'+name,required=True,type=Path)
     i.add_argument('--receipt-bundle',type=Path);i.add_argument('--aapt',required=True);i.add_argument('--apksigner',required=True)
-    x=s.add_parser('publish-local');x.add_argument('generation',type=Path);x.add_argument('origin',type=Path);x.add_argument('--fingerprint',required=True);x.add_argument('--approved-generation',required=True);x.add_argument('--approval',action='append',required=True,type=Path)
-    d=s.add_parser('generation-digest');d.add_argument('generation',type=Path)
+    i.add_argument('--channel',choices=('stable','trailblazer-beta'),default='stable')
+    x=s.add_parser('publish-local');x.add_argument('generation',type=Path);x.add_argument('origin',type=Path);x.add_argument('--fingerprint',required=True);x.add_argument('--approved-generation',required=True);x.add_argument('--approval',action='append',required=True,type=Path);x.add_argument('--channel',choices=('stable',),default='stable')
+    d=s.add_parser('generation-digest');d.add_argument('generation',type=Path);d.add_argument('--channel',choices=('stable','trailblazer-beta'),default='stable')
     a=p.parse_args()
-    if a.cmd=='generation-digest':print(generation_digest(a.generation));return
-    if a.cmd=='ingest': print(ingest(a.approval,a.manifest,a.apk,a.workspace,a.aapt,a.apksigner,a.receipt_bundle))
-    else: print(publish_local(a.generation,a.origin,a.fingerprint,a.approved_generation,a.approval))
+    profile=STABLE if a.channel=='stable' else __import__('channel_profile').BETA
+    if a.cmd=='generation-digest':print(generation_digest(a.generation,profile));return
+    if a.cmd=='ingest': print(ingest(a.approval,a.manifest,a.apk,a.workspace,a.aapt,a.apksigner,a.receipt_bundle,profile))
+    else: print(publish_local(a.generation,a.origin,a.fingerprint,a.approved_generation,a.approval,profile))
 if __name__=='__main__': main()

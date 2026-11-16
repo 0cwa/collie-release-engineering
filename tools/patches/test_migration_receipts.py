@@ -77,6 +77,25 @@ class Receipts(unittest.TestCase):
         current={k:receipts.digest(v) for k,v in docs.items()}
         receipts.verify_graph(**docs,approved=current,promotion=True)
 
+    def test_beta_prepublication_receipt_requires_client_and_keeps_https_postpublication(self):
+        repository=self.example('repository')
+        repository['payload']['apk_certificate_sha256']=receipts.PROFILES['trailblazer-beta']['apk_certificate']
+        names=receipts.PREPUBLICATION_REPOSITORY_EVIDENCE
+        repository['evidence']=[
+            {'status':'PASS','description':names['candidate_index'],'sha256':'1'*64},
+            {'status':'NOT RUN','description':names['client_acceptance'],'sha256':None},
+            {'status':'NOT RUN','description':names['production_readback'],'sha256':None},
+        ]
+        receipts.validate(repository,'repository',profile='trailblazer-beta')
+        with self.assertRaisesRegex(ValueError,'completed isolated client acceptance required'):
+            receipts.verify_prepublication_repository_evidence(repository)
+        repository['evidence'][1]={'status':'PASS','description':names['client_acceptance'],'sha256':'2'*64}
+        repository['evidence'][2]={'status':'PASS','description':names['production_readback'],'sha256':'3'*64}
+        with self.assertRaisesRegex(ValueError,'postpublication Pages journal'):
+            receipts.verify_prepublication_repository_evidence(repository)
+        repository['evidence'][2]={'status':'NOT RUN','description':names['production_readback'],'sha256':None}
+        self.assertIsNone(receipts.verify_prepublication_repository_evidence(repository))
+
     def test_raw_manifest_and_canonical_release_receipt_are_distinct(self):
         root=Path(__file__).resolve().parents[2]/'docs/migration/fixtures'
         docs={k:receipts.load(root/(k+'-v2.json'),k) for k in receipts.FIELDS}
