@@ -16,6 +16,40 @@ class RenderPublicationTests(unittest.TestCase):
         ):
             with self.subTest(template='generation', required=required):
                 self.assertIn(required,generation)
+        # Preserve the boolean relationships as well as the individual
+        # operands: weakening either authorization or rejection must fail.
+        def assert_generation_guards(template):
+            compact=' '.join(template.split())
+            guards=(
+                "guidance: if: >- github.event_name == 'issue_comment' && "
+                "github.event.issue.pull_request && "
+                "github.event.comment.body == '!screenshots' && "
+                "contains(fromJSON('[\"OWNER\", \"MEMBER\", \"COLLABORATOR\"]'), "
+                "github.event.comment.author_association)",
+                "if pull['state'] != 'open' or "
+                "head['repo']['full_name'] != os.environ['GITHUB_REPOSITORY']:",
+                "if branch in ('main', os.environ['DEFAULT_BRANCH']) or "
+                "branch.startswith('8.') or not re.fullmatch('[0-9a-f]{40}', head['sha']):",
+                "generate: if: >- github.event_name == 'workflow_dispatch' && "
+                "github.ref_type == 'branch' && github.ref_name != 'main' && "
+                "github.ref_name != github.event.repository.default_branch && "
+                "!startsWith(github.ref_name, '8.')",
+            )
+            for guard in guards:
+                self.assertIn(guard,compact)
+
+        assert_generation_guards(generation)
+        for original_guard,weakened_guard in (
+            ("github.event_name == 'issue_comment' &&", "github.event_name == 'issue_comment' ||"),
+            ("pull['state'] != 'open' or", "pull['state'] != 'open' and"),
+            ("branch.startswith('8.') or not", "branch.startswith('8.') and not"),
+            ("github.event_name == 'workflow_dispatch' &&", "github.event_name == 'workflow_dispatch' ||"),
+        ):
+            with self.subTest(weakened_guard=weakened_guard):
+                self.assertIn(original_guard,generation)
+                with self.assertRaises(AssertionError):
+                    assert_generation_guards(generation.replace(original_guard,weakened_guard,1))
+
         for required in (
             "branch in ('main', os.environ['DEFAULT_BRANCH'])", "branch.startswith('8.')",
             "github.ref_name != 'main'", 'github.ref_name != github.event.repository.default_branch',
