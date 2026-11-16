@@ -6,6 +6,7 @@ import inspect
 import json
 import os
 from pathlib import Path
+import re
 import selectors
 import shlex
 import signal
@@ -14,12 +15,13 @@ import sys
 import tempfile
 import textwrap
 import unittest
+from urllib.parse import urlparse
 from http.client import BadStatusLine, IncompleteRead
 from unittest import mock
 from urllib.error import URLError
 
 from distribution import deploy_pages
-from distribution.deploy_pages import PagesApi, PagesApiError, deploy_and_wait
+from distribution.deploy_pages import DeploymentGuard, PagesApi, PagesApiError, deploy_and_wait
 
 
 class Clock:
@@ -51,6 +53,150 @@ class ScriptedApi:
 
     def cancel(self, deployment_id):
         self.cancelled.append(deployment_id)
+
+
+class NullGuard:
+    def __init__(self, *_args, **_kwargs):
+        self.records = []
+
+    def __bool__(self):
+        return False
+
+    def acquire(self):
+        self.records.append("acquire")
+
+    def record_pages_id(self, deployment_id):
+        self.records.append(("pages-id", deployment_id))
+
+    def finish(self, state, description):
+        self.records.append((state, description))
+
+
+class PersistentDeploymentApi:
+    """Mock only GitHub's REST transport; guard state survives API client instances."""
+
+    def __init__(self, path, *, create_mode="normal", page_states=()):
+        self.path = Path(path)
+        self.create_mode = create_mode
+        self.page_states = list(page_states)
+        self.calls = []
+        if self.path.exists():
+            self.state = json.loads(self.path.read_text())
+        else:
+            self.state = {"records": [], "statuses": {}, "pages": [], "page_statuses": {}}
+
+    def save(self):
+        self.path.write_text(json.dumps(self.state))
+
+    def deployment_guard_records(self):
+        self.calls.append("list-guard")
+        return self.state["records"]
+
+    def deployment_guard_statuses(self, deployment_id):
+        return self.state["statuses"].get(str(deployment_id), [])
+
+    def create_deployment_guard(self, *, build_version, run_id, run_attempt, artifact_id):
+        self.calls.append("create-guard")
+        record = {"id": 501, "environment": deploy_pages.GUARD_ENVIRONMENT,
+                  "task": deploy_pages.GUARD_TASK,
+                  "payload": {"kind": deploy_pages.GUARD_KIND, "run_id": run_id,
+                              "run_attempt": run_attempt, "artifact_id": artifact_id}}
+        self.state["records"].append(record)
+        self.save()
+        return record["id"]
+
+    def set_deployment_guard_status(self, deployment_id, state, description):
+        self.calls.append(("guard-status", state, description))
+        values = self.state["statuses"].setdefault(str(deployment_id), [])
+        values.append({"state": state, "description": description,
+                       "created_at": f"2026-11-16T00:00:{len(values):02d}Z"})
+        self.save()
+
+    def create(self, artifact_id, build_version):
+        self.calls.append("create-pages")
+        self.state["pages"].append({"id": "pages-77", "artifact_id": artifact_id,
+                                     "build_version": build_version})
+        self.save()
+        if self.create_mode == "response-lost":
+            raise PagesApiError("Pages create response was lost")
+        return "pages-77", "https://pages.example.test/"
+
+    def status(self, deployment_id, *, timeout=30, interruptible=True):
+        if deployment_id == "pages-77":
+            if self.page_states:
+                value = self.page_states.pop(0)
+            else:
+                value = self.state["page_statuses"].get(deployment_id, "syncing_files")
+            self.state["page_statuses"][deployment_id] = value
+            self.save()
+            return value
+        raise PagesApiError("unknown Pages ID")
+
+    def cancel(self, deployment_id):
+        self.calls.append(("cancel", deployment_id))
+
+
+class PersistentGitHubRest:
+    """Durable fake GitHub REST store used through the real PagesApi adapter."""
+
+    def __init__(self, path, *, lose_pages_create_response=False):
+        self.path = Path(path)
+        self.lose_pages_create_response = lose_pages_create_response
+        if self.path.exists():
+            self.state = json.loads(self.path.read_text())
+        else:
+            self.state = {"records": [], "statuses": {}, "pages": [],
+                          "pages_status": {}, "next_id": 700}
+            self.save()
+
+    def save(self):
+        self.path.write_text(json.dumps(self.state))
+
+    def open(self, request, timeout):
+        method = request.get_method()
+        parsed = urlparse(request.full_url)
+        path = parsed.path
+        body = json.loads(request.data) if request.data else None
+        if parsed.path == "/token":
+            return Response({"value": "fixture-oidc-token"})
+        if path.endswith("/repos/owner/repo/deployments") and method == "GET":
+            return Response(self.state["records"])
+        if path.endswith("/repos/owner/repo/deployments") and method == "POST":
+            deployment_id = self.state["next_id"]
+            self.state["next_id"] += 1
+            self.state["records"].append({"id": deployment_id,
+                "environment": body["environment"], "task": body["task"],
+                "payload": body["payload"]})
+            self.state["statuses"][str(deployment_id)] = []
+            self.save()
+            return Response({"id": deployment_id})
+        status_match = re.search(r"/deployments/(\d+)/statuses$", path)
+        if status_match and method == "GET":
+            return Response(self.state["statuses"].get(status_match.group(1), []))
+        if status_match and method == "POST":
+            values = self.state["statuses"].setdefault(status_match.group(1), [])
+            values.append({**body, "created_at": f"2026-11-16T00:00:{len(values):02d}Z"})
+            self.save()
+            return Response({})
+        if path.endswith("/pages/deployments") and method == "POST":
+            deployment_id = f"pages-{len(self.state['pages']) + 1}"
+            self.state["pages"].append({"id": deployment_id, "payload": body})
+            self.state["pages_status"][deployment_id] = "syncing_files"
+            self.save()
+            if self.lose_pages_create_response:
+                raise URLError("simulated response loss after server accepted request")
+            return Response({"id": deployment_id, "page_url": "https://pages.example.test/"})
+        page_status = re.search(r"/pages/deployments/([^/]+)$", path)
+        if page_status and method == "GET":
+            return Response({"status": self.state["pages_status"][page_status.group(1)]})
+        if path.endswith("/cancel") and method == "POST":
+            return Response({})
+        raise AssertionError(f"unhandled fixture GitHub API request: {method} {path}")
+
+
+def persistent_pages_api(backend):
+    return PagesApi("https://api.github.com", "owner/repo", "fixture-token",
+                    "https://oidc.example.test/token", "fixture-request-token", backend.open)
 
 
 class Response:
@@ -99,6 +245,7 @@ def api_with_responses(statuses, *, created=None, cancelled=b""):
 class DeployPagesLifecycleTest(unittest.TestCase):
     def run_deployment(self, api, **kwargs):
         clock = Clock()
+        kwargs.setdefault("baseline_check", lambda: None)
         return deploy_and_wait(
             api, 1234, "a" * 40, clock=clock.now, sleep=clock.sleep, **kwargs,
         )
@@ -109,6 +256,56 @@ class DeployPagesLifecycleTest(unittest.TestCase):
             self.run_deployment(api, interrupted=lambda: True)
         self.assertEqual(api.created, [])
         self.assertEqual(api.cancelled, [])
+
+    def test_production_cli_requires_an_explicit_captured_baseline(self):
+        with mock.patch.object(sys,'argv',['deploy_pages.py','--artifact-id','1234']), \
+                self.assertRaises(SystemExit) as error:
+            deploy_pages.main()
+        self.assertEqual(error.exception.code,2)
+
+    def test_deploy_order_is_reconcile_exact_baseline_reserve_then_pages_post(self):
+        calls=[]
+        class Guard:
+            def __bool__(self):return True
+            def reconcile(self):calls.append('reconcile')
+            def acquire(self):calls.append('reserve')
+            def record_pages_id(self,_value):pass
+            def finish(self,*_args):pass
+        class Api(ScriptedApi):
+            def create(self,*args):calls.append('pages-post');return super().create(*args)
+        api=Api(['succeed'])
+        deploy_and_wait(api,1234,'a'*40,guard=Guard(),baseline_check=lambda:calls.append('baseline'))
+        self.assertEqual(calls,['reconcile','baseline','reserve','pages-post'])
+
+    def test_old_deployment_finishing_after_capture_blocks_stable_before_reservation(self):
+        live={'inventory':'captured-before-old-beta-finished'}
+        captured=live['inventory'];calls=[]
+        class Guard:
+            def __bool__(self):return True
+            def reconcile(self):
+                calls.append('reconcile-old-deployment')
+                # The old Beta deployment completes and changes the served site
+                # after this Stable candidate captured its baseline.
+                live['inventory']='newer-beta-inventory'
+            def acquire(self):calls.append('reserve')
+            def record_pages_id(self,_value):pass
+            def finish(self,*_args):pass
+        api=ScriptedApi(['succeed'])
+        def compare_captured_baseline():
+            calls.append('compare-captured-baseline')
+            if live['inventory']!=captured:raise ValueError('stale captured site baseline')
+        with self.assertRaisesRegex(ValueError,'stale captured site baseline'):
+            deploy_and_wait(api,1234,'a'*40,guard=Guard(),baseline_check=compare_captured_baseline)
+        self.assertEqual(calls,['reconcile-old-deployment','compare-captured-baseline'])
+        self.assertEqual(api.created,[])
+
+    def test_failed_job_rerun_rechecks_old_prepared_baseline_before_new_post(self):
+        current={'site':'newer-publication'}
+        api=ScriptedApi(['succeed'])
+        with self.assertRaisesRegex(ValueError,'does not match this run preparation'):
+            deploy_and_wait(api,1234,'a'*40,baseline_check=lambda:
+                (_ for _ in ()).throw(ValueError('captured baseline does not match this run preparation')))
+        self.assertEqual(api.created,[])
 
     def test_all_known_terminal_failures_stop_without_cancellation(self):
         for status in (
@@ -183,7 +380,7 @@ class DeployPagesLifecycleTest(unittest.TestCase):
             raise InterruptedError("Pages deployment interrupted")
 
         with self.assertRaises(InterruptedError):
-            deploy_and_wait(api, 1234, "a" * 40, clock=interrupted_clock)
+            deploy_and_wait(api, 1234, "a" * 40, clock=interrupted_clock, baseline_check=lambda: None)
         self.assertEqual(len(api.created), 1)
         self.assertEqual(api.cancelled, ["deployment-1"])
 
@@ -195,7 +392,7 @@ class DeployPagesLifecycleTest(unittest.TestCase):
             raise InterruptedError("Pages deployment interrupted")
 
         with self.assertRaises(InterruptedError):
-            deploy_and_wait(api, 1234, "a" * 40, clock=clock.now, sleep=interrupted_sleep)
+            deploy_and_wait(api, 1234, "a" * 40, clock=clock.now, sleep=interrupted_sleep, baseline_check=lambda: None)
         self.assertEqual(api.cancelled, ["deployment-1"])
 
     def test_http_and_oidc_adapters_propagate_interruption(self):
@@ -231,7 +428,7 @@ class DeployPagesLifecycleTest(unittest.TestCase):
 
         api.status = late_status
         with self.assertRaises(TimeoutError):
-            deploy_and_wait(api, 1234, "a" * 40, clock=clock.now, sleep=clock.sleep)
+            deploy_and_wait(api, 1234, "a" * 40, clock=clock.now, sleep=clock.sleep, baseline_check=lambda: None)
         self.assertEqual(api.cancelled, ["deployment-1"])
 
     def test_known_creation_id_is_cancelled_if_output_url_is_malformed(self):
@@ -253,12 +450,120 @@ class DeployPagesLifecycleTest(unittest.TestCase):
         self.assertEqual(len(api.created), 1)
         self.assertEqual(api.cancelled, [])
 
+    def _persistent_guard(self, api, run_id=12):
+        return DeploymentGuard(api, build_version="a" * 40, run_id=run_id,
+                               run_attempt=1, artifact_id=1234)
+
+    def _reconcile_and_reserve(self, guard):
+        guard.reconcile()
+        guard.acquire()
+
+    def test_runner_loss_after_prepost_hold_blocks_a_fresh_workflow_client(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            state = Path(tmp) / "github-api-state.json"
+            first = PersistentDeploymentApi(state)
+            self._reconcile_and_reserve(self._persistent_guard(first))
+            self.assertNotIn("create-pages", first.calls)
+
+            second = PersistentDeploymentApi(state)
+            with self.assertRaisesRegex(PagesApiError, "remains active; publication held"):
+                self._reconcile_and_reserve(self._persistent_guard(second, run_id=13))
+            self.assertNotIn("create-pages", second.calls)
+
+    def test_lost_pages_create_response_retains_persistent_hold_and_prevents_retry(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            state = Path(tmp) / "github-api-state.json"
+            first = PersistentDeploymentApi(state, create_mode="response-lost")
+            guard = self._persistent_guard(first)
+            with self.assertRaisesRegex(PagesApiError, "response was lost"):
+                deploy_and_wait(first, 1234, "a" * 40, guard=guard, baseline_check=lambda: None)
+            self.assertEqual(first.calls[:3], ["list-guard", "create-guard",
+                                               ("guard-status", "in_progress",
+                                                "Pages deployment reserved; Pages deployment ID not yet recorded")])
+            self.assertEqual(first.calls.count("create-pages"), 1)
+
+            second = PersistentDeploymentApi(state)
+            with self.assertRaisesRegex(PagesApiError, "remains active; publication held"):
+                self._reconcile_and_reserve(self._persistent_guard(second, run_id=13))
+            self.assertNotIn("create-pages", second.calls)
+
+    def test_lost_create_response_hold_survives_fresh_real_http_adapter(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            state = Path(tmp) / "github-rest.json"
+            backend = PersistentGitHubRest(state, lose_pages_create_response=True)
+            api = persistent_pages_api(backend)
+            guard = DeploymentGuard(api, build_version="a" * 40, run_id=12,
+                                   run_attempt=1, artifact_id=1234)
+            with self.assertRaisesRegex(PagesApiError, "creation outcome may be unknown"):
+                deploy_and_wait(api, 1234, "a" * 40, guard=guard, baseline_check=lambda: None)
+            self.assertEqual(len(backend.state["pages"]), 1)
+            self.assertEqual(backend.state["statuses"]["700"][-1]["state"], "in_progress")
+
+            # A fresh client sees the REST-backed deployment marker and blocks
+            # before sending a second Pages create request.
+            backend2 = PersistentGitHubRest(state)
+            api2 = persistent_pages_api(backend2)
+            guard2 = DeploymentGuard(api2, build_version="b" * 40, run_id=13,
+                                     run_attempt=1, artifact_id=1235)
+            with self.assertRaisesRegex(PagesApiError, "remains active; publication held"):
+                self._reconcile_and_reserve(guard2)
+            self.assertEqual(len(backend2.state["pages"]), 1)
+
+    def test_cancel_204_without_terminal_status_keeps_guard_active_across_clients(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            state = Path(tmp) / "github-api-state.json"
+            clock = Clock()
+            api = PersistentDeploymentApi(state, page_states=["syncing_files"] * 1000)
+            guard = self._persistent_guard(api)
+            with self.assertRaisesRegex(PagesApiError, "durable publication hold retained"):
+                deploy_and_wait(api, 1234, "a" * 40, wait_seconds=601,
+                                poll_seconds=601, clock=clock.now, sleep=clock.sleep,
+                                guard=guard, baseline_check=lambda: None)
+            self.assertTrue(any(call == ("cancel", "pages-77") for call in api.calls))
+            statuses = api.state["statuses"]["501"]
+            self.assertEqual(statuses[-1]["state"], "in_progress")
+            self.assertEqual(statuses[-1]["description"], "pages-deployment-id:pages-77")
+
+            later = PersistentDeploymentApi(state, page_states=["syncing_files"])
+            with self.assertRaisesRegex(PagesApiError, "remains active; publication held"):
+                self._reconcile_and_reserve(self._persistent_guard(later, run_id=13))
+            self.assertNotIn("create-pages", later.calls)
+
+    def test_only_verified_terminal_pages_status_resolves_guard_for_next_run(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            state = Path(tmp) / "github-api-state.json"
+            first = PersistentDeploymentApi(state, page_states=["succeed"])
+            url = deploy_and_wait(first, 1234, "a" * 40, guard=self._persistent_guard(first), baseline_check=lambda: None)
+            self.assertEqual(url, "https://pages.example.test/")
+            self.assertEqual(first.state["statuses"]["501"][-1]["state"], "success")
+
+            second = PersistentDeploymentApi(state)
+            self._reconcile_and_reserve(self._persistent_guard(second, run_id=13))
+            self.assertIn("create-guard", second.calls)
+
+    def test_guard_terminal_claim_alone_cannot_clear_hold(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            state = Path(tmp) / "github-api-state.json"
+            first = PersistentDeploymentApi(state)
+            guard = self._persistent_guard(first)
+            self._reconcile_and_reserve(guard)
+            guard.record_pages_id("pages-77")
+            guard.finish("success", "pages-terminal:pages-77:succeed")
+
+            # The durable marker says success, but the authoritative Pages status
+            # store still says the remote deployment is active.
+            later = PersistentDeploymentApi(state)
+            with self.assertRaisesRegex(PagesApiError, "matching authoritative Pages status"):
+                self._reconcile_and_reserve(self._persistent_guard(later, run_id=13))
+
     def test_main_restores_original_signal_handlers(self):
         original = {number: signal.getsignal(number) for number in (signal.SIGINT, signal.SIGTERM)}
         try:
             with mock.patch.object(deploy_pages, "PagesApi", return_value=ScriptedApi(["succeed"])), \
-                 mock.patch.object(sys, "argv", ["deploy_pages.py", "--artifact-id", "1234"]), \
-                 mock.patch.dict(os.environ, {"GITHUB_SHA": "a" * 40}, clear=True), \
+                 mock.patch.object(deploy_pages, "DeploymentGuard", NullGuard), \
+                 mock.patch.object(sys, "argv", ["deploy_pages.py", "--artifact-id", "1234", "--feed-baseline", "fixture.json"]), \
+                 mock.patch.dict(os.environ, {"GITHUB_SHA": "a" * 40, "GITHUB_RUN_ID": "12", "GITHUB_RUN_ATTEMPT": "1"}, clear=True), \
+                 mock.patch("feed.verify_deploy_baseline"), \
                  contextlib.redirect_stdout(io.StringIO()):
                 self.assertEqual(deploy_pages.main(), 0)
             for number, handler in original.items():
@@ -272,8 +577,10 @@ class DeployPagesLifecycleTest(unittest.TestCase):
         run = deploy_pages.deploy_and_wait
         stderr = io.StringIO()
         with mock.patch.object(deploy_pages, "PagesApi", return_value=api), \
-             mock.patch.object(sys, "argv", ["deploy_pages.py", "--artifact-id", "1234"]), \
-             mock.patch.dict(os.environ, {"GITHUB_SHA": "a" * 40}, clear=True), \
+             mock.patch.object(deploy_pages, "DeploymentGuard", NullGuard), \
+             mock.patch.object(sys, "argv", ["deploy_pages.py", "--artifact-id", "1234", "--feed-baseline", "fixture.json"]), \
+             mock.patch.dict(os.environ, {"GITHUB_SHA": "a" * 40, "GITHUB_RUN_ID": "12", "GITHUB_RUN_ATTEMPT": "1"}, clear=True), \
+             mock.patch("feed.verify_deploy_baseline"), \
              mock.patch.object(deploy_pages, "deploy_and_wait", side_effect=lambda *a, **kw: run(
                  *a, **kw, clock=clock.now, sleep=clock.sleep,
              )), contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(stderr):
@@ -422,7 +729,12 @@ class DeployPagesLifecycleTest(unittest.TestCase):
             from distribution import deploy_pages
 
             os.environ['GITHUB_SHA'] = 'a' * 40
+            os.environ['GITHUB_RUN_ID'] = '12'
+            os.environ['GITHUB_RUN_ATTEMPT'] = '1'
             sys.argv = ['deploy_pages.py', '--artifact-id', '1234']
+            sys.argv += ['--feed-baseline', 'fixture.json']
+            import feed
+            feed.verify_deploy_baseline = lambda _path: None
 
             class Api:
                 def __init__(self, *args):
@@ -444,6 +756,12 @@ class DeployPagesLifecycleTest(unittest.TestCase):
                     print('CANCELLED', flush=True)
 
             deploy_pages.PagesApi = Api
+            deploy_pages.DeploymentGuard = lambda *args, **kwargs: type('Guard', (), {
+                '__bool__': lambda self: False,
+                'acquire': lambda self: None,
+                'record_pages_id': lambda self, value: None,
+                'finish': lambda self, state, description: None,
+            })()
             sys.exit(deploy_pages.main())
         """)
         with tempfile.TemporaryDirectory(prefix="pages-signal-") as temporary:

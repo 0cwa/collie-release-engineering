@@ -198,6 +198,59 @@ publisher. An external deployment changes the approval's previous-state premise;
 stop and prepare/reapprove against the new complete state. Do not treat the
 preflight as a provider-level conditional-write transaction.
 
+Both production publishers also create a durable GitHub deployment record in
+the `collie-pages-remote-deploy-guard` transient environment before calling the
+Pages deployment API. This closes the runner-loss gap that the Actions
+`collie-pages-production` concurrency group cannot cover after a job ends. The
+guard record remains active until the Pages deployment status endpoint reports
+one of the verifier's terminal success/failure states; a cancel `204` alone is
+not treated as terminal. A later run checks this record before creating another
+Pages deployment and can reconcile an earlier attempt only when the record
+contains its Pages deployment ID and the Pages API reports terminal status.
+
+If the Pages creation response is lost, or the runner stops before its Pages ID
+is durably recorded, the active guard intentionally blocks both Stable and Beta
+publishers. The current documented Pages API offers create, lookup by deployment
+ID or commit SHA, and cancel, but no list endpoint for recovering an unknown
+Pages ID. There is no automated clearing path for that case: preserve the hold
+until an operator obtains authoritative provider terminal/reconciliation evidence
+and resolves it under a separately reviewed recovery procedure. Do not infer
+terminality from a cancel response, workflow completion, timeout, or public-site
+readback. Creating these guard records uses only the token's `deployments: write`
+scope in addition to the existing Pages deployment permissions. GitHub documents
+that deployment records dispatch deployment events. This repository has no
+workflow trigger for those events, and a read-only hook inventory returned no
+repository hooks during review; recheck external integrations before production.
+GitHub's [deployment API](https://docs.github.com/en/rest/deployments/deployments)
+defines the persistent records and statuses used here. The [Actions concurrency
+contract](https://docs.github.com/en/actions/how-tos/write-workflows/choose-when-workflows-run/control-workflow-concurrency)
+documents one running and one replaceable pending run by default, so that group
+is not the durable hold.
+
+The deploy step repeats the safety checks inside the shared
+`collie-pages-production` workflow lock, immediately before reserving a new
+guard and sending the Pages creation request. Its order is: reconcile every
+older guard against authoritative Pages status, compare the exact baseline
+captured for this prepared candidate, create the durable reservation, then
+POST the uploaded Pages artifact. A missing baseline is a CLI error. Phase 1
+rechecks the prepared `previous_files` and raw prior `site-manifest.json` hash
+(including the explicit empty-origin checks for first publication). Phase 2
+rechecks the already-read-back phase 1 manifest carried by the `after-phase1`
+control artifact. It never compares phase 2 against itself or adopts a newer
+public readback as the baseline for an old prepared artifact. This also applies
+when a failed job is rerun after another publication has advanced the site.
+
+The scheduled Stable publisher captures and validates the complete served
+inventory, including signed Stable and Beta indexes and every indexed byte,
+before it downloads/builds the candidate. Its deploy step compares the live
+canonical inventory digest with that fixed capture after reconciling older
+deployments. If a pending Beta deployment finishes after Stable capture, the
+inventory differs and the stale Stable site is rejected before a new durable
+reservation or Pages POST. A transient read failure, unavailable inventory,
+changed route or mismatched byte is a hard failure. The comparison is not a
+provider-side conditional write: unrelated publishers that ignore this shared
+workflow lock remain outside this guarantee.
+
 ## Two complete deployment snapshots
 
 1. `pages.py prepare BUNDLE OUTPUT --policy REVIEWED_COMMIT` verifies the full

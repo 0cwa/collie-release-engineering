@@ -10,6 +10,7 @@ import shutil
 import sys
 import subprocess
 import tarfile
+import tempfile
 import zipfile
 import urllib.request
 import binary_repo as b
@@ -582,7 +583,27 @@ def preflight(plan,journal_path,*,fetch=observe,head=None,expected_channel='stab
         b.atomic_json(journal_path,journal)
         return journal
 
-def readback(plan,journal_path,phase,*,fetch=None,expected_channel='stable'):
+def verify_deploy_baseline(plan,phase,journal_path=None,*,expected_channel='stable',fetch=observe,head=None):
+    """Recheck the exact captured prior state immediately before a deploy reservation.
+
+    Phase 1 is compared with the prepared previous-site snapshot. Phase 2 is
+    compared with the immutable phase-1 manifest already read back by the run.
+    """
+    if phase not in ('phase1','phase2'):raise ValueError('deploy baseline phase')
+    if plan.get('channel','stable')!=expected_channel:raise ValueError('plan channel differs from selected channel')
+    if phase=='phase2':
+        if journal_path is None:raise ValueError('phase2 deploy baseline requires the phase1 journal')
+        readback(plan,journal_path,'phase1',fetch=fetch,expected_channel=expected_channel,
+                 require_recorded=True)
+        return True
+    with tempfile.TemporaryDirectory(prefix='collie-pages-deploy-baseline-') as temporary:
+        baseline_journal=Path(temporary)/'journal.json'
+        b.atomic_json(baseline_journal,{'schema':1,'plan_sha256':digest(plan),'completed':[],
+                                       'previous_verified':False,'readbacks':{}})
+        preflight(plan,baseline_journal,fetch=fetch,head=head,expected_channel=expected_channel)
+    return True
+
+def readback(plan,journal_path,phase,*,fetch=None,expected_channel='stable',require_recorded=False):
     if plan.get('channel','stable')!=expected_channel:raise ValueError('plan channel differs from selected channel')
     if phase not in ('phase1','phase2'):raise ValueError('phase')
     if plan['origin']!=ORIGIN:raise ValueError('unapproved origin')
@@ -590,6 +611,17 @@ def readback(plan,journal_path,phase,*,fetch=None,expected_channel='stable'):
     with b.locked(journal_path.parent):
         journal=b.load(journal_path)
         if journal['plan_sha256']!=digest(plan):raise ValueError('journal belongs to another plan')
+        if require_recorded:
+            recorded=journal.get('readbacks',{}).get(phase)
+            expected=plan['manifests'][phase]
+            if (phase not in journal.get('completed',[]) or not isinstance(recorded,dict) or
+                    set(recorded)!=set(expected)):
+                raise ValueError('recorded completed '+phase+' readback required for deployment baseline')
+            for name,entry in expected.items():
+                item=recorded[name]
+                if (not isinstance(item,dict) or item.get('status')!=200 or
+                        item.get('sha256')!=entry['sha256'] or item.get('bytes')!=entry['bytes']):
+                    raise ValueError('recorded '+phase+' readback differs from deployment baseline')
         recovery=not journal.get('previous_verified') and _recovery_journal_authorized(plan,journal)
         if not journal.get('previous_verified') and not recovery:
             raise ValueError('live previous preflight or owner-authorized first-publication recovery required')

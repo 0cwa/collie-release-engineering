@@ -56,7 +56,7 @@ class DeployPagesTest(unittest.TestCase):
         api = FakeApi(["syncing_files", "syncing_files", "succeed"])
         page_url = deploy_and_wait(
             api, 1234, "a" * 40, wait_seconds=1800, poll_seconds=600.001,
-            clock=clock.now, sleep=clock.sleep,
+            clock=clock.now, sleep=clock.sleep, baseline_check=lambda:None,
         )
         self.assertGreater(clock.value, 600)
         self.assertEqual(page_url, "https://pages.example.test/")
@@ -69,7 +69,7 @@ class DeployPagesTest(unittest.TestCase):
         with self.assertRaisesRegex(TimeoutError, "final wait deadline"):
             deploy_and_wait(
                 api, 1234, "b" * 40, wait_seconds=1200, poll_seconds=1199.5,
-                clock=clock.now, sleep=clock.sleep,
+                clock=clock.now, sleep=clock.sleep, baseline_check=lambda:None,
             )
         self.assertEqual(clock.value, 1200)
         self.assertEqual(api.cancelled, ["deployment-1"])
@@ -83,12 +83,13 @@ class DeployPagesTest(unittest.TestCase):
                 api, 1234, "c" * 40, wait_seconds=1200, poll_seconds=5,
                 clock=clock.now, sleep=clock.sleep,
                 interrupted=lambda: clock.value >= 5,
+                baseline_check=lambda:None,
             )
         self.assertEqual(api.cancelled, ["deployment-1"])
 
         terminal = FakeApi(["deployment_failed"])
         with self.assertRaisesRegex(PagesApiError, "deployment_failed"):
-            deploy_and_wait(terminal, 1234, "d" * 40, clock=clock.now, sleep=clock.sleep)
+            deploy_and_wait(terminal, 1234, "d" * 40, clock=clock.now, sleep=clock.sleep, baseline_check=lambda:None)
         self.assertEqual(terminal.cancelled, [])
 
     def test_pages_api_uses_uploaded_artifact_and_oidc_token(self):

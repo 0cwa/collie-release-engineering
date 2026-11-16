@@ -4,6 +4,8 @@ import hashlib
 import io
 import contextlib
 import runpy
+import subprocess
+import tarfile
 from pathlib import Path
 import sys
 import tempfile
@@ -256,14 +258,19 @@ class BetaReceiptGraphPrepareTest(unittest.TestCase):
                 'aapt','apksigner',self.bundle/'bundles'/str(self.release_id),self.profile)
         self.assertEqual(target.read_bytes(),self.apk_bytes)
 
-    def prepare(self):
+    def prepare(self,bundle=None,output=None,*,cli=False):
         fake=SimpleNamespace(index=SimpleNamespace(get_index_from_jar=unittest.mock.Mock(side_effect=[
             ({'index':{'name':'/index-v2.json','sha256':b.sha(self.bundle/'candidate/index-v2.json')}},None,None),
             (self.legacy,None,None)])),common=SimpleNamespace())
         with patch.dict(sys.modules,{'fdroidserver':fake}), \
              patch.object(pages,'github_read',side_effect=self.authoritative), \
              patch.object(pages,'github_artifact_bytes',return_value=self.artifact):
-            return pages.prepare(self.bundle,self.output,'c'*40)
+            if cli:
+                with patch.object(sys,'argv',[str(Path(pages.__file__)),'prepare',str(bundle or self.bundle),
+                        str(output or self.output),'--policy','c'*40,'--channel',self.profile.name]):
+                    pages.main()
+                return json.loads(((output or self.output)/'plan.json').read_text())
+            return pages.prepare(bundle or self.bundle,output or self.output,'c'*40)
 
     def test_beta_pages_prepare_verifies_full_graph_and_real_index_parsers(self):
         stable=self.bundle/'previous/fdroid/repo';stable.mkdir(parents=True)
@@ -281,6 +288,37 @@ class BetaReceiptGraphPrepareTest(unittest.TestCase):
         for phase in ('phase1','phase2'):
             self.assertEqual((self.output/phase/'site/fdroid/repo/entry.jar').read_bytes(),b'stable entry')
             self.assertEqual((self.output/phase/'site/fdroid/repo/im.collie.app_90.apk').read_bytes(),b'stable APK')
+
+    def test_final_beta_tar_unpack_and_prepare_chain_preserves_frozen_receipts(self):
+        stable=self.bundle/'previous/fdroid/repo';stable.mkdir(parents=True)
+        for name,content in {'entry.jar':b'stable entry','index-v1.jar':b'stable v1',
+                             'index-v2.json':b'stable v2','im.collie.app_90.apk':b'stable APK'}.items():
+            (stable/name).write_bytes(content)
+        (self.bundle/'previous/site-manifest.json').write_text(json.dumps({'schema':1,'kind':'collie-pages-public-inventory',
+            'origin':pages.ORIGIN,'files':pages.inventory(self.bundle/'previous')}))
+        self.approval['previous_site_sha256']=pages.digest(pages.inventory(self.bundle/'previous'))
+        self.approval['previous_manifest_sha256']=b.sha(self.bundle/'previous/site-manifest.json')
+        (self.bundle/'approval.json').write_text(json.dumps(self.approval))
+        frozen_evidence=b'previously approved immutable evidence archive bytes'
+        (self.bundle/'release-evidence.tar').write_bytes(frozen_evidence)
+        archive=self.root/'pages-input.tar'
+        subprocess.run(['tar','--format=ustar','--sort=name','--owner=0','--group=0','--numeric-owner',
+            "--mtime=UTC 1970-01-01",'-C',str(self.bundle),'-cf',str(archive),'approval.json',
+            'repository-receipt.json','releases','bundles','candidate','previous','landing','release-evidence.tar'],
+            check=True,capture_output=True,text=True)
+        unpacked=self.root/'pages-input-unpacked'
+        subprocess.run([sys.executable,str(Path(pages.__file__)),'unpack',str(archive),str(unpacked)],
+                       check=True,capture_output=True,text=True)
+        receipt_before=(unpacked/'repository-receipt.json').read_bytes()
+        self.assertEqual(pages.receipts.digest(pages.receipts.load(unpacked/'repository-receipt.json',
+            'repository',profile=self.profile.name),profile=self.profile.name),self.approval['repository_receipt_sha256'])
+        output=self.root/'prepared-from-tar'
+        plan=self.prepare(unpacked,output,cli=True)
+        self.assertEqual(plan['channel'],self.profile.name)
+        self.assertEqual((unpacked/'repository-receipt.json').read_bytes(),receipt_before)
+        self.assertEqual((unpacked/'release-evidence.tar').read_bytes(),frozen_evidence)
+        self.assertTrue((output/'phase2/site/fdroid/beta/repo'/f'{self.profile.package}_{self.code}.apk').is_file())
+        self.assertEqual((output/'phase2/site/fdroid/repo/entry.jar').read_bytes(),b'stable entry')
 
     def test_actual_beta_receipt_uses_prepublication_boundary_and_journal_gates_readback(self):
         evidence={item['description']:item for item in self.repo_receipt['evidence']}

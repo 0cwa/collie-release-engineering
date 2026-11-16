@@ -199,6 +199,76 @@ class PagesTest(unittest.TestCase):
         def fetch(url):
             name=url.removeprefix(plan['origin']);return dict(plan['manifests'][phase][name],status=200,headers={'Cache-Control':'measuredfixture'})
         return fetch
+    def test_phase1_deploy_rechecks_exact_captured_previous_site(self):
+        old=self.bundle/'previous/fdroid/repo';old.mkdir(parents=True);(old/'entry.jar').write_bytes(b'previous signed entry')
+        self.seal_previous();plan=self.prepare()
+        exact=lambda url:dict(plan['previous_files'][url.removeprefix(plan['origin'])],status=200,headers={'Cache-Control':'fresh'})
+        self.assertTrue(p.verify_deploy_baseline(plan,'phase1',expected_channel='stable',fetch=exact))
+        def changed(url):
+            item=exact(url)
+            if url.endswith('site-manifest.json'):item['sha256']='0'*64
+            return item
+        with self.assertRaisesRegex(ValueError,'live previous site differs'):
+            p.verify_deploy_baseline(plan,'phase1',expected_channel='stable',fetch=changed)
+        with self.assertRaisesRegex(ValueError,'selected channel'):
+            p.verify_deploy_baseline(plan,'phase1',expected_channel='trailblazer-beta',fetch=exact)
+
+    def test_old_beta_finishes_during_reconcile_then_stale_stable_artifact_is_rejected_before_post(self):
+        from distribution.deploy_pages import deploy_and_wait
+        old=b'{"files":{"beta":"old"}}';new=b'{"files":{"beta":"new"}}'
+        sha=lambda data:hashlib.sha256(data).hexdigest()
+        live={'site-manifest.json':old,'index.html':b'old stable landing'}
+        previous={name:{'sha256':sha(data),'bytes':len(data)} for name,data in live.items()}
+        plan={'schema':1,'kind':'collie-pages-promotion','channel':'stable','origin':p.ORIGIN,
+              'previous_files':previous,'previous_manifest_sha256':sha(old),
+              'manifests':{'phase1':{}}}
+        calls=[]
+        class Guard:
+            def __bool__(self):return True
+            def reconcile(self):
+                calls.append('reconcile-old-beta')
+                # A previously unresolved Beta deployment completes now.
+                live['site-manifest.json']=new
+            def acquire(self):calls.append('reserve')
+            def record_pages_id(self,_value):pass
+            def finish(self,*_args):pass
+        class Api:
+            def create(self,*_args):calls.append('pages-post');return 'new-pages-id','https://pages.example.test/'
+        def fetch(url):
+            name=url.removeprefix(p.ORIGIN);data=live[name]
+            return {'status':200,'sha256':sha(data),'bytes':len(data),'headers':{}}
+        with self.assertRaisesRegex(ValueError,'live previous site differs'):
+            deploy_and_wait(Api(),1234,'a'*40,guard=Guard(),baseline_check=lambda:
+                p.verify_deploy_baseline(plan,'phase1',fetch=fetch))
+        self.assertEqual(calls,['reconcile-old-beta'])
+
+    def test_phase2_deploy_baseline_is_the_phase1_readback_not_phase2_target(self):
+        plan=self.prepare();journal=self.output/'journal.json';self.start_preflight(plan)
+        p.readback(plan,journal,'phase1',fetch=self.fetch(plan,'phase1'))
+        self.assertTrue(p.verify_deploy_baseline(plan,'phase2',journal,fetch=self.fetch(plan,'phase1')))
+        changed=self.fetch(plan,'phase1')
+        def newer(url):
+            item=changed(url)
+            if url.endswith('site-manifest.json'):item['sha256']='0'*64
+            return item
+        with self.assertRaisesRegex(ValueError,'readback mismatch'):
+            p.verify_deploy_baseline(plan,'phase2',journal,fetch=newer)
+
+    def test_phase2_original_preflight_journal_rejects_before_reservation_or_post(self):
+        from distribution.deploy_pages import deploy_and_wait
+        plan=self.prepare();journal=self.output/'journal.json';self.start_preflight(plan)
+        original=b.load(journal);calls=[]
+        class Guard:
+            def reconcile(self):calls.append('reconcile')
+            def acquire(self):calls.append('reserve')
+        class Api:
+            def create(self,*_args):calls.append('post');raise AssertionError('unexpected Pages POST')
+        def fetch(_url):raise AssertionError('missing recorded baseline must reject before fetching')
+        with self.assertRaisesRegex(ValueError,'recorded completed phase1 readback required'):
+            deploy_and_wait(Api(),1234,'a'*40,guard=Guard(),baseline_check=lambda:
+                p.verify_deploy_baseline(plan,'phase2',journal,fetch=fetch))
+        self.assertEqual(calls,['reconcile'])
+        self.assertEqual(b.load(journal),original)
     def test_two_phases_same_assets_old_indexes_then_new(self):
         old=self.bundle/'previous/fdroid/repo';old.mkdir(parents=True);(old/'entry.jar').write_bytes(b'old entry')
         self.seal_previous();plan=self.prepare()

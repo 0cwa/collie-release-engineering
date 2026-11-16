@@ -1,0 +1,102 @@
+name: Build approved TrailBlazer Beta feed candidate
+on:
+  workflow_dispatch:
+    inputs:
+      engineering_release_asset_id:
+        description: Numeric asset ID of the independently approved pre-index Beta APK and receipt graph tar in this repository
+        type: string
+        required: true
+      evidence_sha256:
+        description: Independently approved complete pre-index release input tar SHA-256
+        type: string
+        required: true
+permissions:
+  contents: read
+concurrency:
+  group: collie-beta-feed-candidate
+  cancel-in-progress: false
+jobs:
+  candidate:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    environment:
+      name: github-pages
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: main
+          persist-credentials: false
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: '3.12.14'
+          cache: pip
+          cache-dependency-path: |
+            distribution/requirements.txt
+            distribution/build-requirements.txt
+      - name: Install hash-pinned build backends, then runtime lock without isolation downloads
+        run: |
+          python -m pip install --require-hashes --only-binary=:all: -r distribution/build-requirements.txt
+          python -m pip install --require-hashes --no-build-isolation -r distribution/requirements.txt
+      - name: Download the fixed engineering pre-index release input
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          ASSET_ID: ${{ inputs.engineering_release_asset_id }}
+          EVIDENCE_SHA256: ${{ inputs.evidence_sha256 }}
+        run: |
+          umask 077
+          mkdir -m 700 "$RUNNER_TEMP/beta-evidence-private"
+          python distribution/download_pages_input.py --asset-id "$ASSET_ID" --sha256 "$EVIDENCE_SHA256" \
+            --output "$RUNNER_TEMP/trailblazer-beta-release-input.tar"
+      - id: release
+        name: Verify pre-index release graph and obtain immutable source commit
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ github.token }}
+          ASSET_ID: ${{ inputs.engineering_release_asset_id }}
+          EVIDENCE_SHA256: ${{ inputs.evidence_sha256 }}
+        run: |
+          bt=$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)
+          python distribution/beta_evidence.py verify-preindex "$RUNNER_TEMP/trailblazer-beta-release-input.tar" \
+            --bundle-sha256 "$EVIDENCE_SHA256" --engineering-asset-id "$ASSET_ID" \
+            --scratch "$RUNNER_TEMP/beta-evidence-private" --aapt "$bt/aapt" --apksigner "$bt/apksigner" \
+            > "$RUNNER_TEMP/verified-release.json"
+          jq -er '.source_commit | select(test("^[0-9a-f]{40}$"))' "$RUNNER_TEMP/verified-release.json" \
+            | sed 's/^/source_commit=/' >> "$GITHUB_OUTPUT"
+      - name: Check out the exact approved TrailBlazer listing and artwork
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: 0cwa/collieim-android
+          ref: ${{ steps.release.outputs.source_commit }}
+          path: app-source
+          sparse-checkout: fastlane/metadata/trailblazer-beta
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Build a Beta-only signed repository candidate
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ github.token }}
+          FDROID_KEYSTORE_B64: ${{ secrets.FDROID_KEYSTORE_B64 }}
+          FDROID_KEYSTORE_PASS: ${{ secrets.FDROID_KEYSTORE_PASS }}
+          ASSET_ID: ${{ inputs.engineering_release_asset_id }}
+          EVIDENCE_SHA256: ${{ inputs.evidence_sha256 }}
+        run: |
+          umask 077
+          trap 'rm -f "$RUNNER_TEMP/repo.p12"; rm -rf "$RUNNER_TEMP/fdroid-work"' EXIT
+          base64 -d <<<"$FDROID_KEYSTORE_B64" > "$RUNNER_TEMP/repo.p12"
+          bt=$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)
+          python distribution/feed.py --channel trailblazer-beta --site "$RUNNER_TEMP/beta-site" \
+            --release-input-archive "$RUNNER_TEMP/trailblazer-beta-release-input.tar" \
+            --release-input-sha256 "$EVIDENCE_SHA256" --engineering-asset-id "$ASSET_ID" \
+            --evidence-scratch "$RUNNER_TEMP/beta-evidence-private" --source-checkout app-source \
+            --fastlane app-source/fastlane/metadata/trailblazer-beta --keystore "$RUNNER_TEMP/repo.p12" \
+            --build-tools "$bt" --candidate-receipt "$RUNNER_TEMP/beta-candidate-receipt.json"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: trailblazer-beta-feed-candidate
+          path: |
+            ${{ runner.temp }}/beta-site/**
+            ${{ runner.temp }}/beta-candidate-receipt.json
+          if-no-files-found: error
+          retention-days: 14

@@ -26,6 +26,7 @@ import runtime_receipts as runtime
 CHANNEL = channels.BETA
 ENGINEERING_REPOSITORY = '0cwa/collie-release-engineering'
 ASSET_NAME = 'trailblazer-beta-release-evidence.tar'
+RELEASE_INPUT_ASSET_NAME = 'trailblazer-beta-release-input.tar'
 MANIFEST = 'bundle.json'
 MAX_BUNDLE_BYTES = pages.MAX_BYTES
 MAX_FILES = 40000
@@ -75,6 +76,208 @@ def verify_metadata_revision(path, revision):
         raise ValueError('Beta metadata revision is not available in trusted engineering history') from exc
     if hashlib.sha256(expected).hexdigest() != sha_file(path):
         raise ValueError('bundled Beta metadata differs from its immutable engineering revision')
+
+
+def github_public_read(endpoint):
+    """Read public source-run/tag metadata without relying on cross-repository tokens."""
+    import urllib.request
+    request=urllib.request.Request('https://api.github.com/'+endpoint,headers={
+        'Accept':'application/vnd.github+json','User-Agent':'collie-release-engineering'})
+    with urllib.request.urlopen(request,timeout=60) as response:
+        if response.geturl().split('/',3)[:3]!=['https:','','api.github.com']:
+            raise ValueError('GitHub metadata read left the fixed public API')
+        raw=response.read(1024*1024+1)
+    if len(raw)>1024*1024:raise ValueError('GitHub metadata response exceeds limit')
+    return strict_json_bytes(raw)
+
+
+def strict_json_bytes(raw):
+    def unique(pairs):
+        result={}
+        for key,value in pairs:
+            if key in result:raise ValueError('duplicate JSON field: '+key)
+            result[key]=value
+        return result
+    try:return json.loads(raw.decode('utf-8'),object_pairs_hook=unique)
+    except (json.JSONDecodeError,UnicodeDecodeError) as exc:raise ValueError('invalid GitHub JSON response') from exc
+
+
+def verify_public_beta_tag(tag, commit, *, api=None):
+    if api is None:api=github_public_read
+    ref=api(f'repos/0cwa/collieim-android/git/ref/tags/{tag}')
+    obj=ref.get('object',{}) if isinstance(ref,dict) else {}
+    if obj.get('type')!='tag' or not re.fullmatch('[0-9a-f]{40}',str(obj.get('sha',''))):
+        raise ValueError('Beta source tag is not annotated')
+    signed=api('repos/0cwa/collieim-android/git/tags/'+obj['sha'])
+    if (signed.get('tag')!=tag or signed.get('object',{}).get('type')!='commit' or
+            signed.get('object',{}).get('sha')!=commit or signed.get('verification',{}).get('verified') is not True):
+        raise ValueError('Beta signed source tag differs from approved commit')
+
+
+def validate_preindex_release(root, release_id, tools, *, api=None, run_api=None, tag_verifier=None):
+    """Authenticate the signed Beta release graph before it reaches fdroid update."""
+    root=Path(root)
+    if type(release_id) is not int or release_id<=0:
+        raise ValueError('positive approved Beta release ID required')
+    approval=binary.approval(root/f'releases/{release_id}.json',CHANNEL)
+    if approval['release_id']!=release_id or approval['schema']!=2:
+        raise ValueError('Beta feed input must bind the selected schema2 release ID')
+    expected_files={f'releases/{release_id}.json',
+        f'bundles/{release_id}/source.json',f'bundles/{release_id}/build.json',
+        f'bundles/{release_id}/release.json','manifests/unsigned-manifest.json',
+        'manifests/final-manifest.json','apk/trailblazer-beta.apk'}
+    if set(inventory(root))!=expected_files:
+        raise ValueError('pre-index release input must contain exactly the selected signed release graph and APK')
+    bundle=root/'bundles'/str(release_id)
+    release=binary.verify_release_approval(approval,bundle,CHANNEL)
+    graph={kind:receipts.load(bundle/(kind+'.json'),kind,profile=CHANNEL.name)
+           for kind in ('source','build','release')}
+    if any(receipts.digest(graph[k],profile=CHANNEL.name)!=approval['receipt_approvals'][k]
+           for k in ('source','build','release')):
+        raise ValueError('Beta feed input receipt hashes differ from approved release')
+    unsigned=strict_json(root/'manifests/unsigned-manifest.json')
+    final=strict_json(root/'manifests/final-manifest.json')
+    entries=artifacts.validate_manifest(unsigned,graph['source']['payload']['published_commit'],
+        unsigned.get('run_id'),CHANNEL.apk_certificate,{
+            'source_commit':graph['source']['payload']['published_commit'],
+            'engineering_revision':graph['source']['payload']['engineering_revision'],
+            'workflow_revision':final.get('workflow_revision')},CHANNEL.name)
+    artifacts.validate_beta_signed_provenance(final,unsigned,
+        graph['source']['payload']['published_commit'],{
+            'source_commit':graph['source']['payload']['published_commit'],
+            'engineering_revision':graph['source']['payload']['engineering_revision'],
+            'workflow_revision':final.get('workflow_revision')})
+    release_payload=graph['release']['payload']
+    final_links={
+        'commit':graph['source']['payload']['published_commit'],
+        'source_commit':graph['source']['payload']['published_commit'],
+        'package':release_payload['package'],'version_code':release_payload['version_code'],
+        'version_name':release_payload['version_name'],
+        'certificate_sha256':release_payload['apk_certificate_sha256'],
+        'engineering_revision':release_payload['engineering_revision'],
+        'workflow_revision':release_payload['workflow_revision'],
+    }
+    if (any(final.get(key)!=value for key,value in final_links.items()) or
+            final['apks'][0]['signed_sha256']!=approval['apk_sha256']):
+        raise ValueError('signed final manifest differs from pre-index release receipt')
+    apk=root/'apk'/CHANNEL.apk_asset
+    actual=binary.inspect(apk,tools['aapt'],tools['apksigner'],CHANNEL)
+    if (len(entries)!=1 or entries[0]['file']!=CHANNEL.apk_asset or
+            actual!={'package':CHANNEL.package,'version_code':approval['version_code'],
+                     'version_name':approval['version_name'],'apk_certificate_sha256':CHANNEL.apk_certificate} or
+            sha_file(apk)!=approval['apk_sha256'] or
+            release_payload['apk_sha256']!=approval['apk_sha256'] or
+            release_payload['release_manifest_sha256']!=sha_file(root/'manifests/final-manifest.json') or
+            final.get('tag')!=approval['tag'] or final.get('title')!=CHANNEL.app_title+' '+approval['version_name'] or
+            final.get('prerelease') is not True):
+        raise ValueError('Beta feed APK or signed release manifest differs from receipt graph')
+    source_run=unsigned.get('run_id');attempt=unsigned.get('run_attempt')
+    runtime.verify_beta_ci_run(source_run,attempt,graph['source']['payload']['published_commit'],
+                               transport=run_api or api or github_public_read)
+    if tag_verifier is None:
+        verify_public_beta_tag(approval['tag'],graph['source']['payload']['published_commit'])
+    else:
+        tag_verifier('0cwa/collieim-android',approval['tag'],graph['source']['payload']['published_commit'])
+    return {'approval':approval,'graph':graph,'apk':apk,
+            'version_name':approval['version_name'],'version_code':approval['version_code'],
+            'tag':approval['tag'],'title':CHANNEL.app_title+' '+approval['version_name'],
+            'source_commit':graph['source']['payload']['published_commit'],'release_id':release_id,
+            'apk_sha256':approval['apk_sha256']}
+
+
+def verify_release_input_asset_metadata(asset_id, expected_sha256, *, api=None):
+    if type(asset_id) is not int or asset_id<=0 or not re.fullmatch('[0-9a-f]{64}',str(expected_sha256)):
+        raise ValueError('approved engineering release-input asset ID and SHA256 are required')
+    if api is None:api=pages.github_read
+    asset=api(f'repos/{ENGINEERING_REPOSITORY}/releases/assets/{asset_id}')
+    if (not isinstance(asset,dict) or type(asset.get('id')) is not int or asset.get('id')!=asset_id or
+            asset.get('name')!=RELEASE_INPUT_ASSET_NAME or asset.get('state')!='uploaded' or
+            type(asset.get('size')) is not int or not 0<asset['size']<=MAX_BUNDLE_BYTES or
+            asset.get('digest')!='sha256:'+expected_sha256):
+        raise ValueError('fixed engineering release-input asset metadata differs from approval')
+    return asset
+
+
+def extract_release_input_archive(archive_path,destination,*,expected_sha256=None):
+    """Safely extract the fixed APK/release graph that precedes repository generation."""
+    if destination.exists() or destination.is_symlink():raise ValueError('new release-input extraction directory required')
+    archive_path=Path(archive_path)
+    try:descriptor=os.open(archive_path,os.O_RDONLY|os.O_NOFOLLOW|os.O_NONBLOCK)
+    except OSError as exc:raise ValueError('release-input archive must be a regular non-symlink file') from exc
+    stream=os.fdopen(descriptor,'rb');initial=os.fstat(stream.fileno())
+    if not stat.S_ISREG(initial.st_mode) or initial.st_size>MAX_BUNDLE_BYTES:
+        stream.close();raise ValueError('release-input archive exceeds resource limit')
+    seen=set();total=0;destination.mkdir(parents=True)
+    try:
+        with stream:
+            with tarfile.open(fileobj=stream,mode='r:',tarinfo=RegularTarInfo) as archive:
+                for member in archive:
+                    if (member.name in seen or not re.fullmatch(r'(?:releases/[1-9][0-9]*\.json|bundles/[1-9][0-9]*/(?:source|build|release)\.json|manifests/(?:unsigned-manifest|final-manifest)\.json|apk/trailblazer-beta\.apk)',member.name)
+                            or not member.isfile() or member.mode!=0o644 or member.uid!=0 or member.gid!=0):
+                        raise ValueError('release-input archive contains an unsafe, duplicate, or unexpected member')
+                    if member.size<0 or member.size>MAX_BUNDLE_BYTES:
+                        raise ValueError('release-input member size exceeds resource limit')
+                    total+=member.size
+                    if total>MAX_BUNDLE_BYTES or len(seen)>=MAX_FILES:
+                        raise ValueError('release-input archive expands beyond resource limit')
+                    seen.add(member.name);target=destination/member.name;target.parent.mkdir(parents=True,exist_ok=True)
+                    source=archive.extractfile(member)
+                    if source is None:raise ValueError('release-input member has no data')
+                    with source,open(target,'xb') as output:shutil.copyfileobj(source,output,1024*1024)
+                    if target.stat().st_size!=member.size:raise ValueError('truncated release-input member')
+                archive.fileobj=None
+            required={'releases','bundles','manifests','apk'}
+            if not seen or {Path(name).parts[0] for name in seen}!=required:
+                raise ValueError('release-input archive is incomplete')
+            if expected_sha256 is not None:
+                digest=hashlib.sha256()
+                stream.seek(0)
+                for block in iter(lambda:stream.read(1024*1024),b''):digest.update(block)
+                after=os.fstat(stream.fileno())
+                if ((initial.st_size,initial.st_mtime_ns,initial.st_ctime_ns)!=(after.st_size,after.st_mtime_ns,after.st_ctime_ns)
+                        or digest.hexdigest()!=expected_sha256):
+                    raise ValueError('release-input archive changed during extraction or differs from approved SHA256')
+    except Exception as exc:
+        shutil.rmtree(destination,ignore_errors=True)
+        if isinstance(exc,ValueError):raise
+        raise ValueError('invalid release-input archive') from exc
+
+
+def verify_release_input_archive(archive_path,*,bundle_sha256,asset_id,scratch,tools,destination=None,
+                                 api=None,run_api=None,tag_verifier=None):
+    asset=verify_release_input_asset_metadata(asset_id,bundle_sha256,api=api)
+    archive_path=Path(archive_path)
+    if (archive_path.is_symlink() or not archive_path.is_file() or
+            archive_path.stat().st_size!=asset['size'] or sha_file(archive_path)!=bundle_sha256):
+        raise ValueError('local release-input bytes differ from approved fixed engineering asset')
+    scratch=require_private_scratch(scratch).resolve()
+    temporary=None
+    if destination is None:
+        temporary=tempfile.TemporaryDirectory(prefix='beta-release-input-',dir=scratch)
+        root=Path(temporary.name)/'contents'
+    else:
+        requested=Path(destination)
+        if requested.name in ('','.', '..') or requested.parent.resolve()!=scratch:
+            raise ValueError('release-input extraction must be directly inside private scratch')
+        root=scratch/requested.name
+    extracted=False
+    try:
+        extract_release_input_archive(archive_path,root,expected_sha256=bundle_sha256)
+        extracted=True
+        release_names=list(root.glob('releases/*.json'))
+        if len(release_names)!=1:raise ValueError('release-input archive must contain exactly one selected release approval')
+        selected_id=int(strict_json(release_names[0])['release_id'])
+        result=validate_preindex_release(root,selected_id,tools,api=api,run_api=run_api,
+                                         tag_verifier=tag_verifier)
+        return {'bundle_sha256':bundle_sha256,'bytes':asset['size'],'release_id':result['release_id'],
+            'package':CHANNEL.package,'version_name':result['version_name'],'version_code':result['version_code'],
+            'tag':result['tag'],'title':result['title'],'source_commit':result['source_commit'],
+            'apk_sha256':result['apk_sha256']}
+    except Exception:
+        if destination is not None and extracted:shutil.rmtree(root,ignore_errors=True)
+        raise
+    finally:
+        if temporary is not None:temporary.cleanup()
 
 
 def strict_json(path):
@@ -549,6 +752,7 @@ def verify_archive(archive_path, *, bundle_sha256, asset_id, scratch, tools,
             'version_name': verified['approval']['version_name'],
             'version_code': verified['approval']['version_code'],
             'tag': verified['approval']['tag'], 'title': CHANNEL.app_title + ' ' + verified['approval']['version_name'],
+            'release_id': verified['approval']['release_id'],
             'source_commit': verified['source_commit'],
             'repository_receipt_sha256': verified['repository_receipt_sha256'],
             'apk_sha256': verified['apk_sha256'],
@@ -645,6 +849,13 @@ def main():
     verifier.add_argument('--scratch', required=True, type=Path)
     verifier.add_argument('--aapt', required=True, type=Path)
     verifier.add_argument('--apksigner', required=True, type=Path)
+    preindex = sub.add_parser('verify-preindex', help='verify the approved Beta release graph before repository generation')
+    preindex.add_argument('archive',type=Path)
+    preindex.add_argument('--bundle-sha256',required=True)
+    preindex.add_argument('--engineering-asset-id',required=True,type=int)
+    preindex.add_argument('--scratch',required=True,type=Path)
+    preindex.add_argument('--aapt',required=True,type=Path)
+    preindex.add_argument('--apksigner',required=True,type=Path)
     emitter = sub.add_parser('emit-readiness', help='download the approved fixed engineering asset, verify it, and emit Pages readiness JSON')
     emitter.add_argument('--bundle-sha256', required=True)
     emitter.add_argument('--engineering-asset-id', required=True, type=int)
@@ -664,6 +875,11 @@ def main():
                 asset_id=args.engineering_asset_id, scratch=args.scratch,
                 tools={'aapt': args.aapt, 'apksigner': args.apksigner})
             print(json.dumps(result, sort_keys=True))
+        elif args.command == 'verify-preindex':
+            result = verify_release_input_archive(args.archive,bundle_sha256=args.bundle_sha256,
+                asset_id=args.engineering_asset_id,scratch=args.scratch,
+                tools={'aapt':args.aapt,'apksigner':args.apksigner})
+            print(json.dumps(result,sort_keys=True))
         else:
             result = emit_readiness(bundle_sha256=args.bundle_sha256, asset_id=args.engineering_asset_id,
                 run_id=args.readiness_run_id, attempt=args.readiness_run_attempt, output=args.output,

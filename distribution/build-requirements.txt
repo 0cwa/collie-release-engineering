@@ -1,0 +1,7 @@
+# Reuse the app pipeline's reviewed bounded sdist recipe: hash-pinned wheel build
+# requirements first, then the engineering runtime lock with --no-build-isolation.
+# Keep this local rather than fetching a floating recipe at workflow runtime.
+setuptools==80.9.0 \
+    --hash=sha256:062d34222ad13e0cc312a4c02d73f059e86a4acbfbdea8f8f76b28c99f306922
+Babel==2.17.0 \
+    --hash=sha256:4d0b53093fdfb4b21c92b5213dba5a1b23885afa8383709427046b21c366e5f2
