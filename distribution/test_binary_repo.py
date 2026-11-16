@@ -30,6 +30,14 @@ class BinaryRepositoryTest(unittest.TestCase):
         import subprocess
         with patch('binary_repo.subprocess.check_output',side_effect=subprocess.CalledProcessError(1,'apksigner')):
             with self.assertRaises(subprocess.CalledProcessError): b.inspect('x','aapt','apksigner')
+    def test_inspect_normalizes_real_colon_separated_apksigner_fingerprint(self):
+        import subprocess
+        fingerprint=':'.join(['ab']*32)
+        with patch('binary_repo.subprocess.check_output',side_effect=[
+                'Signer #1 certificate SHA-256 digest: '+fingerprint,
+                "package: name='im.collie.app' versionCode='12' versionName='1.2.0'\n"]):
+            result=b.inspect('candidate.apk','aapt','apksigner')
+        self.assertEqual(result['apk_certificate_sha256'],'ab'*32)
     def test_partial_publish_resumes_same_generation(self):
         g=self.root/'generation';g.mkdir();o=self.root/'origin'
         for f in ['im.collie.app_1.apk','entry.jar','index-v1.jar','index-v2.json']: (g/f).write_bytes(f.encode())
