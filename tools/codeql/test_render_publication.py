@@ -2,6 +2,93 @@ import subprocess,tempfile,unittest
 from pathlib import Path
 import render_publication as r
 class RenderPublicationTests(unittest.TestCase):
+    def test_screenshot_workflow_security_gates_live_in_current_templates(self):
+        root=Path(__file__).resolve().parents[2]
+        generation=(root/'tools/codeql/publication/update-screenshots.yml.in').read_text()
+        publish=(root/'tools/codeql/publication/publish-screenshots.yml.in').read_text()
+
+        # Comment requests may only guide an authorized collaborator; the
+        # selected pull request must remain open and belong to this repository.
+        for required in (
+            'issue_comment:', "github.event.comment.body == '!screenshots'",
+            'github.event.comment.author_association', 'OWNER', 'MEMBER', 'COLLABORATOR',
+            "pull['state'] != 'open'", "head['repo']['full_name'] != os.environ['GITHUB_REPOSITORY']",
+        ):
+            with self.subTest(template='generation', required=required):
+                self.assertIn(required,generation)
+        # Preserve the boolean relationships as well as the individual
+        # operands: weakening either authorization or rejection must fail.
+        def assert_generation_guards(template):
+            compact=' '.join(template.split())
+            guards=(
+                "guidance: if: >- github.event_name == 'issue_comment' && "
+                "github.event.issue.pull_request && "
+                "github.event.comment.body == '!screenshots' && "
+                "contains(fromJSON('[\"OWNER\", \"MEMBER\", \"COLLABORATOR\"]'), "
+                "github.event.comment.author_association)",
+                "if pull['state'] != 'open' or "
+                "head['repo']['full_name'] != os.environ['GITHUB_REPOSITORY']:",
+                "if branch in ('main', os.environ['DEFAULT_BRANCH']) or "
+                "branch.startswith('8.') or not re.fullmatch('[0-9a-f]{40}', head['sha']):",
+                "generate: if: >- github.event_name == 'workflow_dispatch' && "
+                "github.ref_type == 'branch' && github.ref_name != 'main' && "
+                "github.ref_name != github.event.repository.default_branch && "
+                "!startsWith(github.ref_name, '8.')",
+            )
+            for guard in guards:
+                self.assertIn(guard,compact)
+
+        assert_generation_guards(generation)
+        for original_guard,weakened_guard in (
+            ("github.event_name == 'issue_comment' &&", "github.event_name == 'issue_comment' ||"),
+            ("pull['state'] != 'open' or", "pull['state'] != 'open' and"),
+            ("branch.startswith('8.') or not", "branch.startswith('8.') and not"),
+            ("github.event_name == 'workflow_dispatch' &&", "github.event_name == 'workflow_dispatch' ||"),
+        ):
+            with self.subTest(weakened_guard=weakened_guard):
+                self.assertIn(original_guard,generation)
+                with self.assertRaises(AssertionError):
+                    assert_generation_guards(generation.replace(original_guard,weakened_guard,1))
+
+        for required in (
+            "branch in ('main', os.environ['DEFAULT_BRANCH'])", "branch.startswith('8.')",
+            "github.ref_name != 'main'", 'github.ref_name != github.event.repository.default_branch',
+            "!startsWith(github.ref_name, '8.')", "re.fullmatch('[0-9a-f]{40}', head['sha'])",
+        ):
+            with self.subTest(template='generation', required=required):
+                self.assertIn(required,generation)
+
+        # Generation is read-only, has no cache credentials, and uploads an
+        # artifact named with the exact run and attempt identities.
+        for required in (
+            'permissions: {}', 'cache-mode: none', '      contents: read',
+            'cache-disabled: true', 'SIGNAL_BUILD_CACHE_PUSH: false',
+            'name: screenshot-changes-${{ github.run_id }}-${{ github.run_attempt }}',
+            'BASE_SHA: ${{ github.sha }}',
+        ):
+            with self.subTest(template='generation', required=required):
+                self.assertIn(required,generation)
+
+        # Writes are available only to a manually dispatched main-branch job,
+        # and publication binds the reviewed artifact to run, attempt, and head.
+        for required in (
+            "if: github.ref == 'refs/heads/main'", 'permissions: {}',
+            '      actions: read', '      contents: write', '      pull-requests: read',
+            'base_sha:', 'run_id:', 'attempt:', 'artifact_id:',
+            'BASE_SHA: ${{ inputs.base_sha }}', 'ARTIFACT_ID: ${{ inputs.artifact_id }}',
+            'RUN_ID: ${{ inputs.run_id }}', 'ATTEMPT: ${{ inputs.attempt }}',
+            '--base-sha "$BASE_SHA"', '--artifact-id "$ARTIFACT_ID"',
+            '--run-id "$RUN_ID"', '--attempt "$ATTEMPT"',
+        ):
+            with self.subTest(template='publication', required=required):
+                self.assertIn(required,publish)
+
+        # Mutation control: the main-only publication gate is a required
+        # contract, not merely text sampled from an otherwise unused template.
+        with self.assertRaises(AssertionError):
+            self.assertIn("if: github.ref == 'refs/heads/main'",
+                          publish.replace("if: github.ref == 'refs/heads/main'", 'if: always()'))
+
     def test_exact_pin_no_old_layout_or_private_builder_values(self):
         with tempfile.TemporaryDirectory() as tmp:
             revision=subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip()

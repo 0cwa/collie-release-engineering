@@ -60,10 +60,7 @@ class ReleaseArtifactsTests(unittest.TestCase):
 
     def test_unsigned_dispatch_passes_override_to_version_guard(self):
         root = Path(__file__).resolve().parents[2]
-        path = root / '.github/workflows/molly-unsigned-release.yml'
-        if not path.exists():
-            # Engineering archives legacy workflows as inert historical fixtures.
-            path = root / 'docs/legacy-workflows/molly-unsigned-release.yml'
+        path = root / 'tools/patches/fixtures/legacy-workflows/molly-unsigned-release.yml'
         workflow = path.read_text()
         step = workflow.split('      - name: Validate the dispatch and prepare proof\n', 1)[1].split('      - name:', 1)[0]
         self.assertIn('VERSION_CODE: ${{ inputs.version_code }}', step)
