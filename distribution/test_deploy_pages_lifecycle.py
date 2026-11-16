@@ -726,8 +726,12 @@ class DeployPagesLifecycleTest(unittest.TestCase):
             import signal
             import socket
             import sys
+            from pathlib import Path
             from distribution import deploy_pages
 
+            # Match the production script's module search path even with no
+            # caller-supplied PYTHONPATH; this subprocess uses python -c.
+            sys.path.insert(0, str(Path(deploy_pages.__file__).resolve().parent))
             os.environ['GITHUB_SHA'] = 'a' * 40
             os.environ['GITHUB_RUN_ID'] = '12'
             os.environ['GITHUB_RUN_ATTEMPT'] = '1'
@@ -780,12 +784,17 @@ class DeployPagesLifecycleTest(unittest.TestCase):
                         stdin=subprocess.DEVNULL,
                         stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
                         start_new_session=True,
+                        env={key:value for key,value in os.environ.items() if key!='PYTHONPATH'},
                     )
                     try:
                         with selectors.DefaultSelector() as selector:
                             selector.register(process.stdout, selectors.EVENT_READ)
                             self.assertTrue(selector.select(timeout=5), "child did not reach status polling")
-                        self.assertEqual(process.stdout.readline().strip(), "STATUS_WAITING")
+                        first_line=process.stdout.readline().strip()
+                        if not first_line:
+                            _,stderr=process.communicate(timeout=2)
+                            self.fail('child exited before status polling: '+stderr)
+                        self.assertEqual(first_line, "STATUS_WAITING")
                         process.send_signal(signum)
                         try:
                             stdout, stderr = process.communicate(timeout=2)
