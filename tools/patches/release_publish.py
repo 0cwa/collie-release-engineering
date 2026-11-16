@@ -185,9 +185,11 @@ def missing_remote(error):
     return error.returncode == 1 and (message == 'release not found' or 'HTTP 404' in message)
 
 
-def find_release(repo, tag):
+def find_release(repo, tag, *, channel='stable'):
     try:
-        info = command(['gh', 'release', 'view', tag, '--repo', repo, '--json', 'isDraft,isPrerelease,assets'],
+        fields='isDraft,isPrerelease,assets'
+        if channel=='trailblazer-beta':fields='name,tagName,'+fields
+        info = command(['gh', 'release', 'view', tag, '--repo', repo, '--json', fields],
                        stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
     except subprocess.CalledProcessError as error:
         if missing_remote(error):
@@ -213,10 +215,13 @@ def resume_draft_assets(args, assets, expected, downloads, phases):
         phase['method'] = 'gh_release_metadata_and_tag_check'
         phase['bytes_downloaded'] = 0
         verify_remote_tag(args.repo, args.tag, args.approved_commit)
-        release = find_release(args.repo, args.tag)
+        release = find_release(args.repo,args.tag,channel=getattr(args,'channel','stable'))
         if (release is None or release.get('isDraft') is not True
                 or release.get('isPrerelease') is not args.prerelease):
             raise ValueError('draft resume requires same draft/channel')
+        if getattr(args,'channel','stable')=='trailblazer-beta' and (
+                release.get('tagName')!=args.tag or release.get('name')!=args.title):
+            raise ValueError('GitHub Beta tag or title differs from approved channel identity')
         names = [asset.get('name') for asset in release.get('assets', [])
                  if isinstance(asset, dict)]
         asset_ids, needs_byte_check = validate_asset_metadata(
@@ -242,11 +247,14 @@ def readback(args, assets, expected, downloads, phase, *, expected_draft=None,
     phase['method'] = 'gh_release_metadata_and_tag_check'
     phase['bytes_downloaded'] = 0
     verify_remote_tag(args.repo, args.tag, args.approved_commit)
-    release = find_release(args.repo, args.tag)
+    release = find_release(args.repo,args.tag,channel=getattr(args,'channel','stable'))
     if (release is None or type(release.get('isDraft')) is not bool
             or (expected_draft is not None and release['isDraft'] is not expected_draft)
             or release.get('isPrerelease') is not args.prerelease):
         raise ValueError('release state, prerelease setting or exact asset list differs')
+    if getattr(args,'channel','stable')=='trailblazer-beta' and (
+            release.get('tagName')!=args.tag or release.get('name')!=args.title):
+        raise ValueError('GitHub Beta tag or title differs from approved channel identity')
     phase['method'] = 'github_asset_metadata'
     asset_ids, needs_byte_check = validate_asset_metadata(release, assets, expected)
     if force_full_bytes:
@@ -269,7 +277,10 @@ def main():
     p.add_argument('action', choices=('draft', 'publish'))
     p.add_argument('--repo', required=True)
     p.add_argument('--tag', required=True)
+    p.add_argument('--title', help='exact release title (required for Beta)')
     p.add_argument('--approved-commit', required=True)
+    p.add_argument('--approved-run', help='independently approved unsigned build run (required for Beta)')
+    p.add_argument('--certificate-sha256', help='independently approved APK certificate (required for Beta)')
     p.add_argument('--engineering-revision', help='independently approved schema2 engineering revision')
     p.add_argument('--workflow-revision', help='independently approved schema2 workflow revision')
     p.add_argument('--final-manifest', type=Path, required=True)
@@ -290,6 +301,7 @@ def main():
     p.add_argument('--published-inventory-sha256', help='independently approved inventory digest')
     runtime.arguments(p)
     args = p.parse_args()
+    channel=args.channel
     identities = ({'source_commit':args.approved_commit,'engineering_revision':args.engineering_revision,'workflow_revision':args.workflow_revision}
                   if args.engineering_revision or args.workflow_revision else None)
     phases = None
@@ -297,10 +309,16 @@ def main():
     try:
         phases = PhaseRecorder(args.phase_report)
         context=runtime.plan(args,historical_rehearsal=args.dry_run)
+        if channel=='trailblazer-beta' and context is None:
+            raise ValueError('Beta publication requires an approved production source/build plan')
+        if channel=='trailblazer-beta' and (args.approved_run is None or args.certificate_sha256 is None):
+            raise ValueError('Beta publication requires approved run and APK certificate')
         if context and context[0]['mode']=='new-source':identities=runtime.identities(context)
         if not re.fullmatch(r'[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+', args.repo):
             raise ValueError('invalid GitHub repository')
-        if not re.fullmatch(r'v[A-Za-z0-9][A-Za-z0-9._-]{0,79}', args.tag) or '..' in args.tag:
+        if ((channel=='stable' and not re.fullmatch(r'v[A-Za-z0-9][A-Za-z0-9._-]{0,79}', args.tag)) or
+                (channel=='trailblazer-beta' and not re.fullmatch(r'trailblazer-v[A-Za-z0-9][A-Za-z0-9._+-]{0,79}',args.tag)) or
+                '..' in args.tag):
             raise ValueError('invalid release tag')
         if not re.fullmatch(r'[0-9a-f]{40}', args.approved_commit):
             raise ValueError('approved commit must be a full SHA-1')
@@ -316,14 +334,33 @@ def main():
                 raise ValueError('final manifest differs from independently approved digest')
             manifest = json.loads(final.read_text())
             runtime.check_manifest(context,manifest)
+            if args.approved_run is not None and str(manifest.get('run_id'))!=args.approved_run:
+                raise ValueError('final manifest differs from independently approved run')
             if manifest.get('schema') != (2 if context and context[0]['mode']=='new-source' else 1) or manifest.get('rehearsal') is not False or manifest.get('commit') != args.approved_commit:
                 raise ValueError('final manifest is not a real release of the approved commit')
             if args.repo.lower() == '0cwa/collieim-android':
-                a.require_canonical_release(manifest)
-                a.validate_version_code(manifest.get('version_code'), a.PACKAGE)
+                a.require_canonical_release(manifest,channel)
+                a.validate_version_code(manifest.get('version_code'),a.CHANNELS[channel]['package'],channel)
+            if channel=='trailblazer-beta':
+                if args.repo!='0cwa/collieim-android':
+                    raise ValueError('Beta releases are bound to the approved app repository')
+                a.validate_beta_identity(manifest.get('version_name'),manifest.get('version_code'),
+                                         args.tag,args.title,True)
+                if (args.tag!=manifest.get('tag') or args.title!=manifest.get('title') or
+                        args.prerelease is not True):
+                    raise ValueError('Beta publisher tag, title or prerelease differs from signed manifest')
+                runtime.verify_beta_ci_run(manifest.get('run_id'),manifest.get('run_attempt'),manifest.get('commit'))
             validate_instrumentation_checklist(manifest.get('instrumentation_checklist'), args.approved_commit)
             entries = manifest['apks']
-            if len(entries) != 5 or {x['profile'] for x in entries} != a.PROFILES:
+            if channel=='trailblazer-beta':
+                if (not isinstance(entries,list) or len(entries)!=1 or not isinstance(entries[0],dict) or
+                        entries[0].get('profile')!=channel or
+                        entries[0].get('file')!='trailblazer-beta.apk'):
+                    raise ValueError('Beta release requires only trailblazer-beta.apk')
+                apk_names=sorted(path.name for path in args.final_manifest.parent.glob('*.apk'))
+                if apk_names!=['trailblazer-beta.apk']:
+                    raise ValueError('Beta publication accepts only trailblazer-beta.apk')
+            elif len(entries) != 5 or {x['profile'] for x in entries} != a.PROFILES:
                 raise ValueError('final manifest must contain all five profiles')
             assets = []
             expected = {}
@@ -343,27 +380,29 @@ def main():
             if a.sha256(provenance) != manifest.get('unsigned_manifest_sha256'):
                 raise ValueError('provenance does not match the unsigned manifest used for signing')
             final_mode = manifest.get('artifact_mode', 'five-profiles')
-            if final_mode not in ('five-profiles', 'single-collie'):
+            if final_mode not in ('five-profiles', 'single-collie', 'single-trailblazer-beta'):
                 raise ValueError('unknown release artifact mode')
             try:
                 unsigned = json.loads(provenance.read_text())
             except json.JSONDecodeError:
-                if final_mode == 'single-collie':
-                    raise ValueError('single-collie provenance must be a JSON manifest')
+                if final_mode in ('single-collie','single-trailblazer-beta'):
+                    raise ValueError('single-channel provenance must be a JSON manifest')
                 unsigned = None
             unsigned_mode = unsigned.get('artifact_mode', 'five-profiles') if isinstance(unsigned, dict) else 'five-profiles'
             if final_mode != unsigned_mode:
                 raise ValueError('signed and unsigned artifact modes differ')
             if final_mode == 'single-collie':
                 a.validate_alias_provenance(manifest, unsigned, args.approved_commit, identities)
+            elif channel=='trailblazer-beta':
+                a.validate_beta_signed_provenance(manifest,unsigned,args.approved_commit,identities)
             if context and context[0]['mode']=='new-source':
                 graph=runtime.publication(args,context,unsigned,manifest,final.read_bytes())
                 for name,document in zip(('source.json','build.json','release.json'),graph):
                     receipt_path=inputs/name;runtime.write(receipt_path,document)
                     assets.append(receipt_path);expected[name]=a.sha256(receipt_path)
             if args.repo.lower()=='0cwa/collieim-android' and not args.dry_run:
-                version_policy.enforce(manifest,args.version_ledger,args.published_inventory,args.published_inventory_sha256)
-                version_policy.bind_signed(args.version_ledger,manifest)
+                version_policy.enforce(manifest,args.version_ledger,args.published_inventory,args.published_inventory_sha256,channel=channel)
+                version_policy.bind_signed(args.version_ledger,manifest,channel=channel)
             assets += [final, provenance, notes]
             expected.update({final.name: args.final_manifest_sha256,
                              provenance.name: manifest['unsigned_manifest_sha256'],
@@ -373,7 +412,7 @@ def main():
             sums.chmod(0o600)
             expected[sums.name] = a.sha256(sums)
             assets.append(sums)
-            existing = None if args.dry_run else find_release(args.repo, args.tag)
+            existing = None if args.dry_run else find_release(args.repo,args.tag,channel=channel)
             created_this_run = False
             if args.action == 'draft' and existing is None:
                 if args.dry_run:
@@ -388,13 +427,13 @@ def main():
                         phase['asset_file_bytes_submitted'] = (0 if args.dry_run
                                                                else asset_file_bytes(assets))
                         command(['gh', 'release', 'create', args.tag, '--repo', args.repo, '--verify-tag', '--draft',
-                                 '--title', args.tag, '--notes-file', notes,
+                                 '--title', args.title if channel=='trailblazer-beta' else args.tag, '--notes-file', notes,
                                  *(['--prerelease', '--latest=false'] if args.prerelease else []), *assets], args.dry_run)
                     created_this_run = not args.dry_run
                 except subprocess.CalledProcessError:
                     # A successful create followed by lost response is safe to
                     # resume only after the same complete release is read back.
-                    if find_release(args.repo, args.tag) is None:
+                    if find_release(args.repo,args.tag,channel=channel) is None:
                         raise
             if not args.dry_run and args.action == 'draft':
                 resumed_asset_ids = {}

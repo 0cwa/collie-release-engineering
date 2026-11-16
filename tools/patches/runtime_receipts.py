@@ -7,13 +7,20 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import re
 import stat
 import subprocess
 import migration_receipts as receipts
 
 PLAN_FIELDS={'schema','kind','mode','purpose','source_commit','engineering_revision','workflow_revision','package','version_code','version_name','certificate_sha256','source_receipt_sha256','build_inputs_sha256','required_test_reports'}
+BETA_PLAN_FIELDS=PLAN_FIELDS|{'channel','tag','title','prerelease'}
 INPUT_FIELDS={'schema','recipe_revision','config_sha256','toolchain_sha256','dependencies_sha256','native_inputs_sha256','trust_level'}
 PLAN_EVIDENCE='Approved release plan raw bytes; operator-selected inputs, not a signed attestation'
+CHANNELS=receipts.PROFILES
+BETA_SOURCE_REPOSITORY='0cwa/collieim-android'
+BETA_SOURCE_BRANCH='trailblazer-beta'
+BETA_BUILD_WORKFLOW='.github/workflows/build-release.yml'
+BETA_BUILD_WORKFLOW_ID=413670843
 
 
 def raw(path):
@@ -31,6 +38,7 @@ def document(path,expected=None):
 
 
 def arguments(parser):
+    parser.add_argument('--channel',choices=tuple(CHANNELS),default='stable')
     for name in ('release-plan','source-receipt','build-inputs','build-receipt','release-receipt','test-reports','source-checkout','toolchain-input','dependency-input','native-input'):
         parser.add_argument('--'+name,type=Path)
     for name in ('approved-release-plan-sha256','approved-build-receipt-sha256','approved-release-receipt-sha256'):
@@ -38,16 +46,28 @@ def arguments(parser):
 
 
 def plan(args,*,historical_rehearsal=False):
+    channel=getattr(args,'channel','stable')
+    if channel not in CHANNELS:raise ValueError('unknown release channel')
     if args.release_plan is None:
-        if historical_rehearsal:return None
+        if historical_rehearsal and channel=='stable':return None
         raise ValueError('explicit independently approved release plan required; missing receipts never select legacy')
     receipts.check(args.approved_release_plan_sha256,'sha')
     data,digest=document(args.release_plan,args.approved_release_plan_sha256)
-    receipts.exact(data,PLAN_FIELDS)
+    fields=BETA_PLAN_FIELDS if channel=='trailblazer-beta' else PLAN_FIELDS
+    receipts.exact(data,fields)
     if type(data['schema']) is not int or data['schema']!=1 or data['kind']!='release-plan' or data['mode'] not in ('legacy','new-source') or data['purpose'] not in ('fixture','production'):raise ValueError('unsupported release plan')
+    if channel=='trailblazer-beta':
+        if data['channel']!=channel or data['mode']!='new-source' or data['purpose']!='production':
+            raise ValueError('Beta requires a production new-source plan for its selected channel')
+        if data['certificate_sha256']!=CHANNELS[channel]['apk_certificate']:
+            raise ValueError('Beta release plan certificate differs from channel policy')
+        from release_artifacts import validate_beta_identity
+        validate_beta_identity(data['version_name'],data['version_code'],data['tag'],data['title'],data['prerelease'])
+    elif data.get('channel') is not None:
+        raise ValueError('channel-specific plan differs from selected Stable channel')
     for key in ('source_commit','engineering_revision','workflow_revision'):receipts.check(data[key],'git')
     for key in ('certificate_sha256',):receipts.check(data[key],'sha')
-    receipts.check(data['package'],'package');receipts.check(data['version_code'],'code');receipts.check(data['version_name'],'text')
+    receipts.check(data['package'],'package',channel);receipts.check(data['version_code'],'code');receipts.check(data['version_name'],'text')
     if not isinstance(data['required_test_reports'],list) or any(not isinstance(x,str) or not x.strip() for x in data['required_test_reports']) or len(set(data['required_test_reports']))!=len(data['required_test_reports']):raise ValueError('required report names')
     for key in ('source_receipt_sha256','build_inputs_sha256'):
         if data['mode']=='new-source':receipts.check(data[key],'sha')
@@ -58,8 +78,46 @@ def plan(args,*,historical_rehearsal=False):
     for attr,key in [('commit','source_commit'),('approved_commit','source_commit'),('workflow_revision','workflow_revision'),('engineering_revision','engineering_revision'),('version_code','version_code'),('version_name','version_name'),('certificate_sha256','certificate_sha256')]:
         value=getattr(args,attr,None)
         if value is not None and value!=data[key]:raise ValueError('release plan differs from '+attr)
+    for attr in ('tag','title'):
+        value=getattr(args,attr,None)
+        if channel=='trailblazer-beta' and value is not None and value!=data[attr]:raise ValueError('release plan differs from '+attr)
     if data['purpose']=='fixture' and getattr(args,'repo','').lower()=='0cwa/collieim-android':raise ValueError('fixture plan cannot publish to production application repository')
     return data,digest
+
+
+def verify_beta_ci_run(run_id,run_attempt,commit,*,transport=None):
+    """Check the authoritative completed unsigned-build run for exact Beta source."""
+    if (not re.fullmatch(r'[1-9][0-9]*',str(run_id)) or
+            not re.fullmatch(r'[1-9][0-9]*',str(run_attempt)) or
+            not re.fullmatch(r'[0-9a-f]{40}',str(commit))):
+        raise ValueError('invalid Beta source CI identity')
+    endpoint=f'repos/{BETA_SOURCE_REPOSITORY}/actions/runs/{run_id}/attempts/{run_attempt}'
+    if transport is None:
+        raw_value=github_run_metadata(endpoint)
+    else:
+        raw_value=transport(endpoint)
+    try:
+        run=json.loads(raw_value) if isinstance(raw_value,str) else raw_value
+    except (json.JSONDecodeError,TypeError) as exc:
+        raise ValueError('invalid authoritative Beta source CI response') from exc
+    head_repository=run.get('head_repository') if isinstance(run,dict) else None
+    repository_name=head_repository.get('full_name') if isinstance(head_repository,dict) else None
+    if (not isinstance(run,dict) or run.get('id')!=int(run_id) or
+            run.get('run_attempt')!=int(run_attempt) or
+            repository_name!=BETA_SOURCE_REPOSITORY or
+            run.get('head_branch')!=BETA_SOURCE_BRANCH or run.get('head_sha')!=commit or
+            run.get('path')!=BETA_BUILD_WORKFLOW or run.get('workflow_id')!=BETA_BUILD_WORKFLOW_ID or
+            run.get('status')!='completed' or run.get('conclusion')!='success' or
+            run.get('event')!='workflow_dispatch'):
+        raise ValueError('authoritative Beta source CI run differs from approved source')
+    return run
+
+
+def github_run_metadata(endpoint):
+    """Fetch one run attempt through the authenticated GitHub CLI transport."""
+    result=subprocess.run(['gh','api','--hostname','github.com',endpoint],check=True,
+                          capture_output=True,text=True)
+    return result.stdout
 
 
 def identities(context):
@@ -68,6 +126,19 @@ def identities(context):
 
 
 def check_manifest(context,manifest):
+    channel=context[0].get('channel','stable') if context else 'stable'
+    if channel=='trailblazer-beta':
+        if manifest.get('channel')!=channel:
+            raise ValueError('manifest channel differs from approved Beta plan')
+        if (manifest.get('package')!=CHANNELS[channel]['package'] or
+                manifest.get('certificate_sha256')!=CHANNELS[channel]['apk_certificate']):
+            raise ValueError('Beta manifest package or certificate differs from selected channel')
+        if any(k not in manifest for k in ('tag','title','prerelease')):
+            raise ValueError('Beta release identity fields are missing')
+        from release_artifacts import validate_beta_identity
+        validate_beta_identity(manifest['version_name'],manifest['version_code'],manifest['tag'],manifest['title'],manifest['prerelease'])
+        if manifest.get('tag')!=context[0]['tag'] or manifest.get('title')!=context[0]['title']:
+            raise ValueError('Beta manifest release identity differs from approved plan')
     if not context:
         if manifest.get('schema')!=1 or manifest.get('release_mode')=='new-source' or any(k in manifest for k in ('source_receipt_sha256','build_receipt_sha256','release_plan_sha256')):raise ValueError('new-source evidence requires an approved plan even for rehearsal/dry-run')
         return
@@ -81,9 +152,10 @@ def check_manifest(context,manifest):
 
 def source_and_inputs(args,context):
     p,_=context
+    channel=p.get('channel','stable')
     if args.source_receipt is None or args.build_inputs is None:raise ValueError('new-source requires source receipt and approved stable build inputs')
-    source,_=document(args.source_receipt);receipts.validate(source,'source')
-    if receipts.digest(source)!=p['source_receipt_sha256']:raise ValueError('source receipt differs from approved plan')
+    source,_=document(args.source_receipt);receipts.validate(source,'source',profile=channel)
+    if receipts.digest(source,profile=channel)!=p['source_receipt_sha256']:raise ValueError('source receipt differs from approved plan')
     s=source['payload']
     if s['published_commit']!=p['source_commit'] or s['engineering_revision']!=p['engineering_revision']:raise ValueError('source/engineering identity differs')
     inputs,_=document(args.build_inputs,p['build_inputs_sha256']);receipts.exact(inputs,INPUT_FIELDS)
@@ -190,6 +262,7 @@ def source_worktree_matches_index(checkout,expected_head,expected_tree,*,require
 
 def collect(args,context,unsigned_sha):
     source,inputs=source_and_inputs(args,context);p,plan_sha=context
+    channel=p.get('channel','stable')
     if args.source_checkout is None:raise ValueError('new-source collection requires actual source checkout')
     source_unchanged(args.source_checkout,p['source_commit'],source['payload']['published_tree'])
     for attr,key in [('toolchain_input','toolchain_sha256'),('dependency_input','dependencies_sha256'),('native_input','native_inputs_sha256')]:
@@ -218,24 +291,25 @@ def collect(args,context,unsigned_sha):
             if hashlib.sha256(raw(target)).hexdigest()!=entry['sha256']:raise ValueError('actual test report bytes differ')
         evidence.append({'status':entry['status'],'description':entry['name']+': '+entry['description'],'sha256':entry['sha256']})
     if len(names)!=len(set(names)) or set(names)!=set(p['required_test_reports']):raise ValueError('missing or substituted required test reports')
-    payload={'source_receipt_sha256':receipts.digest(source),'source_commit':p['source_commit'],'source_tree':source['payload']['published_tree'],'unsigned_apk_sha256':unsigned_sha,**{k:inputs[k] for k in ('recipe_revision','toolchain_sha256','dependencies_sha256','native_inputs_sha256','trust_level')}}
-    build={'schema':2,'kind':'build','payload':payload,'evidence':evidence};receipts.validate(build,'build')
+    payload={'source_receipt_sha256':receipts.digest(source,profile=channel),'source_commit':p['source_commit'],'source_tree':source['payload']['published_tree'],'unsigned_apk_sha256':unsigned_sha,**{k:inputs[k] for k in ('recipe_revision','toolchain_sha256','dependencies_sha256','native_inputs_sha256','trust_level')}}
+    build={'schema':2,'kind':'build','payload':payload,'evidence':evidence};receipts.validate(build,'build',profile=channel)
     return source,build
 
 
 def signing(args,context,manifest):
     source,inputs=source_and_inputs(args,context);p,plan_sha=context
+    channel=p.get('channel','stable')
     if args.build_receipt is None or args.approved_build_receipt_sha256 is None:raise ValueError('new-source signing requires externally approved build receipt')
     receipts.check(args.approved_build_receipt_sha256,'sha')
-    build,_=document(args.build_receipt);receipts.validate(build,'build')
-    if receipts.digest(build)!=args.approved_build_receipt_sha256:raise ValueError('unapproved build receipt')
+    build,_=document(args.build_receipt);receipts.validate(build,'build',profile=p.get('channel','stable'))
+    if receipts.digest(build,profile=p.get('channel','stable'))!=args.approved_build_receipt_sha256:raise ValueError('unapproved build receipt')
     b=build['payload'];s=source['payload']
     if any(b[k]!=inputs[k] for k in ('recipe_revision','toolchain_sha256','dependencies_sha256','native_inputs_sha256','trust_level')):raise ValueError('build recipe/toolchain/native/dependency identity differs')
-    if b['source_receipt_sha256']!=receipts.digest(source) or b['source_commit']!=p['source_commit'] or b['source_tree']!=s['published_tree']:raise ValueError('build source binding differs')
+    if b['source_receipt_sha256']!=receipts.digest(source,profile=channel) or b['source_commit']!=p['source_commit'] or b['source_tree']!=s['published_tree']:raise ValueError('build source binding differs')
     if not any(e['description']==PLAN_EVIDENCE and e['sha256']==plan_sha and e['status']=='PASS' for e in build['evidence']):raise ValueError('build receipt does not name approved plan')
     for kind,doc in [('source',source),('build',build)]:
         if not doc['evidence'] or any(e['status']!='PASS' for e in doc['evidence']):raise ValueError('new-source signing requires passing scoped evidence for '+kind)
-    for k,expected in [('release_plan_sha256',plan_sha),('source_receipt_sha256',receipts.digest(source)),('build_receipt_sha256',receipts.digest(build))]:
+    for k,expected in [('release_plan_sha256',plan_sha),('source_receipt_sha256',receipts.digest(source,profile=channel)),('build_receipt_sha256',receipts.digest(build,profile=channel))]:
         if manifest.get(k)!=expected:raise ValueError('unsigned manifest receipt/plan substitution')
     if manifest.get('schema')!=2 or {e['sha256'] for e in manifest['apks']}!={b['unsigned_apk_sha256']}:raise ValueError('unsigned APK/build receipt mismatch')
     return source,build
@@ -243,26 +317,33 @@ def signing(args,context,manifest):
 
 def release(context,source,build,final,raw_final):
     p,plan_sha=context
-    for key,expected in [('schema',2),('release_mode','new-source'),('release_plan_sha256',plan_sha),('source_receipt_sha256',receipts.digest(source)),('build_receipt_sha256',receipts.digest(build)),*identities(context).items()]:
+    channel=p.get('channel','stable')
+    for key,expected in [('schema',2),('release_mode','new-source'),('release_plan_sha256',plan_sha),('source_receipt_sha256',receipts.digest(source,profile=channel)),('build_receipt_sha256',receipts.digest(build,profile=channel)),*identities(context).items()]:
         if final.get(key)!=expected:raise ValueError('signed final plan/identity differs: '+key)
     for key,field in [('commit','source_commit'),('version_code','version_code'),('version_name','version_name'),('certificate_sha256','certificate_sha256'),('package','package')]:
         if final.get(key)!=p[field]:raise ValueError('signed final manifest differs from plan: '+key)
     digests={e['signed_sha256'] for e in final['apks']}
     if len(digests)!=1 or any(e['certificate_sha256']!=p['certificate_sha256'] for e in final['apks']):raise ValueError('signed aliases/signer differ')
-    payload={'release_manifest_sha256':hashlib.sha256(raw_final).hexdigest(),'source_receipt_sha256':receipts.digest(source),'build_receipt_sha256':receipts.digest(build),'source_commit':p['source_commit'],'engineering_revision':p['engineering_revision'],'workflow_revision':p['workflow_revision'],'package':p['package'],'version_code':p['version_code'],'version_name':p['version_name'],'apk_sha256':next(iter(digests)),'apk_certificate_sha256':p['certificate_sha256'],'aliases':receipts.ALIASES}
+    aliases=CHANNELS[channel]['aliases']
+    payload={'release_manifest_sha256':hashlib.sha256(raw_final).hexdigest(),'source_receipt_sha256':receipts.digest(source,profile=channel),'build_receipt_sha256':receipts.digest(build,profile=channel),'source_commit':p['source_commit'],'engineering_revision':p['engineering_revision'],'workflow_revision':p['workflow_revision'],'package':p['package'],'version_code':p['version_code'],'version_name':p['version_name'],'apk_sha256':next(iter(digests)),'apk_certificate_sha256':p['certificate_sha256'],'aliases':aliases}
     result={'schema':2,'kind':'release','payload':payload,'evidence':[{'status':'PASS','description':'Actual signed alias bytes and v2/v3 signer checked by release_sign; '+p['purpose']+' plan, not independent native reproduction','sha256':payload['release_manifest_sha256']}]}
-    receipts.validate(result,'release');return result
+    receipts.validate(result,'release',profile=channel);return result
 
 
 def publication(args,context,unsigned,final,raw_final):
+    if context[0].get('channel','stable')=='trailblazer-beta':
+        from release_artifacts import validate_beta_signed_provenance
+        check_manifest(context,unsigned)
+        validate_beta_signed_provenance(final,unsigned,context[0]['source_commit'],identities(context))
     source,build=signing(args,context,unsigned)
     if args.release_receipt is None or args.approved_release_receipt_sha256 is None:raise ValueError('new-source publication requires externally approved release receipt')
     receipts.check(args.approved_release_receipt_sha256,'sha')
-    supplied,_=document(args.release_receipt);receipts.validate(supplied,'release')
-    if receipts.digest(supplied)!=args.approved_release_receipt_sha256:raise ValueError('unapproved release receipt')
+    channel=context[0].get('channel','stable')
+    supplied,_=document(args.release_receipt);receipts.validate(supplied,'release',profile=channel)
+    if receipts.digest(supplied,profile=channel)!=args.approved_release_receipt_sha256:raise ValueError('unapproved release receipt')
     expected=release(context,source,build,final,raw_final)
     if supplied['payload']!=expected['payload']:raise ValueError('release/raw-final/signed identity substitution')
-    receipts.verify_release_inputs(source,build,supplied,{'source':context[0]['source_receipt_sha256'],'build':args.approved_build_receipt_sha256,'release':args.approved_release_receipt_sha256},raw_manifest_sha256=hashlib.sha256(raw_final).hexdigest(),promotion=True)
+    receipts.verify_release_inputs(source,build,supplied,{'source':context[0]['source_receipt_sha256'],'build':args.approved_build_receipt_sha256,'release':args.approved_release_receipt_sha256},raw_manifest_sha256=hashlib.sha256(raw_final).hexdigest(),promotion=True,profile=channel)
     return source,build,supplied
 
 
