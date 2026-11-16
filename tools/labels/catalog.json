@@ -1,0 +1,125 @@
+{
+  "shared": [
+    {
+      "color": "A2EEEF",
+      "description": "Changes visible screens, navigation, themes, accessibility, or rendered behavior.",
+      "name": "ui"
+    },
+    {
+      "color": "84B6EB",
+      "description": "Adds or expands a user-facing or system capability.",
+      "name": "feature"
+    },
+    {
+      "color": "D73A4A",
+      "description": "Fixes incorrect, broken, or failing behavior.",
+      "name": "bug"
+    },
+    {
+      "color": "B60205",
+      "description": "Addresses privacy, authentication, cryptography, or attack-surface risks.",
+      "name": "security"
+    },
+    {
+      "color": "0075CA",
+      "description": "Adds or improves project documentation.",
+      "name": "documentation"
+    },
+    {
+      "color": "FBCA04",
+      "description": "Updates, cleans up, or reorganizes existing behavior or project structure.",
+      "name": "maintenance"
+    },
+    {
+      "color": "5319E7",
+      "description": "Changes developer, build, test, or automation tools.",
+      "name": "tooling"
+    },
+    {
+      "color": "0E8A16",
+      "description": "Small, bounded change with limited scope.",
+      "name": "size: small"
+    },
+    {
+      "color": "FBCA04",
+      "description": "Moderate change spanning a feature or several related components.",
+      "name": "size: medium"
+    },
+    {
+      "color": "D93F0B",
+      "description": "Broad change spanning multiple features, subsystems, or release steps.",
+      "name": "size: large"
+    },
+    {
+      "color": "5319E7",
+      "description": "More diagnosis or evidence is needed before the work can be specified.",
+      "name": "needs: investigation"
+    },
+    {
+      "color": "D876E3",
+      "description": "A product or maintainer choice is needed before work can proceed.",
+      "name": "needs: decision"
+    },
+    {
+      "color": "1D76DB",
+      "description": "A specific verification step is still needed before this work can be considered complete.",
+      "name": "needs: testing"
+    },
+    {
+      "color": "1D76DB",
+      "description": "Assigned to the beta release scope; this records selected scope only, not readiness or validation.",
+      "name": "target: beta"
+    },
+    {
+      "color": "0E8A16",
+      "description": "RC scope selection only; does not indicate readiness or validation.",
+      "name": "target: rc"
+    }
+  ],
+  "areas": {
+    "0cwa/collie-release-engineering": [
+      {
+        "color": "006B75",
+        "description": "The project website or its publishing workflow.",
+        "name": "website"
+      },
+      {
+        "color": "0052CC",
+        "description": "Release preparation, verification, or publishing workflow.",
+        "name": "release"
+      },
+      {
+        "color": "ededed",
+        "description": "",
+        "name": "f-droid"
+      }
+    ],
+    "0cwa/collieim-android": [
+      {
+        "color": "5319E7",
+        "description": "F-Droid packaging, metadata, or distribution for the Android app.",
+        "name": "f-droid"
+      },
+      {
+        "color": "0052CC",
+        "description": "Building, signing, publishing, or documenting an app release.",
+        "name": "release"
+      },
+      {
+        "color": "C2E0C6",
+        "description": "Sending, receiving, or storing message attachments.",
+        "name": "attachments"
+      },
+      {
+        "color": "BFD4F2",
+        "description": "Creating, restoring, or migrating app backups.",
+        "name": "backup"
+      },
+      {
+        "color": "ededed",
+        "description": "",
+        "name": "website"
+      }
+    ]
+  }
+}
