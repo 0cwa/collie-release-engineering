@@ -1,19 +1,34 @@
-# GitHub Pages binary-feed rollout — prepared, not activated
+# GitHub Pages distribution and two-phase promotion
 
-GitHub Pages in collie-release-engineering is the selected host for
-https://repo.collie.im/ and /fdroid/repo/. Keep one canonical unchanged signed APK
-per selected version. The old R2 feed planner is inactive/historical. The existing six-file native-v1 generation shares this Pages budget by explicit
-initial decision; see
-NATIVE-STORAGE.md. A later collie.im website on an application website branch is a
-separate work item; it neither blocks this feed nor belongs in Android main.
+The Stable feed is live at [repo.collie.im](https://repo.collie.im/) and
+[`/fdroid/repo/`](https://repo.collie.im/fdroid/repo/), maintained by the scheduled
+[`feeds.yml`](../.github/workflows/feeds.yml) workflow in release engineering.
+Native inputs share this site and its storage budget; see
+[NATIVE-STORAGE.md](NATIVE-STORAGE.md). Keep one canonical unchanged signed APK
+per selected version. The old R2 feed planner is historical. A later collie.im
+website on an application website branch remains a separate work item; it neither
+blocks this feed nor belongs in Android main.
 
-## Checked infrastructure and tools
+The two-phase [`pages-release.yml`](../.github/workflows/pages-release.yml) route
+for approved native/receipt-based promotions remains subject to the exact gates
+below. TrailBlazer Beta has a separate candidate/readiness/Pages approval path
+and is not live as of 2026-11-17. A successful scheduled Stable publication does
+not establish acceptance or approval for a new two-phase wrapper or Beta release.
+See the [dual-release policy](../docs/DUAL-RELEASE-POLICY.md) for the product and
+source boundaries. For an existing Stable site without a canonical inventory,
+see the separately reviewed [inventory bootstrap change (#61)](https://github.com/0cwa/collie-release-engineering/pull/61);
+use that procedure only after its implementation is available at the approved
+engineering revision.
 
-Read-only GET /repos/0cwa/{collie-release-engineering,collieim-android}/pages returned
-404. That is not proof that credentials can provision Pages or that no unseen
-configuration exists. Engineering environments API returned an empty list; no
-required reviewer/ruleset is claimed present. No Pages/DNS/TLS/environment setting
-was changed. The repository is not advertised live.
+## Historical infrastructure checks and tool scope
+
+Initial preparation recorded read-only Pages API responses of 404 for the app and
+engineering repositories and an empty engineering environments list. Those are
+historical observations, not evidence of current site availability, provisioning
+permissions or environment protections. Reinspect the current settings when
+approving a two-phase activation. The preparation and loopback records later in
+this document describe their exact candidate revisions; their pending public
+acceptance results do not describe the live scheduled Stable feed.
 
 GitHub's published site limit is1GB and monthly soft transfer limit100GB. Packaging
 uses a conservative950,000,000byte ceiling for *each full site and its artifact*,
@@ -32,14 +47,17 @@ Official references, inspected for this implementation:
 
 Python3.12.14 and hash-pinned fdroidserver2.4.5 remain verification tools; APK/index
 signing is outside Pages. Official action commits are pinned in both workflows.
-The production workflow uses the official upload-pages-artifact composite at an
+The two-phase workflow uses the official upload-pages-artifact composite at an
 immutable commit, with `include-hidden-files: true` to preserve any approved hidden
-paths if present. The approved native-only inventory has 15 paths and does not
-include `.nojekyll`. Its nested upload-artifact action is also pinned in that composite.
+paths if present. The recorded native-only preparation inventory has 15 paths and
+does not include `.nojekyll`. Its nested upload-artifact action is also pinned in
+that composite.
 Local policy preparation still audits each exact site manifest and archive; the
 wrapper differential changes only artifact construction and retains the same
-per-file payloads. Hosted Pages deployment compatibility remains NOT RUN until a
-separately approved activation.
+per-file payloads. These preparation records do not establish hosted compatibility
+for a new two-phase wrapper revision. That claim requires real acceptance evidence
+for the exact approved policy, artifact and deployment; the gate procedure below
+remains in force.
 
 ## Trusted approved input bundle
 
