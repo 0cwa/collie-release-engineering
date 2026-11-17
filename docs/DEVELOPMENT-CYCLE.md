@@ -56,14 +56,21 @@ patch composer or make third-party changes automatic build inputs.
 
 ## Releases
 
-Process: app `docs/RELEASING.md`.
+Product and source policy: [DUAL-RELEASE-POLICY.md](DUAL-RELEASE-POLICY.md).
+The steps below describe the Stable product. Its process is app
+`docs/RELEASING.md`; a Stable verification prerelease and the separately installed
+TrailBlazer Beta product have different purposes and publication routes.
 
 - The release APK is built by this machine or GitHub, whichever is faster, with app `tooling/reproducible-builds/build-release.sh`.
 - The maintainer signs it locally (APK key) and tags it locally (publication key, `WtFs…`, listed in app `.github/release-signers`).
 - One `collie.apk` is uploaded. App CI checks it, uploads the profile copies (`collie-foss`, `molly-continued`, `molly-foss-continued`, `molly-minimal`) and publishes a prerelease within minutes.
 - A full release is the same APK, promoted only after a rebuild on the other side (GitHub or this machine) matches it.
 - Release notes: `distribution/release-notes/<version>.md` here, in the maintainer's style (see existing files). App CI refuses to publish without one. In-app notices (e.g. the later move to one `collie.apk`) ship as ordinary app PRs.
-- F-Droid and Pages carry verified full releases only.
+- The Stable F-Droid feed carries verified full Stable releases only. TrailBlazer
+  Beta has a separate package, APK signer, feed and readiness/Pages approval path;
+  its GitHub releases remain prereleases. Its source and feed activation gates
+  are listed in the dual-release policy. Pages must preserve both approved feeds
+  and native inputs when either feed changes.
 
 ## Security fuzzing pilot
 
@@ -71,6 +78,23 @@ The focused Socket/Android pilot and its evidence expectations are documented in
 
 ## To retire
 
-Now: generated publication commits on app `main` (G/I), the plan/receipt approval chain and the composer (`source/`, candidate plans/receipts). Keep native-input delivery (`repo.collie.im/native-inputs`) and Pages/F-Droid publishing; `pages-release.yml` stays until native files have another publishing route.
+Retire the historical app-source composer and generated publication commits on
+app `main` (G/I). This does not retire the active Beta plan/receipt chain or its
+preparation and verification helpers. Before removing any file under `source/`,
+candidate plans/receipts, or `tools/patches`, identify its current workflow,
+distribution and test consumers; remove only obsolete composition paths in a
+reviewed change.
 
-After the first diff-based upgrade ships as a full release: `patches/molly`, `patches/ports`, `patches/forks` and their tools in `tools/patches`, after tagging `archive/patch-forest`.
+Keep `migration_receipts.py`, `runtime_receipts.py`, `release_artifacts.py`,
+`preparation_verifier.py`, `stage_preparation.py`, and the active Beta collection,
+signing and publication helpers in `tools/patches` while their consumers remain.
+`distribution/beta_evidence.py` and `distribution/pages.py` still verify this
+receipt graph. A future relocation must update imports, immutable verifier pins,
+workflow consumers and tests together; the directory name is not a retirement
+criterion.
+
+Keep native-input delivery (`repo.collie.im/native-inputs`) and Pages/F-Droid
+publishing; `pages-release.yml` stays until native files have another publishing
+route. After the first diff-based upgrade ships as a full release, the historical
+`patches/molly`, `patches/ports` and `patches/forks` forest may be archived under
+`archive/patch-forest`. Apply the same consumer check before deleting any tools.
