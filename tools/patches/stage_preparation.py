@@ -69,7 +69,7 @@ def stage(args):
             raise ValueError('new preparation bundle path required')
         except FileNotFoundError:
             pass
-        trusted_directories.publish_exclusive_at(release_fd, target, preparation_bytes, mode=0o644)
+        trusted_directories.publish_exclusive_at(release_fd, target, preparation_bytes)
         return root / 'bundles' / str(args.release_id) / target, preparation_sha
     finally:
         if temp_name is not None and opened:

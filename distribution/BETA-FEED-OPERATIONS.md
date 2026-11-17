@@ -28,7 +28,9 @@ Before archiving, explicitly stage the exact preparation record generated during
 trusted collection. The command checks the approved plan, source receipt, approved
 build receipt and the preparation marker, then creates
 `bundles/<release-id>/preparation.json` exclusively under an existing release-output
-directory. It refuses to overwrite a file already at that path:
+directory with owner-only permissions (`0600`). It refuses to overwrite a file
+already at that path. Archive creation below sets the required member permissions
+without changing the local files:
 
 ```sh
 python3 tools/patches/stage_preparation.py \
@@ -47,7 +49,7 @@ be the authoritative Android release ID in the schema 2 approval. Use a fresh
 engineering staging draft/tag for each asset and never replace an uploaded asset.
 
 ```sh
-tar --format=ustar --sort=name --owner=0 --group=0 --numeric-owner --mtime='UTC 1970-01-01' \
+tar --format=ustar --sort=name --owner=0 --group=0 --numeric-owner --mode=0644 --mtime='UTC 1970-01-01' \
   -C <release-output> -cf trailblazer-beta-release-input.tar \
   "releases/<release-id>.json" \
   "bundles/<release-id>/source.json" "bundles/<release-id>/build.json" \

@@ -81,7 +81,7 @@ def open_private_directory_at(parent_fd, name, *, create=False):
     return child
 
 
-def publish_exclusive_at(directory_fd, name, data, *, mode=0o600):
+def publish_exclusive_at(directory_fd, name, data):
     """Atomically publish exact bytes under an open directory, refusing replacement."""
     if not isinstance(name, str) or not _FILE_NAME.fullmatch(name) or name in ('.', '..'):
         raise ValueError('invalid release output filename')
@@ -91,14 +91,14 @@ def publish_exclusive_at(directory_fd, name, data, *, mode=0o600):
             candidate = '.release-' + secrets.token_hex(12) + '.tmp'
             try:
                 descriptor = os.open(candidate, os.O_WRONLY | os.O_CREAT | os.O_EXCL |
-                                     os.O_NOFOLLOW | os.O_CLOEXEC, mode, dir_fd=directory_fd)
+                                     os.O_NOFOLLOW | os.O_CLOEXEC, 0o600, dir_fd=directory_fd)
                 temporary = candidate
                 break
             except FileExistsError:
                 continue
         else:
             raise ValueError('could not allocate private release output file')
-        os.fchmod(descriptor, mode)
+        os.fchmod(descriptor, 0o600)
         with os.fdopen(descriptor, 'wb') as output:
             output.write(data)
             output.flush()

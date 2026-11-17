@@ -418,7 +418,7 @@ def collect(args,context,unsigned_sha):
         preparation=preparation_verifier.preparation(args.source_checkout,args.preparation_baseline_commit,
             args.release_plan,args.approved_release_plan_sha256,channel)
         preparation_bytes=(json.dumps(preparation,sort_keys=True,indent=2)+'\n').encode('utf-8')
-        trusted_directories.publish_exclusive_at(output_fd,'preparation.json',preparation_bytes,mode=0o600)
+        trusted_directories.publish_exclusive_at(output_fd,'preparation.json',preparation_bytes)
         evidence.append({'status':'PASS','description':PREPARATION_EVIDENCE,
                          'sha256':hashlib.sha256(preparation_bytes).hexdigest()})
     payload={'source_receipt_sha256':receipts.digest(source,profile=channel),'source_commit':p['source_commit'],'source_tree':source['payload']['published_tree'],'unsigned_apk_sha256':unsigned_sha,**{k:inputs[k] for k in ('recipe_revision','toolchain_sha256','dependencies_sha256','native_inputs_sha256','trust_level')}}

@@ -642,7 +642,7 @@ class BetaProducerTests(unittest.TestCase):
         self.assertEqual(staged,bundle_root/'bundles/123456789/preparation.json')
         self.assertEqual(staged.read_bytes(),(self.apks/'preparation.json').read_bytes())
         self.assertEqual(hashlib.sha256(staged.read_bytes()).hexdigest(),digest)
-        self.assertEqual(os.stat(staged).st_mode&0o777,0o644)
+        self.assertEqual(os.stat(staged).st_mode&0o777,0o600)
         bad=[*cli];bad[bad.index('--approved-build-receipt-sha256')+1]='0'*64
         bad[bad.index('--release-id')+1]='123456790'
         errors=io.StringIO()

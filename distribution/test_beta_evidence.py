@@ -372,6 +372,27 @@ class BetaEvidenceTests(unittest.TestCase):
         self.assertEqual(sentinel.read_text(),'preserve')
         self.assertFalse((scratch/'new').exists())
 
+    def test_documented_tar_packs_private_companion_with_public_member_mode(self):
+        preparation=self.root/f'bundles/{self.selected_id}/preparation.json'
+        preparation.chmod(0o600)
+        original=preparation.read_bytes()
+        archive=self.fixture.root/'private-input.tar'
+        names=[f'releases/{self.selected_id}.json',
+               *(f'bundles/{self.selected_id}/{kind}.json' for kind in ('source','build','release','preparation')),
+               'manifests/unsigned-manifest.json','manifests/final-manifest.json','apk/trailblazer-beta.apk']
+        subprocess.run(['tar','--format=ustar','--sort=name','--owner=0','--group=0',
+                        '--numeric-owner','--mode=0644','--mtime=UTC 1970-01-01',
+                        '-C',str(self.root),'-cf',str(archive),*names],check=True)
+        self.assertEqual(preparation.stat().st_mode&0o777,0o600)
+        with tarfile.open(archive) as packed:
+            self.assertEqual({member.name for member in packed},set(names))
+            self.assertTrue(all(member.mode==0o644 for member in packed.getmembers()))
+        extracted=self.fixture.root/'private-input-extracted'
+        evidence.extract_release_input_archive(archive,extracted)
+        evidence.validate_preindex_release(extracted,self.selected_id,self.tools,
+            run_api=self._source_api,tag_verifier=lambda *_:None)
+        self.assertEqual((extracted/f'bundles/{self.selected_id}/preparation.json').read_bytes(),original)
+
     def test_preindex_release_input_authenticates_archive_and_graph(self):
         archive=self._pack_preindex_input(self.fixture.root/'approved-input.tar')
         digest=hashlib.sha256(archive.read_bytes()).hexdigest()
