@@ -1,7 +1,12 @@
 name: Pages preparation checks
 on:
   pull_request:
-    paths: ['distribution/**', '.github/workflows/pages*.yml']
+    paths:
+      - distribution/**
+      - tools/patches/**
+      - .github/workflows/pages*.yml
+      - .github/workflows/feeds*.yml
+      - .github/workflows/beta-feed-candidate.yml
   workflow_dispatch:
 permissions:
   contents: read

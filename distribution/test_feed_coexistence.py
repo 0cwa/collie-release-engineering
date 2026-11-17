@@ -175,7 +175,9 @@ class FeedCoexistenceTests(unittest.TestCase):
         self.assertIn('--verify-live-site',workflow)
         self.assertIn('feed.py capture-deploy-baseline "$RUNNER_TEMP/deploy-baseline.json"',workflow)
         self.assertIn('--feed-baseline "$RUNNER_TEMP/deploy-baseline.json"',workflow)
-        self.assertIn("ref: main",workflow)
+        self.assertIn('release_inputs.py metadata --receipt "$RUNNER_TEMP/release-inputs.json"',workflow)
+        self.assertIn('--native-plan "$RUNNER_TEMP/app-metadata/build-inputs/native-artifacts.json"',workflow)
+        self.assertEqual(workflow.count('uses: actions/checkout@'),1)
 
     def test_beta_listing_must_be_from_exact_receipt_commit_and_artwork(self):
         with tempfile.TemporaryDirectory() as tmp:
