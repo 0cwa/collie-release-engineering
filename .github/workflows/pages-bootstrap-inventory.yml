@@ -1,0 +1,92 @@
+name: Bootstrap the reviewed legacy Pages inventory
+on:
+  workflow_dispatch:
+    inputs:
+      trusted_policy_revision:
+        description: Exact reviewed main commit containing this migration
+        type: string
+        required: true
+      inventory_asset_id:
+        description: Engineering release asset ID for collie-pages-legacy-inventory.json
+        type: string
+        required: true
+      inventory_sha256:
+        description: Independently reviewed SHA256 of the complete inventory JSON
+        type: string
+        required: true
+permissions:
+  contents: read
+concurrency:
+  group: collie-pages-production
+  cancel-in-progress: false
+jobs:
+  bootstrap:
+    if: github.ref == 'refs/heads/main' && vars.FEEDS_ENABLED == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      deployments: write
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: https://repo.collie.im/
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Require the reviewed migration revision
+        env:
+          REVIEWED_POLICY: ${{ inputs.trusted_policy_revision }}
+          RUN_POLICY: ${{ github.sha }}
+        run: test "$REVIEWED_POLICY" = "$RUN_POLICY"
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: '3.12.14'
+      - name: Install hash-pinned index verification dependencies
+        run: |
+          python -m pip install --require-hashes --only-binary=:all: -r distribution/build-requirements.txt
+          python -m pip install --require-hashes --no-build-isolation -r distribution/requirements.txt
+      - name: Fetch the exact reviewed inventory from the fixed engineering repository
+        env:
+          INVENTORY_ASSET_ID: ${{ inputs.inventory_asset_id }}
+          INVENTORY_SHA256: ${{ inputs.inventory_sha256 }}
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          python distribution/download_pages_input.py --kind legacy-inventory \
+            --asset-id "$INVENTORY_ASSET_ID" --sha256 "$INVENTORY_SHA256" \
+            --output "$RUNNER_TEMP/legacy-inventory.json"
+      - name: Preserve every reviewed live file and add only its inventory
+        env:
+          INVENTORY_SHA256: ${{ inputs.inventory_sha256 }}
+          RUN_POLICY: ${{ github.sha }}
+        run: |
+          python distribution/bootstrap_inventory.py prepare \
+            --inventory "$RUNNER_TEMP/legacy-inventory.json" --sha256 "$INVENTORY_SHA256" \
+            --output "$RUNNER_TEMP/bootstrap" --policy "$RUN_POLICY"
+          python distribution/bootstrap_inventory.py check-candidate \
+            --baseline "$RUNNER_TEMP/bootstrap/baseline.json" --site "$RUNNER_TEMP/bootstrap/site"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: collie-inventory-bootstrap-baseline
+          path: ${{ runner.temp }}/bootstrap/baseline.json
+          if-no-files-found: error
+          retention-days: 90
+      - id: upload
+        uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
+        with:
+          path: ${{ runner.temp }}/bootstrap/site
+          include-hidden-files: true
+      - name: Recheck the frozen legacy baseline under the durable deployment guard
+        env:
+          ARTIFACT_ID: ${{ steps.upload.outputs.artifact_id }}
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          exec python distribution/deploy_pages.py --artifact-id "$ARTIFACT_ID" --timeout-seconds 1800 \
+            --bootstrap-baseline "$RUNNER_TEMP/bootstrap/baseline.json" \
+            --bootstrap-site "$RUNNER_TEMP/bootstrap/site"
+      - name: Verify the published inventory and every unchanged file
+        run: |
+          python distribution/bootstrap_inventory.py readback --baseline "$RUNNER_TEMP/bootstrap/baseline.json"

@@ -130,9 +130,10 @@ python distribution/feed.py --capture-live-site <pages-input>/previous
 ```
 
 The first Beta promotion requires a served `site-manifest.json`. If the current
-Stable site predates this inventory, first run the existing Stable workflow
-manually with `force=true`; its normal Stable build emits the inventory while
-preserving automatic Stable updates. The Beta capture path treats an absent
+Stable site predates this inventory, first complete the explicit
+[inventory-only bootstrap](INVENTORY-BOOTSTRAP.md), preserving all reviewed
+existing bytes. `force=true` does not bypass the Stable publisher's required
+baseline and cannot initialize it. The Beta capture path treats an absent
 inventory as no Beta route only after confirming the Beta index is also absent.
 Any Beta bytes without the canonical inventory stop the run.
 

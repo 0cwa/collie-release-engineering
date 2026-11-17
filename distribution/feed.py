@@ -465,7 +465,7 @@ def capture_live_site(destination, *, fetch=None):
     total=0
     for name,record in sorted(files.items()):
         safe=Path(name)
-        if safe.is_absolute() or '..' in safe.parts or not re.fullmatch(r'[A-Za-z0-9_./-]+',name):
+        if safe.is_absolute() or '..' in safe.parts or not re.fullmatch(r'[A-Za-z0-9_./=-]+',name):
             raise ValueError('unsafe served inventory path')
         total+=record['bytes']
         if total>SITE_LIMIT:raise ValueError('served inventory exceeds site byte limit')

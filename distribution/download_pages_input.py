@@ -4,6 +4,10 @@ from pathlib import Path
 from pages import MAX_BYTES
 from urllib.parse import urlparse
 
+class NoMetadataRedirect(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self,req,fp,code,msg,headers,newurl):
+        return None
+
 class FixedAssetRedirect(urllib.request.HTTPRedirectHandler):
     def redirect_request(self,req,fp,code,msg,headers,newurl):
         parsed=urlparse(newurl)
@@ -24,7 +28,15 @@ class FixedAssetRedirect(urllib.request.HTTPRedirectHandler):
         return urllib.request.Request(newurl,headers=safe_headers,origin_req_host=req.origin_req_host,
                                       unverifiable=True)
 
-def download(asset_id,expected,destination):
+def download(asset_id,expected,destination,*,kind='pages-input'):
+    if kind=='pages-input':
+        names={'trailblazer-beta-release-input.tar','trailblazer-beta-release-evidence.tar','collie-pages-input.tar'}
+        maximum_bytes=MAX_BYTES
+    elif kind=='legacy-inventory':
+        names={'collie-pages-legacy-inventory.json'}
+        maximum_bytes=8*1024*1024
+    else:
+        raise ValueError('unsupported approved asset kind')
     if not re.fullmatch('[1-9][0-9]*',asset_id) or not re.fullmatch('[0-9a-f]{64}',expected):raise ValueError('asset identity/digest')
     temporary=destination.with_suffix(destination.suffix+'.partial')
     if any(path.exists() or path.is_symlink() for path in (destination,temporary)):raise ValueError('fresh input destination and partial required')
@@ -32,16 +44,17 @@ def download(asset_id,expected,destination):
     token=os.environ.get('GITHUB_TOKEN')
     if token:headers['Authorization']='Bearer '+token
     request=urllib.request.Request('https://api.github.com/repos/0cwa/collie-release-engineering/releases/assets/'+asset_id,headers=headers)
-    with urllib.request.urlopen(request,timeout=60) as response:metadata=json.load(response)
+    metadata_opener=urllib.request.build_opener(NoMetadataRedirect())
+    with metadata_opener.open(request,timeout=60) as response:metadata=json.load(response)
     url=metadata['browser_download_url']
     browser=urlparse(url)
     if (type(metadata.get('id')) is not int or metadata['id']!=int(asset_id) or
             type(metadata.get('size')) is not int or metadata['size']<=0 or
             browser.scheme!='https' or browser.netloc!='github.com' or
             not browser.path.startswith('/0cwa/collie-release-engineering/releases/download/') or
-            metadata.get('name') not in {'trailblazer-beta-release-input.tar','trailblazer-beta-release-evidence.tar','collie-pages-input.tar'}):
+            metadata.get('name') not in names):
         raise ValueError('asset repository or fixed archive name differs')
-    if metadata['size']>MAX_BYTES:raise ValueError('input archive budget')
+    if metadata['size']>maximum_bytes:raise ValueError('input archive budget')
     h=hashlib.sha256();size=0;created=False
     try:
         # Fetch through the fixed API asset endpoint so an engineering-owned
@@ -65,7 +78,7 @@ def download(asset_id,expected,destination):
             created=True
             for block in iter(lambda:response.read(1024*1024),b''):
                 size+=len(block)
-                if size>MAX_BYTES:raise ValueError('input archive budget')
+                if size>maximum_bytes:raise ValueError('input archive budget')
                 h.update(block);stream.write(block)
         if size!=metadata['size'] or h.hexdigest()!=expected:raise ValueError('approved input archive differs')
         # Exclusive atomic publication: a concurrently created destination or
@@ -78,5 +91,7 @@ def download(asset_id,expected,destination):
         raise
 
 def main():
-    p=argparse.ArgumentParser();p.add_argument('--asset-id',required=True);p.add_argument('--sha256',required=True);p.add_argument('--output',type=Path,required=True);a=p.parse_args();download(a.asset_id,a.sha256,a.output)
+    p=argparse.ArgumentParser();p.add_argument('--asset-id',required=True);p.add_argument('--sha256',required=True);p.add_argument('--output',type=Path,required=True)
+    p.add_argument('--kind',choices=('pages-input','legacy-inventory'),default='pages-input')
+    a=p.parse_args();download(a.asset_id,a.sha256,a.output,kind=a.kind)
 if __name__=='__main__':main()
