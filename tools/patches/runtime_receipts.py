@@ -10,12 +10,18 @@ from pathlib import Path
 import re
 import stat
 import subprocess
+import sys
+import types
 import migration_receipts as receipts
+import trusted_directories
 
 PLAN_FIELDS={'schema','kind','mode','purpose','source_commit','engineering_revision','workflow_revision','package','version_code','version_name','certificate_sha256','source_receipt_sha256','build_inputs_sha256','required_test_reports'}
 BETA_PLAN_FIELDS=PLAN_FIELDS|{'channel','tag','title','prerelease'}
 INPUT_FIELDS={'schema','recipe_revision','config_sha256','toolchain_sha256','dependencies_sha256','native_inputs_sha256','trust_level'}
 PLAN_EVIDENCE='Approved release plan raw bytes; operator-selected inputs, not a signed attestation'
+PREPARATION_EVIDENCE='Trusted preparation verifier record; review actual project log and changelog before approval'
+PREPARATION_VERIFIER_SHA256='2aa160ddb44766655cb1900c7530367073d30a537d83a0f542d370448b9a1911'
+PREPARATION_VERIFIER_PATH=Path(__file__).resolve().with_name('preparation_verifier.py')
 CHANNELS=receipts.PROFILES
 BETA_SOURCE_REPOSITORY='0cwa/collieim-android'
 BETA_SOURCE_BRANCH='trailblazer-beta'
@@ -37,9 +43,36 @@ def document(path,expected=None):
     return json.loads(data,object_pairs_hook=receipts.unique),digest
 
 
+def preparation_document(path):
+    data=raw(path)
+    digest=hashlib.sha256(data).hexdigest()
+    value=json.loads(data,object_pairs_hook=receipts.unique)
+    if data!=(json.dumps(value,sort_keys=True,indent=2)+'\n').encode('utf-8'):
+        raise ValueError('preparation record JSON is not canonical')
+    return value,digest
+
+
+def verify_preparation_verifier_pin():
+    """Execute only the exact verifier source whose bytes match our immutable pin."""
+    source=raw(PREPARATION_VERIFIER_PATH)
+    if hashlib.sha256(source).hexdigest()!=PREPARATION_VERIFIER_SHA256:
+        raise ValueError('trusted preparation verifier bytes differ from configured immutable pin')
+    module=types.ModuleType('_collie_pinned_preparation_verifier')
+    module.__file__=str(PREPARATION_VERIFIER_PATH)
+    code=compile(source,module.__file__,'exec',dont_inherit=True)
+    prior=sys.modules.get('runtime_receipts')
+    sys.modules['runtime_receipts']=sys.modules[__name__]
+    try:
+        exec(code,module.__dict__)
+    finally:
+        if prior is None:sys.modules.pop('runtime_receipts',None)
+        else:sys.modules['runtime_receipts']=prior
+    return module
+
+
 def arguments(parser):
     parser.add_argument('--channel',choices=tuple(CHANNELS),default='stable')
-    for name in ('release-plan','source-receipt','build-inputs','build-receipt','release-receipt','test-reports','source-checkout','toolchain-input','dependency-input','native-input'):
+    for name in ('release-plan','source-receipt','build-inputs','build-receipt','release-receipt','test-reports','source-checkout','toolchain-input','dependency-input','native-input','preparation'):
         parser.add_argument('--'+name,type=Path)
     for name in ('approved-release-plan-sha256','approved-build-receipt-sha256','approved-release-receipt-sha256'):
         parser.add_argument('--'+name)
@@ -124,6 +157,83 @@ def github_run_metadata(endpoint):
 def identities(context):
     if context and context[0]['mode']=='new-source':return {k:context[0][k] for k in ('source_commit','engineering_revision','workflow_revision')}
     return None
+
+
+def verify_preparation_record(value, context, source, build):
+    """Check offline bindings for the raw-Git record produced at collection time."""
+    preparation_verifier=verify_preparation_verifier_pin()
+    fields={'schema','kind','verifier_id','release_plan_sha256','channel','version_name','version_code',
+            'baseline_commit','baseline_tree','baseline_committer_time','final_commit','final_tree','delta'}
+    receipts.exact(value,fields)
+    plan,plan_sha=context
+    channel=plan.get('channel','stable')
+    if (type(value['schema']) is not int or value['schema']!=1 or value['kind']!='release-preparation' or
+            value['verifier_id']!=preparation_verifier.VERIFIER_ID or value['release_plan_sha256']!=plan_sha or
+            value['channel']!=channel or value['version_name']!=plan['version_name'] or
+            value['version_code']!=plan['version_code'] or value['final_commit']!=plan['source_commit'] or
+            value['final_tree']!=source['payload']['published_tree']):
+        raise ValueError('preparation record differs from approved release graph')
+    for key in ('baseline_commit','final_commit'):
+        receipts.check(value[key],'git')
+    for key in ('baseline_tree','final_tree'):
+        receipts.check(value[key],'git')
+    if type(value['baseline_committer_time']) is not int or value['baseline_committer_time']<0:
+        raise ValueError('preparation baseline time is invalid')
+    rows=value['delta']
+    if not isinstance(rows,list) or not rows:
+        raise ValueError('preparation delta is missing')
+    paths=[]
+    for row in rows:
+        receipts.exact(row,('path','change','old','new'))
+        path=row['path']
+        if not isinstance(path,str) or path.startswith('/') or '..' in Path(path).parts or '\\' in path:
+            raise ValueError('preparation delta path is invalid')
+        paths.append(path)
+        if row['change'] not in ('A','M','D'):
+            raise ValueError('preparation delta status is invalid')
+        for side,expected in (('old',row['change']!='A'),('new',row['change']!='D')):
+            entry=row[side]
+            if expected:
+                receipts.exact(entry,('blob','mode','type'))
+                receipts.check(entry['blob'],'git')
+                if entry['mode']!='100644' or entry['type']!='blob':
+                    raise ValueError('preparation delta contains non-regular file')
+            elif entry is not None:
+                raise ValueError('preparation delta old/new entry mismatch')
+    if paths!=sorted(set(paths)):
+        raise ValueError('preparation delta paths must be sorted and unique')
+    edition='trailblazer-beta' if channel=='trailblazer-beta' else 'android'
+    required={'gradle.properties',
+        f'app/src/main/assets/collie-log/releases/{value["version_name"]}.txt',
+        f'fastlane/metadata/{edition}/en-US/changelogs/{value["version_code"]}.txt'}
+    deletions={row['path'] for row in rows if row['change']=='D'}
+    changes={row['path']:row['change'] for row in rows}
+    if (not deletions or any(not re.fullmatch(r'app/src/main/assets/collie-log/unreleased/[0-9]+\.txt',p) for p in deletions)
+            or set(paths)!=required|deletions or changes.get('gradle.properties')!='M'
+            or any(changes.get(p)!='A' for p in required-{'gradle.properties'})):
+        raise ValueError('preparation delta paths or changes differ from the reviewed release scope')
+    markers=[e for e in build['evidence'] if e['description']==PREPARATION_EVIDENCE]
+    if len(markers)!=1 or markers[0]['status']!='PASS':
+        raise ValueError('build receipt must carry exactly one passing preparation evidence marker')
+    plan_markers=[e for e in build['evidence'] if e['description']==PLAN_EVIDENCE]
+    if len(plan_markers)!=1 or plan_markers[0]['status']!='PASS' or plan_markers[0]['sha256']!=plan_sha:
+        raise ValueError('build receipt must carry exactly one marker for the approved raw plan')
+    return markers[0]['sha256']
+
+
+def verify_preparation_companion(path, *, channel, version_name, version_code, source, build):
+    """Verify canonical companion bytes against the approved BUILD and source graph."""
+    value,digest=preparation_document(path)
+    plans=[entry for entry in build['evidence']
+           if entry['description']==PLAN_EVIDENCE and entry['status']=='PASS']
+    if len(plans)!=1:
+        raise ValueError('build receipt must carry exactly one passing approved plan marker')
+    source_commit=source['payload']['published_commit']
+    plan={'channel':channel,'version_name':version_name,'version_code':version_code,
+          'source_commit':source_commit}
+    if verify_preparation_record(value,(plan,plans[0]['sha256']),source,build)!=digest:
+        raise ValueError('preparation record bytes differ from build evidence marker')
+    return {'record':value,'sha256':digest}
 
 
 def check_manifest(context,manifest):
@@ -261,7 +371,18 @@ def source_worktree_matches_index(checkout,expected_head,expected_tree,*,require
     finally:os.close(root)
 
 
+def open_collection_output(args,context):
+    if context and context[0]['mode']=='new-source' and context[0]['purpose']=='production':
+        descriptor,_=trusted_directories.open_trusted_directory(args.directory,forbidden_tree=args.source_checkout)
+        args._preparation_output_fd=descriptor
+
+
 def collect(args,context,unsigned_sha):
+    if context[0]['purpose']=='production' and not getattr(args,'preparation_baseline_commit',None):
+        raise ValueError('new-source collection requires an operator-pinned preparation baseline commit')
+    output_fd=getattr(args,'_preparation_output_fd',None)
+    if context[0]['purpose']=='production' and output_fd is None:
+        raise ValueError('trusted collector output directory must be opened before source verification')
     source,inputs=source_and_inputs(args,context);p,plan_sha=context
     channel=p.get('channel','stable')
     if args.source_checkout is None:raise ValueError('new-source collection requires actual source checkout')
@@ -292,6 +413,14 @@ def collect(args,context,unsigned_sha):
             if hashlib.sha256(raw(target)).hexdigest()!=entry['sha256']:raise ValueError('actual test report bytes differ')
         evidence.append({'status':entry['status'],'description':entry['name']+': '+entry['description'],'sha256':entry['sha256']})
     if len(names)!=len(set(names)) or set(names)!=set(p['required_test_reports']):raise ValueError('missing or substituted required test reports')
+    if p['purpose']=='production':
+        preparation_verifier=verify_preparation_verifier_pin()
+        preparation=preparation_verifier.preparation(args.source_checkout,args.preparation_baseline_commit,
+            args.release_plan,args.approved_release_plan_sha256,channel)
+        preparation_bytes=(json.dumps(preparation,sort_keys=True,indent=2)+'\n').encode('utf-8')
+        trusted_directories.publish_exclusive_at(output_fd,'preparation.json',preparation_bytes)
+        evidence.append({'status':'PASS','description':PREPARATION_EVIDENCE,
+                         'sha256':hashlib.sha256(preparation_bytes).hexdigest()})
     payload={'source_receipt_sha256':receipts.digest(source,profile=channel),'source_commit':p['source_commit'],'source_tree':source['payload']['published_tree'],'unsigned_apk_sha256':unsigned_sha,**{k:inputs[k] for k in ('recipe_revision','toolchain_sha256','dependencies_sha256','native_inputs_sha256','trust_level')}}
     build={'schema':2,'kind':'build','payload':payload,'evidence':evidence};receipts.validate(build,'build',profile=channel)
     return source,build
@@ -308,6 +437,11 @@ def signing(args,context,manifest):
     if any(b[k]!=inputs[k] for k in ('recipe_revision','toolchain_sha256','dependencies_sha256','native_inputs_sha256','trust_level')):raise ValueError('build recipe/toolchain/native/dependency identity differs')
     if b['source_receipt_sha256']!=receipts.digest(source,profile=channel) or b['source_commit']!=p['source_commit'] or b['source_tree']!=s['published_tree']:raise ValueError('build source binding differs')
     if not any(e['description']==PLAN_EVIDENCE and e['sha256']==plan_sha and e['status']=='PASS' for e in build['evidence']):raise ValueError('build receipt does not name approved plan')
+    if p['purpose']=='production':
+        if args.preparation is None:raise ValueError('new-source signing requires the trusted preparation record')
+        preparation,preparation_sha=preparation_document(args.preparation)
+        if verify_preparation_record(preparation,context,source,build)!=preparation_sha:
+            raise ValueError('preparation record bytes differ from build evidence marker')
     for kind,doc in [('source',source),('build',build)]:
         if not doc['evidence'] or any(e['status']!='PASS' for e in doc['evidence']):raise ValueError('new-source signing requires passing scoped evidence for '+kind)
     for k,expected in [('release_plan_sha256',plan_sha),('source_receipt_sha256',receipts.digest(source,profile=channel)),('build_receipt_sha256',receipts.digest(build,profile=channel))]:
@@ -350,6 +484,22 @@ def publication(args,context,unsigned,final,raw_final):
 
 def write(path,value):
     Path(path).write_text(json.dumps(value,sort_keys=True,indent=2)+'\n')
+
+
+def write_collection_file(args,name,value):
+    data=(json.dumps(value,sort_keys=True,indent=2)+'\n').encode('utf-8')
+    descriptor=getattr(args,'_preparation_output_fd',None)
+    if descriptor is None:
+        write(Path(args.directory)/name,value)
+    else:
+        trusted_directories.publish_exclusive_at(descriptor,name,data)
+
+
+def close_collection_output(args):
+    descriptor=getattr(args,'_preparation_output_fd',None)
+    if descriptor is not None:
+        os.close(descriptor)
+        delattr(args,'_preparation_output_fd')
 
 
 def import_legacy(manifest,engineering_revision,purpose):

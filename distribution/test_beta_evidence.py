@@ -3,6 +3,7 @@ import hashlib
 import io
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -45,6 +46,7 @@ class BetaEvidenceTests(unittest.TestCase):
     def _pack_preindex_input(self, archive):
         files=[self.root/f'releases/{self.selected_id}.json']
         files += [self.root/f'bundles/{self.selected_id}/{kind}.json' for kind in ('source','build','release')]
+        files += [self.root/f'bundles/{self.selected_id}/preparation.json']
         files += [self.root/'manifests/unsigned-manifest.json',self.root/'manifests/final-manifest.json',
                   self.root/'apk/trailblazer-beta.apk']
         with tarfile.open(archive,'w',format=tarfile.USTAR_FORMAT) as tar:
@@ -84,6 +86,7 @@ class BetaEvidenceTests(unittest.TestCase):
         self._write_json(self.root / f'releases/{release_id}.json', approval)
         for kind, document in (('source', source), ('build', build), ('release', release)):
             self._write_json(self.root / f'bundles/{release_id}/{kind}.json', document)
+        shutil.copyfile(f.apks/'preparation.json',self.root/f'bundles/{release_id}/preparation.json')
         self._write_json(self.root / 'manifests/unsigned-manifest.json', json.loads(f.manifest_path.read_text()))
         shutil.copyfile(self.final_path, self.root / 'manifests/final-manifest.json')
         signed_apk = self.signed / channel.apk_asset
@@ -211,6 +214,29 @@ class BetaEvidenceTests(unittest.TestCase):
         self.assertEqual(set(emitted), pages.READINESS_FIELDS)
         self.assertEqual(json.loads(output.read_text()), emitted)
         self.assertNotIn('readiness_artifact', emitted)
+
+    def test_full_archive_rejects_missing_malformed_and_substituted_preparation(self):
+        path=self.root/f'bundles/{self.selected_id}/preparation.json'
+        original=path.read_bytes()
+        tag_verifier=lambda *_:None
+        with patch.dict(sys.modules,self.index_modules):
+            try:
+                path.unlink()
+                with self.assertRaisesRegex(ValueError,'bundle membership'):
+                    evidence.pack(self.root,self.fixture.root/'missing-preparation.tar',self.tools,
+                        run_api=self._source_api,tag_verifier=tag_verifier,release_api=self._readiness_api)
+                path.write_bytes(original.replace(b'"schema": 1',b'"schema": 1, "schema": 1',1))
+                with self.assertRaisesRegex(ValueError,'duplicate JSON field'):
+                    evidence.pack(self.root,self.fixture.root/'malformed-preparation.tar',self.tools,
+                        run_api=self._source_api,tag_verifier=tag_verifier,release_api=self._readiness_api)
+                changed=json.loads(original)
+                changed['final_tree']='e'*40
+                path.write_text(json.dumps(changed,sort_keys=True,indent=2)+'\n')
+                with self.assertRaisesRegex(ValueError,'approved release graph'):
+                    evidence.pack(self.root,self.fixture.root/'substituted-preparation.tar',self.tools,
+                        run_api=self._source_api,tag_verifier=tag_verifier,release_api=self._readiness_api)
+            finally:
+                path.write_bytes(original)
 
     def test_approved_beta_graph_generates_beta_route_candidate_end_to_end(self):
         archive=self.fixture.root/'candidate-input.tar'
@@ -346,6 +372,27 @@ class BetaEvidenceTests(unittest.TestCase):
         self.assertEqual(sentinel.read_text(),'preserve')
         self.assertFalse((scratch/'new').exists())
 
+    def test_documented_tar_packs_private_companion_with_public_member_mode(self):
+        preparation=self.root/f'bundles/{self.selected_id}/preparation.json'
+        preparation.chmod(0o600)
+        original=preparation.read_bytes()
+        archive=self.fixture.root/'private-input.tar'
+        names=[f'releases/{self.selected_id}.json',
+               *(f'bundles/{self.selected_id}/{kind}.json' for kind in ('source','build','release','preparation')),
+               'manifests/unsigned-manifest.json','manifests/final-manifest.json','apk/trailblazer-beta.apk']
+        subprocess.run(['tar','--format=ustar','--sort=name','--owner=0','--group=0',
+                        '--numeric-owner','--mode=0644','--mtime=UTC 1970-01-01',
+                        '-C',str(self.root),'-cf',str(archive),*names],check=True)
+        self.assertEqual(preparation.stat().st_mode&0o777,0o600)
+        with tarfile.open(archive) as packed:
+            self.assertEqual({member.name for member in packed},set(names))
+            self.assertTrue(all(member.mode==0o644 for member in packed.getmembers()))
+        extracted=self.fixture.root/'private-input-extracted'
+        evidence.extract_release_input_archive(archive,extracted)
+        evidence.validate_preindex_release(extracted,self.selected_id,self.tools,
+            run_api=self._source_api,tag_verifier=lambda *_:None)
+        self.assertEqual((extracted/f'bundles/{self.selected_id}/preparation.json').read_bytes(),original)
+
     def test_preindex_release_input_authenticates_archive_and_graph(self):
         archive=self._pack_preindex_input(self.fixture.root/'approved-input.tar')
         digest=hashlib.sha256(archive.read_bytes()).hexdigest()
@@ -399,6 +446,55 @@ class BetaEvidenceTests(unittest.TestCase):
                 tar.addfile(info,io.BytesIO(b'apk'))
         with self.assertRaisesRegex(ValueError,'duplicate|unsafe'):
             evidence.extract_release_input_archive(duplicate,scratch/'duplicate-extracted')
+
+    def test_preindex_requires_canonical_selected_preparation_record_and_exact_marker(self):
+        root=self.fixture.root/'preindex-record-input';root.mkdir()
+        for name in (f'releases/{self.selected_id}.json',
+                     *(f'bundles/{self.selected_id}/{kind}.json' for kind in ('source','build','release','preparation')),
+                     'manifests/unsigned-manifest.json','manifests/final-manifest.json','apk/trailblazer-beta.apk'):
+            target=root/name;target.parent.mkdir(parents=True,exist_ok=True)
+            shutil.copyfile(self.root/name,target)
+        record=root/f'bundles/{self.selected_id}/preparation.json'
+        original=record.read_bytes()
+        try:
+            record.write_bytes(original.replace(b'"schema": 1',b'"schema": 1, "schema": 1',1))
+            with self.assertRaisesRegex(ValueError,'duplicate JSON field'):
+                evidence.validate_preindex_release(root,self.selected_id,self.tools,run_api=self._source_api,
+                    tag_verifier=lambda *_:None)
+            record.write_bytes(original+b' ')
+            with self.assertRaisesRegex(ValueError,'not canonical'):
+                evidence.validate_preindex_release(root,self.selected_id,self.tools,run_api=self._source_api,
+                    tag_verifier=lambda *_:None)
+        finally:
+            record.write_bytes(original)
+
+    def test_preindex_preparation_uses_approved_version_when_unsigned_differs(self):
+        root=self.fixture.root/'preindex-version-input';root.mkdir()
+        for name in (f'releases/{self.selected_id}.json',
+                     *(f'bundles/{self.selected_id}/{kind}.json' for kind in ('source','build','release','preparation')),
+                     'manifests/unsigned-manifest.json','manifests/final-manifest.json','apk/trailblazer-beta.apk'):
+            target=root/name;target.parent.mkdir(parents=True,exist_ok=True)
+            shutil.copyfile(self.root/name,target)
+        unsigned=root/'manifests/unsigned-manifest.json'
+        changed=json.loads(unsigned.read_text())
+        changed['version_code']+=1
+        self._write_json(unsigned,changed)
+        with patch.object(evidence.runtime,'verify_preparation_companion',
+                          wraps=evidence.runtime.verify_preparation_companion) as verify:
+            with self.assertRaises(ValueError):
+                evidence.validate_preindex_release(root,self.selected_id,self.tools,
+                    run_api=self._source_api,tag_verifier=lambda *_:None)
+        self.assertEqual(verify.call_count,1)
+        self.assertEqual(verify.call_args.kwargs['version_code'],self.fixture.version_code)
+        self.assertEqual(verify.call_args.kwargs['version_name'],self.fixture.version)
+
+    def test_full_archive_rejects_an_unselected_preparation_companion(self):
+        extra=self.root/f'bundles/{self.selected_id+1}/preparation.json'
+        extra.parent.mkdir(parents=True)
+        shutil.copyfile(self.root/f'bundles/{self.selected_id}/preparation.json',extra)
+        with patch.dict(sys.modules,self.index_modules),self.assertRaisesRegex(ValueError,'membership'):
+            evidence.pack(self.root,self.fixture.root/'extra-preparation.tar',self.tools,
+                run_api=self._source_api)
 
     def test_pack_rejects_wrong_channel_and_missing_indexed_bytes(self):
         approval_path = self.root / f'releases/{self.selected_id}.json'
@@ -497,6 +593,13 @@ class BetaEvidenceTests(unittest.TestCase):
             path.write_bytes(original)
 
     def test_input_allowlist_excludes_future_pages_approval_and_readiness_artifact(self):
+        preparation_path=f'bundles/{self.selected_id}/preparation.json'
+        # Frozen pre-extension path rule: this exact new file was rejected by
+        # the prior parser, while the current parser adds only this companion.
+        old_bundle_path=re.fullmatch(r'bundles/[1-9][0-9]*/(?:source|build|release)\.json',preparation_path)
+        self.assertIsNone(old_bundle_path)
+        self.assertTrue(evidence.allowed_path(preparation_path))
+        self.assertFalse(evidence.allowed_path(f'bundles/{self.selected_id}/unreviewed.json'))
         for name in ('approval.json', 'trailblazer-beta-readiness.json', 'future/readiness.zip'):
             path = self.root / name
             path.parent.mkdir(parents=True, exist_ok=True)

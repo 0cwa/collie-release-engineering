@@ -28,6 +28,7 @@ def main():
     p.add_argument('--tag', help='exact prerelease tag (required for Beta)')
     p.add_argument('--title', help='exact prerelease title (required for Beta)')
     p.add_argument('--single-collie', action='store_true', help='one Collie APK supplies all five compatibility filenames')
+    p.add_argument('--preparation-baseline-commit',help='full commit pinned by the operator before preparing this source')
     runtime.arguments(p)
     args = p.parse_args()
     try:
@@ -78,17 +79,20 @@ def main():
         if context[0]['mode']=='new-source':
             if not args.single_collie and channel!='trailblazer-beta':raise ValueError('new-source collection requires one canonical Stable input')
             manifest.update(schema=2,**runtime.identities(context))
+            runtime.open_collection_output(args,context)
             source,build=runtime.collect(args,context,manifest['apks'][0]['sha256'])
             manifest.update(release_mode='new-source',release_plan_sha256=context[1],source_receipt_sha256=receipts.digest(source),build_receipt_sha256=receipts.digest(build))
-            runtime.write(args.directory/'build-receipt.json',build)
+            runtime.write_collection_file(args,'build-receipt.json',build)
         a.validate_manifest(manifest, args.commit, args.run_id, args.certificate_sha256,
                             runtime.identities(context),channel)
         if not re.fullmatch(r'[0-9a-f]{40}', args.workflow_revision):
             raise ValueError('invalid workflow revision')
-        (args.directory / 'manifest.json').write_text(json.dumps(manifest, indent=2) + '\n')
+        runtime.write_collection_file(args,'manifest.json',manifest)
     except (ValueError, KeyError, OSError, subprocess.CalledProcessError, json.JSONDecodeError) as exc:
         print('release collection failed:', exc, file=sys.stderr)
         return 1
+    finally:
+        runtime.close_collection_output(args)
     return 0
 
 
