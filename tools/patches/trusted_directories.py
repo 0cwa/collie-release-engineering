@@ -81,7 +81,7 @@ def open_private_directory_at(parent_fd, name, *, create=False):
     return child
 
 
-def publish_exclusive_at(directory_fd, name, data, *, mode=0o644):
+def publish_exclusive_at(directory_fd, name, data, *, mode=0o600):
     """Atomically publish exact bytes under an open directory, refusing replacement."""
     if not isinstance(name, str) or not _FILE_NAME.fullmatch(name) or name in ('.', '..'):
         raise ValueError('invalid release output filename')

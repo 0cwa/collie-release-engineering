@@ -69,7 +69,7 @@ def stage(args):
             raise ValueError('new preparation bundle path required')
         except FileNotFoundError:
             pass
-        trusted_directories.publish_exclusive_at(release_fd, target, preparation_bytes)
+        trusted_directories.publish_exclusive_at(release_fd, target, preparation_bytes, mode=0o644)
         return root / 'bundles' / str(args.release_id) / target, preparation_sha
     finally:
         if temp_name is not None and opened:
@@ -91,7 +91,7 @@ def main():
     args = parser.parse_args()
     try:
         path, digest = stage(args)
-        print(f'Staged exact preparation bytes: {path}')
+        print('Staged exact preparation evidence.')
         print(digest)
     except (ValueError, KeyError, OSError, TypeError) as error:
         print('preparation staging failed:', error, file=sys.stderr)

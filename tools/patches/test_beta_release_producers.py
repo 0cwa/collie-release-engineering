@@ -522,6 +522,9 @@ class BetaProducerTests(unittest.TestCase):
     def test_real_collect_sign_and_existing_receipt_validator_accept_beta_graph(self):
         source_bytes=self.source_path.read_bytes()
         self.collect()
+        for name in ('preparation.json','build-receipt.json','manifest.json'):
+            with self.subTest(private_collection_output=name):
+                self.assertEqual((self.apks/name).stat().st_mode&0o777,0o600)
         preparation,preparation_sha=runtime.preparation_document(self.apks/'preparation.json')
         self.assertEqual(preparation['baseline_commit'],self.baseline)
         self.assertEqual(preparation['final_commit'],self.commit)
@@ -635,6 +638,7 @@ class BetaProducerTests(unittest.TestCase):
         self.assertEqual(result,0,errors.getvalue())
         staged=bundle_root/'bundles/123456789/preparation.json'
         digest=output.getvalue().splitlines()[-1]
+        self.assertNotIn(str(bundle_root),output.getvalue())
         self.assertEqual(staged,bundle_root/'bundles/123456789/preparation.json')
         self.assertEqual(staged.read_bytes(),(self.apks/'preparation.json').read_bytes())
         self.assertEqual(hashlib.sha256(staged.read_bytes()).hexdigest(),digest)
