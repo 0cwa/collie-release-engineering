@@ -5,6 +5,7 @@ import io
 import json
 import os
 from pathlib import Path
+import py_compile
 import subprocess
 import sys
 import tempfile
@@ -20,6 +21,7 @@ import release_collect
 import release_publish
 import release_sign
 import runtime_receipts as runtime
+import stage_preparation
 import version_policy
 
 
@@ -40,9 +42,25 @@ class BetaProducerTests(unittest.TestCase):
         subprocess.run(['git','init','-q',str(self.checkout)],check=True)
         subprocess.run(['git','-C',str(self.checkout),'config','user.name','Fixture'],check=True)
         subprocess.run(['git','-C',str(self.checkout),'config','user.email','fixture@example.invalid'],check=True)
-        (self.checkout/'source.txt').write_text('test source tree\n')
-        subprocess.run(['git','-C',str(self.checkout),'add','source.txt'],check=True)
-        subprocess.run(['git','-C',str(self.checkout),'commit','-qm','fixture source'],check=True)
+        (self.checkout/'gradle.properties').write_text('ordinary=fixture\n')
+        pending=self.checkout/'app/src/main/assets/collie-log/unreleased/12.txt'
+        pending.parent.mkdir(parents=True);pending.write_text('topic: fixes\npr: 12\nFixes a fixture issue.\n')
+        subprocess.run(['git','-C',str(self.checkout),'add','.'],check=True)
+        subprocess.run(['git','-C',str(self.checkout),'commit','-qm','fixture baseline'],check=True)
+        self.baseline=subprocess.check_output(['git','-C',str(self.checkout),'rev-parse','HEAD'],text=True).strip()
+        baseline_time=subprocess.check_output(['git','-C',str(self.checkout),'show','-s','--format=%ct','HEAD'],text=True).strip()
+        (self.checkout/'gradle.properties').write_text(
+            f'ordinary=fixture\ncollieBuildRevision={self.baseline}\ncollieBuildTimestamp={baseline_time}\n'
+            f'releaseVersionName={self.version}\nreleaseVersionCode={self.version_code}\n')
+        pending.unlink()
+        log=self.checkout/f'app/src/main/assets/collie-log/releases/{self.version}.txt'
+        log.parent.mkdir(parents=True)
+        log.write_text(f'version: {self.version}\ndate: 2026-11-17\n\ntopic: fixes\npr: 12\nFixes a fixture issue.\n')
+        edition='trailblazer-beta' if self.channel=='trailblazer-beta' else 'android'
+        changelog=self.checkout/f'fastlane/metadata/{edition}/en-US/changelogs/{self.version_code}.txt'
+        changelog.parent.mkdir(parents=True);changelog.write_bytes(b'- Fixes a fixture issue.\n')
+        subprocess.run(['git','-C',str(self.checkout),'add','-A'],check=True)
+        subprocess.run(['git','-C',str(self.checkout),'commit','-qm','prepared fixture source'],check=True)
         subprocess.run(['git','-C',str(self.checkout),'branch','-M','trailblazer-beta'],check=True)
         self.commit=subprocess.check_output(['git','-C',str(self.checkout),'rev-parse','HEAD'],text=True).strip()
         self.tree=subprocess.check_output(['git','-C',str(self.checkout),'rev-parse','HEAD^{tree}'],text=True).strip()
@@ -142,7 +160,7 @@ class BetaProducerTests(unittest.TestCase):
         return ['--channel',self.channel,'--release-plan',str(self.plan_path),
                 '--approved-release-plan-sha256',self.plan_sha]
 
-    def collect(self,*,expected=0):
+    def collect(self,*,expected=0,baseline=None):
         args=['release_collect','--directory',str(self.apks),'--build-tools',str(self.build_tools),
               '--config',str(self.config_path),'--commit',self.commit,'--workflow-revision',self.workflow,
               '--run-id',self.run_id,'--run-attempt',self.run_attempt,'--version-name',self.version,
@@ -150,6 +168,7 @@ class BetaProducerTests(unittest.TestCase):
               '--tag',self.plan['tag'],'--title',self.plan['title'],
               '--source-receipt',str(self.source_path),'--build-inputs',str(self.build_inputs_path),
               '--source-checkout',str(self.checkout),'--toolchain-input',str(self.toolchain_path),
+              '--preparation-baseline-commit',baseline or self.baseline,
               '--dependency-input',str(self.dependencies_path),'--native-input',str(self.native_path),
               '--test-reports',str(self.test_reports_path),*self.common_plan_args()]
         errors=io.StringIO()
@@ -180,6 +199,7 @@ class BetaProducerTests(unittest.TestCase):
               '--scratch',str(scratch),'--instrumentation-checklist',str(checklist),
               '--source-receipt',str(self.source_path),'--build-inputs',str(self.build_inputs_path),
               '--source-checkout',str(self.checkout),'--toolchain-input',str(self.toolchain_path),
+              '--preparation',str(self.apks/'preparation.json'),
               '--dependency-input',str(self.dependencies_path),'--native-input',str(self.native_path),
               '--build-receipt',str(self.apks/'build-receipt.json'),
               '--approved-build-receipt-sha256',receipts.digest(
@@ -222,6 +242,7 @@ class BetaProducerTests(unittest.TestCase):
               '--approved-release-receipt-sha256',plan_digest,
               '--source-receipt',str(self.source_path),'--build-inputs',str(self.build_inputs_path),
               '--source-checkout',str(self.checkout),'--toolchain-input',str(self.toolchain_path),
+              '--preparation',str(self.apks/'preparation.json'),
               '--dependency-input',str(self.dependencies_path),'--native-input',str(self.native_path),
               '--build-receipt',str(self.apks/'build-receipt.json'),
               '--approved-build-receipt-sha256',receipts.digest(
@@ -248,6 +269,7 @@ class BetaProducerTests(unittest.TestCase):
               '--approved-release-receipt-sha256',receipts.digest(release_receipt,profile=self.channel),
               '--source-receipt',str(self.source_path),'--build-inputs',str(self.build_inputs_path),
               '--source-checkout',str(self.checkout),'--toolchain-input',str(self.toolchain_path),
+              '--preparation',str(self.apks/'preparation.json'),
               '--dependency-input',str(self.dependencies_path),'--native-input',str(self.native_path),
               '--build-receipt',str(self.apks/'build-receipt.json'),
               '--approved-build-receipt-sha256',receipts.digest(
@@ -395,6 +417,10 @@ class BetaProducerTests(unittest.TestCase):
         output,final_path,final,release_receipt=self.sign()
         unsigned=json.loads(self.manifest_path.read_text())
         build=receipts.load(self.apks/'build-receipt.json','build',profile=self.channel)
+        pinned=runtime.verify_preparation_verifier_pin()
+        self.assertEqual(pinned.VERIFIER_ID,'collie-preparation-verifier/v1')
+        with patch.object(runtime,'PREPARATION_VERIFIER_SHA256','0'*64),self.assertRaisesRegex(ValueError,'configured immutable pin'):
+            runtime.verify_preparation_verifier_pin()
         for field in ('engineering_revision','workflow_revision'):
             with self.subTest(field=field):
                 changed=dict(unsigned);changed[field]='e'*40
@@ -406,9 +432,66 @@ class BetaProducerTests(unittest.TestCase):
                 self.write_json(output/'release-receipt.json',receipt)
                 self.publish_dry_run(output,final_path,updated,receipt,expected=1)
 
+    def test_verifier_pin_rejects_malicious_source_before_execution_and_ignores_import_cache(self):
+        marker=self.root/'malicious-verifier-ran'
+        malicious=self.root/'preparation_verifier.py'
+        malicious.write_text("from pathlib import Path\nPath("+repr(str(marker))+ ").write_text('executed')\nVERIFIER_ID='bad'\n")
+        py_compile.compile(str(malicious),doraise=True)
+        poisoned=types.ModuleType('preparation_verifier')
+        poisoned.__file__=str(malicious)
+        poisoned.VERIFIER_ID='poisoned-cache'
+        with patch.object(runtime,'PREPARATION_VERIFIER_PATH',malicious),patch.dict(sys.modules,{'preparation_verifier':poisoned}):
+            with self.assertRaisesRegex(ValueError,'configured immutable pin'):
+                runtime.verify_preparation_verifier_pin()
+        self.assertFalse(marker.exists())
+
+    def test_collector_rejects_untrusted_output_location_before_receipt_verification(self):
+        with self.assertRaisesRegex(ValueError,'outside the source checkout'):
+            runtime.trusted_directories.open_trusted_directory(self.checkout,forbidden_tree=self.checkout)
+        self.assertFalse((self.checkout/'preparation.json').exists())
+
+    def test_collector_writes_to_open_directory_after_parent_path_retarget(self):
+        original=self.apks
+        moved=self.root/'original-collector-output';attacker=self.root/'attacker-output'
+        attacker.mkdir(mode=0o700)
+        opener=runtime.trusted_directories.open_trusted_directory
+        def open_then_retarget(path,**kwargs):
+            descriptor,absolute=opener(path,**kwargs)
+            original.rename(moved)
+            original.symlink_to(attacker, target_is_directory=True)
+            self.apks=moved
+            self.manifest_path=moved/'manifest.json'
+            return descriptor,absolute
+        with patch.object(runtime.trusted_directories,'open_trusted_directory',side_effect=open_then_retarget):
+            self.collect()
+        self.assertTrue((moved/'preparation.json').is_file())
+        self.assertTrue((moved/'build-receipt.json').is_file())
+        self.assertTrue((moved/'manifest.json').is_file())
+        self.assertEqual(list(attacker.iterdir()),[])
+
+    def test_stage_rejects_group_writable_root_and_descendant(self):
+        self.collect()
+        output=self.root/'release-output';output.mkdir()
+        args=types.SimpleNamespace(channel=self.channel,release_plan=self.plan_path,
+            approved_release_plan_sha256=self.plan_sha,source_receipt=self.source_path,
+            build_receipt=self.apks/'build-receipt.json',
+            approved_build_receipt_sha256=receipts.digest(
+                receipts.load(self.apks/'build-receipt.json','build',profile=self.channel),profile=self.channel),
+            preparation=self.apks/'preparation.json',release_id=123456789,bundle_root=output,
+            commit=self.commit,approved_commit=self.commit,workflow_revision=self.workflow,
+            engineering_revision=self.engineering,version_name=self.version,version_code=self.version_code,
+            certificate_sha256=self.certificate)
+        output.chmod(0o770)
+        with self.assertRaisesRegex(ValueError,'trusted existing directory'):
+            stage_preparation.stage(args)
+        output.chmod(0o700)
+        bundles=output/'bundles';bundles.mkdir();bundles.chmod(0o770)
+        with self.assertRaisesRegex(ValueError,'group/other writable'):
+            stage_preparation.stage(args)
+
     def test_beta_plan_rejects_stable_package_certificate_and_channel(self):
         args=type('Args',(),{})()
-        for field,value in (('package','im.collie.app'),('certificate_sha256','f'*64),('channel','stable')):
+        for field,value in (('package','im.collie.app'),('certificate_sha256','f'*64),('channel','stable'),('mode','legacy')):
             plan=dict(self.plan);plan[field]=value
             path=self.root/'bad-plan.json';self.write_json(path,plan)
             args.release_plan=path;args.approved_release_plan_sha256=artifacts.sha256(path)
@@ -437,7 +520,29 @@ class BetaProducerTests(unittest.TestCase):
         self.assertEqual(len(json.loads(shared_ledger.read_text())),2)
 
     def test_real_collect_sign_and_existing_receipt_validator_accept_beta_graph(self):
+        source_bytes=self.source_path.read_bytes()
         self.collect()
+        preparation,preparation_sha=runtime.preparation_document(self.apks/'preparation.json')
+        self.assertEqual(preparation['baseline_commit'],self.baseline)
+        self.assertEqual(preparation['final_commit'],self.commit)
+        build=receipts.load(self.apks/'build-receipt.json','build',profile=self.channel)
+        markers=[entry for entry in build['evidence'] if entry['description']==runtime.PREPARATION_EVIDENCE]
+        self.assertEqual(markers,[{'status':'PASS','description':runtime.PREPARATION_EVIDENCE,'sha256':preparation_sha}])
+        self.assertEqual(self.source_path.read_bytes(),source_bytes)
+        self.assertEqual(runtime.verify_preparation_record(preparation,(self.plan,self.plan_sha),self.source,build),preparation_sha)
+        for field,value in (('final_tree','e'*40),
+                            ('release_plan_sha256','d'*64),('channel','stable'),
+                            ('version_code',self.version_code+1)):
+            changed=dict(preparation);changed[field]=value
+            with self.subTest(preparation_field=field),self.assertRaises(ValueError):
+                runtime.verify_preparation_record(changed,(self.plan,self.plan_sha),self.source,build)
+        changed=dict(preparation,baseline_commit='f'*40)
+        self.assertNotEqual(runtime.verify_preparation_record(changed,(self.plan,self.plan_sha),self.source,build),
+                            hashlib.sha256((json.dumps(changed,sort_keys=True,indent=2)+'\n').encode()).hexdigest())
+        changed_build=dict(build,evidence=[entry for entry in build['evidence']
+            if entry['description']!=runtime.PREPARATION_EVIDENCE])
+        with self.assertRaisesRegex(ValueError,'exactly one'):
+            runtime.verify_preparation_record(preparation,(self.plan,self.plan_sha),self.source,changed_build)
         output,final_path,final,release_receipt=self.sign()
         self.assertEqual(final['tag'],'trailblazer-v'+self.version)
         self.assertEqual(final['title'],'Collie TrailBlazer Beta '+self.version)
@@ -450,6 +555,100 @@ class BetaProducerTests(unittest.TestCase):
         ledger=json.loads(self.ledger_path.read_text())
         self.assertEqual(ledger[0]['package'],self.package)
         self.assertEqual(ledger[0]['code'],self.version_code)
+
+    def test_preparation_companion_rejects_changed_bytes_and_invalid_markers(self):
+        self.collect()
+        path=self.apks/'preparation.json'
+        original=path.read_bytes()
+        build=receipts.load(self.apks/'build-receipt.json','build',profile=self.channel)
+        def verify(value=build):
+            return runtime.verify_preparation_companion(path,channel=self.channel,
+                version_name=self.version,version_code=self.version_code,source=self.source,build=value)
+        changed=json.loads(original)
+        changed['baseline_commit']='f'*40
+        path.write_text(json.dumps(changed,sort_keys=True,indent=2)+'\n')
+        with self.assertRaisesRegex(ValueError,'bytes differ'):
+            verify()
+        path.write_bytes(original)
+        for description in (runtime.PREPARATION_EVIDENCE,runtime.PLAN_EVIDENCE):
+            for mutation in ('missing','duplicate','nonpassing'):
+                candidate=json.loads(json.dumps(build))
+                marker=next(e for e in candidate['evidence'] if e['description']==description)
+                if mutation=='missing':candidate['evidence'].remove(marker)
+                elif mutation=='duplicate':candidate['evidence'].append(dict(marker))
+                else:marker['status']='NOT RUN'
+                with self.subTest(description=description,mutation=mutation),self.assertRaises(ValueError):
+                    verify(candidate)
+
+    def test_collector_rejects_wrong_preparation_baseline_before_emitting_build_evidence(self):
+        self.collect(expected=1,baseline=self.commit)
+        self.assertFalse((self.apks/'preparation.json').exists())
+        self.assertFalse((self.apks/'build-receipt.json').exists())
+
+    def test_stable_fixture_collects_and_signs_without_production_preparation(self):
+        plan={k:v for k,v in self.plan.items() if k not in ('channel','tag','title','prerelease')}
+        plan.update(purpose='fixture',package='im.collie.app')
+        path=self.root/'stable-fixture-plan.json';self.write_json(path,plan)
+        args=types.SimpleNamespace(channel='stable',release_plan=path,
+            approved_release_plan_sha256=artifacts.sha256(path),source_receipt=self.source_path,
+            build_inputs=self.build_inputs_path,source_checkout=self.checkout,
+            toolchain_input=self.toolchain_path,dependency_input=self.dependencies_path,
+            native_input=self.native_path,config=self.config_path,test_reports=self.test_reports_path,
+            directory=self.apks,preparation_baseline_commit=None,preparation=None,
+            build_receipt=self.apks/'build-receipt.json',approved_build_receipt_sha256=None)
+        context=runtime.plan(args)
+        unsigned_sha='a'*64
+        source,build=runtime.collect(args,context,unsigned_sha)
+        self.assertFalse((self.apks/'preparation.json').exists())
+        self.assertFalse(any(e['description']==runtime.PREPARATION_EVIDENCE for e in build['evidence']))
+        self.write_json(args.build_receipt,build)
+        args.approved_build_receipt_sha256=receipts.digest(build)
+        manifest={'schema':2,'apks':[{'sha256':unsigned_sha}],
+            'release_plan_sha256':context[1],'source_receipt_sha256':receipts.digest(source),
+            'build_receipt_sha256':receipts.digest(build)}
+        self.assertEqual(runtime.signing(args,context,manifest),(source,build))
+        plan['purpose']='production';self.write_json(path,plan)
+        args.approved_release_plan_sha256=artifacts.sha256(path)
+        production=runtime.plan(args)
+        with self.assertRaisesRegex(ValueError,'operator-pinned preparation baseline'):
+            runtime.collect(args,production,unsigned_sha)
+        for entry in build['evidence']:
+            if entry['description']==runtime.PLAN_EVIDENCE:entry['sha256']=production[1]
+        self.write_json(args.build_receipt,build)
+        args.approved_build_receipt_sha256=receipts.digest(build)
+        with self.assertRaisesRegex(ValueError,'requires the trusted preparation record'):
+            runtime.signing(args,production,manifest)
+
+    def test_approved_preparation_staging_copies_exact_bytes_and_refuses_overwrite(self):
+        self.collect()
+        build=receipts.load(self.apks/'build-receipt.json','build',profile=self.channel)
+        build_sha=receipts.digest(build,profile=self.channel)
+        bundle_root=self.root/'release-output';bundle_root.mkdir()
+        cli=['stage_preparation','--channel',self.channel,'--release-plan',str(self.plan_path),
+            '--approved-release-plan-sha256',self.plan_sha,'--source-receipt',str(self.source_path),
+            '--build-receipt',str(self.apks/'build-receipt.json'),
+            '--approved-build-receipt-sha256',build_sha,'--preparation',str(self.apks/'preparation.json'),
+            '--release-id','123456789','--bundle-root',str(bundle_root)]
+        output=io.StringIO();errors=io.StringIO()
+        with patch('sys.argv',cli),contextlib.redirect_stdout(output),contextlib.redirect_stderr(errors):
+            result=stage_preparation.main()
+        self.assertEqual(result,0,errors.getvalue())
+        staged=bundle_root/'bundles/123456789/preparation.json'
+        digest=output.getvalue().splitlines()[-1]
+        self.assertEqual(staged,bundle_root/'bundles/123456789/preparation.json')
+        self.assertEqual(staged.read_bytes(),(self.apks/'preparation.json').read_bytes())
+        self.assertEqual(hashlib.sha256(staged.read_bytes()).hexdigest(),digest)
+        self.assertEqual(os.stat(staged).st_mode&0o777,0o644)
+        bad=[*cli];bad[bad.index('--approved-build-receipt-sha256')+1]='0'*64
+        bad[bad.index('--release-id')+1]='123456790'
+        errors=io.StringIO()
+        with patch('sys.argv',bad),contextlib.redirect_stdout(io.StringIO()),contextlib.redirect_stderr(errors):
+            self.assertEqual(stage_preparation.main(),1)
+        self.assertIn('independently approved digest',errors.getvalue())
+        errors=io.StringIO()
+        with patch('sys.argv',cli),contextlib.redirect_stdout(io.StringIO()),contextlib.redirect_stderr(errors):
+            self.assertEqual(stage_preparation.main(),1)
+        self.assertIn('new preparation bundle path required',errors.getvalue())
 
     def test_beta_signer_never_falls_back_to_stable_key_variables(self):
         self.collect()

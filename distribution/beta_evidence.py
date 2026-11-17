@@ -124,7 +124,7 @@ def validate_preindex_release(root, release_id, tools, *, api=None, run_api=None
         raise ValueError('Beta feed input must bind the selected schema2 release ID')
     expected_files={f'releases/{release_id}.json',
         f'bundles/{release_id}/source.json',f'bundles/{release_id}/build.json',
-        f'bundles/{release_id}/release.json','manifests/unsigned-manifest.json',
+        f'bundles/{release_id}/release.json',f'bundles/{release_id}/preparation.json','manifests/unsigned-manifest.json',
         'manifests/final-manifest.json','apk/trailblazer-beta.apk'}
     if set(inventory(root))!=expected_files:
         raise ValueError('pre-index release input must contain exactly the selected signed release graph and APK')
@@ -137,6 +137,9 @@ def validate_preindex_release(root, release_id, tools, *, api=None, run_api=None
         raise ValueError('Beta feed input receipt hashes differ from approved release')
     unsigned=strict_json(root/'manifests/unsigned-manifest.json')
     final=strict_json(root/'manifests/final-manifest.json')
+    runtime.verify_preparation_companion(bundle/'preparation.json',channel=CHANNEL.name,
+        version_name=approval['version_name'],version_code=approval['version_code'],
+        source=graph['source'],build=graph['build'])
     entries=artifacts.validate_manifest(unsigned,graph['source']['payload']['published_commit'],
         unsigned.get('run_id'),CHANNEL.apk_certificate,{
             'source_commit':graph['source']['payload']['published_commit'],
@@ -212,7 +215,7 @@ def extract_release_input_archive(archive_path,destination,*,expected_sha256=Non
         with stream:
             with tarfile.open(fileobj=stream,mode='r:',tarinfo=RegularTarInfo) as archive:
                 for member in archive:
-                    if (member.name in seen or not re.fullmatch(r'(?:releases/[1-9][0-9]*\.json|bundles/[1-9][0-9]*/(?:source|build|release)\.json|manifests/(?:unsigned-manifest|final-manifest)\.json|apk/trailblazer-beta\.apk)',member.name)
+                    if (member.name in seen or not re.fullmatch(r'(?:releases/[1-9][0-9]*\.json|bundles/[1-9][0-9]*/(?:source|build|release)\.json|bundles/[1-9][0-9]*/preparation\.json|manifests/(?:unsigned-manifest|final-manifest)\.json|apk/trailblazer-beta\.apk)',member.name)
                             or not member.isfile() or member.mode!=0o644 or member.uid!=0 or member.gid!=0):
                         raise ValueError('release-input archive contains an unsafe, duplicate, or unexpected member')
                     if member.size<0 or member.size>MAX_BUNDLE_BYTES:
@@ -304,7 +307,7 @@ def allowed_path(name):
         return False
     if name in ROOT_FILES or name.startswith('releases/') and name.endswith('.json'):
         return len(parts) == (2 if name.startswith('releases/') else len(parts))
-    if re.fullmatch(r'bundles/[1-9][0-9]*/(?:source|build|release)\.json', name):
+    if re.fullmatch(r'bundles/[1-9][0-9]*/(?:source|build|release|preparation)\.json', name):
         return True
     if name.startswith('candidate/'):
         relative = name[len('candidate/'):]
@@ -365,6 +368,7 @@ def validate_release_set(root, entries, selected_id, tools, *, run_api=None, tag
         f'bundles/{release_id}/{kind}.json'
         for release_id in release_ids for kind in ('source', 'build', 'release')
     }
+    expected_bundle_paths.add(f'bundles/{selected_id}/preparation.json')
     actual_bundle_paths = {name for name in entries if name.startswith('bundles/')}
     if actual_bundle_paths != expected_bundle_paths:
         raise ValueError('receipt bundle membership differs from release approvals')
@@ -375,6 +379,10 @@ def validate_release_set(root, entries, selected_id, tools, *, run_api=None, tag
     final = strict_json(final_path)
     source_payload = selected_graph['source']['payload']
     release_payload = selected_graph['release']['payload']
+    runtime.verify_preparation_companion(
+        root/'bundles'/str(selected_id)/'preparation.json',channel=CHANNEL.name,
+        version_name=selected['version_name'],version_code=selected['version_code'],
+        source=selected_graph['source'],build=selected_graph['build'])
     identities = {key: source_payload['engineering_revision'] if key == 'engineering_revision'
                   else source_payload['published_commit'] if key == 'source_commit'
                   else final.get('workflow_revision')

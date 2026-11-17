@@ -16,6 +16,7 @@ that exact release and checks its ID, tag, title, prerelease state and APK diges
 ```text
 releases/<positive-release-id>.json
 bundles/<release-id>/{source,build,release}.json
+bundles/<selected-release-id>/preparation.json
 repository-receipt.json
 manifests/unsigned-manifest.json
 manifests/final-manifest.json
@@ -33,8 +34,14 @@ unchanged inputs produces the same archive bytes. The complete tar is capped at
 readiness JSON/artifact data, unknown paths, symlinks, hardlinks, special files,
 duplicate tar members and unsafe extraction paths are excluded or rejected.
 
-The verifier checks the existing schema 2 source/build/release receipt graph,
-approved release records and both manifests; the exact TrailBlazer Beta package,
+The verifier checks the existing schema 2 source/build/release receipt graph and
+the selected Beta release's canonical preparation companion. It binds that record
+to the unique BUILD plan and preparation digest markers, source tree/commit,
+channel and version. It has no source Git checkout and validates the approved
+record bindings without rerunning Git preparation checks. The operator must
+review the actual project log and changelog before approving the BUILD receipt.
+It also verifies approved release records and both manifests; the exact
+TrailBlazer Beta package,
 APK, version, tag, title and signer; actual APK bytes and `aapt`/`apksigner`
 metadata; signed v1/v2 F-Droid indexes with the pinned repository certificate,
 address, package, APK parity and absent-or-empty `releaseChannels`; and the
