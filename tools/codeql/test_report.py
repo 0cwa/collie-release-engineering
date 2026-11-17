@@ -109,6 +109,23 @@ class ReportTests(unittest.TestCase):
         self.assertEqual(finding["locations"][0]["uri"], "tools/patches/test_generated_stages.py")
         self.assertEqual(finding["locations"][0]["start_line"], 105)
 
+    def test_duplicate_nested_results_member_cannot_hide_findings(self):
+        path = self.root / "duplicate.sarif"
+        encoded = json.dumps(fixture()).replace('"results": [],',
+            '"results": [' + json.dumps(problem()) + '], "results": [],', 1)
+        path.write_text(encoded, encoding="utf-8")
+        result = report.audit([path], "python")
+        self.assertFalse(result["passed"])
+        self.assertEqual(result["finding_count"], 0)
+        self.assertTrue(any("duplicate object key: results" in error for error in result["errors"]))
+
+    def test_duplicate_review_json_member_is_rejected(self):
+        review = self.root / "reviews.json"
+        review.write_text('{"schema":1,"schema":1,"reviews":[]}', encoding="utf-8")
+        result = {"language": "python", "runs": [], "retired_reviews": [], "errors": []}
+        report.apply_reviews(result, review, self.root)
+        self.assertTrue(any("duplicate object key: schema" in error for error in result["errors"]))
+
     def test_path_problem_in_extension_preserves_source_sink_and_related_location(self):
         data = fixture()
         run = data["runs"][0]

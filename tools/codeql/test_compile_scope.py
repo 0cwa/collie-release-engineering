@@ -35,6 +35,14 @@ class ScopeTests(unittest.TestCase):
             inputs.write_text(''.join(json.dumps(record) + '\n' for record in records + [records[0]]))
             with self.assertRaisesRegex(ValueError, 'duplicate compiler task'):
                 compile_scope.check(root, inputs, extracted)
+            inputs.write_text('{"task":":compileJava","language":"java","files":[],"files":["' +
+                              str(root / 'A.java') + '"]}\n')
+            with self.assertRaisesRegex(ValueError, 'duplicate JSON object key: files'):
+                compile_scope.check(root, inputs, extracted)
+            inputs.write_text('{"task":":compileJava","language":"java","files":[{"name":"' +
+                              str(root / 'A.java') + '","name":"ignored.java"}]}\n')
+            with self.assertRaisesRegex(ValueError, 'duplicate JSON object key: name'):
+                compile_scope.check(root, inputs, extracted)
 
     def test_java_kotlin_sarif_alone_cannot_pass(self):
         with tempfile.TemporaryDirectory() as directory:
