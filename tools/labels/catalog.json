@@ -64,16 +64,6 @@
       "color": "1D76DB",
       "description": "A specific verification step is still needed before this work can be considered complete.",
       "name": "needs: testing"
-    },
-    {
-      "color": "1D76DB",
-      "description": "Assigned to the beta release scope; this records selected scope only, not readiness or validation.",
-      "name": "target: beta"
-    },
-    {
-      "color": "0E8A16",
-      "description": "RC scope selection only; does not indicate readiness or validation.",
-      "name": "target: rc"
     }
   ],
   "areas": {
@@ -121,5 +111,17 @@
         "name": "website"
       }
     ]
-  }
+  },
+  "release_targets": [
+    {
+      "name": "target: beta",
+      "color": "1D76DB",
+      "description": "Assigned to the beta release scope; this records selected scope only, not readiness or validation."
+    },
+    {
+      "name": "target: rc",
+      "color": "0E8A16",
+      "description": "RC scope selection only; does not indicate readiness or validation."
+    }
+  ]
 }
