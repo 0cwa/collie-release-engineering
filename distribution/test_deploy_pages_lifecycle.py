@@ -263,6 +263,48 @@ class DeployPagesLifecycleTest(unittest.TestCase):
             deploy_pages.main()
         self.assertEqual(error.exception.code,2)
 
+    def test_bootstrap_cli_rechecks_its_candidate_after_reconciliation_before_reservation(self):
+        calls=[]
+        class Guard:
+            def __init__(self,*_args,**_kwargs):pass
+            def __bool__(self):return True
+            def reconcile(self):calls.append('reconcile')
+            def acquire(self):calls.append('reserve')
+            def record_pages_id(self,_value):pass
+            def finish(self,*_args):pass
+        class Api(ScriptedApi):
+            def create(self,*args):calls.append('pages-post');return super().create(*args)
+        args=['deploy_pages.py','--artifact-id','1234','--bootstrap-baseline','reviewed.json',
+              '--bootstrap-site','prepared/site']
+        environment={'GITHUB_SHA':'a'*40,'GITHUB_RUN_ID':'12','GITHUB_RUN_ATTEMPT':'1'}
+        for fail in (False,True):
+            calls.clear();api=Api(['succeed'])
+            def check(baseline,site):
+                self.assertEqual((baseline,site),(Path('reviewed.json'),Path('prepared/site')))
+                calls.append('bootstrap-baseline')
+                if fail:raise ValueError('legacy bytes changed after preparation')
+            with mock.patch.object(deploy_pages,'PagesApi',return_value=api), \
+                    mock.patch.object(deploy_pages,'DeploymentGuard',Guard), \
+                    mock.patch.object(sys,'argv',args),mock.patch.dict(os.environ,environment,clear=True), \
+                    mock.patch('bootstrap_inventory.verify_deploy_baseline',side_effect=check), \
+                    contextlib.redirect_stdout(io.StringIO()),contextlib.redirect_stderr(io.StringIO()):
+                self.assertEqual(deploy_pages.main(),1 if fail else 0)
+            expected=['reconcile','bootstrap-baseline']
+            if not fail:expected+=['reserve','pages-post']
+            self.assertEqual(calls,expected)
+            if fail:self.assertEqual(api.created,[])
+
+    def test_bootstrap_options_cannot_be_mixed_with_another_baseline_or_omit_site(self):
+        cases=[['--bootstrap-baseline','reviewed.json'],
+               ['--feed-baseline','normal.json','--bootstrap-site','site'],
+               ['--bootstrap-baseline','reviewed.json','--bootstrap-site','site','--phase','phase1'],
+               ['--bootstrap-baseline','reviewed.json','--bootstrap-site','site','--feed-baseline','normal.json']]
+        for extra in cases:
+            with self.subTest(args=extra),mock.patch.object(sys,'argv',['deploy_pages.py','--artifact-id','1234']+extra), \
+                    contextlib.redirect_stderr(io.StringIO()),self.assertRaises(SystemExit) as error:
+                deploy_pages.main()
+            self.assertEqual(error.exception.code,2)
+
     def test_deploy_order_is_reconcile_exact_baseline_reserve_then_pages_post(self):
         calls=[]
         class Guard:
