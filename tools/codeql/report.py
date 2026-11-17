@@ -27,6 +27,15 @@ class SarifError(ValueError):
     """The input cannot establish a successful, complete CodeQL analysis."""
 
 
+def _unique_json_object(pairs: list[tuple[str, Any]]) -> dict:
+    result = {}
+    for key, value in pairs:
+        if key in result:
+            raise SarifError(f"JSON contains duplicate object key: {key}")
+        result[key] = value
+    return result
+
+
 def objects(value: Any, label: str) -> list[dict]:
     if not isinstance(value, list) or any(not isinstance(item, dict) for item in value):
         raise SarifError(f"{label} must be an array of objects")
@@ -432,7 +441,7 @@ def audit(paths: list[Path], language: str) -> dict:
         report["errors"].append("No SARIF files were found")
     for path in paths:
         try:
-            data = json.loads(path.read_text(encoding="utf-8"))
+            data = json.loads(path.read_text(encoding="utf-8"), object_pairs_hook=_unique_json_object)
             if not isinstance(data, dict) or data.get("version") != "2.1.0":
                 raise SarifError("Expected SARIF version 2.1.0")
             runs = objects(data.get("runs"), "runs")
@@ -538,7 +547,7 @@ def reviewed_source_hashes(review: dict, source_root: Path) -> None:
 def apply_reviews(report: dict, review_file: Path, source_root: Path) -> None:
     """Recognize exact source-bound reviews without editing or dropping SARIF."""
     try:
-        document = json.loads(review_file.read_text(encoding="utf-8"))
+        document = json.loads(review_file.read_text(encoding="utf-8"), object_pairs_hook=_unique_json_object)
         if document.get("schema") != 1:
             raise SarifError("Unsupported reviewed-finding schema")
         reviews = objects(document.get("reviews"), "reviews")

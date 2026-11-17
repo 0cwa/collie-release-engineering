@@ -7,6 +7,15 @@ from pathlib import Path
 import subprocess
 
 
+def _unique_json_object(pairs):
+    result = {}
+    for key, value in pairs:
+        if key in result:
+            raise ValueError(f'duplicate JSON object key: {key}')
+        result[key] = value
+    return result
+
+
 def check(root, inputs, extracted):
     root = root.resolve()
     try:
@@ -16,7 +25,7 @@ def check(root, inputs, extracted):
     expected = {'java': set(), 'kotlin': set()}
     tasks = {'java': {}, 'kotlin': {}}
     for line in inputs.read_text().splitlines():
-        record = json.loads(line)
+        record = json.loads(line, object_pairs_hook=_unique_json_object)
         language = record['language']
         if language not in expected or not isinstance(record['task'], str) or not isinstance(record['files'], list):
             raise ValueError('invalid compiler input record')
