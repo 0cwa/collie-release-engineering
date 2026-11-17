@@ -72,31 +72,16 @@ jobs:
       - name: Capture the verified whole-site baseline before building
         run: python distribution/feed.py capture-deploy-baseline "$RUNNER_TEMP/deploy-baseline.json"
       - name: Stage the selected immutable release and optional regular history
-        id: inputs
         run: |
           python distribution/release_inputs.py releases --latest "$LATEST" --keep "$KEEP_RELEASES" \
             --apks "$RUNNER_TEMP/apks" --receipt "$RUNNER_TEMP/release-inputs.json"
-          echo "source_commit=$(jq -r .source_commit "$RUNNER_TEMP/release-inputs.json")" >> "$GITHUB_OUTPUT"
-          echo "listing_commit=$(jq -r .listing_commit "$RUNNER_TEMP/release-inputs.json")" >> "$GITHUB_OUTPUT"
-      - name: Check out the immutable release listing revision
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          repository: ${{ env.APP_REPO }}
-          ref: ${{ steps.inputs.outputs.listing_commit }}
-          path: app-listing
-          sparse-checkout: fastlane
-          persist-credentials: false
-      - name: Check out native metadata from the exact APK source
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          repository: ${{ env.APP_REPO }}
-          ref: ${{ steps.inputs.outputs.source_commit }}
-          path: app-source
-          sparse-checkout: build-inputs
-          persist-credentials: false
+      - name: Export immutable listing and native metadata through the Git data API
+        run: |
+          python distribution/release_inputs.py metadata --receipt "$RUNNER_TEMP/release-inputs.json" \
+            --output "$RUNNER_TEMP/app-metadata" --evidence "$RUNNER_TEMP/metadata-inputs.json"
       - name: Fetch and verify the release's pinned native inputs
         run: |
-          python distribution/release_inputs.py native --plan app-source/build-inputs/native-artifacts.json \
+          python distribution/release_inputs.py native --plan "$RUNNER_TEMP/app-metadata/build-inputs/native-artifacts.json" \
             --output "$RUNNER_TEMP/native"
       - name: Retain the verified release input identities
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
@@ -104,7 +89,8 @@ jobs:
           name: collie-feed-release-inputs
           path: |
             ${{ runner.temp }}/release-inputs.json
-            app-source/build-inputs/native-artifacts.json
+            ${{ runner.temp }}/metadata-inputs.json
+            ${{ runner.temp }}/app-metadata/build-inputs/native-artifacts.json
           if-no-files-found: error
           retention-days: 90
       - name: Build the site
@@ -116,8 +102,8 @@ jobs:
           base64 -d <<<"$FDROID_KEYSTORE_B64" > "$RUNNER_TEMP/repo.p12"
           bt=$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)
           python distribution/feed.py --site "$RUNNER_TEMP/site" --apks "$RUNNER_TEMP/apks" \
-            --native "$RUNNER_TEMP/native" --native-plan app-source/build-inputs/native-artifacts.json \
-            --latest "$LATEST" --fastlane app-listing/fastlane/metadata/android --keystore "$RUNNER_TEMP/repo.p12" --build-tools "$bt" --preserve-beta
+            --native "$RUNNER_TEMP/native" --native-plan "$RUNNER_TEMP/app-metadata/build-inputs/native-artifacts.json" \
+            --latest "$LATEST" --fastlane "$RUNNER_TEMP/app-metadata/fastlane/metadata/android" --keystore "$RUNNER_TEMP/repo.p12" --build-tools "$bt" --preserve-beta
           rm -f "$RUNNER_TEMP/repo.p12"
           rm -rf "$RUNNER_TEMP/fdroid-work"
       - id: upload
@@ -141,7 +127,7 @@ jobs:
           [ "$served" = "$LATEST" ] || { echo "::error::repo.collie.im still serves $served"; exit 1; }
           curl -fsSI https://repo.collie.im/fdroid/repo/index-v1.jar >/dev/null
           python distribution/feed.py --site "$RUNNER_TEMP/site" --verify-live-site
-          jq -r '.files[] | .path + " " + .sha256' app-source/build-inputs/native-artifacts.json | head -2 | while read -r path sum; do
+          jq -r '.files[] | .path + " " + .sha256' "$RUNNER_TEMP/app-metadata/build-inputs/native-artifacts.json" | head -2 | while read -r path sum; do
             echo "$sum  -" > "$RUNNER_TEMP/expect"
             curl -fsSL "https://repo.collie.im/native-inputs/v1/maven/$path?$(date +%s)" | sha256sum -c "$RUNNER_TEMP/expect"
           done

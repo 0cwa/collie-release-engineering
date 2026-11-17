@@ -144,14 +144,19 @@ class ReleaseInputTests(unittest.TestCase):
         self.assertEqual(inputs.listing_commit(tag, 'b' * 40), 'b' * 40)
         self.assertEqual(inputs.listing_commit(LATEST, commit), commit)
 
-    def test_workflows_keep_listing_and_native_source_pins_separate(self):
+    def test_workflows_bind_data_only_metadata_export_to_the_verified_receipt(self):
         root = Path(__file__).resolve().parents[1]
         for name in ('feeds.yml', 'feeds-dry-run.yml'):
             workflow = (root / '.github/workflows' / name).read_text()
             with self.subTest(workflow=name):
-                self.assertIn('ref: ${{ steps.inputs.outputs.listing_commit }}\n          path: app-listing', workflow)
-                self.assertIn('ref: ${{ steps.inputs.outputs.source_commit }}\n          path: app-source', workflow)
-                self.assertIn('--native-plan app-source/build-inputs/native-artifacts.json', workflow)
+                self.assertEqual(workflow.count('uses: actions/checkout@'), 1)
+                self.assertNotIn('repository: ${{ env.APP_REPO }}', workflow)
+                self.assertNotIn('steps.inputs.outputs.', workflow)
+                self.assertIn('release_inputs.py metadata --receipt "$RUNNER_TEMP/release-inputs.json"', workflow)
+                self.assertIn('--output "$RUNNER_TEMP/app-metadata" --evidence "$RUNNER_TEMP/metadata-inputs.json"', workflow)
+                self.assertIn('--native-plan "$RUNNER_TEMP/app-metadata/build-inputs/native-artifacts.json"', workflow)
+                self.assertIn('--fastlane "$RUNNER_TEMP/app-metadata/fastlane/metadata/android"', workflow)
+                self.assertIn('${{ runner.temp }}/metadata-inputs.json', workflow)
                 self.assertNotIn('/main/build-inputs/', workflow)
                 self.assertNotIn('ref: main', workflow)
 
