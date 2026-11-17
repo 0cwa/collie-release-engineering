@@ -1,0 +1,417 @@
+{
+  "schema": 1,
+  "purpose": "Reviewed desired GitHub ruleset request bodies. This file does not apply rules or authorize release sources.",
+  "runbook": "docs/DUAL-RELEASE-POLICY.md",
+  "repositories": {
+    "0cwa/collieim-android": {
+      "default_branch": "main",
+      "source_refs": [
+        {
+          "ref": "refs/heads/main",
+          "phase": "current"
+        },
+        {
+          "ref": "refs/heads/trailblazer-beta",
+          "phase": "gated-beta-source"
+        },
+        {
+          "ref": "refs/heads/release/stable/*",
+          "phase": "proposal-stable-maintenance"
+        }
+      ],
+      "rulesets": [
+        {
+          "phase": "current",
+          "activation_note": "Desired coverage already split across existing main rulesets; do not replace unrelated rules.",
+          "request": {
+            "name": "Protect app main",
+            "target": "branch",
+            "enforcement": "active",
+            "bypass_actors": [],
+            "conditions": {
+              "ref_name": {
+                "include": [
+                  "refs/heads/main"
+                ],
+                "exclude": []
+              }
+            },
+            "rules": [
+              {
+                "type": "deletion"
+              },
+              {
+                "type": "non_fast_forward"
+              },
+              {
+                "type": "required_signatures"
+              },
+              {
+                "type": "pull_request",
+                "parameters": {
+                  "required_approving_review_count": 0,
+                  "dismiss_stale_reviews_on_push": false,
+                  "require_code_owner_review": false,
+                  "require_last_push_approval": false,
+                  "required_review_thread_resolution": false,
+                  "require_extra_approval_for_unattributed_changes": true,
+                  "allowed_merge_methods": [
+                    "merge",
+                    "squash",
+                    "rebase"
+                  ]
+                }
+              },
+              {
+                "type": "required_status_checks",
+                "parameters": {
+                  "strict_required_status_checks_policy": false,
+                  "do_not_enforce_on_create": false,
+                  "required_status_checks": [
+                    {
+                      "context": "Fast lint"
+                    },
+                    {
+                      "context": "Layer trailers"
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        },
+        {
+          "phase": "gated-beta-source",
+          "activation_note": "Apply only in the separately reviewed Beta source activation. No branch creation or workflow dispatch is authorized here.",
+          "request": {
+            "name": "Protect approved TrailBlazer source",
+            "target": "branch",
+            "enforcement": "active",
+            "bypass_actors": [],
+            "conditions": {
+              "ref_name": {
+                "include": [
+                  "refs/heads/trailblazer-beta"
+                ],
+                "exclude": []
+              }
+            },
+            "rules": [
+              {
+                "type": "deletion"
+              },
+              {
+                "type": "non_fast_forward"
+              },
+              {
+                "type": "required_signatures"
+              },
+              {
+                "type": "pull_request",
+                "parameters": {
+                  "required_approving_review_count": 0,
+                  "dismiss_stale_reviews_on_push": false,
+                  "require_code_owner_review": false,
+                  "require_last_push_approval": false,
+                  "required_review_thread_resolution": false,
+                  "require_extra_approval_for_unattributed_changes": true,
+                  "allowed_merge_methods": [
+                    "merge",
+                    "squash",
+                    "rebase"
+                  ]
+                }
+              },
+              {
+                "type": "required_status_checks",
+                "parameters": {
+                  "strict_required_status_checks_policy": false,
+                  "do_not_enforce_on_create": false,
+                  "required_status_checks": [
+                    {
+                      "context": "Fast lint"
+                    },
+                    {
+                      "context": "Layer trailers"
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        },
+        {
+          "phase": "proposal-stable-maintenance",
+          "activation_note": "Proposed namespace only. Choose an exact source and approve its CI, verifier and routing changes before activating a release branch.",
+          "request": {
+            "name": "Protect approved Stable maintenance sources",
+            "target": "branch",
+            "enforcement": "active",
+            "bypass_actors": [],
+            "conditions": {
+              "ref_name": {
+                "include": [
+                  "refs/heads/release/stable/*"
+                ],
+                "exclude": []
+              }
+            },
+            "rules": [
+              {
+                "type": "deletion"
+              },
+              {
+                "type": "non_fast_forward"
+              },
+              {
+                "type": "required_signatures"
+              },
+              {
+                "type": "pull_request",
+                "parameters": {
+                  "required_approving_review_count": 0,
+                  "dismiss_stale_reviews_on_push": false,
+                  "require_code_owner_review": false,
+                  "require_last_push_approval": false,
+                  "required_review_thread_resolution": false,
+                  "require_extra_approval_for_unattributed_changes": true,
+                  "allowed_merge_methods": [
+                    "merge",
+                    "squash",
+                    "rebase"
+                  ]
+                }
+              },
+              {
+                "type": "required_status_checks",
+                "parameters": {
+                  "strict_required_status_checks_policy": false,
+                  "do_not_enforce_on_create": false,
+                  "required_status_checks": [
+                    {
+                      "context": "Fast lint"
+                    },
+                    {
+                      "context": "Layer trailers"
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        },
+        {
+          "phase": "reviewed-rules-change",
+          "activation_note": "Preserve the existing RepositoryRole 5 creation authority. Split creation from existing ruleset 26505853 only after installing the separate immutable-tag rules.",
+          "request": {
+            "name": "Authorize Collie release tag creation",
+            "target": "tag",
+            "enforcement": "active",
+            "bypass_actors": [
+              {
+                "actor_id": 5,
+                "actor_type": "RepositoryRole",
+                "bypass_mode": "always"
+              }
+            ],
+            "conditions": {
+              "ref_name": {
+                "include": [
+                  "refs/tags/v*",
+                  "refs/tags/trailblazer-v*"
+                ],
+                "exclude": []
+              }
+            },
+            "rules": [
+              {
+                "type": "creation"
+              }
+            ]
+          }
+        },
+        {
+          "phase": "reviewed-rules-change",
+          "activation_note": "Apply after independent review through an authorized administration change. Creation remains in a different ruleset with the existing maintainer bypass.",
+          "request": {
+            "name": "Keep Collie release tags immutable",
+            "target": "tag",
+            "enforcement": "active",
+            "bypass_actors": [],
+            "conditions": {
+              "ref_name": {
+                "include": [
+                  "refs/tags/v*",
+                  "refs/tags/trailblazer-v*"
+                ],
+                "exclude": []
+              }
+            },
+            "rules": [
+              {
+                "type": "update",
+                "parameters": {
+                  "update_allows_fetch_and_merge": false
+                }
+              },
+              {
+                "type": "deletion"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "0cwa/collie-release-engineering": {
+      "default_branch": "main",
+      "source_refs": [
+        {
+          "ref": "refs/heads/main",
+          "phase": "current"
+        }
+      ],
+      "rulesets": [
+        {
+          "phase": "current",
+          "activation_note": "Desired coverage already split across existing main rulesets; keep current publication environments and other rules unchanged.",
+          "request": {
+            "name": "Protect release engineering main",
+            "target": "branch",
+            "enforcement": "active",
+            "bypass_actors": [],
+            "conditions": {
+              "ref_name": {
+                "include": [
+                  "refs/heads/main"
+                ],
+                "exclude": []
+              }
+            },
+            "rules": [
+              {
+                "type": "deletion"
+              },
+              {
+                "type": "non_fast_forward"
+              },
+              {
+                "type": "required_signatures"
+              },
+              {
+                "type": "pull_request",
+                "parameters": {
+                  "required_approving_review_count": 0,
+                  "dismiss_stale_reviews_on_push": false,
+                  "require_code_owner_review": false,
+                  "require_last_push_approval": false,
+                  "required_review_thread_resolution": false,
+                  "require_extra_approval_for_unattributed_changes": true,
+                  "allowed_merge_methods": [
+                    "merge",
+                    "squash",
+                    "rebase"
+                  ]
+                }
+              },
+              {
+                "type": "required_status_checks",
+                "parameters": {
+                  "strict_required_status_checks_policy": false,
+                  "do_not_enforce_on_create": false,
+                  "required_status_checks": [
+                    {
+                      "context": "checks"
+                    },
+                    {
+                      "context": "tooling-tests"
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "0cwa/colliesocket": {
+      "default_branch": "main",
+      "source_refs": [
+        {
+          "ref": "refs/heads/main",
+          "phase": "current"
+        }
+      ],
+      "rulesets": [
+        {
+          "phase": "gated-socket-source",
+          "activation_note": "Proposed controls only. Recheck these exact job names against a successful current PR run before applying. This does not enable the inherited upstream-only release workflow.",
+          "request": {
+            "name": "Protect CollieSocket main",
+            "target": "branch",
+            "enforcement": "active",
+            "bypass_actors": [],
+            "conditions": {
+              "ref_name": {
+                "include": [
+                  "refs/heads/main"
+                ],
+                "exclude": []
+              }
+            },
+            "rules": [
+              {
+                "type": "deletion"
+              },
+              {
+                "type": "non_fast_forward"
+              },
+              {
+                "type": "required_signatures"
+              },
+              {
+                "type": "pull_request",
+                "parameters": {
+                  "required_approving_review_count": 0,
+                  "dismiss_stale_reviews_on_push": false,
+                  "require_code_owner_review": false,
+                  "require_last_push_approval": false,
+                  "required_review_thread_resolution": false,
+                  "require_extra_approval_for_unattributed_changes": true,
+                  "allowed_merge_methods": [
+                    "merge",
+                    "squash",
+                    "rebase"
+                  ]
+                }
+              },
+              {
+                "type": "required_status_checks",
+                "parameters": {
+                  "strict_required_status_checks_policy": false,
+                  "do_not_enforce_on_create": false,
+                  "required_status_checks": [
+                    {
+                      "context": "Contract and independent sender evidence"
+                    },
+                    {
+                      "context": "Server unit and synthetic CLI checks"
+                    },
+                    {
+                      "context": "Fake Signal delivery and release isolation"
+                    },
+                    {
+                      "context": "Local image linux/amd64"
+                    },
+                    {
+                      "context": "Local image linux/arm64"
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        }
+      ]
+    }
+  }
+}

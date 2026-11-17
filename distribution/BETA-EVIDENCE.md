@@ -151,8 +151,11 @@ The output contains exactly the schema and field set consumed by
 uploaded one-file readiness artifact. The emitter neither creates nor approves
 that future artifact.
 
-The command is an implemented helper interface; this engineering repository does
-not contain the Android `beta-readiness.yml` workflow or an evidence-asset uploader.
-Those app-side workflow steps and the separate final Pages promotion bundle remain
-future work. Tests use synthetic APK/index fixtures and mocked GitHub/tool seams;
-they do not prove a real signed Beta release or hosted GitHub run.
+The Android repository contains
+[`beta-readiness.yml`](https://github.com/0cwa/collieim-android/blob/main/.github/workflows/beta-readiness.yml).
+Its presence does not establish an eligible Beta source branch, a preparation-aware
+verifier pin, a successful readiness run, or a published Beta feed. Follow the
+[source activation gates](../docs/DUAL-RELEASE-POLICY.md#source-activation-gates)
+and the separate [Pages promotion procedure](BETA-FEED-OPERATIONS.md) before using
+this evidence for publication. Tests use synthetic APK/index fixtures and mocked
+GitHub/tool seams; they do not prove a real signed Beta release or hosted run.
