@@ -70,7 +70,7 @@ jobs:
           python -m pip install --require-hashes --only-binary=:all: -r distribution/build-requirements.txt
           python -m pip install --require-hashes --no-build-isolation -r distribution/requirements.txt
       - name: Capture the verified whole-site baseline before building
-        run: python distribution/feed.py capture-deploy-baseline "$RUNNER_TEMP/deploy-baseline.json"
+        run: python distribution/feed.py capture-deploy-baseline "$RUNNER_TEMP/deploy-baseline.json" --retain-site "$RUNNER_TEMP/previous-site"
       - name: Stage the selected immutable release and optional regular history
         run: |
           python distribution/release_inputs.py releases --latest "$LATEST" --keep "$KEEP_RELEASES" \
@@ -103,13 +103,18 @@ jobs:
           bt=$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)
           python distribution/feed.py --site "$RUNNER_TEMP/site" --apks "$RUNNER_TEMP/apks" \
             --native "$RUNNER_TEMP/native" --native-plan "$RUNNER_TEMP/app-metadata/build-inputs/native-artifacts.json" \
-            --latest "$LATEST" --fastlane "$RUNNER_TEMP/app-metadata/fastlane/metadata/android" --keystore "$RUNNER_TEMP/repo.p12" --build-tools "$bt" --preserve-beta
+            --latest "$LATEST" --fastlane "$RUNNER_TEMP/app-metadata/fastlane/metadata/android" --keystore "$RUNNER_TEMP/repo.p12" --build-tools "$bt" --preserve-beta \
+            --previous-site "$RUNNER_TEMP/previous-site" --previous-baseline "$RUNNER_TEMP/deploy-baseline.json"
           rm -f "$RUNNER_TEMP/repo.p12"
           rm -rf "$RUNNER_TEMP/fdroid-work"
       - id: upload
         uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
         with:
           path: ${{ runner.temp }}/site
+      # This pinned action leaves the exact uploaded tar at RUNNER_TEMP/artifact.tar.
+      # Include its real headers/padding in the ceiling before any Pages deployment.
+      - name: Enforce the complete Pages archive budget
+        run: python distribution/feed.py verify-uploaded-archive "$RUNNER_TEMP/artifact.tar"
       # The stock deploy-pages action gives up after 10 minutes and cancels the deployment; a site
       # with the native libraries and an APK needs longer, so poll the Pages API for up to 30.
       - name: Deploy and poll until success or the deadline

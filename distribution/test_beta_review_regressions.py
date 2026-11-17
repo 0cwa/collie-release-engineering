@@ -4,6 +4,7 @@ import hashlib
 import io
 import contextlib
 import runpy
+import shutil
 import subprocess
 import tarfile
 from pathlib import Path
@@ -22,6 +23,23 @@ import test_pages as fixtures
 
 
 class BetaReviewRegressions(unittest.TestCase):
+    def test_pages_paths_allow_base64_artwork_but_reject_unnormalized_segments(self):
+        artwork='fdroid/repo/im.collie.app/en-US/phoneScreenshots/abc_def=.png'
+        self.assertEqual(pages.safe_name(artwork),artwork)
+        self.assertTrue(pages.public_site_name(artwork))
+        for name in ('/absolute','a//b','a/./b','a/../b','a/','./a'):
+            with self.subTest(name=name),self.assertRaisesRegex(ValueError,'unsafe public path'):
+                pages.safe_name(name)
+        with tempfile.TemporaryDirectory() as temporary:
+            root=Path(temporary)
+            archive=root/'unreviewed.tar'
+            with tarfile.open(archive,'w') as output:
+                entry=tarfile.TarInfo('previous/fdroid/repo//index-v2.json');entry.size=2
+                output.addfile(entry,io.BytesIO(b'{}'))
+            with self.assertRaisesRegex(ValueError,'unsafe public path'):
+                pages.unpack(archive,root/'unpacked')
+            self.assertFalse((root/'unpacked').exists())
+
     def test_beta_direct_publication_is_rejected_before_any_mutation(self):
         with tempfile.TemporaryDirectory() as tmp:
             origin=Path(tmp)/'origin'
@@ -271,6 +289,138 @@ class BetaReceiptGraphPrepareTest(unittest.TestCase):
                     pages.main()
                 return json.loads(((output or self.output)/'plan.json').read_text())
             return pages.prepare(bundle or self.bundle,output or self.output,'c'*40)
+
+    def seal_stable_previous(self):
+        old=self.bundle/'previous'
+        (old/'site-manifest.json').unlink(missing_ok=True)
+        b.atomic_json(old/'site-manifest.json',{'schema':1,'kind':'collie-pages-public-inventory',
+            'origin':pages.ORIGIN,'files':pages.inventory(old)})
+        self.approval.update(previous_site_sha256=pages.digest(pages.inventory(old)),
+            previous_manifest_sha256=b.sha(old/'site-manifest.json'),
+            landing_sha256=pages.digest(pages.inventory(self.bundle/'landing')))
+        (self.bundle/'approval.json').write_text(json.dumps(self.approval))
+
+    def realistic_stable_previous(self):
+        """Actual public path shapes with tiny synthetic native/index/APK bytes."""
+        old=self.bundle/'previous'
+        b.landing(old,channels.STABLE.repository_url,channels.STABLE.repository_certificate,
+            channels.STABLE.apk_certificate,'https://github.com/0cwa/collieim-android/releases/download/v8.35.1/collie.apk',state='active')
+        # The approved fixture landing retains the active Stable entry point and
+        # carries the Beta certificate binding required for this publication.
+        for name in {'index.html','add-repository.png'}|pages.site_page.STATIC:
+            destination=self.bundle/'landing'/name
+            destination.parent.mkdir(parents=True,exist_ok=True)
+            shutil.copyfile(old/name,destination)
+        landing=self.bundle/'landing/index.html'
+        landing.write_text(landing.read_text()+f'\n<meta name="fixture-beta-certificate" content="{self.profile.apk_certificate.upper()}">\n')
+        files={'CNAME':b'repo.collie.im\n','.nojekyll':b'',
+            'feed-state.json':json.dumps({'schema':1,'latest':'v8.35.1','apks':['im.collie.app_90.apk'],
+                'retained_apks':['im.collie.app_89.apk'],'native_files':7}).encode(),
+            'fdroid/repo/entry.jar':b'previous Stable entry',
+            'fdroid/repo/index-v1.jar':b'previous Stable v1',
+            'fdroid/repo/index-v2.json':b'{"previous":"Stable index"}',
+            'fdroid/repo/im.collie.app_90.apk':b'indexed Stable APK',
+            'fdroid/repo/im.collie.app_89.apk':b'cached-index Stable APK',
+            'fdroid/repo/im.collie.app/en-US/phoneScreenshots/abc_def=.png':b'previous listing artwork'}
+        policy=b.load(pages.NATIVE_POLICY)
+        for name,entry in policy['files'].items():
+            payload=('native fixture '+name).encode();files[name]=payload
+            entry.update(sha256=hashlib.sha256(payload).hexdigest(),bytes=len(payload))
+        self.fixed_native=policy['files']
+        self.native_policy=self.root/'native-fixture-policy.json'
+        b.atomic_json(self.native_policy,policy)
+        policy_patch=patch.object(pages,'NATIVE_POLICY',self.native_policy)
+        policy_patch.start();self.addCleanup(policy_patch.stop)
+        self.extra_native='native-inputs/v1/maven/im/collie/native/libsignal-client/0.107.0-collie.1/libsignal-client-0.107.0-collie.1.jar'
+        files[self.extra_native]=b'later approved immutable native version'
+        for name,payload in files.items():
+            target=old/name;target.parent.mkdir(parents=True,exist_ok=True);target.write_bytes(payload)
+        self.seal_stable_previous()
+        return files
+
+    def test_beta_two_phase_publication_preserves_realistic_stable_site_and_native_history(self):
+        files=self.realistic_stable_previous()
+        plan=self.prepare()
+        self.assertIsNone(plan['native_manifest_sha256'])
+        for phase in ('phase1','phase2'):
+            site=self.output/phase/'site'
+            for name,payload in files.items():
+                with self.subTest(phase=phase,name=name):
+                    self.assertEqual((site/name).read_bytes(),payload)
+            self.assertTrue(pages.site_page.has_add_link((site/'index.html').read_text(),pages.ORIGIN))
+            self.assertEqual(sum(name.startswith('native-inputs/') for name in plan['manifests'][phase]),7)
+        self.assertFalse((self.output/'phase1/site/fdroid/beta/repo/entry.jar').exists())
+        self.assertTrue((self.output/'phase2/site/fdroid/beta/repo/entry.jar').is_file())
+        self.assertEqual(plan['previous_site_sha256'],self.approval['previous_site_sha256'])
+        self.assertEqual(plan['previous_manifest_sha256'],self.approval['previous_manifest_sha256'])
+
+    def test_even_reviewed_native_history_cannot_omit_or_change_fixed_native_pins(self):
+        self.realistic_stable_previous()
+        path=self.bundle/'previous'/next(iter(self.fixed_native))
+        original=path.read_bytes()
+        for change in ('missing','changed'):
+            with self.subTest(change=change):
+                if change=='missing':path.unlink()
+                else:path.write_bytes(b'changed fixed native artifact')
+                self.seal_stable_previous()
+                with self.assertRaisesRegex(ValueError,'native v1 must remain complete'):
+                    self.prepare()
+                self.assertFalse(self.output.exists())
+                path.write_bytes(original)
+
+    def test_reviewed_previous_native_extensions_must_be_immutable_versioned_coordinates(self):
+        self.realistic_stable_previous()
+        for name in ('native-inputs/v1/maven/im/collie/native/libsignal-client/maven-metadata.xml',
+                     'native-inputs/v1/maven/im/collie/native/libsignal-client/1-SNAPSHOT/libsignal-client-1-SNAPSHOT.jar',
+                     'native-inputs/current/maven/im/collie/native/libsignal-client/1/libsignal-client-1.jar'):
+            with self.subTest(name=name):
+                path=self.bundle/'previous'/name;path.parent.mkdir(parents=True,exist_ok=True);path.write_bytes(b'unsupported')
+                self.seal_stable_previous()
+                with self.assertRaisesRegex(ValueError,'native v1 must remain complete'):
+                    self.prepare()
+                self.assertFalse(self.output.exists());path.unlink()
+
+    def test_previous_cname_cannot_redirect_pages_to_another_hostname(self):
+        self.realistic_stable_previous()
+        path=self.bundle/'previous/CNAME'
+        for value in (b'evil.collie.im\n',b'repo.collie.im\nevil.example',b' repo.collie.im',b'repo.collie.im\r\n'):
+            with self.subTest(value=value):
+                path.write_bytes(value);self.seal_stable_previous()
+                with self.assertRaisesRegex(ValueError,'CNAME must name exactly repo.collie.im'):
+                    self.prepare()
+                self.assertFalse(self.output.exists())
+        path.write_bytes(b'repo.collie.im');self.seal_stable_previous()
+        self.prepare()
+        self.assertEqual((self.output/'phase2/site/CNAME').read_bytes(),b'repo.collie.im')
+
+    def test_retained_native_extension_cannot_bypass_previous_manifest_or_site_approval(self):
+        self.realistic_stable_previous()
+        old=self.bundle/'previous'
+        path=old/self.extra_native;path.write_bytes(b'changed beyond approved previous inventory')
+        with self.assertRaisesRegex(ValueError,'previous manifest does not cover full retained site'):
+            self.prepare()
+        prior=b.load(old/'site-manifest.json')
+        prior['files'][self.extra_native]={'sha256':b.sha(path),'bytes':path.stat().st_size}
+        b.atomic_json(old/'site-manifest.json',prior)
+        with self.assertRaisesRegex(ValueError,'previous manifest does not cover full retained site'):
+            self.prepare()
+        self.approval['previous_manifest_sha256']=b.sha(old/'site-manifest.json')
+        (self.bundle/'approval.json').write_text(json.dumps(self.approval))
+        with self.assertRaisesRegex(ValueError,'previous site/landing changed'):
+            self.prepare()
+        self.assertFalse(self.output.exists())
+
+    def test_native_retention_policy_does_not_authorize_new_supplied_native_versions(self):
+        self.realistic_stable_previous()
+        for name in {*self.fixed_native,self.extra_native}:
+            destination=self.bundle/'native'/name;destination.parent.mkdir(parents=True,exist_ok=True)
+            shutil.copyfile(self.bundle/'previous'/name,destination)
+        shutil.copyfile(self.native_policy,self.bundle/'native-manifest.json')
+        self.approval['native_manifest_sha256']=b.sha(self.bundle/'native-manifest.json')
+        (self.bundle/'approval.json').write_text(json.dumps(self.approval))
+        with self.assertRaisesRegex(ValueError,'native inputs differ from approved six files'):
+            self.prepare()
+        self.assertFalse(self.output.exists())
 
     def test_beta_pages_prepare_verifies_full_graph_and_real_index_parsers(self):
         stable=self.bundle/'previous/fdroid/repo';stable.mkdir(parents=True)

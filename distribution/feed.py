@@ -17,6 +17,7 @@ HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 import binary_repo, site_page  # noqa: E402
 import channel_profile as channels  # noqa: E402
+import retained_artifacts  # noqa: E402
 
 ORIGIN = 'https://repo.collie.im/'
 REPO_URL = ORIGIN + 'fdroid/repo'
@@ -465,7 +466,7 @@ def capture_live_site(destination, *, fetch=None):
     total=0
     for name,record in sorted(files.items()):
         safe=Path(name)
-        if safe.is_absolute() or '..' in safe.parts or not re.fullmatch(r'[A-Za-z0-9_./-]+',name):
+        if safe.is_absolute() or '..' in safe.parts or not re.fullmatch(r'[A-Za-z0-9_./=-]+',name):
             raise ValueError('unsafe served inventory path')
         total+=record['bytes']
         if total>SITE_LIMIT:raise ValueError('served inventory exceeds site byte limit')
@@ -507,12 +508,18 @@ def verify_live_site(expected_site, *, fetch=None):
         return live
 
 
-def capture_deploy_baseline(destination, *, fetch=None):
+def capture_deploy_baseline(destination, *, fetch=None, retained_site=None):
     """Capture a verified whole-site inventory before a scheduled Stable build."""
     destination=Path(destination)
     if destination.exists():raise ValueError('new deploy baseline path required')
-    with tempfile.TemporaryDirectory(prefix='collie-feed-baseline-') as temporary:
-        captured=capture_live_site(Path(temporary)/'site',fetch=fetch)
+    if retained_site is not None:
+        retained_site=Path(retained_site)
+        if destination.resolve().is_relative_to(retained_site.resolve()):
+            raise ValueError('deploy baseline must be outside the retained site snapshot')
+        captured=capture_live_site(retained_site,fetch=fetch)
+    else:
+        with tempfile.TemporaryDirectory(prefix='collie-feed-baseline-') as temporary:
+            captured=capture_live_site(Path(temporary)/'site',fetch=fetch)
     value={'schema':1,'kind':'collie-pages-deploy-baseline','origin':SITE_ORIGIN,
            'inventory_sha256':captured['inventory_sha256']}
     destination.parent.mkdir(parents=True,exist_ok=True)
@@ -600,9 +607,18 @@ def keystore_fingerprint(keystore):
 
 
 def main():
+    if len(sys.argv)>1 and sys.argv[1]=='verify-uploaded-archive':
+        parser=argparse.ArgumentParser();parser.add_argument('archive',type=Path)
+        args=parser.parse_args(sys.argv[2:])
+        size=retained_artifacts.verify_pages_archive(args.archive,byte_limit=SITE_LIMIT)
+        print(json.dumps({'pages_archive_bytes':size,'maximum_bytes':SITE_LIMIT}))
+        return
     if len(sys.argv)>1 and sys.argv[1]=='capture-deploy-baseline':
-        parser=argparse.ArgumentParser();parser.add_argument('output',type=Path);args=parser.parse_args(sys.argv[2:])
-        capture_deploy_baseline(args.output)
+        parser=argparse.ArgumentParser();parser.add_argument('output',type=Path)
+        parser.add_argument('--retain-site',type=Path,
+                            help='keep the same verified snapshot for immutable artifact retention')
+        args=parser.parse_args(sys.argv[2:])
+        capture_deploy_baseline(args.output,retained_site=args.retain_site)
         print('captured verified canonical Stable/Beta site baseline')
         return
     p = argparse.ArgumentParser()
@@ -617,6 +633,10 @@ def main():
                    help='render an unpublished Stable preview with a disposable repository key')
     p.add_argument('--preserve-beta',action='store_true',
                    help='retain the current verified Beta route in a Stable whole-site build')
+    p.add_argument('--previous-site',type=Path,
+                   help='retain published immutable URLs from this frozen pre-build site snapshot')
+    p.add_argument('--previous-baseline',type=Path,
+                   help='the deploy baseline captured together with --previous-site')
     p.add_argument('--verify-live-site',action='store_true',
                    help='verify the uploaded candidate inventory and both signed routes against Pages')
     p.add_argument('--release-input-archive',type=Path,
@@ -637,6 +657,10 @@ def main():
         print('deployed site inventory and signed Stable/Beta indexes match candidate')
         return
     profile=channels.STABLE if a.channel=='stable' else channels.BETA
+    if bool(a.previous_site)!=bool(a.previous_baseline):
+        p.error('--previous-site and --previous-baseline are required together')
+    if a.previous_site and (profile.name!='stable' or a.preview):
+        raise ValueError('immutable artifact retention is only for a production Stable site build')
     if a.preview and profile.name!='stable':
         raise ValueError('Preview generation supports Stable only')
     if profile.name=='trailblazer-beta':
@@ -663,6 +687,11 @@ def main():
         raise SystemExit('site and work directories must not exist yet')
     if not os.environ.get('FDROID_KEYSTORE_PASS'):
         raise SystemExit('FDROID_KEYSTORE_PASS is not set')
+    previous=None
+    if a.previous_site:
+        previous=retained_artifacts.load_previous_site(a.previous_site,a.previous_baseline,
+            parse_inventory=_inventory_files,byte_limit=SITE_LIMIT)
+        previous.retained_files(a.preserve_beta)
     build_tools = Path(a.build_tools)
     site.mkdir(parents=True)
     native_count = copy_native(a.native, a.native_plan, site) if a.native and a.native_plan else 0
@@ -673,13 +702,16 @@ def main():
     if a.preserve_beta:
         if profile.name!='stable' or a.preview:
             raise ValueError('Beta retention is only for a production Stable site build')
-        retained_beta=capture_beta_route(work.parent/'verified-beta')
-        for rel in retained_beta['files']:
-            source=work.parent/'verified-beta'/'fdroid/beta/repo'/rel
-            dest=site/'fdroid/beta/repo'/rel
-            dest.parent.mkdir(parents=True,exist_ok=True)
-            shutil.copyfile(source,dest)
-        verify_beta_snapshot_is_current(retained_beta)
+        if previous is not None:
+            retained_beta=previous.beta
+        else:
+            retained_beta=capture_beta_route(work.parent/'verified-beta')
+            for rel in retained_beta['files']:
+                source=work.parent/'verified-beta'/'fdroid/beta/repo'/rel
+                dest=site/'fdroid/beta/repo'/rel
+                dest.parent.mkdir(parents=True,exist_ok=True)
+                shutil.copyfile(source,dest)
+            verify_beta_snapshot_is_current(retained_beta)
     fingerprint = keystore_fingerprint(a.keystore)
     if not a.preview and (profile.repository_certificate is None or fingerprint != profile.repository_certificate):
         raise ValueError(f'{profile.name} repository signer pin is unset or differs')
@@ -688,9 +720,18 @@ def main():
                          f'{APP_RELEASES}{a.latest}/collie.apk', state='preview' if a.preview else 'active')
     (site / 'CNAME').write_text('repo.collie.im\n')
     repo_path='fdroid/repo' if profile.name=='stable' else 'fdroid/beta/repo'
+    if previous is not None:
+        native_paths={p.relative_to(site).as_posix() for p in (site/'native-inputs').rglob('*') if p.is_file()}
+        native_paths.update(name for name in previous.files if name.startswith('native-inputs/'))
+        native_count=len(native_paths)
     state = {'schema': 1, 'latest': a.latest, 'repository_fingerprint': fingerprint,
              'apks': sorted(p.name for p in (site / repo_path).glob('*.apk')),
              'native_files': native_count}
+    if previous is not None:
+        # The selected APKs alone enter the new signed index. Older URLs remain
+        # downloadable for clients using a previously cached signed index.
+        state['retained_apks']=sorted(Path(name).name for name in previous.retained_files(a.preserve_beta)
+            if name.startswith('fdroid/repo/') and name.endswith('.apk') and Path(name).name not in state['apks'])
     if profile.name!='stable':state['channel']=profile.name
     if a.preview:state['preview']=True
     (site / 'feed-state.json').write_text(json.dumps(state, indent=1) + '\n')
@@ -698,13 +739,19 @@ def main():
         state['beta']={'version_name':retained_beta['release']['version_name'],
                        'version_code':retained_beta['release']['version_code']}
         (site/'feed-state.json').write_text(json.dumps(state,indent=1)+'\n')
+    if previous is not None:
+        retained_artifacts.retain(site,previous,preserve_beta=a.preserve_beta,byte_limit=SITE_LIMIT)
+        # This compares the live manifest with the original frozen capture. It
+        # never substitutes a newly captured site or a newer Beta generation.
+        verify_beta_snapshot_is_current(previous.beta)
     public_files={p.relative_to(site).as_posix():{'sha256':sha256(p),'bytes':p.stat().st_size}
                   for p in sorted(site.rglob('*')) if p.is_file() and p.name!=SITE_INVENTORY}
     (site/SITE_INVENTORY).write_text(json.dumps({'schema':1,'kind':'collie-pages-public-inventory',
         'origin':SITE_ORIGIN,'files':public_files},sort_keys=True,separators=(',',':'))+'\n')
     total = sum(f.stat().st_size for f in site.rglob('*') if f.is_file())
     if total > SITE_LIMIT:
-        raise SystemExit(f'site is {total} bytes, over the {SITE_LIMIT} byte limit; keep fewer releases')
+        raise SystemExit(f'site is {total} bytes, over the {SITE_LIMIT} byte limit; '
+                         'a separately reviewed retirement or storage migration is required')
     print(json.dumps({**state, 'site_bytes': total}, indent=1))
 
 
