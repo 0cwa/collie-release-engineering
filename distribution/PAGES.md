@@ -1,5 +1,9 @@
 # GitHub Pages binary-feed rollout — prepared, not activated
 
+For an existing production site without `site-manifest.json`, use the explicit
+[inventory-only bootstrap](INVENTORY-BOOTSTRAP.md). Normal Stable publication,
+including `force=true`, continues to require a verified existing inventory.
+
 GitHub Pages in collie-release-engineering is the selected host for
 https://repo.collie.im/ and /fdroid/repo/. Keep one canonical unchanged signed APK
 per selected version. The old R2 feed planner is inactive/historical. The existing six-file native-v1 generation shares this Pages budget by explicit

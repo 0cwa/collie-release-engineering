@@ -51,6 +51,30 @@ class InputDownloadTest(unittest.TestCase):
             for value in ('latest','1;echo-token','-1','1\n2'):
                 with self.assertRaises(ValueError):d.download(value,self.expected,self.output)
             fetch.assert_not_called()
+    def test_legacy_inventory_has_its_own_exact_asset_name_and_small_budget(self):
+        def transport(name,size=None):
+            metadata={'id':1,'name':name,'size':len(self.body) if size is None else size,
+                'browser_download_url':'https://github.com/0cwa/collie-release-engineering/releases/download/review/'+name}
+            opener=unittest.mock.Mock()
+            opener.open.return_value=self.Response(self.body,'https://release-assets.githubusercontent.com/asset')
+            return (patch('urllib.request.urlopen',return_value=self.Response(json.dumps(metadata).encode(),
+                'https://api.github.com/repos/0cwa/collie-release-engineering/releases/assets/1')),
+                patch('urllib.request.build_opener',return_value=opener),opener)
+        name='collie-pages-legacy-inventory.json'
+        first,second,opener=transport(name)
+        with first,second:
+            d.download('1',self.expected,self.output,kind='legacy-inventory')
+        self.assertEqual(self.output.read_bytes(),self.body)
+        self.output.unlink()
+        for actual,kind in ((name,'pages-input'),('collie-pages-input.tar','legacy-inventory')):
+            first,second,opener=transport(actual)
+            with first,second,self.assertRaisesRegex(ValueError,'fixed archive name'):
+                d.download('1',self.expected,self.output,kind=kind)
+            opener.open.assert_not_called()
+        first,second,opener=transport(name,8*1024*1024+1)
+        with first,second,self.assertRaisesRegex(ValueError,'budget'):
+            d.download('1',self.expected,self.output,kind='legacy-inventory')
+        opener.open.assert_not_called()
     def test_preexisting_partial_preserved_without_network(self):
         temporary=self.output.with_suffix('.tar.partial');temporary.write_bytes(b'preexisting data')
         with patch('urllib.request.urlopen') as fetch:
