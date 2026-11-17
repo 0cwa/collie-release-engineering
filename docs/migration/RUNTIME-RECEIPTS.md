@@ -42,3 +42,23 @@ The optional distribution checkout runs actual ingestion against the exact runti
 This uses a tiny resource-only fixture APK, synthetic Git source, disposable key, and typed fixture reports. It is **not** compilation of Collie G, production signing, account/device upgrade acceptance, public native availability, or independent native reproduction. No production API publication is exercised. Delete its generated APK, key and build directory after review, retaining only its text summary.
 
 The portable receipt/runtime/schema implementations are kept byte-for-byte and mode-for-mode identical in the application bridge and engineering. `pins.py` is repository layout data: the application catalog registers pins in its active historical workflows, while engineering archives those workflows as inert fixtures. Review/test each catalog against its actual files; do not overwrite the application registry with assumptions from the engineering layout.
+
+## Release-preparation verification (operator-side first slice)
+
+`tools/patches/preparation_verifier.py` independently reads the approved plan and complete local Git objects, then checks the prepared commit against a baseline commit SHA that the operator selected before making preparation edits. Capture that baseline before preparation; passing a baseline SHA after the fact proves only which commit was checked, not when it was selected. The verifier records the baseline commit's Git committer timestamp, which is not independent wall-clock evidence.
+
+Example from the engineering repository root (use a new output path outside the source checkout):
+
+```sh
+python3 tools/patches/preparation_verifier.py \
+  --checkout /path/to/prepared-app-checkout \
+  --baseline-commit <full-40-character-commit-sha-captured-before-preparation> \
+  --release-plan /path/to/approved-release-plan.json \
+  --approved-release-plan-sha256 <independently-approved-raw-plan-sha256> \
+  --channel trailblazer-beta \
+  --output /path/outside/source/preparation.json
+```
+
+Select `stable` or `trailblazer-beta` to match the approved plan. The verifier requires the final commit to equal the plan's source commit, the plan's version name/code, the four canonical release properties, the exact versioned project log and channel changelog additions, and only tracked decimal-numbered unreleased project-log deletions. It checks the raw Git tree delta, checkout/index/untracked state, ordinary file modes, project-log structure, and the changelog's ASCII/500-byte limit. The output is canonical JSON and includes the plan digest, baseline/final Git identities, and complete old/new blob, mode, and type records for each changed path.
+
+This is machine verification only. It does not approve release content, establish that the baseline was recorded before edits, authenticate its own code identity to another machine, or complete receipt/archive/readiness integration. The operator must inspect the actual project log and changelog bytes using trusted means before approving the existing source-receipt digest. The app-produced preparation record is not itself trusted verifier output or an approval. Beta archive/receipt wiring remains a later slice; readiness fields are unchanged.
