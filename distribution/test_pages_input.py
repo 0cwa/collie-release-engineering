@@ -23,7 +23,11 @@ class InputDownloadTest(unittest.TestCase):
             if metadata_hook:metadata_hook()
             return metadata
         opener=unittest.mock.Mock();opener.open.return_value=binary
-        return patch('urllib.request.urlopen',side_effect=read_metadata),patch('urllib.request.build_opener',return_value=opener),opener
+        metadata_opener=unittest.mock.Mock();metadata_opener.open.side_effect=read_metadata
+        def make_opener(handler):
+            return metadata_opener if isinstance(handler,d.NoMetadataRedirect) else opener
+        return (patch('urllib.request.urlopen',side_effect=read_metadata),
+                patch('urllib.request.build_opener',side_effect=make_opener,return_value=opener),opener)
     def test_explicit_asset_hash_and_token_is_stripped_on_redirect(self):
         first,second,opener=self.transport()
         with patch.dict(os.environ,{'GITHUB_TOKEN':'synthetic-test-token'}),first,second as make_opener:
@@ -47,20 +51,48 @@ class InputDownloadTest(unittest.TestCase):
         with first,second:
             with self.assertRaisesRegex(ValueError,'repository'):d.download('1',self.expected,self.output)
     def test_asset_id_rejects_latest_and_injected_shell_text(self):
-        with patch('urllib.request.urlopen') as fetch:
+        with patch('urllib.request.build_opener') as fetch:
             for value in ('latest','1;echo-token','-1','1\n2'):
                 with self.assertRaises(ValueError):d.download(value,self.expected,self.output)
             fetch.assert_not_called()
+    def test_legacy_inventory_has_its_own_exact_asset_name_and_small_budget(self):
+        def transport(name,size=None):
+            metadata={'id':1,'name':name,'size':len(self.body) if size is None else size,
+                'browser_download_url':'https://github.com/0cwa/collie-release-engineering/releases/download/review/'+name}
+            opener=unittest.mock.Mock()
+            opener.open.return_value=self.Response(self.body,'https://release-assets.githubusercontent.com/asset')
+            response=self.Response(json.dumps(metadata).encode(),
+                'https://api.github.com/repos/0cwa/collie-release-engineering/releases/assets/1')
+            metadata_opener=unittest.mock.Mock();metadata_opener.open.return_value=response
+            def make_opener(handler):
+                return metadata_opener if isinstance(handler,d.NoMetadataRedirect) else opener
+            return (patch('urllib.request.urlopen',return_value=response),
+                patch('urllib.request.build_opener',side_effect=make_opener,return_value=opener),opener)
+        name='collie-pages-legacy-inventory.json'
+        first,second,opener=transport(name)
+        with first,second:
+            d.download('1',self.expected,self.output,kind='legacy-inventory')
+        self.assertEqual(self.output.read_bytes(),self.body)
+        self.output.unlink()
+        for actual,kind in ((name,'pages-input'),('collie-pages-input.tar','legacy-inventory')):
+            first,second,opener=transport(actual)
+            with first,second,self.assertRaisesRegex(ValueError,'fixed archive name'):
+                d.download('1',self.expected,self.output,kind=kind)
+            opener.open.assert_not_called()
+        first,second,opener=transport(name,8*1024*1024+1)
+        with first,second,self.assertRaisesRegex(ValueError,'budget'):
+            d.download('1',self.expected,self.output,kind='legacy-inventory')
+        opener.open.assert_not_called()
     def test_preexisting_partial_preserved_without_network(self):
         temporary=self.output.with_suffix('.tar.partial');temporary.write_bytes(b'preexisting data')
-        with patch('urllib.request.urlopen') as fetch:
+        with patch('urllib.request.build_opener') as fetch:
             with self.assertRaisesRegex(ValueError,'fresh input'):d.download('1',self.expected,self.output)
             fetch.assert_not_called()
         self.assertEqual(temporary.read_bytes(),b'preexisting data')
     def test_dangling_output_and_partial_links_preserved_without_network(self):
         for path in (self.output,self.output.with_suffix('.tar.partial')):
             path.symlink_to(self.output.parent/'absent-target')
-            with patch('urllib.request.urlopen') as fetch:
+            with patch('urllib.request.build_opener') as fetch:
                 with self.assertRaisesRegex(ValueError,'fresh input'):d.download('1',self.expected,self.output)
                 fetch.assert_not_called()
             self.assertTrue(path.is_symlink());path.unlink()
@@ -79,3 +111,34 @@ class InputDownloadTest(unittest.TestCase):
                     'https://github.com/other/repo/releases/download/x/y'):
             with self.subTest(url=url),self.assertRaises(ValueError):
                 handler.redirect_request(request,None,302,'Found',{},url)
+
+    def test_metadata_redirect_never_forwards_authorization(self):
+        from email.message import Message
+        from urllib.error import HTTPError
+        from urllib.response import addinfourl
+        real_build_opener=d.urllib.request.build_opener
+        for status in (301,302,303,307,308):
+            seen=[]
+            class Transport(d.urllib.request.HTTPSHandler):
+                def https_open(self,request):
+                    seen.append((request.full_url,request.get_header('Authorization')))
+                    if len(seen)>1:
+                        raise AssertionError('metadata redirect reached another host')
+                    headers=Message();headers['Location']='https://other.example.invalid/asset'
+                    response=addinfourl(io.BytesIO(b''),headers,request.full_url,status)
+                    response.msg='Found'
+                    return response
+            default_opener=real_build_opener(Transport())
+            def make_opener(*handlers):
+                return real_build_opener(*handlers,Transport())
+            with (self.subTest(status=status),
+                  patch.dict(os.environ,{'GITHUB_TOKEN':'synthetic-test-token'}),
+                  patch('urllib.request.urlopen',side_effect=default_opener.open),
+                  patch('urllib.request.build_opener',side_effect=make_opener),
+                  self.assertRaises(HTTPError) as rejected):
+                d.download('1',self.expected,self.output,kind='legacy-inventory')
+            rejected.exception.close()
+            self.assertEqual(seen,[('https://api.github.com/repos/0cwa/collie-release-engineering/releases/assets/1',
+                                    'Bearer synthetic-test-token')])
+            self.assertFalse(self.output.exists())
+            self.assertFalse(self.output.with_suffix('.tar.partial').exists())

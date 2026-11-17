@@ -1,5 +1,9 @@
 # GitHub Pages distribution and two-phase promotion
 
+For an existing production site without `site-manifest.json`, use the explicit
+[inventory-only bootstrap](INVENTORY-BOOTSTRAP.md). Normal Stable publication,
+including `force=true`, continues to require a verified existing inventory.
+
 The Stable feed is live at [repo.collie.im](https://repo.collie.im/) and
 [`/fdroid/repo/`](https://repo.collie.im/fdroid/repo/), maintained by the scheduled
 [`feeds.yml`](../.github/workflows/feeds.yml) workflow in release engineering.

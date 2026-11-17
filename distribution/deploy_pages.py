@@ -525,11 +525,21 @@ def main() -> int:
     baseline = parser.add_mutually_exclusive_group(required=True)
     baseline.add_argument("--feed-baseline", type=Path)
     baseline.add_argument("--pages-plan", type=Path)
+    baseline.add_argument("--bootstrap-baseline", type=Path)
+    parser.add_argument("--bootstrap-site", type=Path)
     parser.add_argument("--pages-journal", type=Path)
     parser.add_argument("--phase", choices=("phase1", "phase2"))
     parser.add_argument("--channel", choices=("stable", "trailblazer-beta"))
     args = parser.parse_args()
-    if args.feed_baseline is not None:
+    if args.bootstrap_baseline is not None:
+        if not args.bootstrap_site or args.pages_journal or args.phase or args.channel:
+            parser.error("bootstrap baseline requires --bootstrap-site and no Pages plan options")
+        def baseline_check():
+            import bootstrap_inventory
+            bootstrap_inventory.verify_deploy_baseline(args.bootstrap_baseline, args.bootstrap_site)
+    elif args.bootstrap_site is not None:
+        parser.error("--bootstrap-site requires --bootstrap-baseline")
+    elif args.feed_baseline is not None:
         if args.pages_journal or args.phase or args.channel:
             parser.error("feed baseline cannot be combined with Pages plan options")
         def baseline_check():
