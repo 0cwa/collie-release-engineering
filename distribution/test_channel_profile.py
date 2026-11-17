@@ -157,6 +157,34 @@ class ChannelProfileTest(unittest.TestCase):
             self.assertEqual(feed.channel_repository_config((feed.HERE/'config.public.yml').read_text(),channels.STABLE),
                              (feed.HERE/'config.public.yml').read_text())
 
+    def test_stable_feed_rejects_tag_mismatch_and_duplicate_version_codes_before_signing(self):
+        for identities in ([(101,'8.35.9'),(102,'8.35.2')], [(101,'8.35.1'),(101,'8.35.2')]):
+            with self.subTest(identities=identities), tempfile.TemporaryDirectory() as tmp:
+                root=Path(tmp);apks=root/'apks';apks.mkdir()
+                (apks/'v8.35.1.apk').write_bytes(b'first')
+                (apks/'v8.35.2.apk').write_bytes(b'second')
+                listing=root/'listing';(listing/'en-US/images').mkdir(parents=True)
+                (listing/'en-US/images/icon.png').write_bytes(b'icon')
+                with patch.object(feed,'apk_identity',side_effect=identities), \
+                     patch.object(feed.subprocess,'run') as signer:
+                    with self.assertRaises(ValueError):
+                        feed.build_fdroid(apks,listing,root/'repo.p12',Path('/android/build-tools/35'),root/'work',root/'site')
+                    signer.assert_not_called()
+
+    def test_stable_feed_does_not_advertise_a_newer_apk_under_an_older_selected_release(self):
+        for selected in ('v8.35.1', 'v8.35.9'):
+            with self.subTest(selected=selected), tempfile.TemporaryDirectory() as tmp:
+                root=Path(tmp);apks=root/'apks';apks.mkdir()
+                (apks/'v8.35.1.apk').write_bytes(b'first')
+                (apks/'v8.35.2.apk').write_bytes(b'second')
+                listing=root/'listing';(listing/'en-US/images').mkdir(parents=True)
+                (listing/'en-US/images/icon.png').write_bytes(b'icon')
+                with patch.object(feed,'apk_identity',side_effect=[(101,'8.35.1'),(102,'8.35.2')]), \
+                     patch.object(feed.subprocess,'run') as signer:
+                    with self.assertRaisesRegex(ValueError,'highest indexed versionCode'):
+                        feed.build_fdroid(apks,listing,root/'repo.p12',Path('/android/build-tools/35'),root/'work',root/'site',tag=selected)
+                    signer.assert_not_called()
+
     def test_beta_generated_index_rejects_nonempty_release_channels(self):
         with tempfile.TemporaryDirectory() as tmp:
             index=Path(tmp)/'repo';index.mkdir()
