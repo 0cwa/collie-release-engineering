@@ -1,0 +1,5 @@
+name: collie/release-engineering
+version: 0.1.0
+dependencies:
+  codeql/java-all: 9.3.4
+extractor: java
