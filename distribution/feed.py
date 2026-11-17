@@ -552,10 +552,16 @@ def build_fdroid(apks, fastlane, keystore, build_tools, work, site, profile=chan
     builds = []
     if profile.name=='stable':
         for apk in candidates:
-            code,_version_name=apk_identity(apk,build_tools,profile)
-            version_name=apk.stem.removeprefix('v')
+            code,version_name=apk_identity(apk,build_tools,profile)
+            validate_release_identity(profile,apk.stem,None,version_name,code)
+            if type(code) is not int or code<=0 or any(previous[0]==code for previous in builds):
+                raise ValueError('stable APK versionCode must be positive and unique')
             shutil.copyfile(apk,work/'repo'/f'{profile.package}_{code}.apk')
             builds.append((code,version_name,apk.stem))
+        if tag is not None:
+            selected=[code for code,_name,source_tag in builds if source_tag==tag]
+            if len(selected)!=1 or any(code>selected[0] for code,_name,_tag in builds):
+                raise ValueError('selected full release must be present and have the highest indexed versionCode')
     else:
         if not prerelease:raise ValueError('Beta feed accepts prerelease releases only')
         apk=candidates[0]
