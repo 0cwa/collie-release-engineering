@@ -16,6 +16,7 @@ import urllib.request
 import binary_repo as b
 import feed as feed_builder
 import site_page
+import retained_artifacts
 try:
     from . import channel_profile as channels
 except ImportError:
@@ -35,7 +36,7 @@ EXACT_CONTENT_UNVERIFIED='exact_content_match_unverified_origin'
 def native_files():
     return b.load(NATIVE_POLICY)['files']
 
-INDEXES={'entry.jar','entry.json','index-v1.jar','index-v1.json','index-v2.json','index.jar','index.xml'}
+INDEXES=retained_artifacts.ARCHIVE_INDEX_FILES
 
 def digest(value):
     return hashlib.sha256(json.dumps(value,sort_keys=True,separators=(',',':')).encode()).hexdigest()
@@ -53,7 +54,8 @@ def _fresh_headers(values):
 
 def safe_name(name):
     path=PurePosixPath(name)
-    if not name or len(name)>512 or len(path.parts)>20 or path.is_absolute() or any(p in ('','.','..') for p in path.parts) or not re.fullmatch(r'[A-Za-z0-9_./-]+',name):raise ValueError('unsafe public path')
+    parts=name.split('/')
+    if not name or len(name)>512 or len(parts)>20 or path.is_absolute() or any(p in ('','.','..') for p in parts) or not re.fullmatch(r'[A-Za-z0-9_./=-]+',name):raise ValueError('unsafe public path')
     return name
 
 def inventory(root):
@@ -69,11 +71,11 @@ def inventory(root):
     return result
 
 def public_site_name(name, profile=channels.STABLE):
-    if name in native_files() or name in site_page.STATIC:return True
-    if name in {'index.html','add-repository.png','add-repository.svg','site-manifest.json','.nojekyll'}:return True
+    if retained_artifacts.versioned_native_path(name) or name in site_page.STATIC:return True
+    if name in {'index.html','add-repository.png','add-repository.svg','site-manifest.json','.nojekyll','CNAME','feed-state.json'}:return True
     for candidate,prefix in ((channels.STABLE,'fdroid/repo/'),(channels.BETA,'fdroid/beta/repo/')):
         if name.startswith(prefix):return b.public_path(name[len(prefix):],candidate)
-    if re.fullmatch(r'_generations/[0-9a-f]{64}/[A-Za-z0-9_.-]+',name):return name.rsplit('/',1)[1] in INDEXES|{'repository-receipt.json'}
+    if retained_artifacts.generation_archive_path(name):return True
     return bool(re.fullmatch(r'assets/[A-Za-z0-9_.-]+\.(png|svg|css|webp)',name))
 
 def github_read(endpoint):
@@ -169,10 +171,7 @@ def validate_beta_provenance(approval,profile=channels.BETA,api=None,download=No
     return parse_readiness_archive(contents,approval,artifact['digest'])
 
 def immutable(name):
-    return (name.endswith('.apk') or name.startswith(('native-inputs/','_generations/')) or
-            any(name.startswith(prefix+'diff/') or
-                (name.startswith(prefix+'icons') and not name.endswith('/icon.png'))
-                for prefix in ('fdroid/repo/','fdroid/beta/repo/')))
+    return retained_artifacts.immutable_public_path(name)
 
 def copy_pinned(source,destination,expected):
     destination.parent.mkdir(parents=True,exist_ok=True)
@@ -240,10 +239,18 @@ def prepare(bundle,output,expected_policy,expected_channel=None,profile_override
         if supplied_native!=pinned_native:raise ValueError('native inputs differ from approved six files')
     elif supplied_native:raise ValueError('native inputs lack approval')
     retained_native={n:e for n,e in old_files.items() if n.startswith('native-inputs/')}
-    if retained_native and (retained_native!=pinned_native or (profile.name=='stable' and native_digest is None)):
+    # Only already published, externally approved native URLs may extend this
+    # set. New native input still has to equal the fixed six-file policy above.
+    if retained_native and (any(retained_native.get(name)!=entry for name,entry in pinned_native.items()) or
+            any(not retained_artifacts.versioned_native_path(name) for name in retained_native) or
+            (profile.name=='stable' and native_digest is None)):
         raise ValueError('published native v1 must remain complete and approved')
     for name in old_files:
         if not public_site_name(name,profile):raise ValueError('unexpected previous public file')
+    if 'CNAME' in old_files:
+        hostname=b'repo.collie.im'
+        if old_files['CNAME']['bytes'] not in (len(hostname),len(hostname)+1) or (old/'CNAME').read_bytes() not in (hostname,hostname+b'\n'):
+            raise ValueError('previous CNAME must name exactly repo.collie.im')
     if old_files:
         prior=b.load(old/'site-manifest.json')
         if set(prior)!={'schema','kind','origin','files'} or type(prior['schema']) is not int or prior['schema']!=1 or prior['kind']!='collie-pages-public-inventory' or prior['origin']!=ORIGIN:raise ValueError('previous manifest format')
