@@ -1,4 +1,9 @@
 {
   "schema": 1,
-  "manifests": []
+  "manifests": [
+    {
+      "path": "native-generations/v2.json",
+      "sha256": "d02a3ddfedf2eed7f8152e57187b2829b2050b43406e4c0f64cb879c917c2e7d"
+    }
+  ]
 }
