@@ -523,7 +523,18 @@ class NativePagesTest(unittest.TestCase):
 
         with self.assertRaisesRegex(ValueError,'live previous site differs'):
             p.preflight(plan,journal,fetch=corrupt)
-        p.preflight(plan,journal,fetch=previous)
+        def unavailable_head(url):
+            raise HTTPError(url, 503, 'Service Unavailable', Message(), None)
+
+        def wrong_existing_native(url):
+            name = url.removeprefix(p.ORIGIN)
+            if name in plan['previous_files']:
+                return previous(url)
+            return dict(plan['manifests']['phase1'][name], status=200, sha256='0'*64)
+
+        with self.assertRaisesRegex(ValueError, 'native URL differs'):
+            p.preflight(plan,journal,fetch=wrong_existing_native,head=unavailable_head)
+        p.preflight(plan,journal,fetch=previous,head=unavailable_head)
         with self.assertRaisesRegex(ValueError,'successful deployment guard output'):
             p.readback(plan,journal,'phase1',fetch=self.fetch(plan,'phase1'))
         p.readback(plan,journal,'phase1',fetch=self.fetch(plan,'phase1'),deployment_guard_id=124)
