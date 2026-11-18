@@ -498,16 +498,27 @@ def observe(url,*,allow_unverified=False,max_bytes=None,require_canonical=False)
     if type(max_bytes) is not int or not 0<=max_bytes<=MAX_BYTES:raise ValueError('invalid readback byte limit')
     request=urllib.request.Request(url,headers={'Cache-Control':'no-cache, no-store','Pragma':'no-cache'})
 
-    try:
-        response=urllib.request.urlopen(request,timeout=60)
-    except urllib.error.HTTPError as error:
-        if error.code==404:
-            try:
-                _verify_observation_url(error.geturl(),url,require_canonical)
-                headers=_cache_headers(error.headers) if allow_unverified else _fresh_cache_headers(error.headers)
-            finally:error.close()
-            return {'status':404,'headers':headers}
-        raise
+    # Guarded additive publication checks may retry an unavailable CDN, but
+    # still need a real canonical response. Other publication modes fail fast.
+    delays = (5, 15, 35, None) if require_canonical and allow_unverified else (None,)
+    for delay in delays:
+        try:
+            response = urllib.request.urlopen(request, timeout=60)
+            break
+        except urllib.error.HTTPError as error:
+            if error.code == 503 and delay is not None:
+                with error:
+                    _verify_observation_url(error.geturl(), url, require_canonical)
+                print(f'Pages GET unavailable for {url}; retrying in {delay}s', file=sys.stderr)
+                time.sleep(delay)
+                continue
+            if error.code == 404:
+                with error:
+                    _verify_observation_url(error.geturl(), url, require_canonical)
+                    headers = _cache_headers(error.headers) if allow_unverified else _fresh_cache_headers(error.headers)
+                return {'status':404,'headers':headers}
+            error.add_note(f'Pages GET failed for {url}')
+            raise
     with response:
         _verify_observation_url(response.geturl(),url,require_canonical)
         if response.status!=200:raise ValueError('readback not200')

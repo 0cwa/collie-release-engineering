@@ -146,6 +146,39 @@ class PagesFreshInventoryTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError,'HTTPS readback required'):
                 p.observe(url)
 
+    def test_guarded_canonical_get_retries_unavailable_but_requires_real_response(self):
+        url = p.ORIGIN + 'native-inputs/example'
+        headers = Message()
+
+        def response(status):
+            return HTTPError(url, status, 'fixture', headers, None)
+
+        with patch('urllib.request.urlopen', side_effect=[response(503), response(404)]) as opened, \
+             patch('pages.time.sleep') as wait:
+            result = p.observe(url, allow_unverified=True, require_canonical=True)
+            self.assertEqual(result['status'], 404)
+            self.assertEqual(opened.call_count, 2)
+            self.assertTrue(all(call.args[0].full_url == url for call in opened.call_args_list))
+            wait.assert_called_once()
+
+        with patch('urllib.request.urlopen', side_effect=[response(503) for _ in range(4)]) as opened, \
+             patch('pages.time.sleep') as wait:
+            with self.assertRaises(HTTPError) as failed:
+                p.observe(url, allow_unverified=True, require_canonical=True)
+            self.assertEqual(failed.exception.code, 503)
+            self.assertEqual(opened.call_count, 4)
+            self.assertEqual(wait.call_count, 3)
+
+        for status, options in ((503, {}), (403, {'allow_unverified': True, 'require_canonical': True})):
+            with self.subTest(status=status), \
+                 patch('urllib.request.urlopen', side_effect=response(status)) as opened, \
+                 patch('pages.time.sleep') as wait:
+                with self.assertRaises(HTTPError) as failed:
+                    p.observe(url, **options)
+                self.assertEqual(failed.exception.code, status)
+                opened.assert_called_once()
+                wait.assert_not_called()
+
     def test_pinned_readback_rejects_another_https_destination(self):
         url = p.ORIGIN + 'site-manifest.json'
         redirected = HTTPError('https://other.example/site-manifest.json',404,'Not Found',Message(),None)
