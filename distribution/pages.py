@@ -633,9 +633,11 @@ def preflight(plan,journal_path,*,fetch=observe,head=None,expected_channel='stab
             if not (recovery or guarded) and not _fresh_headers(headers):
                 raise ValueError('cached response is not a fresh canonical inventory')
             return actual
-        def exact_get(url,name,expected):
+        def exact_get(url,name,expected,*,allow_absent=False):
             actual=(fetch(url,allow_unverified=bool(recovery or guarded),max_bytes=expected['bytes'],require_canonical=bool(guarded))
                     if fetch is observe else fetch(url))
+            if allow_absent and actual.get('status')==404:
+                return actual
             if (actual.get('status',200)!=200 or actual.get('sha256')!=expected['sha256'] or
                 actual.get('bytes')!=expected['bytes']):
                 message='native URL differs before initial publication' if name.startswith('native-inputs/') else 'existing URL differs before initial publication'
@@ -666,6 +668,11 @@ def preflight(plan,journal_path,*,fetch=observe,head=None,expected_channel='stab
         # native URL: absence from its inventory does not prove the URL is empty.
         for name,expected in plan['manifests']['phase1'].items():
             if not name.startswith('native-inputs/') or name in plan['previous_files']:continue
+            if guarded:
+                # Pages has returned 503 on HEAD for these unpublished paths.
+                # A canonical GET must prove 404 or return the exact approved file.
+                observations[name]=exact_get(plan['origin']+name,name,expected,allow_absent=True)
+                continue
             actual=inspect_head(plan['origin']+name)
             if actual.get('status')==404:record_negative(name,actual)
             else:observations[name]=exact_get(plan['origin']+name,name,expected)
