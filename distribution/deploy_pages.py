@@ -672,7 +672,7 @@ def main() -> int:
             print("Pages deployment interrupted", file=sys.stderr)
             return 1
         _write_output("page_url", page_url)
-        if guard.completed_id:
+        if args.pages_plan and guard and guard.completed_id:
             _write_output("guard_id", str(guard.completed_id))
         print(f"Pages deployment succeeded; build {build_version}")
         return 0

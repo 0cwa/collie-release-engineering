@@ -211,11 +211,8 @@ jobs:
       - if: inputs.preparation_mode == 'feed'
         env:
           FEED_CHANNEL: ${{ inputs.feed_channel }}
-          DEPLOYMENT_GUARD_ID: ${{ needs.phase1.outputs.guard_id }}
-        run: |
-          args=()
-          if [ -n "$DEPLOYMENT_GUARD_ID" ]; then args+=(--deployment-guard-id "$DEPLOYMENT_GUARD_ID"); fi
-          exec python distribution/pages.py readback "$RUNNER_TEMP/control/plan.json" "$RUNNER_TEMP/control/journal.json" --phase phase1 --channel "$FEED_CHANNEL" "${args[@]}"
+          COLLIE_DEPLOYED_GUARD_ID: ${{ needs.phase1.outputs.guard_id }}
+        run: python distribution/pages.py readback "$RUNNER_TEMP/control/plan.json" "$RUNNER_TEMP/control/journal.json" --phase phase1 --channel "$FEED_CHANNEL"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: collie-pages-after-phase1
@@ -274,11 +271,8 @@ jobs:
           path: ${{ runner.temp }}/control/
       - env:
           FEED_CHANNEL: ${{ inputs.feed_channel }}
-          DEPLOYMENT_GUARD_ID: ${{ needs.phase2.outputs.guard_id }}
-        run: |
-          args=()
-          if [ -n "$DEPLOYMENT_GUARD_ID" ]; then args+=(--deployment-guard-id "$DEPLOYMENT_GUARD_ID"); fi
-          exec python distribution/pages.py readback "$RUNNER_TEMP/control/plan.json" "$RUNNER_TEMP/control/journal.json" --phase phase2 --channel "$FEED_CHANNEL" "${args[@]}"
+          COLLIE_DEPLOYED_GUARD_ID: ${{ needs.phase2.outputs.guard_id }}
+        run: python distribution/pages.py readback "$RUNNER_TEMP/control/plan.json" "$RUNNER_TEMP/control/journal.json" --phase phase2 --channel "$FEED_CHANNEL"
       - name: Preserve completed production link activation evidence
         if: inputs.preparation_mode == 'activate-links'
         run: python distribution/pages_activation.py record "$RUNNER_TEMP/control/activation" "$RUNNER_TEMP/control/plan.json" "$RUNNER_TEMP/control/journal.json" > "$RUNNER_TEMP/control/link-activation.json"

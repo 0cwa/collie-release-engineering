@@ -800,7 +800,6 @@ def main():
     a=s.add_parser('prepare');a.add_argument('bundle',type=Path);a.add_argument('output',type=Path);a.add_argument('--policy',required=True);a.add_argument('--channel',choices=('stable','trailblazer-beta'),default='stable')
     a=s.add_parser('preflight');a.add_argument('plan',type=Path);a.add_argument('journal',type=Path);a.add_argument('--channel',choices=('stable','trailblazer-beta'),default='stable')
     a=s.add_parser('readback');a.add_argument('plan',type=Path);a.add_argument('journal',type=Path);a.add_argument('--phase',choices=['phase1','phase2'],required=True);a.add_argument('--channel',choices=('stable','trailblazer-beta'),default='stable')
-    a.add_argument('--deployment-guard-id', type=int)
     a=s.add_parser('unpack');a.add_argument('archive',type=Path);a.add_argument('destination',type=Path)
     args=p.parse_args()
     readiness_token = os.environ.pop('COLLIE_APP_READINESS_TOKEN', None)
@@ -808,7 +807,9 @@ def main():
         print(json.dumps(prepare(args.bundle,args.output,args.policy,args.channel,
                                  readiness_token=readiness_token)['artifacts'],indent=2))
     elif args.cmd=='preflight':print(json.dumps(preflight(b.load(args.plan),args.journal,expected_channel=args.channel),indent=2))
-    elif args.cmd=='readback':print(json.dumps(readback(b.load(args.plan),args.journal,args.phase,expected_channel=args.channel,
-                 deployment_guard_id=args.deployment_guard_id),indent=2))
+    elif args.cmd=='readback':
+        guard_id = os.environ.get('COLLIE_DEPLOYED_GUARD_ID')
+        print(json.dumps(readback(b.load(args.plan),args.journal,args.phase,expected_channel=args.channel,
+                     deployment_guard_id=int(guard_id) if guard_id else None),indent=2))
     else:unpack(args.archive,args.destination)
 if __name__=='__main__':main()
