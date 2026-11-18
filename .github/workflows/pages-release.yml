@@ -14,6 +14,10 @@ on:
         options: [stable, trailblazer-beta]
         default: stable
         required: true
+      verify_only:
+        description: Verify the approved Beta bundle and origin without uploading or deploying
+        type: boolean
+        default: false
       trusted_policy_revision:
         description: Exact reviewed main commit containing this verifier/workflow
         type: string
@@ -39,7 +43,14 @@ jobs:
       phase2_artifact_id: ${{ steps['phase2-upload'].outputs.artifact_id }}
     # Disabled until separately approved Pages/environment provisioning. PRs and
     # non-main dispatches have no path to these jobs; no pull_request_target.
-    if: github.ref == 'refs/heads/main' && vars.COLLIE_PAGES_PRODUCTION_ENABLED == 'true'
+    if: >-
+      github.ref == 'refs/heads/main' &&
+      (inputs.verify_only
+        && inputs.preparation_mode == 'feed' && inputs.feed_channel == 'trailblazer-beta'
+        || !inputs.verify_only && vars.COLLIE_PAGES_PRODUCTION_ENABLED == 'true')
+    environment:
+      name: pages-preparation
+      deployment: false
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
@@ -55,7 +66,9 @@ jobs:
         with:
           python-version: '3.12.14'
       - name: Install pinned verification tools without signing/deployment credentials
-        run: python -m pip install --require-hashes -r distribution/requirements.txt
+        run: |
+          python -m pip install --require-hashes --only-binary=:all: -r distribution/build-requirements.txt
+          python -m pip install --require-hashes --no-build-isolation -r distribution/requirements.txt
       - name: Fetch only the approved data asset and unpack regular files
         env:
           ASSET_ID: ${{ inputs.bundle_asset_id }}
@@ -64,24 +77,49 @@ jobs:
         run: |
           python distribution/download_pages_input.py --asset-id "$ASSET_ID" --sha256 "$EXPECTED_SHA256" --output "$RUNNER_TEMP/input.tar"
           python distribution/pages.py unpack "$RUNNER_TEMP/input.tar" "$RUNNER_TEMP/inputs"
+      - name: Create Android readiness reader token
+        id: readiness-token
+        if: inputs.preparation_mode == 'feed' && inputs.feed_channel == 'trailblazer-beta'
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510
+        with:
+          client-id: ${{ vars.COLLIE_READINESS_APP_CLIENT_ID }}
+          private-key: ${{ secrets.COLLIE_READINESS_APP_PRIVATE_KEY }}
+          owner: 0cwa
+          repositories: collieim-android
+          permission-actions: read
+      - name: Verify Android readiness and prepare Beta snapshots
+        if: inputs.preparation_mode == 'feed' && inputs.feed_channel == 'trailblazer-beta'
+        env:
+          APPROVED_POLICY: ${{ inputs.trusted_policy_revision }}
+          GH_TOKEN: ${{ github.token }}
+          COLLIE_APP_READINESS_TOKEN: ${{ steps.readiness-token.outputs.token }}
+        run: |
+          exec python distribution/pages.py prepare "$RUNNER_TEMP/inputs" "$RUNNER_TEMP/pages" --policy "$APPROVED_POLICY" --channel trailblazer-beta
       - name: Prepare the approved snapshots with the trusted policy
         id: prepare
         env:
           APPROVED_POLICY: ${{ inputs.trusted_policy_revision }}
           PREPARATION_MODE: ${{ inputs.preparation_mode }}
           FEED_CHANNEL: ${{ inputs.feed_channel }}
+          VERIFY_ONLY: ${{ inputs.verify_only }}
           GH_TOKEN: ${{ github.token }}
         run: |
           case "$PREPARATION_MODE" in feed|activate-links) ;; *) exit 1 ;; esac
           case "$FEED_CHANNEL" in stable|trailblazer-beta) ;; *) exit 1 ;; esac
           if [ "$PREPARATION_MODE" = activate-links ] && [ "$FEED_CHANNEL" != stable ]; then exit 1; fi
-          echo "mode=$PREPARATION_MODE" >> "$GITHUB_OUTPUT"
           if [ "$PREPARATION_MODE" = feed ]; then
-            python distribution/pages.py prepare "$RUNNER_TEMP/inputs" "$RUNNER_TEMP/pages" --policy "$APPROVED_POLICY" --channel "$FEED_CHANNEL"
+            if [ "$FEED_CHANNEL" = stable ]; then
+              python distribution/pages.py prepare "$RUNNER_TEMP/inputs" "$RUNNER_TEMP/pages" --policy "$APPROVED_POLICY" --channel stable
+            fi
           else
             python distribution/pages_activation.py prepare "$RUNNER_TEMP/inputs" "$RUNNER_TEMP/pages" --policy "$APPROVED_POLICY"
           fi
           python distribution/pages.py preflight "$RUNNER_TEMP/pages/plan.json" "$RUNNER_TEMP/pages/journal.json" --channel "$FEED_CHANNEL"
+          if [ "$VERIFY_ONLY" = true ]; then
+            echo "mode=verify-only" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "mode=$PREPARATION_MODE" >> "$GITHUB_OUTPUT"
           if [ "$PREPARATION_MODE" = activate-links ]; then
             python distribution/pages.py readback "$RUNNER_TEMP/pages/plan.json" "$RUNNER_TEMP/pages/journal.json" --phase phase1 --channel "$FEED_CHANNEL"
           fi
@@ -97,7 +135,7 @@ jobs:
       # Include any approved hidden paths without changing the prepared inventory.
       - uses: actions/upload-pages-artifact@5f327015a708106f6f1b7c9a633901af30fe80cb
         id: phase1-upload
-        if: inputs.preparation_mode == 'feed'
+        if: inputs.preparation_mode == 'feed' && !inputs.verify_only
         with:
           name: collie-pages-phase1
           path: ${{ runner.temp }}/pages/phase1/site
@@ -105,12 +143,14 @@ jobs:
           retention-days: 30
       - uses: actions/upload-pages-artifact@5f327015a708106f6f1b7c9a633901af30fe80cb
         id: phase2-upload
+        if: ${{ !inputs.verify_only }}
         with:
           name: collie-pages-phase2
           path: ${{ runner.temp }}/pages/phase2/site
           include-hidden-files: true
           retention-days: 30
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: ${{ !inputs.verify_only }}
         with:
           name: collie-pages-control
           path: ${{ runner.temp }}/control/

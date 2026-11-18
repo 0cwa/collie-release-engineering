@@ -337,8 +337,35 @@ class PagesTest(unittest.TestCase):
         def authoritative(endpoint):
             return run if '/actions/runs/' in endpoint else artifact
         p.validate_beta_provenance(approval,api=authoritative,download=lambda _id:archive_bytes)
+        class Response(io.BytesIO):
+            def __enter__(self):
+                return self
+
+        def open_request(request, timeout):
+            self.assertEqual(request.get_header('Authorization'), 'Bearer synthetic-app')
+            self.assertEqual(timeout, 60)
+            responses = {
+                '/actions/runs/123/attempts/2': json.dumps(run).encode(),
+                '/actions/artifacts/456': json.dumps(artifact).encode(),
+                '/actions/artifacts/456/zip': archive_bytes,
+            }
+            prefix = 'https://api.github.com/repos/0cwa/collieim-android'
+            self.assertTrue(request.full_url.startswith(prefix + '/'))
+            return Response(responses[request.full_url[len(prefix):]])
+
+        with (patch.dict(p.os.environ, {'GH_TOKEN': 'synthetic-engineering'}),
+              patch.object(p.urllib.request, 'build_opener') as opener):
+            opener.return_value.open.side_effect = open_request
+            self.assertEqual(p.validate_beta_provenance(approval, readiness_token='synthetic-app'),
+                             manifest)
+            self.assertEqual(opener.return_value.open.call_count, 3)
+            self.assertEqual(p.os.environ['GH_TOKEN'], 'synthetic-engineering')
+        with patch.object(p.urllib.request, 'build_opener') as opener:
+            with self.assertRaisesRegex(ValueError, 'COLLIE_APP_READINESS_TOKEN'):
+                p.validate_beta_provenance(approval)
+            opener.assert_not_called()
         with self.assertRaisesRegex(RuntimeError,'no authoritative API'):
-            with patch.object(p,'github_read',side_effect=RuntimeError('no authoritative API')):
+            with patch.object(p,'github_app_read',side_effect=RuntimeError('no authoritative API')):
                 p.validate_beta_provenance(approval)
         cases=[('repository',run,{'head_repository':{'full_name':'attacker/repo'}}),
                ('workflow',run,{'path':'.github/workflows/other.yml'}),
@@ -350,6 +377,24 @@ class PagesTest(unittest.TestCase):
                 return changed if (('/actions/runs/' in endpoint) == (source is run)) else (run if '/actions/runs/' in endpoint else artifact)
             with self.subTest(field=label),self.assertRaisesRegex(ValueError,'authoritative GitHub'):
                 p.validate_beta_provenance(approval,api=tampered,download=lambda _id:archive_bytes)
+    def test_app_archive_redirect_drops_authorization_and_requires_https(self):
+        host = 'https://api.github.com/repos/0cwa/collieim-android/actions/artifacts/456/zip'
+        request = p.urllib.request.Request(host)
+        request.add_unredirected_header('Authorization', 'Bearer synthetic-app')
+        redirect = p.ReadinessRedirect(archive=True)
+        downstream = redirect.redirect_request(request, None, 302, 'Found', {},
+                                               'https://storage.example.invalid/archive')
+        self.assertIsNone(downstream.get_header('Authorization'))
+        self.assertIsNone(redirect.redirect_request(request, None, 302, 'Found', {},
+                                                   'http://storage.example.invalid/archive'))
+        self.assertIsNone(p.ReadinessRedirect(archive=False).redirect_request(
+            request, None, 302, 'Found', {}, 'https://api.github.com/elsewhere'))
+        with patch.object(p.urllib.request, 'build_opener') as opener:
+            with self.assertRaisesRegex(ValueError, 'unexpected Android readiness API endpoint'):
+                p.github_app_read('repos/0cwa/collie-release-engineering/actions/artifacts/456',
+                              token='synthetic-app')
+            opener.assert_not_called()
+
     def test_immutable_apk_conflict_rejected(self):
         old=self.bundle/'previous/fdroid/repo';old.mkdir(parents=True);(old/'im.collie.app_1.apk').write_bytes(b'otherAPK')
         self.seal_previous()

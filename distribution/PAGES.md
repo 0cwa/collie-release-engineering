@@ -131,6 +131,13 @@ python distribution/pages.py prepare <bundle-dir> <new-output-dir> \
   --policy <reviewed-40-hex-engineering-revision> --channel trailblazer-beta
 ```
 
+For local Beta preparation, supply `COLLIE_APP_READINESS_TOKEN` through the
+approved credential environment. It must have Actions read on
+`0cwa/collieim-android`. The verifier uses it only for the exact run attempt,
+artifact metadata, and ZIP. Metadata redirects are rejected. The ZIP may
+redirect to HTTPS storage, and the bearer stays on the initial GitHub API request.
+An absent token or denied artifact request stops verification.
+
 Before it accepts the readiness manifest, the verifier runs the full selected
 Beta source/build/release/repository receipt graph, compares every manifest
 receipt hash and release identity against those documents, and compares the APK
@@ -335,11 +342,33 @@ remain fail-closed.
 pages-validation.yml runs credential-free PR tests with contents:read only and no
 production environment, deployment job, signing key, pages:write or OIDC grant.
 No pull_request_target/workflow_run path exists. pages-release.yml is manual-only,
-main-only and disabled until the independently approved repository variable
-COLLIE_PAGES_PRODUCTION_ENABLED is explicitly set. Dispatch must name the exact
-reviewed main policy commit and independently approved public data asset ID/hash.
-The preparation job has no deployment/index-signing credentials and does not
-execute candidate code. Deployment jobs keep pages:write/id-token:write on the
+main-only. Normal publication requires the independently approved repository
+variable `COLLIE_PAGES_PRODUCTION_ENABLED=true`. Dispatch must name the exact
+reviewed main policy commit and independently approved engineering asset ID/hash.
+Preparation uses the `pages-preparation` environment with `deployment: false`,
+has contents read only,
+and executes the reviewed engineering policy against data assets.
+
+For Beta readiness, register an internal GitHub App with repository Actions read
+and GitHub's mandatory Metadata read, and install it on only
+`0cwa/collieim-android`. In the engineering repository, provision
+`pages-preparation` for the exact deployment branch `main` with the App client ID
+in environment variable `COLLIE_READINESS_APP_CLIENT_ID` and its private key in
+environment secret `COLLIE_READINESS_APP_PRIVATE_KEY`. Leave the private key in
+the environment secret store. The pinned mint step requests Actions read for
+`collieim-android` explicitly and runs only for Beta feed preparation. The token
+is passed only to the Beta verifier step, which removes it from the process
+environment before preparing any subprocess. Engineering asset download and
+deployment retain the engineering workflow token.
+
+For hosted proof, separately approve a manual dispatch on reviewed `main` with
+`preparation_mode=feed`, `feed_channel=trailblazer-beta`, and `verify_only=true`.
+Use the exact reviewed policy commit and Pages bundle asset ID and SHA-256.
+This runs the real readiness ZIP verification, snapshot preparation and live
+baseline preflight, even with production publication disabled. Verify those steps
+succeeded and both upload and deployment paths were skipped. Record the run and
+attempt with the approved bundle and readiness artifact identities. Production
+publication requires its own approved run with `verify_only=false`. Deployment jobs keep pages:write/id-token:write on the
 github-pages environment and use the artifact ID emitted by the pinned official
 Pages uploader to create a deployment through GitHub's documented Pages API. The
 local poller obtains its OIDC token from the Actions runtime and registers the

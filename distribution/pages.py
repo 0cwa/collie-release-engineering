@@ -3,6 +3,7 @@
 import argparse
 import hashlib
 import io
+import os
 import json
 from pathlib import Path, PurePosixPath
 import re
@@ -13,6 +14,8 @@ import tarfile
 import tempfile
 import zipfile
 import urllib.request
+from functools import partial
+from urllib.parse import urlsplit
 import binary_repo as b
 import feed as feed_builder
 import site_page
@@ -84,14 +87,59 @@ def github_read(endpoint):
     if len(result.stdout)>1024*1024:raise ValueError('GitHub provenance response exceeds limit')
     return json.loads(result.stdout)
 
-def github_artifact_bytes(artifact_id):
-    """Download the exact Actions artifact archive through the authenticated gh client."""
-    result=subprocess.run(['gh','api','--hostname','github.com',
-        f'repos/0cwa/collieim-android/actions/artifacts/{artifact_id}/zip'],
-        check=True,capture_output=True,timeout=60)
-    if not result.stdout or len(result.stdout)>MAX_READINESS_ARTIFACT_BYTES:
-        raise ValueError('Beta readiness artifact archive is empty or exceeds 8 MiB')
-    return result.stdout
+APP_REPOSITORY = '0cwa/collieim-android'
+
+
+class ReadinessRedirect(urllib.request.HTTPRedirectHandler):
+    def __init__(self, archive):
+        self.archive = archive
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        target = urlsplit(newurl)
+        if (not self.archive or target.scheme != 'https' or not target.hostname
+                or target.username is not None or target.password is not None):
+            return None
+        return super().redirect_request(req, fp, code, msg, headers, newurl)
+
+
+def read_app_actions(endpoint, token, limit, *, archive=False):
+    if not token or not token.strip():
+        raise ValueError('COLLIE_APP_READINESS_TOKEN is required for Beta readiness')
+    prefix = f'repos/{APP_REPOSITORY}/actions/'
+    allowed_path = (r'artifacts/[1-9][0-9]*/zip' if archive else
+                    r'(?:runs/[1-9][0-9]*/attempts/[1-9][0-9]*|artifacts/[1-9][0-9]*)')
+    if not endpoint.startswith(prefix) or not re.fullmatch(allowed_path, endpoint[len(prefix):]):
+        raise ValueError('unexpected Android readiness API endpoint')
+    request = urllib.request.Request(
+        'https://api.github.com/' + endpoint,
+        headers={'Accept': 'application/vnd.github+json', 'User-Agent': 'Collie-Pages-preparer'},
+    )
+    # urllib does not copy unredirected headers to a new request.
+    request.add_unredirected_header('Authorization', 'Bearer ' + token)
+    opener = urllib.request.build_opener(ReadinessRedirect(archive))
+    try:
+        with opener.open(request, timeout=60) as response:
+            contents = response.read(limit + 1)
+    except urllib.error.HTTPError as exc:
+        exc.close()
+        raise ValueError(f'Android readiness request returned HTTP {exc.code}') from None
+    except (OSError, ValueError):
+        raise ValueError('Android readiness request failed') from None
+    if not contents or len(contents) > limit:
+        raise ValueError('Android readiness response is empty or exceeds its byte limit')
+    return contents
+
+
+def github_app_read(endpoint, *, token):
+    return json.loads(read_app_actions(endpoint, token, 1024 * 1024))
+
+
+def github_artifact_bytes(artifact_id, *, token):
+    return read_app_actions(
+        f'repos/{APP_REPOSITORY}/actions/artifacts/{artifact_id}/zip',
+        token, MAX_READINESS_ARTIFACT_BYTES, archive=True,
+    )
+
 
 READINESS_MANIFEST='trailblazer-beta-readiness.json'
 MAX_READINESS_ARTIFACT_BYTES=8*1024*1024
@@ -141,8 +189,8 @@ def parse_readiness_archive(archive,approval,artifact_digest):
             raise ValueError('invalid readiness identity '+key)
     return manifest
 
-def validate_beta_provenance(approval,profile=channels.BETA,api=None,download=None):
-    if api is None:api=github_read
+def validate_beta_provenance(approval,profile=channels.BETA,api=None,download=None,*,readiness_token=None):
+    if api is None:api=partial(github_app_read,token=readiness_token)
     if (approval.get('source_branch')!=profile.source_branch or approval.get('readiness_workflow')!=profile.readiness_workflow or
         type(approval.get('readiness_run_id')) is not int or approval['readiness_run_id']<=0 or
         type(approval.get('readiness_attempt')) is not int or approval['readiness_attempt']<=0 or
@@ -151,7 +199,7 @@ def validate_beta_provenance(approval,profile=channels.BETA,api=None,download=No
         not re.fullmatch('[0-9a-f]{40}',approval.get('source_commit','')) or
         approval.get('readiness_commit')!=approval.get('source_commit')):
         raise ValueError('exact allowlisted Beta source and successful readiness provenance required')
-    repository='0cwa/collieim-android';run_id=approval['readiness_run_id'];attempt=approval['readiness_attempt']
+    repository=APP_REPOSITORY;run_id=approval['readiness_run_id'];attempt=approval['readiness_attempt']
     run=api(f'repos/{repository}/actions/runs/{run_id}/attempts/{attempt}')
     if (run.get('id')!=run_id or run.get('run_attempt')!=attempt or run.get('head_repository',{}).get('full_name')!=repository or
         run.get('head_branch')!=profile.source_branch or run.get('head_sha')!=approval['source_commit'] or
@@ -165,7 +213,7 @@ def validate_beta_provenance(approval,profile=channels.BETA,api=None,download=No
         type(artifact.get('size_in_bytes')) is not int or not 0<artifact['size_in_bytes']<=MAX_READINESS_ARTIFACT_BYTES or
         artifact.get('digest') not in (approval['readiness_artifact_sha256'],'sha256:'+approval['readiness_artifact_sha256'])):
         raise ValueError('authoritative GitHub Beta readiness artifact differs')
-    if download is None:download=github_artifact_bytes
+    if download is None:download=partial(github_artifact_bytes,token=readiness_token)
     contents=download(approval['readiness_artifact_id'])
     if len(contents)!=artifact['size_in_bytes']:raise ValueError('downloaded Beta readiness artifact size differs')
     return parse_readiness_archive(contents,approval,artifact['digest'])
@@ -196,7 +244,7 @@ def archive(site,output,manifest):
             if h.hexdigest()!=expected['sha256']:raise ValueError('artifact changed during archiving')
     return {'sha256':b.sha(output),'bytes':output.stat().st_size}
 
-def prepare(bundle,output,expected_policy,expected_channel=None,profile_override=None):
+def prepare(bundle,output,expected_policy,expected_channel=None,profile_override=None,*,readiness_token=None):
     a=b.load(bundle/'approval.json')
     channel=a.get('channel','stable')
     if expected_channel is not None and channel!=expected_channel:raise ValueError('approval channel differs from selected channel')
@@ -219,7 +267,7 @@ def prepare(bundle,output,expected_policy,expected_channel=None,profile_override
     if profile.name=='trailblazer-beta' and (profile.source_branch!='trailblazer-beta' or not profile.readiness_workflow):raise ValueError('Beta source readiness profile is not configured')
     readiness=None
     if profile.name=='trailblazer-beta':
-        readiness=validate_beta_provenance(a,profile)
+        readiness=validate_beta_provenance(a,profile,readiness_token=readiness_token)
     if type(a['maximum_bytes']) is not int or not 0<a['maximum_bytes']<=MAX_BYTES:raise ValueError('Pages budget')
     if a['previous_manifest_sha256'] is not None and not re.fullmatch('[0-9a-f]{64}',a['previous_manifest_sha256']):raise ValueError('previous manifest digest')
     keys=('previous_site_sha256',) if native_only else ('previous_site_sha256','candidate_generation_sha256','repository_certificate_sha256','repository_receipt_sha256','landing_sha256')
@@ -686,7 +734,10 @@ def main():
     a=s.add_parser('readback');a.add_argument('plan',type=Path);a.add_argument('journal',type=Path);a.add_argument('--phase',choices=['phase1','phase2'],required=True);a.add_argument('--channel',choices=('stable','trailblazer-beta'),default='stable')
     a=s.add_parser('unpack');a.add_argument('archive',type=Path);a.add_argument('destination',type=Path)
     args=p.parse_args()
-    if args.cmd=='prepare':print(json.dumps(prepare(args.bundle,args.output,args.policy,args.channel)['artifacts'],indent=2))
+    readiness_token = os.environ.pop('COLLIE_APP_READINESS_TOKEN', None)
+    if args.cmd=='prepare':
+        print(json.dumps(prepare(args.bundle,args.output,args.policy,args.channel,
+                                 readiness_token=readiness_token)['artifacts'],indent=2))
     elif args.cmd=='preflight':print(json.dumps(preflight(b.load(args.plan),args.journal,expected_channel=args.channel),indent=2))
     elif args.cmd=='readback':print(json.dumps(readback(b.load(args.plan),args.journal,args.phase,expected_channel=args.channel),indent=2))
     else:unpack(args.archive,args.destination)
