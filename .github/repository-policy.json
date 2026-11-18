@@ -15,7 +15,7 @@
           "phase": "gated-beta-source"
         },
         {
-          "ref": "refs/heads/release/stable/*",
+          "ref": "refs/heads/release/stable/8.35",
           "phase": "proposal-stable-maintenance"
         }
       ],
@@ -142,16 +142,16 @@
         },
         {
           "phase": "proposal-stable-maintenance",
-          "activation_note": "Proposed namespace only. Choose an exact source and approve its CI, verifier and routing changes before activating a release branch.",
+          "activation_note": "Approved branch name only. Review the exact source, trusted CI and verifier before activating this ref.",
           "request": {
-            "name": "Protect approved Stable maintenance sources",
+            "name": "Protect the Stable 8.35 maintenance source",
             "target": "branch",
             "enforcement": "active",
             "bypass_actors": [],
             "conditions": {
               "ref_name": {
                 "include": [
-                  "refs/heads/release/stable/*"
+                  "refs/heads/release/stable/8.35"
                 ],
                 "exclude": []
               }

@@ -63,22 +63,29 @@ Do not manufacture records for old published prereleases or replace their assets
 to make them pass a new verifier. Resolve any legacy candidate through a reviewed
 migration or a fresh candidate with a new version code.
 
-Both current release authorization and that proposed publication guard retain the
-main-only, exact-commit app readiness contract. A candidate on another branch does
-not become eligible by passing a PR check or by supplying its SHA to a dispatch.
-Release security review, independent reproduction and the accepted source route
-remain separate requirements.
+Publication and promotion dispatch on trusted app `main`. The Stable source
+allowlist is exactly `refs/heads/main` and `refs/heads/release/stable/8.35`.
+The maintenance source becomes eligible once its ref protections and matching
+Android verifier have landed and the selected source passes the exact-run gate.
+Historical verify-only use retains the `main` contract.
 
 ## Source activation gates
 
-App `main` remains the development source. The proposed maintenance namespace
-`release/stable/*` is reserved for a reviewed design; this policy chooses no branch,
-creates no ref and adds no source to a release verifier. Before using that route,
-approve the exact Stable feature scope and source commit, the named source branch,
-its signed-commit/PR/check protections, the exact-commit CI trigger and trusted
-workflow, and coordinated source-profile/release-verifier routing. Keep the
-verifier's allowlist fixed and reviewed. An arbitrary branch dispatch is not a
-substitute for that work.
+App `main` remains the development source. The proposed protection below
+targets the exact `release/stable/8.35` ref. It creates no branch and applies no
+settings. Approve the selected exact source and scope, and verify the named
+ref's signed-commit, PR and check protections before activation.
+
+The Stable publication verifier must match the owning Android repository,
+`.github/workflows/pr.yml`, the exact selected source ref and commit, and the
+latest successful matching run ID and positive attempt. Only `push` and
+`workflow_dispatch` runs qualify. Require successful `Unit tests`,
+`Unsigned production build` and `Security readiness` jobs from that attempt.
+The workflow and executable verification inputs must match reviewed trusted
+`main` policy. Ancestry, a PR run or a matching workflow filename alone does
+not establish the source proof. Record the selected source branch in Android
+publication evidence and retain same-byte promotion. Existing engineering feed
+receipts keep their immutable release, tag, APK and source bindings.
 
 For TrailBlazer, approve the complete source and build identity first, including
 package, signer, branding, version-code floor and successful exact-source build.
