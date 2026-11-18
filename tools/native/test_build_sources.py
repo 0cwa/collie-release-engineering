@@ -120,7 +120,7 @@ class PartialSourceBuildTest(unittest.TestCase):
         receipt = self.run_build()
         self.assertEqual('PARTIAL_LIBSIGNAL_ONLY', receipt['status'])
         self.assertFalse(receipt['release_allowed'])
-        self.assertTrue(any('configured_proxy_never_falls_back_to_direct' in command for command in self.calls))
+        self.assertTrue(any('--lib' in command and 'configured_proxy_never_falls_back_to_direct' in command for command in self.calls))
         self.assertTrue(self.report.is_file())
 
     def test_fresh_mode_runs_offline_without_gradle_caches(self):

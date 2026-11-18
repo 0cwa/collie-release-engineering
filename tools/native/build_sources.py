@@ -115,7 +115,7 @@ def diagnostic_build(lock_path, source_root, sdk_root, java_home, rust_bin, repo
                    RUSTC=str((rust_bin / 'rustc').resolve()), RUSTC_WRAPPER='', RUSTC_WORKSPACE_WRAPPER='',
                    CCACHE_DISABLE='1', SCCACHE_DISABLE='1', PYTHONNOUSERSITE='1')
     env['CARGO_BUILD_JOBS'] = str(jobs)
-    cargo_args = [cargo, 'test', '--locked', '-p', 'libsignal-net', 'configured_proxy_never_falls_back_to_direct']
+    cargo_args = [cargo, 'test', '--locked', '--lib', '-p', 'libsignal-net', 'configured_proxy_never_falls_back_to_direct']
     result = runner(cargo_args, libsignal, env)
     require(any(re.search(r'test result: ok[.]\s+4 passed;', line) for line in result), 'Expected four proxy-mode tests did not pass')
     gradle_args = [str(gradle), '--project-dir', str(libsignal / 'java'), '--no-daemon',

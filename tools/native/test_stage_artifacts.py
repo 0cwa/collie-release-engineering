@@ -51,6 +51,71 @@ class ArtifactStagingTest(unittest.TestCase):
     def run_stage(self):
         return subject.stage(self.lock_path, self.input, self.output, self.verification)
 
+    def use_existing_native_metadata(self):
+        previous = self.root / 'previous-stage'
+        subject.stage(self.lock_path, self.input, previous, self.verification)
+        self.verification.write_bytes((previous / 'verification-metadata.xml').read_bytes())
+
+    def upgrade_libsignal_inputs(self):
+        for module in self.lock['modules']:
+            if not module['name'].startswith('libsignal-'):
+                continue
+            old_directory = self.input / 'org/signal' / module['name'] / module['input_version']
+            directory = old_directory.with_name('0.107.0')
+            directory.mkdir()
+            for old_file in old_directory.iterdir():
+                target = directory / old_file.name.replace('0.106.1', '0.107.0')
+                if old_file.suffix == '.pom':
+                    target.write_text(old_file.read_text().replace('0.106.1', '0.107.0'))
+                    module['pom_sha256'] = subject.digest(target)
+                else:
+                    target.write_bytes(old_file.read_bytes())
+            module.update(input_version='0.107.0', output_version='0.107.0-collie.1')
+        self.lock['source_patches'][0]['path'] = 'patches/libsignal-0.107.0-attributed.mbox'
+        self.save_lock()
+
+    def test_libsignal_upgrade_retains_exact_existing_ringrtc_and_old_versions(self):
+        self.use_existing_native_metadata()
+        before = self.verification.read_text()
+        self.upgrade_libsignal_inputs()
+        self.run_stage()
+        subject.verify_stage(self.lock_path, self.output, self.verification)
+        metadata = (self.output / 'verification-metadata.xml').read_text()
+        root = subject.ET.fromstring(metadata)
+        components = root.findall(f'{subject.GRADLE}components/{subject.GRADLE}component')
+        self.assertEqual(5, len(components))
+        self.assertEqual(1, sum(c.get('name') == 'ringrtc-android' for c in components))
+        self.assertEqual({'0.106.1-collie.1', '0.107.0-collie.1'},
+                         {c.get('version') for c in components if c.get('name') == 'libsignal-android'})
+        self.assertIn(before.split('   </components>')[0], metadata)
+
+    def test_reusing_identical_native_inputs_preserves_metadata_bytes(self):
+        self.use_existing_native_metadata()
+        self.run_stage()
+        self.assertEqual(self.verification.read_bytes(), (self.output / 'verification-metadata.xml').read_bytes())
+        subject.verify_stage(self.lock_path, self.output, self.verification)
+
+    def test_existing_native_pins_cannot_be_changed_or_broadened(self):
+        self.use_existing_native_metadata()
+        original = self.verification.read_text()
+        ringrtc = self.lock['modules'][2]
+        binary = f'ringrtc-android-{ringrtc["output_version"]}.aar'
+        component = subject.ET.fromstring(original).findall(f'{subject.GRADLE}components/{subject.GRADLE}component')[-1]
+        component_xml = subject.ET.tostring(component, encoding='unicode')
+        corruptions = {
+            'different hash': lambda text: text.replace(ringrtc['binary_sha256'], '0' * 64),
+            'extra allowed hash': lambda text: text.replace(f'<sha256 value="{ringrtc["binary_sha256"]}"', f'<sha256 value="{"0" * 64}"/><sha256 value="{ringrtc["binary_sha256"]}"'),
+            'different artifact': lambda text: text.replace(f'<artifact name="{binary}">', '<artifact name="unexpected.aar">'),
+            'duplicate coordinate': lambda text: text.replace('   </components>', component_xml + '\n   </components>'),
+            'native trust': lambda text: text.replace('</configuration>', '<trusted-artifacts><trust group="im.collie.native"/></trusted-artifacts></configuration>'),
+        }
+        for name, corrupt in corruptions.items():
+            with self.subTest(name=name):
+                self.verification.write_text(corrupt(original))
+                with self.assertRaises(subject.Failure):
+                    self.run_stage()
+                self.assertFalse(self.output.exists())
+
     def test_valid_input_is_exclusive_and_uses_distinct_coordinates(self):
         self.run_stage()
         subject.verify_stage(self.lock_path, self.output, self.verification)
