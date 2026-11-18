@@ -155,22 +155,25 @@ class PolicyTest(unittest.TestCase):
 
     def test_existing_planned_branch_does_not_authorize_a_source_route(self):
         snapshot = {'schema': 1, 'repositories': {APP: {
-            'default_branch': 'main', 'branches': ['main', 'trailblazer-beta', 'release/stable/candidate'],
+            'default_branch': 'main', 'branches': ['main', 'trailblazer-beta', 'release/stable/8.35'],
             'rulesets': [x['request'] for x in self.app['rulesets']], 'errors': [],
         }}}
         findings = checker.report(self.policy, snapshot)
-        for ref in ('refs/heads/trailblazer-beta', 'refs/heads/release/stable/*'):
+        for ref in ('refs/heads/trailblazer-beta', 'refs/heads/release/stable/8.35'):
             item = next(x for x in findings if x['item'] == ref)
             self.assertEqual(item['status'], 'GATED')
             self.assertIn('do not establish release authorization', item['detail'])
 
-    def test_namespace_star_does_not_report_a_nested_branch_as_matching(self):
+    def test_stable_source_is_an_exact_ref_and_remains_gated(self):
         snapshot = {'schema': 1, 'repositories': {APP: {
-            'default_branch': 'main', 'branches': ['main', 'release/stable/nested/candidate'],
+            'default_branch': 'main', 'branches': ['main', 'release/stable/8.36', 'release/stable/8.35/other'],
             'rulesets': [], 'errors': [],
         }}}
+        request = next(x['request'] for x in self.app['rulesets']
+                       if x['phase'] == 'proposal-stable-maintenance')
+        self.assertEqual(request['conditions']['ref_name']['include'], ['refs/heads/release/stable/8.35'])
         finding = next(x for x in checker.report(self.policy, snapshot)
-                       if x['item'] == 'refs/heads/release/stable/*')
+                       if x['item'] == 'refs/heads/release/stable/8.35')
         self.assertTrue(finding['detail'].startswith('No matching branch observed.'))
 
     def test_invalid_fixture_returns_two_without_a_network_fallback(self):
