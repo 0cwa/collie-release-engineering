@@ -47,7 +47,20 @@ def load_lock(path):
     toolchain = lock.get('toolchain_reference', {})
     require(re.fullmatch(r'[0-9a-f]{64}', toolchain.get('webrtc_deps_sha256', '')) is not None, 'Missing WebRTC DEPS hash')
     patches = lock.get('source_patches', [])
-    expected_paths = ['patches/libsignal-0.106.1-attributed.mbox', 'patches/ringrtc-2.74-attributed.mbox', 'patches/webrtc-8037b-molly-proxy-UNTESTED.patch', 'patches/webrtc-unknown-proxy-fix.patch', 'patches/webrtc-socks-ipv6-fix.patch']
+    libsignal_versions = {module.get('input_version') for module in modules
+                          if module['name'].startswith('libsignal-')}
+    require(len(libsignal_versions) == 1, 'Libsignal Android and client input versions differ')
+    libsignal_version = next(iter(libsignal_versions))
+    require(isinstance(libsignal_version, str) and re.fullmatch(r'[0-9]+\.[0-9]+\.[0-9]+', libsignal_version),
+            'Invalid libsignal source version')
+    libsignal_outputs = {module.get('output_version') for module in modules
+                         if module['name'].startswith('libsignal-')}
+    require(len(libsignal_outputs) == 1, 'Libsignal Android and client output versions differ')
+    libsignal_output = next(iter(libsignal_outputs))
+    require(isinstance(libsignal_output, str) and
+            re.fullmatch(re.escape(libsignal_version) + r'-collie\.[1-9][0-9]*', libsignal_output),
+            'Libsignal output version must match the input version and a positive Collie revision')
+    expected_paths = [f'patches/libsignal-{libsignal_version}-attributed.mbox', 'patches/ringrtc-2.74-attributed.mbox', 'patches/webrtc-8037b-molly-proxy-UNTESTED.patch', 'patches/webrtc-unknown-proxy-fix.patch', 'patches/webrtc-socks-ipv6-fix.patch']
     require([item.get('path') for item in patches] == expected_paths, 'Unexpected source patch set or order')
     for item in patches:
         require(re.fullmatch(r'[0-9a-f]{64}', item.get('sha256', '')) is not None, 'Invalid source patch hash')

@@ -76,6 +76,36 @@ class ArtifactStagingTest(unittest.TestCase):
             self.run_stage()
         self.assertFalse(self.output.exists())
 
+    def test_libsignal_upgrade_requires_matching_java_versions_and_attributed_patch(self):
+        for module in self.lock['modules']:
+            if module['name'].startswith('libsignal-'):
+                module.update(input_version='0.107.0', output_version='0.107.0-collie.1')
+        self.save_lock()
+        with self.assertRaisesRegex(subject.Failure, 'patch set'):
+            subject.load_lock(self.lock_path)
+        self.lock['source_patches'][0]['path'] = 'patches/libsignal-0.107.0-attributed.mbox'
+        self.save_lock()
+        subject.load_lock(self.lock_path)
+        self.lock['modules'][1]['input_version'] = '0.106.1'
+        self.save_lock()
+        with self.assertRaisesRegex(subject.Failure, 'input versions differ'):
+            subject.load_lock(self.lock_path)
+
+    def test_libsignal_output_versions_cannot_diverge_or_reuse_old_coordinates(self):
+        for module in self.lock['modules']:
+            if module['name'].startswith('libsignal-'):
+                module.update(input_version='0.107.0', output_version='0.107.0-collie.1')
+        self.lock['source_patches'][0]['path'] = 'patches/libsignal-0.107.0-attributed.mbox'
+        for outputs in (('0.107.0-collie.1', '0.106.1-collie.1'),
+                        ('0.106.1-collie.1', '0.106.1-collie.1'),
+                        ('0.107.0-collie.0', '0.107.0-collie.0')):
+            with self.subTest(outputs=outputs):
+                for module, version in zip(self.lock['modules'][:2], outputs):
+                    module['output_version'] = version
+                self.save_lock()
+                with self.assertRaises(subject.Failure):
+                    subject.load_lock(self.lock_path)
+
     def test_modified_source_patch_is_rejected(self):
         patch = self.root / self.lock['source_patches'][0]['path']
         patch.write_bytes(patch.read_bytes() + b'tampered')

@@ -1,0 +1,15 @@
+{
+  "schema": 1,
+  "kind": "collie-libsignal-source-candidate",
+  "status": "SOURCE_ONLY",
+  "release_allowed": false,
+  "base_lock_sha256": "557e20c3f8c1d6290af3007bb8eba5469e5a77f569b8efc7dc2edc1e68ba7856",
+  "source_commit": "0abcfd4044a5827d73b657c1170ab3638d660330",
+  "prepared_tree": "7865de9051f53b286424a514061b5aaf4335eef0",
+  "input_version": "0.107.0",
+  "output_version": "0.107.0-collie.1",
+  "patch": {
+    "path": "patches/libsignal-0.107.0-attributed.mbox",
+    "sha256": "56db63aafe770da39e249fcce6f9bac47cdffafa3734dab980ac85e0715e555e"
+  }
+}

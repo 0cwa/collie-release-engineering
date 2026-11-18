@@ -88,3 +88,34 @@ need their external digest approvals. Supplied native inputs remain restricted
 to the separately approved six-file policy; retention does not authorize a new
 native coordinate. The publisher also preserves the feed state, canonical
 `repo.collie.im` CNAME, and F-Droid artwork filenames containing `=`.
+
+## Admitting a new immutable native generation
+
+`native-generations.json` registers additional manifest files by exact path and
+raw SHA-256. Its empty initial list admits no new inputs. Register a manifest
+only after the new binaries and transformed POMs have real, reviewed hashes and
+byte counts; a source-only native candidate is not sufficient.
+
+A registered `native-generations/vN.json` (N at least 2) uses schema 1, kind
+`collie-pages-native-generation`, origin `https://repo.collie.im/`, integer
+`generation` N, and a `files` map. That map includes all six original native-v1
+entries unchanged, plus the exact newly reviewed artifacts under
+`native-inputs/vN/maven/im/collie/native/`. Each added coordinate has a versioned
+binary and POM; libsignal Android and client versions must match. New libsignal
+artifacts can reuse the original RingRTC coordinate without rebuilding or
+copying it into another generation.
+
+The bundle's `native-manifest.json` must equal that checked-in registered
+manifest, and its separately approved raw digest must match. The supplied
+`native/` inventory must equal the complete registered file map. A caller's
+manifest cannot authorize itself. Registry entries reject altered original
+bytes, unversioned metadata, unknown modules, missing POMs, mismatched libsignal
+versions and policy path substitutions. The original six-file manifest remains
+accepted for ordinary feed updates; a captured later generation remains in
+the complete retained site. The special initial empty-site recovery remains
+limited to native-v1.
+
+Registration adds no deployment authority. Existing policy-revision approval,
+previous-site capture, complete-site capacity checks, immutable-URL checks,
+two-phase deployment and canonical HTTPS readback still apply. An accepted
+manifest may not overwrite an already published URL or remove earlier files.
