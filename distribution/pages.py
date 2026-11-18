@@ -12,6 +12,7 @@ import sys
 import subprocess
 import tarfile
 import tempfile
+import time
 import zipfile
 import urllib.request
 from functools import partial
@@ -263,6 +264,8 @@ def prepare(bundle,output,expected_policy,expected_channel=None,profile_override
     if native_only:fields={'schema','kind','origin','previous_site_sha256','previous_manifest_sha256','native_manifest_sha256','maximum_bytes','policy_revision'}
     elif a.get('schema')==2 and profile.name=='stable':fields.add('native_manifest_sha256')
     elif a.get('schema')==2 and 'native_manifest_sha256' in a:fields.add('native_manifest_sha256')
+    if native_only and 'previous_deployment_guard_id' in a:
+        fields.add('previous_deployment_guard_id')
     allowed_schema=(1,) if native_only else ((1,2) if profile.name=='stable' else (2,))
     if set(a)!=fields or type(a['schema']) is not int or a['schema'] not in allowed_schema or a['kind'] not in ('collie-pages-input','collie-pages-native-input'):raise ValueError('Pages input fields/schema')
     if a['origin']!=ORIGIN or a['policy_revision']!=expected_policy or not re.fullmatch('[0-9a-f]{40}',expected_policy):raise ValueError('origin/policy approval differs')
@@ -445,6 +448,9 @@ def prepare(bundle,output,expected_policy,expected_channel=None,profile_override
         for name in old_files:
             if name not in manifests['phase2']:raise ValueError('retained URL removed')
         plan={'schema':1,'kind':'collie-pages-promotion','channel':channel,'input_approval_sha256':digest(a),'origin':ORIGIN,'policy_revision':expected_policy,'mode':'native-only' if native_only else 'feed','native_manifest_sha256':native_digest,'repository_receipt_sha256':a.get('repository_receipt_sha256'),'repository_certificate_sha256':a.get('repository_certificate_sha256'),'candidate_generation_sha256':a.get('candidate_generation_sha256'),'maximum_bytes':a['maximum_bytes'],'previous_manifest_sha256':a['previous_manifest_sha256'],'previous_site_sha256':a['previous_site_sha256'],'previous_files':old_files,'manifests':manifests,'artifacts':artifacts}
+        if 'previous_deployment_guard_id' in a:
+            plan['previous_deployment_guard_id'] = a['previous_deployment_guard_id']
+            native_deployment_guard(plan)
         b.atomic_json(output/'plan.json',plan)
         b.atomic_json(output/'journal.json',{'schema':1,'plan_sha256':digest(plan),'completed':[],'previous_verified':False,'readbacks':{}})
         return plan
@@ -460,7 +466,14 @@ def _fresh_cache_headers(headers):
     if not _fresh_headers(values):raise ValueError('cached response is not a fresh canonical inventory')
     return values
 
-def observe_head(url,*,allow_unverified=False):
+def _verify_observation_url(actual, expected, require_canonical):
+    if not actual.startswith('https://'):
+        raise ValueError('HTTPS readback required')
+    if require_canonical and actual != expected:
+        raise ValueError('canonical readback URL differs')
+
+
+def observe_head(url,*,allow_unverified=False,require_canonical=False):
     import urllib.error
     request=urllib.request.Request(url,headers={'Cache-Control':'no-cache, no-store','Pragma':'no-cache'},method='HEAD')
     try:
@@ -468,18 +481,18 @@ def observe_head(url,*,allow_unverified=False):
     except urllib.error.HTTPError as error:
         if error.code==404:
             try:
-                if not error.geturl().startswith('https://'):raise ValueError('HTTPS readback required')
+                _verify_observation_url(error.geturl(),url,require_canonical)
                 headers=_cache_headers(error.headers) if allow_unverified else _fresh_cache_headers(error.headers)
             finally:error.close()
             return {'status':404,'headers':headers}
         raise
     with response:
-        if not response.geturl().startswith('https://'):raise ValueError('HTTPS readback required')
+        _verify_observation_url(response.geturl(),url,require_canonical)
         if response.status!=200:raise ValueError('canonical inventory HEAD was not 200 or 404')
         headers=_cache_headers(response.headers) if allow_unverified else _fresh_cache_headers(response.headers)
         return {'status':200,'headers':headers}
 
-def observe(url,*,allow_unverified=False,max_bytes=None):
+def observe(url,*,allow_unverified=False,max_bytes=None,require_canonical=False):
     import urllib.error
     if max_bytes is None:max_bytes=MAX_BYTES
     if type(max_bytes) is not int or not 0<=max_bytes<=MAX_BYTES:raise ValueError('invalid readback byte limit')
@@ -490,13 +503,13 @@ def observe(url,*,allow_unverified=False,max_bytes=None):
     except urllib.error.HTTPError as error:
         if error.code==404:
             try:
-                if not error.geturl().startswith('https://'):raise ValueError('HTTPS readback required')
+                _verify_observation_url(error.geturl(),url,require_canonical)
                 headers=_cache_headers(error.headers) if allow_unverified else _fresh_cache_headers(error.headers)
             finally:error.close()
             return {'status':404,'headers':headers}
         raise
     with response:
-        if not response.geturl().startswith('https://'):raise ValueError('HTTPS readback required')
+        _verify_observation_url(response.geturl(),url,require_canonical)
         if response.status!=200:raise ValueError('readback not200')
         headers=_cache_headers(response.headers) if allow_unverified else _fresh_cache_headers(response.headers)
         h=hashlib.sha256();size=0
@@ -578,11 +591,33 @@ def verify_terminal_operation_inventory(runs,deployments,expected_run_ids,expect
         raise ValueError('deployment is active or not a known terminal state')
     return True
 
+def native_deployment_guard(plan):
+    """Return the explicitly approved predecessor for an additive native-only update."""
+    key = 'previous_deployment_guard_id'
+    if key not in plan:
+        return None
+    guard = plan[key]
+    previous = plan['previous_files']
+    candidate = plan['manifests']['phase1']
+    inventory = 'site-manifest.json'
+    if (plan['mode'] != 'native-only' or plan['channel'] != 'stable' or
+            type(guard) is not int or guard <= 0 or not plan['previous_manifest_sha256'] or
+            previous.get(inventory, {}).get('sha256') != plan['previous_manifest_sha256'] or
+            candidate != plan['manifests']['phase2'] or inventory not in candidate or
+            any(candidate.get(name) != entry for name, entry in previous.items() if name != inventory)):
+        raise ValueError('cached readback requires an approved additive native deployment')
+    added = candidate.keys() - previous.keys()
+    if not added or any(not retained_artifacts.versioned_native_path(name) for name in added):
+        raise ValueError('guarded deployment may add only versioned native files')
+    return guard
+
+
 def preflight(plan,journal_path,*,fetch=observe,head=None,expected_channel='stable'):
     if plan.get('channel','stable')!=expected_channel:raise ValueError('plan channel differs from selected channel')
     if plan['origin']!=ORIGIN:raise ValueError('unapproved origin')
     if head is None:head=observe_head if fetch is observe else fetch
     recovery=_authorized_empty_native_plan(plan)
+    guarded=native_deployment_guard(plan)
     with b.locked(journal_path.parent):
         journal=b.load(journal_path)
         if journal['plan_sha256']!=digest(plan):raise ValueError('journal belongs to another plan')
@@ -592,14 +627,14 @@ def preflight(plan,journal_path,*,fetch=observe,head=None,expected_channel='stab
             raise ValueError('fresh preflight journal required')
         observations={}
         def inspect_head(url):
-            actual=(head(url,allow_unverified=True) if recovery and head is observe_head else head(url))
+            actual=(head(url,allow_unverified=True,require_canonical=bool(guarded)) if (recovery or guarded) and head is observe_head else head(url))
             if actual.get('status') not in (200,404):raise ValueError('canonical inventory HEAD was not 200 or 404')
             headers=actual.get('headers',{})
-            if not recovery and not _fresh_headers(headers):
+            if not (recovery or guarded) and not _fresh_headers(headers):
                 raise ValueError('cached response is not a fresh canonical inventory')
             return actual
         def exact_get(url,name,expected):
-            actual=(fetch(url,allow_unverified=recovery,max_bytes=expected['bytes'])
+            actual=(fetch(url,allow_unverified=bool(recovery or guarded),max_bytes=expected['bytes'],require_canonical=bool(guarded))
                     if fetch is observe else fetch(url))
             if (actual.get('status',200)!=200 or actual.get('sha256')!=expected['sha256'] or
                 actual.get('bytes')!=expected['bytes']):
@@ -623,7 +658,7 @@ def preflight(plan,journal_path,*,fetch=observe,head=None,expected_channel='stab
         else:
             for name,expected in plan['previous_files'].items():
                 safe_name(name)
-                actual=(fetch(plan['origin']+name,max_bytes=expected['bytes'])
+                actual=(fetch(plan['origin']+name,allow_unverified=bool(guarded),max_bytes=expected['bytes'],require_canonical=bool(guarded))
                         if fetch is observe else fetch(plan['origin']+name))
                 if actual.get('status',200)!=200 or actual.get('sha256')!=expected['sha256'] or actual.get('bytes')!=expected['bytes']:raise ValueError('live previous site differs from approved snapshot')
                 observations[name]=actual
@@ -640,6 +675,8 @@ def preflight(plan,journal_path,*,fetch=observe,head=None,expected_channel='stab
             journal['previous_state']={'plan_sha256':digest(plan),'input_approval_sha256':plan['input_approval_sha256'],'observations':observations}
         else:
             journal['previous_verified']=True;journal['previous_readback']=observations
+            if guarded:
+                journal['previous_deployment_guard_id'] = guarded
         b.atomic_json(journal_path,journal)
         return journal
 
@@ -663,10 +700,14 @@ def verify_deploy_baseline(plan,phase,journal_path=None,*,expected_channel='stab
         preflight(plan,baseline_journal,fetch=fetch,head=head,expected_channel=expected_channel)
     return True
 
-def readback(plan,journal_path,phase,*,fetch=None,expected_channel='stable',require_recorded=False):
+def readback(plan,journal_path,phase,*,fetch=None,expected_channel='stable',require_recorded=False, deployment_guard_id=None):
     if plan.get('channel','stable')!=expected_channel:raise ValueError('plan channel differs from selected channel')
     if phase not in ('phase1','phase2'):raise ValueError('phase')
     if plan['origin']!=ORIGIN:raise ValueError('unapproved origin')
+    guarded = native_deployment_guard(plan)
+    if guarded and not require_recorded and (type(deployment_guard_id) is not int or deployment_guard_id <= 0):
+        raise ValueError('successful deployment guard output is required')
+    live_fetch = fetch is None or fetch is observe
     if fetch is None:fetch=observe
     with b.locked(journal_path.parent):
         journal=b.load(journal_path)
@@ -686,15 +727,30 @@ def readback(plan,journal_path,phase,*,fetch=None,expected_channel='stable',requ
         if not journal.get('previous_verified') and not recovery:
             raise ValueError('live previous preflight or owner-authorized first-publication recovery required')
         if phase=='phase2' and 'phase1' not in journal['completed']:raise ValueError('phase1 readback required before phase2')
+        if guarded and journal.get('previous_deployment_guard_id') != guarded:
+            raise ValueError('journal lacks the approved previous deployment guard')
         observed={}
+        deadline = time.monotonic() + 660
         for name,expected in plan['manifests'][phase].items():
             safe_name(name)
             # In the exact empty-native recovery, cache metadata is not origin
             # proof. Still GET every URL and require the exact planned bytes/hash.
-            actual=(fetch(plan['origin']+name,allow_unverified=recovery,max_bytes=expected['bytes'])
-                    if fetch is observe else fetch(plan['origin']+name))
-            if actual.get('status',200)!=200 or actual.get('sha256')!=expected['sha256'] or actual.get('bytes')!=expected['bytes']:raise ValueError('readback mismatch: '+name)
+            while True:
+                actual=(fetch(plan['origin']+name,allow_unverified=bool(recovery or guarded),max_bytes=expected['bytes'],require_canonical=bool(guarded))
+                        if fetch is observe else fetch(plan['origin']+name))
+                if (actual.get('status')==200 and actual.get('sha256')==expected['sha256'] and
+                        actual.get('bytes')==expected['bytes']):
+                    break
+                # A cached old manifest or negative can lag an already successful
+                # deployment. Every positive result must still match the new bytes.
+                if not (guarded and live_fetch and not require_recorded and
+                        (name == 'site-manifest.json' or name not in plan['previous_files']) and
+                        not _fresh_headers(actual.get('headers', {})) and time.monotonic() < deadline):
+                    raise ValueError('readback mismatch: '+name)
+                time.sleep(min(15, max(0, deadline - time.monotonic())))
             observed[name]=actual
+        if guarded and not require_recorded:
+            journal.setdefault('deployment_guards', {})[phase] = deployment_guard_id
         journal['readbacks'][phase]=observed
         if phase not in journal['completed']:journal['completed'].append(phase)
         b.atomic_json(journal_path,journal)
@@ -704,6 +760,13 @@ def verify_completed_readbacks(plan,journal):
     if journal.get('plan_sha256')!=digest(plan):raise ValueError('journal belongs to another plan')
     if not journal.get('previous_verified') and not _recovery_journal_authorized(plan,journal):
         raise ValueError('live previous preflight or owner-authorized first-publication recovery required')
+    guarded = native_deployment_guard(plan)
+    if guarded:
+        guards = journal.get('deployment_guards', {})
+        if (journal.get('previous_deployment_guard_id') != guarded or set(guards) != {'phase1', 'phase2'} or
+                any(type(value) is not int or value <= 0 for value in guards.values()) or
+                len({guarded, *guards.values()}) != 3):
+            raise ValueError('guarded readbacks require both successful deployment identities')
     if journal.get('completed')!=['phase1','phase2'] or set(journal.get('readbacks',{}))!={'phase1','phase2'}:
         raise ValueError('both canonical readbacks are required')
     for phase in ('phase1','phase2'):
@@ -737,6 +800,7 @@ def main():
     a=s.add_parser('prepare');a.add_argument('bundle',type=Path);a.add_argument('output',type=Path);a.add_argument('--policy',required=True);a.add_argument('--channel',choices=('stable','trailblazer-beta'),default='stable')
     a=s.add_parser('preflight');a.add_argument('plan',type=Path);a.add_argument('journal',type=Path);a.add_argument('--channel',choices=('stable','trailblazer-beta'),default='stable')
     a=s.add_parser('readback');a.add_argument('plan',type=Path);a.add_argument('journal',type=Path);a.add_argument('--phase',choices=['phase1','phase2'],required=True);a.add_argument('--channel',choices=('stable','trailblazer-beta'),default='stable')
+    a.add_argument('--deployment-guard-id', type=int)
     a=s.add_parser('unpack');a.add_argument('archive',type=Path);a.add_argument('destination',type=Path)
     args=p.parse_args()
     readiness_token = os.environ.pop('COLLIE_APP_READINESS_TOKEN', None)
@@ -744,6 +808,7 @@ def main():
         print(json.dumps(prepare(args.bundle,args.output,args.policy,args.channel,
                                  readiness_token=readiness_token)['artifacts'],indent=2))
     elif args.cmd=='preflight':print(json.dumps(preflight(b.load(args.plan),args.journal,expected_channel=args.channel),indent=2))
-    elif args.cmd=='readback':print(json.dumps(readback(b.load(args.plan),args.journal,args.phase,expected_channel=args.channel),indent=2))
+    elif args.cmd=='readback':print(json.dumps(readback(b.load(args.plan),args.journal,args.phase,expected_channel=args.channel,
+                 deployment_guard_id=args.deployment_guard_id),indent=2))
     else:unpack(args.archive,args.destination)
 if __name__=='__main__':main()
