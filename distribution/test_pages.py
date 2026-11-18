@@ -146,6 +146,13 @@ class PagesFreshInventoryTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError,'HTTPS readback required'):
                 p.observe(url)
 
+    def test_pinned_readback_rejects_another_https_destination(self):
+        url = p.ORIGIN + 'site-manifest.json'
+        redirected = HTTPError('https://other.example/site-manifest.json',404,'Not Found',Message(),None)
+        with patch('urllib.request.urlopen', side_effect=redirected):
+            with self.assertRaisesRegex(ValueError, 'canonical readback URL differs'):
+                p.observe(url, allow_unverified=True, require_canonical=True)
+
     def test_observe_rejects_unknown_age(self):
         url='https://repo.collie.im/native-inputs/example'
         for age in ('unknown',''):
@@ -491,6 +498,52 @@ class NativePagesTest(unittest.TestCase):
             self.approval.update(schema=1,kind='collie-pages-native-input')
         self.write();self.policy_patch=patch.object(p,'NATIVE_POLICY',self.native_policy);self.policy_patch.start();self.addCleanup(self.policy_patch.stop)
         return policy['files']
+    def test_guarded_native_plan_requires_additive_files_and_both_readbacks(self):
+        old = self.bundle/'previous/fdroid/repo'
+        old.mkdir(parents=True)
+        (old/'entry.jar').write_bytes(b'previous signed entry')
+        self.add_native(only=True)
+        self.approval['previous_deployment_guard_id'] = 123
+        self.seal_previous()
+        plan = self.prepare()
+        journal = self.output/'journal.json'
+        cached = {'Age':'312','X-Cache':'HIT'}
+
+        def previous(url):
+            name = url.removeprefix(p.ORIGIN)
+            if name not in plan['previous_files']:
+                return {'status':404,'headers':cached}
+            return dict(plan['previous_files'][name],status=200,headers=cached)
+
+        def corrupt(url):
+            result = previous(url)
+            if url.endswith('entry.jar'):
+                result['sha256'] = '0'*64
+            return result
+
+        with self.assertRaisesRegex(ValueError,'live previous site differs'):
+            p.preflight(plan,journal,fetch=corrupt)
+        p.preflight(plan,journal,fetch=previous)
+        with self.assertRaisesRegex(ValueError,'successful deployment guard output'):
+            p.readback(plan,journal,'phase1',fetch=self.fetch(plan,'phase1'))
+        p.readback(plan,journal,'phase1',fetch=self.fetch(plan,'phase1'),deployment_guard_id=124)
+
+        def wrong_new(url):
+            name = url.removeprefix(p.ORIGIN)
+            if name not in plan['previous_files']:
+                return {'status':404,'headers':cached}
+            return self.fetch(plan,'phase2')(url)
+
+        with self.assertRaisesRegex(ValueError,'readback mismatch'):
+            p.readback(plan,journal,'phase2',fetch=wrong_new,deployment_guard_id=125)
+        p.readback(plan,journal,'phase2',fetch=self.fetch(plan,'phase2'),deployment_guard_id=125)
+        self.assertTrue(p.verify_completed_readbacks(plan,b.load(journal)))
+        changed = copy.deepcopy(plan)
+        for phase in ('phase1','phase2'):
+            changed['manifests'][phase]['fdroid/repo/entry.jar']['bytes'] += 1
+        with self.assertRaisesRegex(ValueError,'approved additive native deployment'):
+            p.native_deployment_guard(changed)
+
     def test_native_only_needs_no_apk_index_key_or_landing(self):
         files=self.add_native(only=True)
         for name in ('candidate','releases','landing'):__import__('shutil').rmtree(self.bundle/name)

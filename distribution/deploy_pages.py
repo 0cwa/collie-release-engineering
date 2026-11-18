@@ -239,6 +239,15 @@ class PagesApi:
                 return records
         raise PagesApiError("GitHub deployment guard inventory exceeded the safe page limit")
 
+    def pages_environment_deployments(self) -> list[dict]:
+        value = self._json_request(
+            "GET", f"{self.api_url}/repos/{self.repository}/deployments?environment=github-pages&per_page=100",
+            bearer=self.github_token,
+        )
+        if not isinstance(value, list) or any(not isinstance(item, dict) for item in value):
+            raise PagesApiError("GitHub returned invalid Pages environment deployments")
+        return value
+
     def deployment_guard_statuses(self, deployment_id: int) -> list[dict]:
         value = self._json_request(
             "GET", f"{self.api_url}/repos/{self.repository}/deployments/{deployment_id}/statuses?per_page=100",
@@ -292,6 +301,7 @@ class DeploymentGuard:
         self.clock = clock
         self.sleep = sleep
         self.deployment_id = None
+        self.completed_id = None
 
     @staticmethod
     def _latest_status(statuses: list[dict]) -> dict | None:
@@ -376,6 +386,55 @@ class DeploymentGuard:
             if self._is_our_guard(record):
                 self._reconcile_or_block(record)
 
+    def require_current(self, expected_id: int, *, same_attempt=False) -> None:
+        records = [record for record in self.api.deployment_guard_records() if self._is_our_guard(record)]
+        if not records:
+            raise PagesApiError("Current Pages deployment guard is missing")
+        current = max(records, key=self._guard_id)
+        if self._guard_id(current) != expected_id:
+            raise PagesApiError("Current Pages deployment guard differs from the approved predecessor")
+        payload = current["payload"]
+        if isinstance(payload, str):
+            payload = json.loads(payload)
+        if same_attempt and (
+            payload.get("run_id") != self.run_id or payload.get("run_attempt") != self.run_attempt
+        ):
+            raise PagesApiError("Previous phase deployment belongs to a different run attempt")
+        latest = self._latest_status(self.api.deployment_guard_statuses(expected_id))
+        terminal = re.fullmatch(
+            r"pages-terminal:([A-Za-z0-9._-]+):succeed",
+            latest.get("description", "") if latest else "",
+        )
+        if not terminal or latest.get("state") != "success" or terminal[1] in (".", ".."):
+            raise PagesApiError("Current Pages deployment lacks a successful terminal identity")
+        if self.api.status(terminal[1], interruptible=False) != "succeed":
+            raise PagesApiError("Current Pages deployment is not successful in the Pages API")
+        self._require_pages_environment(current, payload)
+
+    def _require_pages_environment(self, guard: dict, payload: dict) -> None:
+        own_jobs = f"https://github.com/{self.api.repository}/actions/runs/{self.run_id}/job/"
+        old_run = payload.get("run_id")
+        if type(old_run) is not int or old_run <= 0:
+            raise PagesApiError("Current Pages deployment guard lacks its run")
+        previous_jobs = f"https://github.com/{self.api.repository}/actions/runs/{old_run}/job/"
+        records = self.api.pages_environment_deployments()
+        for record in sorted(records, key=self._guard_id, reverse=True):
+            deployment_id = self._guard_id(record)
+            latest = self._latest_status(self.api.deployment_guard_statuses(deployment_id))
+            state = latest.get("state") if latest else None
+            log = latest.get("log_url") if latest else None
+            if state in ("error", "failure", "inactive"):
+                continue
+            if (state in GUARD_ACTIVE_STATES and record.get("sha") == self.build_version and
+                    isinstance(log, str) and re.fullmatch(re.escape(own_jobs) + r"[1-9][0-9]*", log)):
+                continue
+            if (state == "success" and record.get("sha") == guard.get("sha") and
+                    isinstance(log, str) and re.fullmatch(re.escape(previous_jobs) + r"[1-9][0-9]*", log) and
+                    latest.get("environment_url") == "https://repo.collie.im/"):
+                return
+            break
+        raise PagesApiError("The latest Pages environment deployment differs from the approved predecessor")
+
     def acquire(self) -> None:
         self.deployment_id = self.api.create_deployment_guard(
             build_version=self.build_version, run_id=self.run_id,
@@ -396,6 +455,8 @@ class DeploymentGuard:
     def finish(self, state: str, description: str) -> None:
         if self.deployment_id is not None:
             self.api.set_deployment_guard_status(self.deployment_id, state, description)
+            if state == "success":
+                self.completed_id = self.deployment_id
             self.deployment_id = None
 
 
@@ -552,9 +613,22 @@ def main() -> int:
             import pages
             plan = json.loads(args.pages_plan.read_text())
             journal = args.pages_journal
+            previous = pages.native_deployment_guard(plan)
+            second = args.phase == "phase2"
+            if previous and second:
+                phase1_id = os.environ.get("COLLIE_PHASE1_GUARD_ID", "")
+                if not re.fullmatch(r"[1-9][0-9]*", phase1_id):
+                    raise ValueError("Successful phase 1 deployment identity is required")
+                previous = int(phase1_id)
+                if json.loads(journal.read_text()).get("deployment_guards", {}).get("phase1") != previous:
+                    raise ValueError("Recorded phase 1 deployment identity differs")
+            if previous:
+                guard.require_current(previous, same_attempt=second)
             pages.verify_deploy_baseline(
                 plan, args.phase, journal, expected_channel=args.channel,
             )
+            if previous:
+                guard.require_current(previous, same_attempt=second)
     if args.artifact_id <= 0:
         parser.error("artifact ID must be positive")
     build_version = os.environ.get("GITHUB_SHA", "")
@@ -598,6 +672,8 @@ def main() -> int:
             print("Pages deployment interrupted", file=sys.stderr)
             return 1
         _write_output("page_url", page_url)
+        if args.pages_plan and guard and guard.completed_id:
+            _write_output("guard_id", str(guard.completed_id))
         print(f"Pages deployment succeeded; build {build_version}")
         return 0
     finally:

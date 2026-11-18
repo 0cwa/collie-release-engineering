@@ -1,7 +1,10 @@
 import json
 import unittest
+from unittest.mock import Mock
 
-from distribution.deploy_pages import PagesApi, PagesApiError, deploy_and_wait
+from distribution.deploy_pages import (
+    DeploymentGuard, GUARD_ENVIRONMENT, GUARD_KIND, GUARD_TASK, PagesApi, PagesApiError, deploy_and_wait,
+)
 
 
 class FakeClock:
@@ -51,6 +54,40 @@ class Response:
 
 
 class DeployPagesTest(unittest.TestCase):
+    def test_current_guard_requires_latest_record_and_authoritative_status(self):
+        api = Mock()
+        api.repository = "0cwa/collie-release-engineering"
+        guard = DeploymentGuard(api, build_version="a"*40, run_id=5, run_attempt=2, artifact_id=23)
+        record = {"id":123, "sha":"a"*40, "environment":GUARD_ENVIRONMENT, "task":GUARD_TASK,
+                  "payload":{"kind":GUARD_KIND,"run_id":5,"run_attempt":2,"artifact_id":22}}
+        api.deployment_guard_records.return_value = [record]
+        api.pages_environment_deployments.return_value = [{"id":124,"sha":"a"*40}]
+        statuses = {
+            123: {"created_at":"2026-11-18T01:00:00Z","state":"success","description":"pages-terminal:deploy-a:succeed"},
+            124: {"created_at":"2026-11-18T01:00:01Z","state":"success",
+                  "log_url":f"https://github.com/{api.repository}/actions/runs/5/job/9",
+                  "environment_url":"https://repo.collie.im/"},
+        }
+        api.deployment_guard_statuses.side_effect = lambda identity: [statuses[identity]]
+        api.status.return_value = "succeed"
+        guard.require_current(123,same_attempt=True)
+        api.status.assert_called_once_with("deploy-a",interruptible=False)
+        api.deployment_guard_records.return_value = [record,dict(record,id=124)]
+        with self.assertRaisesRegex(PagesApiError,"approved predecessor"):
+            guard.require_current(123)
+        api.deployment_guard_records.return_value = [record]
+        api.status.return_value = "deployment_failed"
+        with self.assertRaisesRegex(PagesApiError,"Pages API"):
+            guard.require_current(123)
+        api.status.return_value = "succeed"
+        statuses[124]["log_url"] = f"https://github.com/{api.repository}/actions/runs/6/job/9"
+        with self.assertRaisesRegex(PagesApiError,"latest Pages environment"):
+            guard.require_current(123)
+        record["payload"]["run_attempt"] = 1
+        with self.assertRaisesRegex(PagesApiError,"different run attempt"):
+            guard.require_current(123,same_attempt=True)
+        api.create.assert_not_called()
+
     def test_effective_wait_can_exceed_action_600_second_cap(self):
         clock = FakeClock()
         api = FakeApi(["syncing_files", "syncing_files", "succeed"])

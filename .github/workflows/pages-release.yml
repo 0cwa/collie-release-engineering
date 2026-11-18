@@ -159,6 +159,8 @@ jobs:
   phase1:
     if: needs.prepare.outputs.mode == 'feed'
     needs: prepare
+    outputs:
+      guard_id: ${{ steps.deploy.outputs.guard_id }}
     runs-on: ubuntu-24.04
     permissions:
       contents: read
@@ -192,6 +194,7 @@ jobs:
     needs: [prepare, phase1]
     outputs:
       phase2_artifact_id: ${{ needs.prepare.outputs.phase2_artifact_id }}
+      phase1_guard_id: ${{ needs.phase1.outputs.guard_id }}
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
@@ -208,6 +211,7 @@ jobs:
       - if: inputs.preparation_mode == 'feed'
         env:
           FEED_CHANNEL: ${{ inputs.feed_channel }}
+          COLLIE_DEPLOYED_GUARD_ID: ${{ needs.phase1.outputs.guard_id }}
         run: python distribution/pages.py readback "$RUNNER_TEMP/control/plan.json" "$RUNNER_TEMP/control/journal.json" --phase phase1 --channel "$FEED_CHANNEL"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
@@ -218,6 +222,8 @@ jobs:
   phase2:
     if: ${{ !cancelled() && needs['phase1-readback'].result == 'success' }}
     needs: phase1-readback
+    outputs:
+      guard_id: ${{ steps.deploy.outputs.guard_id }}
     runs-on: ubuntu-24.04
     permissions:
       contents: read
@@ -243,6 +249,7 @@ jobs:
         id: deploy
         env:
           ARTIFACT_ID: ${{ needs['phase1-readback'].outputs.phase2_artifact_id }}
+          COLLIE_PHASE1_GUARD_ID: ${{ needs['phase1-readback'].outputs.phase1_guard_id }}
           GITHUB_TOKEN: ${{ github.token }}
           FEED_CHANNEL: ${{ inputs.feed_channel }}
         run: exec python distribution/deploy_pages.py --artifact-id "$ARTIFACT_ID" --timeout-seconds 1800 --pages-plan "$RUNNER_TEMP/control/plan.json" --pages-journal "$RUNNER_TEMP/control/journal.json" --phase phase2 --channel "$FEED_CHANNEL"
@@ -264,6 +271,7 @@ jobs:
           path: ${{ runner.temp }}/control/
       - env:
           FEED_CHANNEL: ${{ inputs.feed_channel }}
+          COLLIE_DEPLOYED_GUARD_ID: ${{ needs.phase2.outputs.guard_id }}
         run: python distribution/pages.py readback "$RUNNER_TEMP/control/plan.json" "$RUNNER_TEMP/control/journal.json" --phase phase2 --channel "$FEED_CHANNEL"
       - name: Preserve completed production link activation evidence
         if: inputs.preparation_mode == 'activate-links'
