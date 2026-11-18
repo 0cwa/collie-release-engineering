@@ -20,6 +20,7 @@ import binary_repo as b
 import feed as feed_builder
 import site_page
 import retained_artifacts
+import native_generations
 try:
     from . import channel_profile as channels
 except ImportError:
@@ -30,6 +31,7 @@ import migration_receipts as receipts
 ORIGIN='https://repo.collie.im/'
 MAX_BYTES=950_000_000  # conservative decimal1GB minus50MB operational margin
 NATIVE_POLICY=Path(__file__).with_name('native-v1.json')
+NATIVE_GENERATIONS=Path(__file__).with_name('native-generations.json')
 ARCHIVE_FORMAT=tarfile.USTAR_FORMAT
 FIRST_PUBLICATION_RECOVERY='owner-authorized-first-publication-unverified-origin'
 CACHED_NEGATIVE='cached_negative_unverified_origin'
@@ -283,12 +285,15 @@ def prepare(bundle,output,expected_policy,expected_channel=None,profile_override
     if native_only and native_digest is None:raise ValueError('native manifest approval required')
     if native_digest is not None:
         if not isinstance(native_digest,str) or not re.fullmatch('[0-9a-f]{64}',native_digest) or b.sha(bundle/'native-manifest.json')!=native_digest:raise ValueError('native manifest digest differs')
-        if b.load(bundle/'native-manifest.json')!=b.load(NATIVE_POLICY):raise ValueError('native manifest differs from fixed six-file policy')
-        if supplied_native!=pinned_native:raise ValueError('native inputs differ from approved six files')
+        approved_native=native_generations.approved_files(b.load(bundle/'native-manifest.json'),NATIVE_POLICY,NATIVE_GENERATIONS)
+        if supplied_native!=approved_native:
+            raise ValueError('native inputs differ from approved six files' if approved_native==pinned_native else
+                             'native inputs differ from the exact approved file set')
     elif supplied_native:raise ValueError('native inputs lack approval')
     retained_native={n:e for n,e in old_files.items() if n.startswith('native-inputs/')}
     # Only already published, externally approved native URLs may extend this
-    # set. New native input still has to equal the fixed six-file policy above.
+    # set. New native input must match a separately registered immutable policy;
+    # every such policy retains the fixed native-v1 set without changes.
     if retained_native and (any(retained_native.get(name)!=entry for name,entry in pinned_native.items()) or
             any(not retained_artifacts.versioned_native_path(name) for name in retained_native) or
             (profile.name=='stable' and native_digest is None)):

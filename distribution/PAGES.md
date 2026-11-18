@@ -480,6 +480,17 @@ been published). Schema1 remains the historical feed-only format. Once native-v1
 is present, every approved bundle must carry all six unchanged files and the
 manifest approval; omission, changed bytes, extra files or new generations fail.
 
+Additional native generations now require explicit registration in
+`native-generations.json`, with a checked-in manifest pinned by raw SHA-256.
+The registry is initially empty. A registered generation preserves the six
+native-v1 entries and specifies every additional binary and POM at immutable
+versioned coordinates. Supply that exact registered manifest and full file set
+through the existing approval/readback flow. Old native-v1 bundles remain valid
+for feed updates and retain all already published generations. See
+[NATIVE-STORAGE.md](NATIVE-STORAGE.md#admitting-a-new-immutable-native-generation)
+for the format and admission rules. Initial empty-site recovery remains native-v1
+only; registration does not itself authorize publication.
+
 For deployment before any production repository-index key exists, approval schema1
 kind `collie-pages-native-input` has only: origin, policy_revision,
 previous_site_sha256, previous_manifest_sha256, native_manifest_sha256,

@@ -1,0 +1,69 @@
+From ceb0a5a786a65a9cd374649ac72f621a9e6427b8 Mon Sep 17 00:00:00 2001
+From: Oscar Mira <valldrac@molly.im>
+Date: Fri, 17 Oct 2025 12:51:23 +0200
+Subject: [PATCH 1/2] Enforce proxy-only mode when proxy is set
+
+---
+ rust/net/src/connect_state.rs | 10 ++--------
+ 1 file changed, 2 insertions(+), 8 deletions(-)
+
+diff --git a/rust/net/src/connect_state.rs b/rust/net/src/connect_state.rs
+index 7c21fff2..7d242b7b 100644
+--- a/rust/net/src/connect_state.rs
++++ b/rust/net/src/connect_state.rs
+@@ -905,14 +905,8 @@ pub type PreconnectingFactory<Inner = DefaultConnectorFactory> =
+     libsignal_net_infra::route::PreconnectingFactory<TransportRoute, Inner>;
+ 
+ pub fn infer_proxy_mode_for_config(config: ConnectionProxyConfig) -> DirectOrProxyMode {
+-    if config.is_signal_transparent_proxy() {
+-        // This was configured in the app, we should take it as a requirement.
+-        DirectOrProxyMode::ProxyOnly(config)
+-    } else {
+-        // This was set at the system level or provided as an environment variable, it may not have
+-        // been intended to apply to Signal.
+-        DirectOrProxyMode::ProxyThenDirect(config)
+-    }
++    // MOLLY: Always enforce proxy-only mode.
++    DirectOrProxyMode::ProxyOnly(config)
+ }
+ 
+ #[cfg(test)]
+-- 
+2.56.0
+
+
+From 0dd2375cc87182d90a0f111f594097830e0439de Mon Sep 17 00:00:00 2001
+From: 0cwa <0@none.org>
+Date: Fri, 6 Nov 2026 08:05:13 +0100
+Subject: [PATCH 2/2] Test configured proxies never fall back to direct mode
+
+---
+ rust/net/src/connect_state.rs | 12 ++++++++++++
+ 1 file changed, 12 insertions(+)
+
+diff --git a/rust/net/src/connect_state.rs b/rust/net/src/connect_state.rs
+index 7d242b7b..64381126 100644
+--- a/rust/net/src/connect_state.rs
++++ b/rust/net/src/connect_state.rs
+@@ -940,6 +940,18 @@ mod test {
+     use crate::ws::NotRejectedByServer;
+ 
+     const FAKE_HOST_NAME: &str = "direct-host";
++
++    #[test_case("org.signal.tls"; "signal_tls")]
++    #[test_case("http"; "http")]
++    #[test_case("https"; "https")]
++    #[test_case("socks5h"; "socks5h")]
++    fn configured_proxy_never_falls_back_to_direct(scheme: &str) {
++        let config = ConnectionProxyConfig::from_parts(scheme, "proxy.example", None, None)
++            .expect("valid proxy configuration");
++
++        assert_matches!(infer_proxy_mode_for_config(config), DirectOrProxyMode::ProxyOnly(_));
++    }
++
+     static FAKE_TRANSPORT_ROUTE: LazyLock<UnresolvedTransportRoute> = LazyLock::new(|| TlsRoute {
+         fragment: TlsRouteFragment {
+             root_certs: RootCertificates::Native,
+-- 
+2.56.0
+

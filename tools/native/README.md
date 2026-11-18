@@ -1,5 +1,59 @@
 # Pinned native artifact staging (incremental)
 
+## Preparing a new libsignal version
+
+`libsignal-0.107.0-candidate.json` pins the upstream source and the attributed
+proxy-only patch tree for the Signal 8.36.3 upgrade. It is a source candidate,
+with no binary hashes or publication acceptance. The existing `native-lock.json`
+continues to describe the previously accepted 0.106.1 inputs and unchanged
+RingRTC 2.74.0 input.
+
+Prepare and independently replay the candidate using a local repository that
+contains the exact upstream commit:
+
+```sh
+python3 tools/native/libsignal_candidate.py \
+  --lock tools/native/native-lock.json \
+  --candidate tools/native/libsignal-0.107.0-candidate.json \
+  --libsignal "$LIBSIGNAL_REPO" --output "$NEW_LIBSIGNAL_SOURCES"
+python3 tools/native/libsignal_candidate.py \
+  --lock tools/native/native-lock.json \
+  --candidate tools/native/libsignal-0.107.0-candidate.json \
+  --verify-prepared --output "$NEW_LIBSIGNAL_SOURCES"
+```
+
+The existing diagnostic builder accepts the separate candidate explicitly:
+
+```sh
+python3 tools/native/build_sources.py \
+  --lock tools/native/native-lock.json \
+  --candidate tools/native/libsignal-0.107.0-candidate.json \
+  --sources "$NEW_LIBSIGNAL_SOURCES" --fresh \
+  --sdk "$ANDROID_SDK_ROOT" --java-home "$NATIVE_JAVA_HOME" \
+  --rust-bin "$NATIVE_RUST_BIN" --report "$NEW_CANDIDATE_REPORT" \
+  --gradle-zip "$GRADLE_960_ZIP" --gradle-distribution "$GRADLE_960_DIRECTORY"
+```
+
+This mode prepares only libsignal, requires clean build outputs, keeps the
+existing source/toolchain/environment checks, runs the four proxy-mode tests,
+and produces its Android AAR, Java client JAR and upstream POMs. libsignal itself
+needs Android platform 34, NDK 28.0.13004108, Java 21, Gradle 9.6.0 and the pinned
+Rust 1.98.1 compiler with all four Android targets. Populate reviewed dependency
+caches separately before the offline fresh build.
+
+`BUILT_LIBSIGNAL_CANDIDATE` records the actual output hashes and byte counts;
+it is not an accepted binary lock, a publication receipt, or independent
+reproduction evidence. The builder never updates a lock or publishes anything.
+Review the outputs before adding their exact pins to a new native lock and
+passing them through the existing staging and publication tools. The Android
+and client versions must match, and the patch filename follows that input
+version. Leave RingRTC/WebRTC inputs unchanged for this libsignal-only upgrade.
+New immutable URLs require the separately reviewed generation admission in
+`distribution/NATIVE-STORAGE.md`, successful canonical readback and matching
+Android-side lock, dependency and acceptance updates.
+
+## Existing accepted-input diagnostics
+
 This is a pinned source-preparation and fail-closed artifact-staging component, not yet a native source builder. The lock records exact source commits, attributed patch bytes, and hashes of the three locally built candidate binaries and their original POMs. It does not prove those binaries were produced from those sources, that the build is reproducible, or that real proxy and call behavior works. The complete RingRTC/WebRTC builder, independently pinned output trees/toolchain verification, and Android runtime gates must be completed before release. The accompanying build-driver integration permits provisional debug/test runs only and explicitly blocks release assembly.
 
 Given local Git repositories containing the three exact pinned commits, prepare fresh source checkouts without network access:
@@ -23,6 +77,13 @@ python3 tools/native/stage_artifacts.py --verify-stage --lock tools/native/nativ
 ```
 
 Output contains a local Maven repository at distinct `im.collie.native` coordinates, a Gradle init script, generated strict verification metadata and a digest receipt. The input AAR/JAR bytes are unchanged. The generated POMs keep upstream dependencies and redirect libsignal's matching client dependency to the Collie coordinate. The generated metadata narrows the existing blanket POM trust rule so it cannot bypass the new native POM hashes; trust for other groups is preserved.
+
+An upgrade can retain an existing native coordinate only when its complete
+binary and POM artifact set has exactly the hashes computed from the checked
+inputs. This lets a libsignal-only upgrade reuse the pinned RingRTC version
+without duplicate verification entries. Differing hashes, duplicate coordinates,
+extra accepted checksums and trust-rule bypasses are rejected before staging.
+Older versions remain in the verification metadata.
 
 The companion catalog patch switches the application to those distinct coordinates. It is mandatory: without the generated exclusive repository, resolution must fail instead of falling back to published Molly or Signal binaries. The accompanying build-driver integration verifies the stage immediately before every Gradle invocation, permits only the exact recomputed verification-metadata transformation in its disposable checkout, and passes the generated init script with strict verification. It refuses release assembly and reports that the complete RingRTC/WebRTC native source build is not implemented. A separate `native-build-libsignal` diagnostic phase validates prepared source, checks the recorded Rust/NDK versions and four proxy-mode tests, then invokes the documented libsignal Android build; its receipt is explicitly partial and cannot authorize release. On the real pinned source, its four proxy-only unit tests passed and Gradle built the AAR and client JAR; the diagnostic correctly rejected their hashes because they differ from the locked candidate bytes. The `native-prepare` phase accepts three caller-supplied local repositories; `native-integrate` stages the pinned provisional artifacts from the supplied `--maven-dir`. Do not add private or absolute machine paths to tracked configuration. The generated init script necessarily contains the caller's local Maven URI and must remain untracked.
 
