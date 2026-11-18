@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 from contextlib import contextmanager, nullcontext
+from datetime import datetime
 import json
 import os
 import re
@@ -38,6 +39,10 @@ FINAL_FAILURES = {
 
 
 class PagesApiError(RuntimeError):
+    pass
+
+
+class _EmptyPagesStatus(PagesApiError):
     pass
 
 
@@ -212,6 +217,8 @@ class PagesApi:
         if not isinstance(response, dict):
             raise PagesApiError("Pages API returned an unexpected status response")
         value = response.get("status")
+        if value == "":
+            raise _EmptyPagesStatus("Pages deployment status response was empty")
         if not isinstance(value, str) or not value:
             raise PagesApiError("Pages deployment status response was invalid")
         return value
@@ -304,15 +311,25 @@ class DeploymentGuard:
         self.completed_id = None
 
     @staticmethod
-    def _latest_status(statuses: list[dict]) -> dict | None:
+    def _timestamp(value: object) -> str:
+        if isinstance(value, str) and re.fullmatch(r"[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z", value):
+            try:
+                datetime.strptime(value, "%Y-%m-%dT%H:%M:%SZ")
+                return value
+            except ValueError:
+                pass
+        raise PagesApiError("GitHub deployment timestamp is invalid")
+
+    @classmethod
+    def _latest_status(cls, statuses: list[dict]) -> dict | None:
         if not statuses:
             return None
-        # The list endpoint is normally newest-first; using the explicit timestamp
-        # makes the interpretation independent of response ordering.
-        valid = [item for item in statuses if isinstance(item.get("created_at"), str)]
-        if len(valid) != len(statuses):
-            raise PagesApiError("GitHub deployment guard status omitted its timestamp")
-        return max(valid, key=lambda item: item["created_at"])
+        latest_time = max(cls._timestamp(item.get("created_at")) for item in statuses)
+        latest = [item for item in statuses if item["created_at"] == latest_time]
+        keys = ("state", "description", "log_url", "environment_url")
+        if any(any(item.get(key) != latest[0].get(key) for key in keys) for item in latest[1:]):
+            raise PagesApiError("GitHub latest deployment statuses are ambiguous")
+        return latest[0]
 
     def _is_our_guard(self, record: dict) -> bool:
         payload = record.get("payload")
@@ -332,7 +349,7 @@ class DeploymentGuard:
             raise PagesApiError("GitHub deployment guard record has an invalid ID")
         return value
 
-    def _reconcile_or_block(self, record: dict) -> None:
+    def _reconcile_or_block(self, record: dict, current_id: int, matched_environments: set[int]) -> None:
         guard_id = self._guard_id(record)
         latest = self._latest_status(self.api.deployment_guard_statuses(guard_id))
         state = latest.get("state") if latest else "pending"
@@ -346,6 +363,16 @@ class DeploymentGuard:
             if terminal and state == expected_guard_state:
                 try:
                     actual = self.api.status(terminal.group(1), interruptible=False)
+                except _EmptyPagesStatus:
+                    if state == "success" and guard_id < current_id:
+                        current_environment = self.require_current(current_id)
+                        previous_environment = self._historical_environment_success(record, latest, current_environment)
+                        if previous_environment is not None and previous_environment not in matched_environments:
+                            matched_environments.add(previous_environment)
+                            return
+                    raise PagesApiError(
+                        f"Guard {guard_id} has an empty Pages status without verified supersession; publication held"
+                    ) from None
                 except PagesApiError as error:
                     raise PagesApiError(
                         f"Guard {guard_id} has a terminal claim but Pages status cannot be verified; publication held"
@@ -380,13 +407,49 @@ class DeploymentGuard:
             f"Unresolved Pages deployment guard {guard_id} remains active; publication held"
         )
 
-    def reconcile(self) -> None:
-        records = self.api.deployment_guard_records()
-        for record in records:
-            if self._is_our_guard(record):
-                self._reconcile_or_block(record)
+    def _historical_environment_success(self, guard: dict, terminal: dict, current_environment: int) -> int | None:
+        payload = guard["payload"]
+        if isinstance(payload, str):
+            payload = json.loads(payload)
+        run_id = payload.get("run_id")
+        created = self._timestamp(guard.get("created_at"))
+        if type(run_id) is not int or run_id <= 0:
+            return None
 
-    def require_current(self, expected_id: int, *, same_attempt=False) -> None:
+        job_url = re.escape(f"https://github.com/{self.api.repository}/actions/runs/{run_id}/job/")
+        matches = set()
+        for deploy in self.api.pages_environment_deployments():
+            if deploy.get("sha") != guard.get("sha"):
+                continue
+            deployment_id = self._guard_id(deploy)
+            if deployment_id >= current_environment:
+                continue
+            statuses = self.api.deployment_guard_statuses(deployment_id)
+            latest = self._latest_status(statuses)
+            if not latest or latest.get("state") != "inactive":
+                continue
+            log = latest.get("log_url")
+            if not isinstance(log, str) or not re.fullmatch(job_url + r"[1-9][0-9]*", log):
+                continue
+            started = any(status.get("state") == "in_progress" and status.get("log_url") == log
+                          and status["created_at"] <= created for status in statuses)
+            succeeded = any(status.get("state") == "success" and status.get("log_url") == log
+                            and status.get("environment_url") == "https://repo.collie.im/"
+                            and created <= terminal["created_at"] <= status["created_at"] < latest["created_at"]
+                            for status in statuses)
+            if started and succeeded:
+                matches.add(deployment_id)
+        return next(iter(matches)) if len(matches) == 1 else None
+
+    def reconcile(self) -> None:
+        records = [record for record in self.api.deployment_guard_records() if self._is_our_guard(record)]
+        if records:
+            current_id = max(self._guard_id(record) for record in records)
+            matched_environments: set[int] = set()
+            for record in records:
+                self._reconcile_or_block(record, current_id, matched_environments)
+
+    def require_current(self, expected_id: int, *, same_attempt=False) -> int:
         records = [record for record in self.api.deployment_guard_records() if self._is_our_guard(record)]
         if not records:
             raise PagesApiError("Current Pages deployment guard is missing")
@@ -409,9 +472,9 @@ class DeploymentGuard:
             raise PagesApiError("Current Pages deployment lacks a successful terminal identity")
         if self.api.status(terminal[1], interruptible=False) != "succeed":
             raise PagesApiError("Current Pages deployment is not successful in the Pages API")
-        self._require_pages_environment(current, payload)
+        return self._require_pages_environment(current, payload)
 
-    def _require_pages_environment(self, guard: dict, payload: dict) -> None:
+    def _require_pages_environment(self, guard: dict, payload: dict) -> int:
         own_jobs = f"https://github.com/{self.api.repository}/actions/runs/{self.run_id}/job/"
         old_run = payload.get("run_id")
         if type(old_run) is not int or old_run <= 0:
@@ -431,7 +494,7 @@ class DeploymentGuard:
             if (state == "success" and record.get("sha") == guard.get("sha") and
                     isinstance(log, str) and re.fullmatch(re.escape(previous_jobs) + r"[1-9][0-9]*", log) and
                     latest.get("environment_url") == "https://repo.collie.im/"):
-                return
+                return deployment_id
             break
         raise PagesApiError("The latest Pages environment deployment differs from the approved predecessor")
 

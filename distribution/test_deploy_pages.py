@@ -88,6 +88,97 @@ class DeployPagesTest(unittest.TestCase):
             guard.require_current(123,same_attempt=True)
         api.create.assert_not_called()
 
+    def test_historical_success_can_be_verified_after_pages_hides_its_status(self):
+        api = Mock()
+        api.repository = "0cwa/collie-release-engineering"
+        guard = DeploymentGuard(api, build_version="c"*40, run_id=7, run_attempt=1, artifact_id=23)
+
+        def record(identity, sha, run_id, created_at):
+            return {"id": identity, "sha": sha, "created_at": created_at, "environment": GUARD_ENVIRONMENT,
+                    "task": GUARD_TASK, "payload": {"kind": GUARD_KIND, "run_id": run_id}}
+
+        past = record(11, "a"*40, 5, "2026-11-18T17:59:37Z")
+        current = record(21, "b"*40, 6, "2026-11-18T21:29:58Z")
+        old_job = f"https://github.com/{api.repository}/actions/runs/5/job/100"
+        current_job = f"https://github.com/{api.repository}/actions/runs/6/job/101"
+        api.deployment_guard_records.return_value = [past, current]
+        api.pages_environment_deployments.return_value = [
+            {"id": 20, "sha": current["sha"]}, {"id": 10, "sha": past["sha"]},
+        ]
+        statuses = {
+            11: [{"created_at":"2026-11-18T17:59:55Z","state":"success",
+                  "description":"pages-terminal:past:succeed"}],
+            21: [{"created_at":"2026-11-18T21:30:14Z","state":"success",
+                  "description":"pages-terminal:current:succeed"}],
+            10: [{"created_at":"2026-11-18T21:30:18Z","state":"inactive","log_url":old_job},
+                 {"created_at":"2026-11-18T18:00:11Z","state":"success","log_url":old_job,
+                  "environment_url":"https://repo.collie.im/"},
+                 {"created_at":"2026-11-18T17:58:29Z","state":"in_progress","log_url":old_job}],
+            20: [{"created_at":"2026-11-18T21:30:19Z","state":"success","log_url":current_job,
+                  "environment_url":"https://repo.collie.im/"}],
+        }
+        api.deployment_guard_statuses.side_effect = lambda identity: statuses[identity]
+
+        pages_api = PagesApi("https://api.github.com", api.repository, "fixture", "https://oidc.example.test", "fixture")
+        pages_api._json_request = lambda _method, url, **_kwargs: {"status": "succeed" if url.endswith("/current") else ""}
+        api.status.side_effect = pages_api.status
+        guard.reconcile()
+        api.create.assert_not_called()
+
+        incorrect_states = (
+            (10, 2, "log_url", current_job),
+            (10, 1, "created_at", "2026-11-18T17:59:54Z"),
+            (10, 0, "state", "success"),
+            (20, 0, "log_url", old_job),
+            (11, 0, "state", "in_progress"),
+        )
+        for deployment_id, index, key, value in incorrect_states:
+            with self.subTest(deployment_id=deployment_id, index=index, key=key):
+                original = statuses[deployment_id][index][key]
+                statuses[deployment_id][index][key] = value
+                try:
+                    with self.assertRaises(PagesApiError):
+                        guard.reconcile()
+                finally:
+                    statuses[deployment_id][index][key] = original
+
+        duplicate = dict(past, id=12)
+        statuses[12] = [dict(statuses[11][0], description="pages-terminal:another-past:succeed")]
+        api.deployment_guard_records.return_value = [past, duplicate, current]
+        with self.assertRaises(PagesApiError):
+            guard.reconcile()
+        api.deployment_guard_records.return_value = [past, current]
+
+        statuses[30] = statuses[10]
+        api.pages_environment_deployments.return_value = [
+            {"id": 20, "sha": current["sha"]}, {"id": 30, "sha": past["sha"]},
+        ]
+        with self.assertRaises(PagesApiError):
+            guard.reconcile()
+        api.pages_environment_deployments.return_value = [
+            {"id": 20, "sha": current["sha"]}, {"id": 10, "sha": past["sha"]},
+        ]
+
+        with self.subTest("conflicting latest status"):
+            statuses[10].append(dict(statuses[10][0], state="in_progress"))
+            try:
+                with self.assertRaises(PagesApiError):
+                    guard.reconcile()
+            finally:
+                statuses[10].pop()
+
+        with self.subTest("malformed timestamp"):
+            statuses[10].append(dict(statuses[10][0], created_at="tomorrow"))
+            try:
+                with self.assertRaises(PagesApiError):
+                    guard.reconcile()
+            finally:
+                statuses[10].pop()
+
+        api.status.side_effect = PagesApiError("transport failed")
+        with self.assertRaises(PagesApiError):
+            guard.reconcile()
+
     def test_effective_wait_can_exceed_action_600_second_cap(self):
         clock = FakeClock()
         api = FakeApi(["syncing_files", "syncing_files", "succeed"])
