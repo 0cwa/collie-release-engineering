@@ -9,6 +9,7 @@ import unittest
 from unittest.mock import patch
 
 import test_prepare_sources as source_fixtures
+from test_libsignal_candidate import make_candidate
 from test_gradle_environment import isolated_gradle_environment
 
 HERE = Path(__file__).parent
@@ -44,6 +45,8 @@ class PartialSourceBuildTest(unittest.TestCase):
         self.java = self.root / 'jdk'
         (self.java / 'bin').mkdir(parents=True)
         (self.java / 'bin/java').write_text('fixture')
+        (self.java / 'bin/javac').write_text('fixture compiler')
+        (self.java / 'bin/javac').chmod(0o755)
         self.rust_bin = self.root / 'toolchain/bin'
         self.rust_bin.mkdir(parents=True)
         for name in ('cargo', 'rustc', 'rustup'):
@@ -81,18 +84,65 @@ class PartialSourceBuildTest(unittest.TestCase):
             jar.mkdir(parents=True)
             (aar / 'libsignal.aar').write_bytes(self.binaries['libsignal-android'])
             (jar / 'libsignal.jar').write_bytes(self.binaries['libsignal-client'])
+            if ':android:generatePomFileForMavenJavaPublication' in args:
+                for project in ('android', 'client'):
+                    pom = self.sources / f'libsignal/java/{project}/build/publications/mavenJava/pom-default.xml'
+                    pom.parent.mkdir(parents=True)
+                    pom.write_text(f'<project xmlns="http://maven.apache.org/POM/4.0.0"><groupId>org.signal</groupId><artifactId>libsignal-{project}</artifactId><version>0.107.0</version></project>')
             return []
         raise AssertionError('unexpected diagnostic command')
 
-    def run_build(self, rust_effect=None, ndk_effect=None, fresh=False):
+    def run_build(self, rust_effect=None, ndk_effect=None, fresh=False, candidate=None):
         with patch.object(subject.verify_gradle, 'verify', return_value=self.root / 'verified-gradle/bin/gradle'), patch.object(subject.rust_payloads, 'verify', return_value=372, side_effect=rust_effect), patch.object(subject.ndk_payloads, 'verify', return_value=8449, side_effect=ndk_effect):
-            return subject.diagnostic_build(self.fixture.lock_file, self.sources, self.sdk, self.java, self.rust_bin, self.report, self.root / 'gradle.zip', self.root / 'verified-gradle', self.runner, fresh=fresh)
+            return subject.diagnostic_build(self.fixture.lock_file, self.sources, self.sdk, self.java, self.rust_bin, self.report, self.root / 'gradle.zip', self.root / 'verified-gradle', self.runner, fresh=fresh, candidate=candidate)
+
+    def test_new_candidate_records_outputs_without_accepting_or_rewriting_them(self):
+        candidate = make_candidate(self.fixture)
+        original = self.fixture.lock_file.read_bytes()
+        shutil.rmtree(self.sources)
+        subject.libsignal_candidate.prepare(candidate, self.fixture.lock_file,
+                                            self.fixture.sources['libsignal'], self.sources)
+        self.binaries['libsignal-client'] = b'new candidate bytes'
+        result = self.run_build(fresh=True, candidate=candidate)
+        self.assertEqual(result['status'], 'BUILT_LIBSIGNAL_CANDIDATE')
+        self.assertFalse(result['release_allowed'])
+        self.assertEqual(set(result['sources']), {'libsignal'})
+        self.assertEqual(result['artifacts']['libsignal-client']['binary_sha256'],
+                         hashlib.sha256(b'new candidate bytes').hexdigest())
+        self.assertEqual(self.fixture.lock_file.read_bytes(), original)
+
+    def test_candidate_rejects_symlinked_binary_output(self):
+        candidate = make_candidate(self.fixture)
+        shutil.rmtree(self.sources)
+        subject.libsignal_candidate.prepare(candidate, self.fixture.lock_file,
+                                            self.fixture.sources['libsignal'], self.sources)
+        external = self.root / 'external.jar'
+        external.write_bytes(b'external bytes')
+        run_fixture = self.runner
+
+        def symlink_output(args, cwd, env):
+            result = run_fixture(args, cwd, env)
+            if ':client:generatePomFileForMavenJavaPublication' in args:
+                jar = self.sources / 'libsignal/java/client/build/libs/libsignal.jar'
+                jar.unlink()
+                jar.symlink_to(external)
+            return result
+
+        with patch.object(self, 'runner', side_effect=symlink_output):
+            with self.assertRaisesRegex(subject.stage_artifacts.Failure, 'Artifact path contains symlink'):
+                self.run_build(fresh=True, candidate=candidate)
+        self.assertFalse(self.report.exists())
+
+    def test_candidate_requires_fresh_outputs_before_invoking_tools(self):
+        with self.assertRaisesRegex(subject.Failure, 'requires --fresh'):
+            self.run_build(candidate=self.root / 'unused-candidate.json')
+        self.assertEqual(self.calls, [])
 
     def test_success_is_explicitly_partial_and_never_release_proof(self):
         receipt = self.run_build()
         self.assertEqual('PARTIAL_LIBSIGNAL_ONLY', receipt['status'])
         self.assertFalse(receipt['release_allowed'])
-        self.assertTrue(any('configured_proxy_never_falls_back_to_direct' in command for command in self.calls))
+        self.assertTrue(any('--lib' in command and 'configured_proxy_never_falls_back_to_direct' in command for command in self.calls))
         self.assertTrue(self.report.is_file())
 
     def test_fresh_mode_runs_offline_without_gradle_caches(self):
@@ -217,6 +267,13 @@ class PartialSourceBuildTest(unittest.TestCase):
             self.run_build()
         self.assertFalse(self.report.exists())
         self.assertEqual([], self.calls)
+
+    def test_runtime_only_java_is_rejected_before_compilation(self):
+        (self.java / 'bin/javac').unlink()
+        with self.assertRaisesRegex(subject.Failure, 'complete JDK with javac'):
+            self.run_build()
+        self.assertFalse(self.report.exists())
+        self.assertEqual(self.calls, [])
 
 if __name__ == '__main__':
     unittest.main()

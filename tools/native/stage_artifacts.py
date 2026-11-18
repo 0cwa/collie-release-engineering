@@ -47,7 +47,20 @@ def load_lock(path):
     toolchain = lock.get('toolchain_reference', {})
     require(re.fullmatch(r'[0-9a-f]{64}', toolchain.get('webrtc_deps_sha256', '')) is not None, 'Missing WebRTC DEPS hash')
     patches = lock.get('source_patches', [])
-    expected_paths = ['patches/libsignal-0.106.1-attributed.mbox', 'patches/ringrtc-2.74-attributed.mbox', 'patches/webrtc-8037b-molly-proxy-UNTESTED.patch', 'patches/webrtc-unknown-proxy-fix.patch', 'patches/webrtc-socks-ipv6-fix.patch']
+    libsignal_versions = {module.get('input_version') for module in modules
+                          if module['name'].startswith('libsignal-')}
+    require(len(libsignal_versions) == 1, 'Libsignal Android and client input versions differ')
+    libsignal_version = next(iter(libsignal_versions))
+    require(isinstance(libsignal_version, str) and re.fullmatch(r'[0-9]+\.[0-9]+\.[0-9]+', libsignal_version),
+            'Invalid libsignal source version')
+    libsignal_outputs = {module.get('output_version') for module in modules
+                         if module['name'].startswith('libsignal-')}
+    require(len(libsignal_outputs) == 1, 'Libsignal Android and client output versions differ')
+    libsignal_output = next(iter(libsignal_outputs))
+    require(isinstance(libsignal_output, str) and
+            re.fullmatch(re.escape(libsignal_version) + r'-collie\.[1-9][0-9]*', libsignal_output),
+            'Libsignal output version must match the input version and a positive Collie revision')
+    expected_paths = [f'patches/libsignal-{libsignal_version}-attributed.mbox', 'patches/ringrtc-2.74-attributed.mbox', 'patches/webrtc-8037b-molly-proxy-UNTESTED.patch', 'patches/webrtc-unknown-proxy-fix.patch', 'patches/webrtc-socks-ipv6-fix.patch']
     require([item.get('path') for item in patches] == expected_paths, 'Unexpected source patch set or order')
     for item in patches:
         require(re.fullmatch(r'[0-9a-f]{64}', item.get('sha256', '')) is not None, 'Invalid source patch hash')
@@ -128,15 +141,41 @@ def render_metadata(original, lock, receipts):
                     pattern = trust.get(key)
                     return pattern is None or (re.fullmatch(pattern, value) is not None if trust.get('regex') == 'true' else pattern == value)
                 require(not all(matches(k, v) for k, v in values.items()), 'Trust rule bypasses native artifact verification')
+    modules = {(lock['output_group'], m['name'], m['output_version']): m for m in lock['modules']}
+    retained = set()
     for entry in xml.findall(f'{GRADLE}components/{GRADLE}component'):
-        require(not any((entry.get('group'), entry.get('name'), entry.get('version')) == (lock['output_group'], m['name'], m['output_version']) for m in lock['modules']), 'Native coordinate already exists in verification metadata')
+        coordinate = (entry.get('group'), entry.get('name'), entry.get('version'))
+        if coordinate not in modules:
+            continue
+        module = modules[coordinate]
+        name = module['name']
+        require(name not in retained, 'Duplicate native coordinate in verification metadata')
+        expected = receipts[name]
+        require(set(entry.attrib) == {'group', 'name', 'version'} and len(entry) == len(expected),
+                'Existing native verification artifact set differs')
+        observed = {}
+        for artifact in entry:
+            filename = artifact.get('name')
+            require(artifact.tag == GRADLE + 'artifact' and set(artifact.attrib) == {'name'} and
+                    filename in expected and filename not in observed and len(artifact) == 1,
+                    'Existing native verification artifact set differs')
+            checksum = artifact[0]
+            require(checksum.tag == GRADLE + 'sha256' and len(checksum) == 0 and
+                    set(checksum.attrib).issubset({'value', 'origin'}) and
+                    checksum.get('value') == expected[filename],
+                    'Existing native verification hash differs or permits alternatives')
+            observed[filename] = checksum.get('value')
+        require(observed == expected, 'Existing native verification artifact set differs')
+        retained.add(name)
     entries = []
     for m in lock['modules']:
+        if m['name'] in retained:
+            continue
         entries.append(f'      <component group="{lock["output_group"]}" name="{m["name"]}" version="{m["output_version"]}">')
         for name, value in sorted(receipts[m['name']].items()):
             entries.extend([f'         <artifact name="{name}">', f'            <sha256 value="{value}" origin="Pinned local native artifact; not independent reproducibility proof"/>', '         </artifact>'])
         entries.append('      </component>')
-    return narrowed.replace('   </components>', '\n'.join(entries) + '\n   </components>')
+    return narrowed.replace('   </components>', '\n'.join(entries) + '\n   </components>') if entries else narrowed
 
 def render_init(lock, repo):
     # The URI is generated for this local stage only; no machine path is tracked.
@@ -167,15 +206,21 @@ def stage(lock_path, input_root, output_root, verification):
     require(not output_root.exists(), 'Output must not exist')
     verification = verification.resolve(strict=True)
     original = verification.read_text()
-    # Reject unsafe metadata and artifacts before creating any output.
-    empty_hashes = {m['name']: {} for m in lock['modules']}
-    render_metadata(original, lock, empty_hashes)
+    # Compute exact pins before creating output. An unchanged dependency such as
+    # RingRTC may already be present during a libsignal-only upgrade, but it may
+    # be retained only when both existing pins match the verified inputs.
     inputs = {m['name']: input_files(input_root, lock, m) for m in lock['modules']}
+    poms = {m['name']: rewrite_pom(inputs[m['name']][1].read_bytes(), lock, m) for m in lock['modules']}
+    receipts = {}
+    for m in lock['modules']:
+        stem = m['name'] + '-' + m['output_version']
+        receipts[m['name']] = {stem + '.' + m['extension']: m['binary_sha256'],
+                               stem + '.pom': hashlib.sha256(poms[m['name']]).hexdigest()}
+    metadata = render_metadata(original, lock, receipts)
     output_root.mkdir(parents=True)
     repo = output_root / 'maven'
     original_poms = output_root / 'original-poms'
     original_poms.mkdir()
-    receipts = {}
     for m in lock['modules']:
         binary, pom = inputs[m['name']]
         outdir = repo / Path(lock['output_group'].replace('.', '/')) / m['name'] / m['output_version']
@@ -185,9 +230,10 @@ def stage(lock_path, input_root, output_root, verification):
         target_pom = outdir / (stem + '.pom')
         shutil.copyfile(binary, target_binary)
         (original_poms / (m['name'] + '.pom')).write_bytes(pom.read_bytes())
-        target_pom.write_bytes(rewrite_pom(pom.read_bytes(), lock, m))
-        receipts[m['name']] = {p.name: digest(p) for p in (target_binary, target_pom)}
-    (output_root / 'verification-metadata.xml').write_text(render_metadata(original, lock, receipts))
+        target_pom.write_bytes(poms[m['name']])
+        require({p.name: digest(p) for p in (target_binary, target_pom)} == receipts[m['name']],
+                'Native input changed during staging')
+    (output_root / 'verification-metadata.xml').write_text(metadata)
     (output_root / 'native.init.gradle').write_text(render_init(lock, repo))
     receipt = {'schema': 1, 'scope': 'pinned artifact staging only; source build and runtime unverified', 'lock_sha256': digest(lock_path), 'input_verification_sha256': digest(verification), 'artifacts': receipts, 'verification_sha256': digest(output_root / 'verification-metadata.xml'), 'init_sha256': digest(output_root / 'native.init.gradle')}
     (output_root / 'receipt.json').write_text(json.dumps(receipt, indent=2, sort_keys=True) + '\n')

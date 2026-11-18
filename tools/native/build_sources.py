@@ -14,6 +14,7 @@ import subprocess
 import sys
 
 import native_driver
+import libsignal_candidate
 import ndk_payloads
 import prepare_sources
 import rust_payloads
@@ -45,10 +46,11 @@ def properties(path):
     require(path.is_file() and not path.is_symlink(), 'Required toolchain properties missing')
     return {key.strip(): value.strip() for key, value in (line.split('=', 1) for line in path.read_text().splitlines() if '=' in line and not line.lstrip().startswith('#'))}
 
-def preflight(lock_path, source_root, sdk_root, java_home, rust_bin, runner=run, java_major=21):
+def preflight(lock_path, source_root, sdk_root, java_home, rust_bin, runner=run, java_major=21, candidate=None):
     native_driver.audit_gradle_environment()
     lock = stage_artifacts.load_lock(lock_path.resolve(strict=True))
-    proof = prepare_sources.verify_prepared(lock_path, source_root)
+    proof = (libsignal_candidate.verify_prepared(candidate, lock_path, source_root) if candidate else
+             prepare_sources.verify_prepared(lock_path, source_root))
     toolchain = lock['toolchain_reference']
     require(toolchain.get('rust_version') == '1.98.1', 'Unexpected Rust version reference')
     require(toolchain.get('ringrtc_aar_android_ndk_revision') == '28.0.13004108', 'Unexpected Android NDK reference')
@@ -63,6 +65,8 @@ def preflight(lock_path, source_root, sdk_root, java_home, rust_bin, runner=run,
     rust_payloads.verify(rust_bin.parent, rust_reference, 'e9a644fc90306fd0eaa5d7b7323c3baea2865f460179d0b98cdbb07a2ba63cd0')
     cargo, rustc, rustup = (rust_bin / name for name in ('cargo', 'rustc', 'rustup'))
     java = java_home / 'bin/java'
+    javac = java_home / 'bin/javac'
+    require(javac.is_file() and os.access(javac, os.X_OK), 'A complete JDK with javac is required')
     require(all(path.is_file() and os.access(path, os.X_OK) for path in (cargo, rustc, java)), 'Required Rust or Java toolchain missing')
     env = os.environ.copy()
     temp = source_root.parent / '.native-tmp'
@@ -92,11 +96,15 @@ def preflight(lock_path, source_root, sdk_root, java_home, rust_bin, runner=run,
                 'One or more Android Rust target libraries are missing')
     return lock, proof, env, str(cargo)
 
-def diagnostic_build(lock_path, source_root, sdk_root, java_home, rust_bin, report, gradle_zip, gradle_distribution, runner=run, fresh=False):
+def diagnostic_build(lock_path, source_root, sdk_root, java_home, rust_bin, report, gradle_zip, gradle_distribution, runner=run, fresh=False, candidate=None, jobs=2):
     require(not report.exists(), 'Native diagnostic report already exists')
+    require(type(jobs) is int and 1 <= jobs <= 8, 'Native build jobs must be between 1 and 8')
+    require(candidate is None or fresh, 'A new libsignal candidate requires --fresh')
+    candidate_spec = libsignal_candidate.load(candidate, lock_path) if candidate else None
+    candidate_sha = stage_artifacts.digest(candidate) if candidate else None
     gradle = verify_gradle.verify(gradle_zip, gradle_distribution, '87a2216cc1f9122192d4e0fe905ffdf1b4c72cff797e9f733b174e157cadd396', top='gradle-9.6.0')
     lock_sha = stage_artifacts.digest(lock_path)
-    lock, proof, env, cargo = preflight(lock_path, source_root, sdk_root, java_home, rust_bin, runner)
+    lock, proof, env, cargo = preflight(lock_path, source_root, sdk_root, java_home, rust_bin, runner, candidate=candidate)
     require(stage_artifacts.digest(lock_path) == lock_sha, 'Native lock changed during preflight')
     libsignal = source_root / 'libsignal'
     if fresh:
@@ -106,34 +114,68 @@ def diagnostic_build(lock_path, source_root, sdk_root, java_home, rust_bin, repo
         env.update(CARGO_NET_OFFLINE='true', CARGO_INCREMENTAL='0', CARGO_TARGET_DIR=str((libsignal / 'target').resolve()),
                    RUSTC=str((rust_bin / 'rustc').resolve()), RUSTC_WRAPPER='', RUSTC_WORKSPACE_WRAPPER='',
                    CCACHE_DISABLE='1', SCCACHE_DISABLE='1', PYTHONNOUSERSITE='1')
-    cargo_args = [cargo, 'test', '--locked', '-p', 'libsignal-net', 'configured_proxy_never_falls_back_to_direct']
+    env['CARGO_BUILD_JOBS'] = str(jobs)
+    cargo_args = [cargo, 'test', '--locked', '--lib', '-p', 'libsignal-net', 'configured_proxy_never_falls_back_to_direct']
     result = runner(cargo_args, libsignal, env)
     require(any(re.search(r'test result: ok[.]\s+4 passed;', line) for line in result), 'Expected four proxy-mode tests did not pass')
-    gradle_args = [str(gradle), '--project-dir', str(libsignal / 'java'), '--no-daemon']
+    gradle_args = [str(gradle), '--project-dir', str(libsignal / 'java'), '--no-daemon',
+                   '--max-workers=' + str(jobs), '-Djava.io.tmpdir=' + env['TMPDIR'],
+                   '-Dorg.gradle.jvmargs=-Xmx2g -Djava.io.tmpdir=' + env['TMPDIR']]
     if fresh:
         gradle_args += ['--offline', '--no-build-cache', '--no-configuration-cache', '--rerun-tasks']
     gradle_args += [':android:assembleRelease', '-x', ':makeJniLibrariesDesktop']
+    if candidate:
+        gradle_args += [':android:generatePomFileForMavenJavaPublication',
+                        ':client:generatePomFileForMavenJavaPublication']
     runner(gradle_args, libsignal / 'java', env)
     require(verify_gradle.verify(gradle_zip, gradle_distribution, '87a2216cc1f9122192d4e0fe905ffdf1b4c72cff797e9f733b174e157cadd396', top='gradle-9.6.0') == gradle, 'Gradle distribution changed during diagnostic build')
     # Source contents must remain the pinned prepared trees after the build.
     rust_payloads.verify(rust_bin.resolve(strict=True).parent, Path(__file__).with_name('rust-toolchain-payloads.json'), 'e9a644fc90306fd0eaa5d7b7323c3baea2865f460179d0b98cdbb07a2ba63cd0')
     ndk_payloads.verify(sdk_root.resolve(strict=True) / 'ndk/28.0.13004108', 'cc399724320a6e46fe83a068364630a9943760d7a83fd90570d660ac58786d9d', 8449)
-    after = prepare_sources.verify_prepared(lock_path, source_root)
+    after = (libsignal_candidate.verify_prepared(candidate, lock_path, source_root, allow_generated=True) if candidate else
+             prepare_sources.verify_prepared(lock_path, source_root))
     require(after['sources'] == proof['sources'], 'Native source changed during diagnostic build')
     aar = sorted((libsignal / 'java/android/build/outputs/aar').glob('*.aar'))
     jars = sorted(p for p in (libsignal / 'java/client/build/libs').glob('*.jar') if not p.name.endswith(('-sources.jar', '-javadoc.jar')))
     require(len(aar) == 1 and len(jars) == 1, 'Cannot identify exactly one built libsignal AAR and client JAR')
     modules = {m['name']: m for m in lock['modules']}
-    hashes = {'libsignal-android': stage_artifacts.digest(aar[0]), 'libsignal-client': stage_artifacts.digest(jars[0])}
+    binaries = {'libsignal-android': stage_artifacts.safe_file(libsignal, aar[0]),
+                'libsignal-client': stage_artifacts.safe_file(libsignal, jars[0])}
+    hashes = {name: stage_artifacts.digest(path) for name, path in binaries.items()}
     require(stage_artifacts.digest(lock_path) == lock_sha, 'Native lock changed during diagnostic build')
     expected = {name: modules[name]['binary_sha256'] for name in hashes}
-    build_facts = {'fresh_output_check': fresh, 'gradle_distribution_sha256': stage_artifacts.digest(gradle_zip),
+    build_facts = {'fresh_output_check': fresh, 'jobs': jobs, 'gradle_distribution_sha256': stage_artifacts.digest(gradle_zip),
                    'rustc_sha256': stage_artifacts.digest(rust_bin / 'rustc'),
                    'java_sha256': stage_artifacts.digest(java_home / 'bin/java'),
+                   'javac_sha256': stage_artifacts.digest(java_home / 'bin/javac'),
                    'ndk_reference_sha256': 'cc399724320a6e46fe83a068364630a9943760d7a83fd90570d660ac58786d9d',
                    'rust_reference_sha256': 'e9a644fc90306fd0eaa5d7b7323c3baea2865f460179d0b98cdbb07a2ba63cd0',
                    'commands': [cargo_args, gradle_args],
-                   'selected_environment': {key: env.get(key) for key in ('CXX', 'BORING_BSSL_RUST_CPPLIB', 'LIBRARY_PATH', 'LD_LIBRARY_PATH', 'CARGO_NET_OFFLINE', 'CARGO_INCREMENTAL', 'CARGO_TARGET_DIR', 'RUSTC', 'RUSTC_WRAPPER', 'RUSTC_WORKSPACE_WRAPPER')}}
+                   'selected_environment': {key: env.get(key) for key in ('CXX', 'BORING_BSSL_RUST_CPPLIB', 'LIBCLANG_PATH', 'BINDGEN_EXTRA_CLANG_ARGS', 'LIBRARY_PATH', 'LD_LIBRARY_PATH', 'CARGO_NET_OFFLINE', 'CARGO_INCREMENTAL', 'CARGO_TARGET_DIR', 'RUSTC', 'RUSTC_WRAPPER', 'RUSTC_WORKSPACE_WRAPPER')}}
+    if candidate:
+        require(stage_artifacts.digest(candidate) == candidate_sha, 'Source candidate changed during build')
+        poms = {name: libsignal / 'java' / project / 'build/publications/mavenJava/pom-default.xml'
+                for name, project in (('libsignal-android', 'android'), ('libsignal-client', 'client'))}
+        artifacts = {}
+        for name, binary in binaries.items():
+            pom = stage_artifacts.safe_file(libsignal, poms[name])
+            # Validate generated POM coordinates without rewriting or accepting them.
+            pom_root = stage_artifacts.ET.fromstring(pom.read_bytes())
+            require(all(pom_root.findtext(stage_artifacts.POM + key) == value for key, value in
+                        (('groupId', 'org.signal'), ('artifactId', name),
+                         ('version', candidate_spec['input_version']))), 'Candidate POM coordinate differs')
+            artifacts[name] = {'binary_sha256': hashes[name], 'binary_bytes': binary.stat().st_size,
+                               'pom_sha256': stage_artifacts.digest(pom), 'pom_bytes': pom.stat().st_size}
+        receipt = {'schema': 1, 'status': 'BUILT_LIBSIGNAL_CANDIDATE', 'release_allowed': False,
+                   'scope': 'new candidate outputs only; publication, independent reproduction and runtime unverified',
+                   'lock_sha256': lock_sha, 'candidate_sha256': candidate_sha,
+                   'input_version': candidate_spec['input_version'], 'output_version': candidate_spec['output_version'],
+                   'sources': proof['sources'], 'artifacts': artifacts, **build_facts}
+        report.parent.mkdir(parents=True, exist_ok=True)
+        with report.open('x') as output:
+            json.dump(receipt, output, indent=2, sort_keys=True)
+            output.write('\n')
+        return receipt
     if hashes != expected:
         # This is a failure record, never a staging or release authorization.
         failure = {'schema': 1, 'status': 'FAILED_ARTIFACT_MISMATCH', 'release_allowed': False,
@@ -158,6 +200,7 @@ def diagnostic_build(lock_path, source_root, sdk_root, java_home, rust_bin, repo
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--lock', required=True, type=Path)
+    parser.add_argument('--candidate', type=Path, help='Build a separately pinned new libsignal candidate; never updates the accepted lock')
     parser.add_argument('--sources', required=True, type=Path)
     parser.add_argument('--sdk', required=True, type=Path)
     parser.add_argument('--java-home', required=True, type=Path)
@@ -166,10 +209,11 @@ def main():
     parser.add_argument('--gradle-zip', required=True, type=Path)
     parser.add_argument('--gradle-distribution', required=True, type=Path)
     parser.add_argument('--fresh', action='store_true', help='require absent build outputs and rebuild without Gradle caches')
+    parser.add_argument('--jobs', type=int, default=2, help='Bound Cargo and Gradle workers (1-8, default 2)')
     args = parser.parse_args()
     try:
-        diagnostic_build(args.lock.resolve(), args.sources.resolve(), args.sdk, args.java_home, args.rust_bin, args.report, args.gradle_zip, args.gradle_distribution, fresh=args.fresh)
-    except (Failure, prepare_sources.Failure, stage_artifacts.Failure, verify_gradle.Failure, rust_payloads.Failure, ndk_payloads.Failure, OSError, ValueError) as exc:
+        diagnostic_build(args.lock.resolve(), args.sources.resolve(), args.sdk, args.java_home, args.rust_bin, args.report, args.gradle_zip, args.gradle_distribution, fresh=args.fresh, candidate=args.candidate, jobs=args.jobs)
+    except (Failure, libsignal_candidate.Failure, prepare_sources.Failure, stage_artifacts.Failure, verify_gradle.Failure, rust_payloads.Failure, ndk_payloads.Failure, OSError, ValueError) as exc:
         print(f'native diagnostic build failed: {exc}', file=sys.stderr)
         return 1
     return 0
