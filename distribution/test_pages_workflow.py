@@ -11,7 +11,8 @@ class WorkflowBoundaryTest(unittest.TestCase):
         self.assertIn('if [ "$PREPARATION_MODE" = activate-links ] && [ "$FEED_CHANNEL" != stable ]; then exit 1; fi',text)
         self.assertIn('--channel "$FEED_CHANNEL"',text)
         self.assertIn('FEED_CHANNEL: ${{ inputs.feed_channel }}',text)
-        self.assertIn('if: github.ref == \'refs/heads/main\' && vars.COLLIE_PAGES_PRODUCTION_ENABLED == \'true\'',text)
+        self.assertIn("github.ref == 'refs/heads/main' &&",text)
+        self.assertIn("!inputs.verify_only && vars.COLLIE_PAGES_PRODUCTION_ENABLED == 'true'",text)
 
     def block(self,text,header):
         """Read one indentation-scoped block in these fixed-format workflows.
@@ -65,7 +66,8 @@ class WorkflowBoundaryTest(unittest.TestCase):
     def test_manual_two_phase_gate_and_immutable_action_refs(self):
         text=(self.root/'pages-release.yml').read_text()
         self.assertNotRegex(text,r'(?m)^\s*(pull_request_target|workflow_run)\s*:')
-        self.assertNotIn('secrets.',text)
+        self.assertEqual(text.count('secrets.'), 1)
+        self.assertIn('secrets.COLLIE_READINESS_APP_PRIVATE_KEY', text)
         self.assertIn("github.ref == 'refs/heads/main'",text)
         self.assertIn("vars.COLLIE_PAGES_PRODUCTION_ENABLED == 'true'",text)
         self.assertIn('test "$APPROVED_POLICY" = "$RUN_POLICY"',text)
@@ -114,8 +116,8 @@ class WorkflowBoundaryTest(unittest.TestCase):
                 self.assertEqual(self.field(inputs,'name',10),'collie-pages-'+phase)
                 self.assertEqual(self.field(inputs,'path',10),'${{ runner.temp }}/pages/'+phase+'/site')
                 if phase=='phase1':
-                    self.assertEqual(self.field(upload,'if',8),"inputs.preparation_mode == 'feed'")
-                else:self.assertNotRegex(upload,r'(?m)^        if:')
+                    self.assertEqual(self.field(upload,'if',8),"inputs.preparation_mode == 'feed' && !inputs.verify_only")
+                else:self.assertEqual(self.field(upload,'if',8),'${{ !inputs.verify_only }}')
                 deploy=self.step(jobs[phase],'id','deploy')
                 env=self.block(deploy,'        env:')
                 self.assertEqual(self.field(env,'ARTIFACT_ID',10),route)
@@ -143,6 +145,11 @@ class WorkflowBoundaryTest(unittest.TestCase):
                     environment=self.block(job,'    environment:')
                     self.assertEqual(self.field(environment,'name',6),'github-pages')
                     self.assertEqual(self.field(environment,'url',6),'${{ steps.deploy.outputs.page_url }}')
+                elif name == 'prepare':
+                    environment=self.block(job,'    environment:')
+                    self.assertEqual(self.field(environment,'name',6),'pages-preparation')
+                    self.assertEqual(self.field(environment,'deployment',6),'false')
+                    self.assertNotRegex(job,r'(?m)^    permissions:')
                 else:
                     self.assertNotRegex(job,r'(?m)^    (permissions|environment):')
                 checkout=self.step(job,'uses','actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6')
@@ -150,6 +157,35 @@ class WorkflowBoundaryTest(unittest.TestCase):
                 self.assertEqual(self.field(inputs,'ref',10),'${{ github.sha }}')
                 self.assertEqual(self.field(inputs,'persist-credentials',10),'false')
                 self.assertNotRegex(checkout,r'(?m)^        (if|continue-on-error):')
+
+    def test_beta_token_and_verification_only_do_not_reach_publication(self):
+        jobs = self.jobs()
+        prepare = jobs['prepare']
+        mint = self.step(prepare, 'id', 'readiness-token')
+        consume = self.step(prepare, 'name', 'Verify Android readiness and prepare Beta snapshots')
+        beta_feed = "inputs.preparation_mode == 'feed' && inputs.feed_channel == 'trailblazer-beta'"
+        self.assertEqual(self.field(mint, 'if', 8), beta_feed)
+        self.assertEqual(self.field(consume, 'if', 8), beta_feed)
+        self.assertRegex(self.field(mint, 'uses', 8),
+                         r'^actions/create-github-app-token@[0-9a-f]{40}$')
+        for key, value in [('owner', '0cwa'), ('repositories', 'collieim-android'),
+                           ('permission-actions', 'read')]:
+            self.assertEqual(self.field(mint, key, 10), value)
+        self.assertEqual(self.field(consume, 'COLLIE_APP_READINESS_TOKEN', 10),
+                         '${{ steps.readiness-token.outputs.token }}')
+        self.assertEqual(sum(job.count('COLLIE_APP_READINESS_TOKEN') for job in jobs.values()), 1)
+        self.assertEqual(sum(job.count('steps.readiness-token.outputs.token') for job in jobs.values()), 1)
+        self.assertIn('GITHUB_TOKEN: ${{ github.token }}',
+                      self.step(prepare, 'name', 'Fetch only the approved data asset and unpack regular files'))
+        control = self.step(prepare, 'id', 'prepare')
+        self.assertIn('echo "mode=verify-only" >> "$GITHUB_OUTPUT"\n            exit 0', control)
+        for step in self.steps(prepare):
+            if 'uses: actions/upload-' in step:
+                self.assertIn('!inputs.verify_only', self.field(step, 'if', 8))
+        self.assertEqual(self.field(jobs['phase1'], 'if', 4),
+                         "needs.prepare.outputs.mode == 'feed'")
+        self.assertIn("needs.prepare.outputs.mode == 'activate-links'", jobs['phase1-readback'])
+        self.assertIn("needs['phase1-readback'].result == 'success'", jobs['phase2'])
 
     def test_beta_candidate_is_manual_main_only_and_never_deploys(self):
         text=(self.root/'beta-feed-candidate.yml').read_text()
@@ -216,7 +252,11 @@ class WorkflowBoundaryTest(unittest.TestCase):
                 action=('actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4'
                         if operation=='upload' else 'actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4')
                 transfer=self.step(jobs[name],'uses',action)
-                self.assertNotRegex(transfer,r'(?m)^        (if|continue-on-error):')
+                self.assertNotRegex(transfer,r'(?m)^        continue-on-error:')
+                if name == 'prepare':
+                    self.assertEqual(self.field(transfer,'if',8),'${{ !inputs.verify_only }}')
+                else:
+                    self.assertNotRegex(transfer,r'(?m)^        if:')
                 inputs=self.block(transfer,'        with:')
                 self.assertEqual(self.field(inputs,'name',10),artifact)
                 self.assertEqual(self.field(inputs,'path',10),'${{ runner.temp }}/control/')
@@ -241,9 +281,10 @@ class WorkflowBoundaryTest(unittest.TestCase):
         branch='''          case "$PREPARATION_MODE" in feed|activate-links) ;; *) exit 1 ;; esac
           case "$FEED_CHANNEL" in stable|trailblazer-beta) ;; *) exit 1 ;; esac
           if [ "$PREPARATION_MODE" = activate-links ] && [ "$FEED_CHANNEL" != stable ]; then exit 1; fi
-          echo "mode=$PREPARATION_MODE" >> "$GITHUB_OUTPUT"
           if [ "$PREPARATION_MODE" = feed ]; then
-            python distribution/pages.py prepare "$RUNNER_TEMP/inputs" "$RUNNER_TEMP/pages" --policy "$APPROVED_POLICY" --channel "$FEED_CHANNEL"
+            if [ "$FEED_CHANNEL" = stable ]; then
+              python distribution/pages.py prepare "$RUNNER_TEMP/inputs" "$RUNNER_TEMP/pages" --policy "$APPROVED_POLICY" --channel stable
+            fi
           else
             python distribution/pages_activation.py prepare "$RUNNER_TEMP/inputs" "$RUNNER_TEMP/pages" --policy "$APPROVED_POLICY"
           fi'''

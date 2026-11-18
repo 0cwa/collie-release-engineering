@@ -261,7 +261,7 @@ class BetaReceiptGraphPrepareTest(unittest.TestCase):
         self.approval.update(repository_receipt_sha256=self.repo_hash,readiness_artifact_sha256=self.artifact_hash)
         (self.bundle/'approval.json').write_text(json.dumps(self.approval))
 
-    def authoritative(self,endpoint):
+    def authoritative(self,endpoint,**_kwargs):
         if '/actions/runs/' in endpoint:return self.run
         if '/actions/artifacts/' in endpoint:return self.artifact_record
         raise AssertionError(endpoint)
@@ -281,7 +281,7 @@ class BetaReceiptGraphPrepareTest(unittest.TestCase):
             ({'index':{'name':'/index-v2.json','sha256':b.sha(self.bundle/'candidate/index-v2.json')}},None,None),
             (self.legacy,None,None)])),common=SimpleNamespace())
         with patch.dict(sys.modules,{'fdroidserver':fake}), \
-             patch.object(pages,'github_read',side_effect=self.authoritative), \
+             patch.object(pages,'github_app_read',side_effect=self.authoritative), \
              patch.object(pages,'github_artifact_bytes',return_value=self.artifact):
             if cli:
                 with patch.object(sys,'argv',[str(Path(pages.__file__)),'prepare',str(bundle or self.bundle),
@@ -545,7 +545,7 @@ class BetaReceiptGraphPrepareTest(unittest.TestCase):
                 runpy.run_path(str(Path(__file__).with_name('receipt.py')),run_name='__main__')
 
     def test_readiness_artifact_missing_or_mismatched_bytes_rejected(self):
-        with patch.object(pages,'github_read',side_effect=self.authoritative):
+        with patch.object(pages,'github_app_read',side_effect=self.authoritative):
             for contents in (b'',self.artifact+b'changed'):
                 with patch.object(pages,'github_artifact_bytes',return_value=contents), self.subTest(size=len(contents)), \
                      self.assertRaises(ValueError):
@@ -554,7 +554,7 @@ class BetaReceiptGraphPrepareTest(unittest.TestCase):
         with zipfile.ZipFile(missing,'w') as archive:archive.writestr('unexpected.json','{}')
         missing=missing.getvalue();approval=dict(self.approval,readiness_artifact_sha256=hashlib.sha256(missing).hexdigest())
         record=dict(self.artifact_record,digest=approval['readiness_artifact_sha256'],size_in_bytes=len(missing))
-        with patch.object(pages,'github_read',side_effect=lambda ep:self.run if '/actions/runs/' in ep else record):
+        with patch.object(pages,'github_app_read',side_effect=lambda ep,**_kwargs:self.run if '/actions/runs/' in ep else record):
             with self.assertRaisesRegex(ValueError,'fixed manifest'):
                 pages.validate_beta_provenance(approval,download=lambda _id:missing)
 
@@ -564,7 +564,7 @@ class BetaReceiptGraphPrepareTest(unittest.TestCase):
         altered=readiness_archive(manifest)
         approval=dict(self.approval,readiness_artifact_sha256=hashlib.sha256(altered).hexdigest())
         artifact=dict(self.artifact_record,digest=approval['readiness_artifact_sha256'],size_in_bytes=len(altered))
-        with patch.object(pages,'github_read',side_effect=lambda ep:self.run if '/actions/runs/' in ep else artifact):
+        with patch.object(pages,'github_app_read',side_effect=lambda ep,**_kwargs:self.run if '/actions/runs/' in ep else artifact):
             parsed=pages.validate_beta_provenance(approval,download=lambda _id:altered)
         self.assertNotEqual(parsed['apk_sha256'],self.apk_sha)
         self.approval['readiness_artifact_sha256']=approval['readiness_artifact_sha256']
@@ -616,7 +616,7 @@ class BetaReceiptGraphPrepareTest(unittest.TestCase):
             if path==old/'index-v2.json':return previous_data
             return original_load(path)
         with patch.dict(sys.modules,{'fdroidserver':fake}), \
-             patch.object(pages,'github_read',side_effect=self.authoritative), \
+             patch.object(pages,'github_app_read',side_effect=self.authoritative), \
              patch.object(pages,'github_artifact_bytes',return_value=self.artifact), \
              patch.object(b,'load',side_effect=load_previous):
             with self.assertRaisesRegex(ValueError,'must exceed verified previous signed index'):
@@ -630,7 +630,7 @@ class BetaReceiptGraphPrepareTest(unittest.TestCase):
         self.approval['previous_site_sha256']=pages.digest(pages.inventory(self.bundle/'previous'))
         self.approval['previous_manifest_sha256']=b.sha(self.bundle/'previous/site-manifest.json')
         (self.bundle/'approval.json').write_text(json.dumps(self.approval))
-        with patch.object(pages,'github_read',side_effect=self.authoritative), \
+        with patch.object(pages,'github_app_read',side_effect=self.authoritative), \
              patch.object(pages,'github_artifact_bytes',return_value=self.artifact):
             with self.assertRaisesRegex(ValueError,'previous Beta feed lacks its signed entry'):
                 pages.prepare(self.bundle,self.root/'partial-previous','c'*40)

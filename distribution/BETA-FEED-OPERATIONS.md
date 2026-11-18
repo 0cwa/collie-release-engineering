@@ -111,7 +111,11 @@ the completed graph with `distribution/beta_evidence.py pack`, independently rev
 the complete tar SHA256, and stage that exact tar under the fixed
 `trailblazer-beta-release-evidence.tar` name. The readiness workflow then verifies
 the completed evidence and emits its one-file readiness artifact. The separate
-Pages approval is prepared only after that run succeeds.
+Pages approval is prepared only after that run succeeds. For the first Beta,
+keep the Android release in draft through readiness at the captured candidate
+SHA. Then publish that same release ID as a prerelease, preserving its tag and
+APK assets. Use the completed readiness artifact and the same verified bytes
+for the separately approved feed deployment and canonical readback.
 
 ## Prepare the final Pages promotion archive
 
@@ -168,6 +172,10 @@ sha256sum <fresh-unpacked-dir>/release-evidence.tar
 python distribution/pages.py prepare <fresh-unpacked-dir> <fresh-prepared-dir> \
   --policy <reviewed-40-hex-engineering-commit> --channel trailblazer-beta
 ```
+
+Set `COLLIE_APP_READINESS_TOKEN` in the approved credential environment for the
+local prepare command above. For the hosted credential setup and verification-only
+dispatch, follow [Workflow permission and activation gate](PAGES.md#workflow-permission-and-activation-gate).
 
 Run `pages.py preflight` and the existing two separately approved Pages phases using
 the prepared plan. Preserve the exact evidence tar SHA and all receipt bytes in the
