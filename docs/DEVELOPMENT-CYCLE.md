@@ -30,19 +30,19 @@ Then:
 
 ## Upstream upgrades (Signal / Molly)
 
-Take every Signal tag as one ordinary signed app PR, applying only what upstream changed since the last tag:
+Decided 2026-11-21: upstream code lands as real Git merges, so Git records what Collie has taken and later merges start from the last one. Take every Signal tag, and Molly's branch when it moves, as one ordinary app PR:
 
 ```
-OLD=v<canonicalVersionName in app/build.gradle.kts>; NEW=<new Signal tag>
-git fetch --no-tags https://github.com/signalapp/Signal-Android.git refs/tags/$OLD:refs/tags/signal-$OLD refs/tags/$NEW:refs/tags/signal-$NEW
-git diff --binary -M signal-$OLD signal-$NEW | git apply --3way --index
+python3 tooling/upstream/merge-upstream.py signal <new Signal tag>
+python3 tooling/upstream/merge-upstream.py molly <Molly branch, e.g. molly-8.34>
 ```
 
-- Never `git merge` an upstream tag: its commits are unsigned and `main` requires signatures. The diff gives the same tree (checked on 8.35.2), and it bumps `canonicalVersionName`, which records the base for next time.
-- Resolve conflicts, then commit with `Layer: upgrade`, `Upstream: signalapp/Signal-Android $OLD..$NEW` and one `Co-authored-by:` per upstream author.
-- Read the tag-to-tag diff for what applies cleanly but doesn't belong, and remove it or adapt it: network calls that skip the proxy code, Google or Firebase dependencies, new strings that say "Signal", donation or payment entry points. Donation UI stays out.
-- If the diff changes the libsignal or ringrtc version in `gradle/libs.versions.toml`, the native libraries must be rebuilt (`tools/native`) and published first, or the app build fails.
-- Molly: read Molly's own commits since the last one taken (`git log <last>..<new> --no-merges --not signal-<tag Molly merged>`; the last taken is `892d6264ba0`). Cherry-pick the ones Collie wants, keeping their authors, with `Upstream: mollyim/mollyim-android <sha>`. Skip Molly's Signal merges.
+- The script fetches the tag or branch, runs `git merge --no-commit`, keeps Collie's reviewed donation deletions (`tooling/upstream/signal-donation-removals.json`) and writes the merge message. `--join` records a release Collie already has without taking its changes; 8.36.3 was joined this way because 8.35 and 8.36 went in as diffs.
+- Upstream commits stay unsigned and keep their own authors. The merge commit is signed and carries `Layer: upgrade` and `Upstream: signalapp/Signal-Android <tag>` or `Upstream: mollyim/mollyim-android <branch>@<full sha>`. The app `Layer trailers` check verifies that parent against the upstream repository and skips only commits reached through it; the app `main` signature ruleset lets the maintainer merge upstream-merge PRs.
+- Resolve conflicts toward the newer Signal code plus Molly's and Collie's own changes. Collie stays as close to Molly as it can: keep Molly's code, strings and paths unless Collie's version is a real improvement.
+- Read what merges cleanly but doesn't belong, and remove it or adapt it: network calls that skip the proxy code, new Google dependencies (Firebase Messaging over `core/gms` stays), strings that say "Signal", donation or payment entry points. Donation UI stays out; donation strings stay as Molly has them.
+- If the merge changes the libsignal or ringrtc version in `gradle/libs.versions.toml`, the native libraries must be rebuilt (`tools/native`) and published first, or the app build fails.
+- Molly is often on an older Signal than Collie. Merging its branch then brings only Molly's own work, since Collie already has those Signal commits.
 - Agents may merge upgrade PRs once required checks and `Unit tests` are green.
 
 ### Additional selected sources
@@ -95,6 +95,6 @@ criterion.
 
 Keep native-input delivery (`repo.collie.im/native-inputs`) and Pages/F-Droid
 publishing; `pages-release.yml` stays until native files have another publishing
-route. After the first diff-based upgrade ships as a full release, the historical
+route. After the first upstream-merge upgrade ships as a full release, the historical
 `patches/molly`, `patches/ports` and `patches/forks` forest may be archived under
 `archive/patch-forest`. Apply the same consumer check before deleting any tools.
