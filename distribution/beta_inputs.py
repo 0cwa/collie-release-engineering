@@ -108,6 +108,16 @@ def served_version(*, fetch=None):
     return beta['version_name']
 
 
+def is_new_beta(tag, served):
+    """True only when the newest Beta tag is not the Beta the feed already serves.
+
+    A forced whole-site rebuild must not reach this: it rebuilds Stable and keeps the served Beta
+    route byte for byte (--preserve-beta). Re-publishing the served Beta would fail the strict
+    versionCode increase.
+    """
+    return tag is not None and PROFILE.tag_prefix + str(served) != tag
+
+
 def tag_commit(tag, *, api=release_inputs.github_read):
     """A Beta tag must be one verified annotated tag pointing at a commit."""
     if not isinstance(tag, str) or not TAG.fullmatch(tag):
@@ -327,7 +337,9 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     sub = parser.add_subparsers(dest='action', required=True)
     select = sub.add_parser('select', help='print the newest Beta tag and whether the feed already serves it')
-    select.add_argument('--force', action='store_true')
+    select.add_argument('--force', action='store_true',
+                        help='report the newest Beta as new even if served: for dry runs that verify it. '
+                             'feeds.yml never passes this; a forced site rebuild keeps the served Beta')
     check = sub.add_parser('verify')
     check.add_argument('--tag', required=True)
     check.add_argument('--work', type=Path, required=True)
@@ -347,7 +359,7 @@ def main():
     if args.action == 'select':
         tag = newest_tag()
         served = served_version()
-        changed = tag is not None and (args.force or PROFILE.tag_prefix + str(served) != tag)
+        changed = is_new_beta(tag, served) or (args.force and tag is not None)
         print(json.dumps({'tag': tag or '', 'served': served, 'changed': changed}))
     elif args.action == 'verify':
         value = verify(args.tag, args.work, args.build_tools)

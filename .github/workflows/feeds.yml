@@ -61,11 +61,11 @@ jobs:
         with:
           python-version: '3.12.14'
       - id: verify
-        env:
-          FORCE: ${{ inputs.force || false }}
+        # `force` rebuilds the whole site (the check job) and keeps the served Beta route as it is.
+        # Only a Beta tag that differs from the served one is new; re-publishing the served Beta
+        # would fail the strict versionCode increase.
         run: |
-          force=; [ "$FORCE" = true ] && force=--force
-          python distribution/beta_inputs.py select $force > "$RUNNER_TEMP/beta-select.json"
+          python distribution/beta_inputs.py select > "$RUNNER_TEMP/beta-select.json"
           cat "$RUNNER_TEMP/beta-select.json"
           if [ "$(jq -r .changed "$RUNNER_TEMP/beta-select.json")" != true ]; then echo changed=false >> "$GITHUB_OUTPUT"; exit 0; fi
           tag=$(jq -r .tag "$RUNNER_TEMP/beta-select.json")

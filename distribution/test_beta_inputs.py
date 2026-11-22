@@ -203,6 +203,25 @@ class BetaInputTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             beta.served_version(fetch=lambda: b'{"beta": "x"}')
 
+    def test_served_beta_is_not_new_and_a_forced_rebuild_cannot_republish_it(self):
+        # Regression: a forced whole-site run used to report the served Beta as changed, and
+        # feed.py then rejected its versionCode against the same served floor.
+        self.assertFalse(beta.is_new_beta(TAG, VERSION))
+        self.assertTrue(beta.is_new_beta(TAG, None))
+        self.assertTrue(beta.is_new_beta(TAG, '8.36.3-1-beta0'))
+        self.assertFalse(beta.is_new_beta(None, VERSION))
+        with patch.object(beta, 'newest_tag', return_value=TAG), patch.object(beta, 'served_version', return_value=VERSION), \
+                patch('sys.argv', ['beta_inputs.py', 'select']), patch('sys.stdout', io.StringIO()) as out:
+            beta.main()
+        self.assertEqual(json.loads(out.getvalue()), {'tag': TAG, 'served': VERSION, 'changed': False})
+        # The dry-run workflow still asks to verify the newest Beta whatever is served.
+        with patch.object(beta, 'newest_tag', return_value=TAG), patch.object(beta, 'served_version', return_value=VERSION), \
+                patch('sys.argv', ['beta_inputs.py', 'select', '--force']), patch('sys.stdout', io.StringIO()) as out:
+            beta.main()
+        self.assertTrue(json.loads(out.getvalue())['changed'])
+        with self.assertRaisesRegex(ValueError, 'must increase'):
+            feed.release_identity(channels.BETA, TAG, 'Collie TrailBlazer Beta ' + VERSION, VERSION, 178201, 178201)
+
     def test_apk_match_refuses_changed_pinned_helpers(self):
         tools = self.root / 'tools'
         tools.mkdir()
@@ -258,6 +277,10 @@ class BetaRouteRebuildTests(unittest.TestCase):
         self.assertNotIn('secrets.', beta_job)
         self.assertNotIn('environment:', beta_job)
         self.assertIn('apk_match.py', beta_job)
+        self.assertIn('beta_inputs.py select >', beta_job)
+        self.assertNotIn('--force', beta_job)
+        self.assertNotIn('inputs.force', beta_job)
+        self.assertIn('inputs.force', workflow[:workflow.index('\n  beta:\n')])
         deploy_job = workflow[workflow.index('\n  deploy:\n'):]
         self.assertIn('beta_inputs.py stage --tag "$BETA_TAG" --sha256 "$BETA_SHA256"', deploy_job)
         self.assertIn('${BETA_ARGS:---preserve-beta}', deploy_job)
