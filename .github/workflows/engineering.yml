@@ -17,8 +17,6 @@ jobs:
     name: Native tooling unit tests
     runs-on: ubuntu-24.04
     timeout-minutes: 10
-    env:
-      PYTHONPATH: tools/patches
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:

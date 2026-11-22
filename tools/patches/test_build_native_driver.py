@@ -4,14 +4,19 @@ import os
 from pathlib import Path
 import shutil
 import subprocess
+import sys
 import unittest
 from unittest.mock import patch
+
+# Historical app build driver tests; native fixtures come from tools/native.
+NATIVE = Path(__file__).resolve().parents[1] / 'native'
+sys.path.insert(0, str(NATIVE))
 
 import build
 import test_stage_artifacts as artifact_fixtures
 from test_gradle_environment import isolated_gradle_environment
 
-HERE = Path(__file__).parent
+HERE = NATIVE
 
 class ProvisionalNativeBuildDriverTest(unittest.TestCase):
     def setUp(self):
