@@ -14,7 +14,18 @@ SHA = re.compile(r"[0-9a-f]{40}\Z")
 ID = re.compile(r"[a-z0-9]+(?:-[a-z0-9]+)*\Z")
 REPOSITORY = re.compile(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+\Z")
 APP_PR = re.compile(r"https://github\.com/0cwa/collieim-android/pull/[1-9][0-9]*\Z")
-STATUSES = {"proposed", "adopted", "deferred", "rejected", "already-present"}
+STATUSES = {"selected", "deferred", "rejected", "already-present"}
+INTEGRATIONS = {"direct", "adapted", "inspired"}
+ROUTES = {"upstream-merge", "selective-feature", "historical-only"}
+APP_MERGE_PROVENANCE = (
+    "https://github.com/0cwa/collieim-android/blob/main/"
+    "docs/VERIFY.md#verify-an-upstream-merge"
+)
+# These are the repositories supported by the app's upstream-merge verifier.
+MERGE_DISCOVERY_REFS = {
+    "signalapp/Signal-Android": "refs/tags/v*",
+    "mollyim/mollyim-android": "refs/heads/*",
+}
 
 
 class RegistryError(ValueError):
@@ -53,30 +64,71 @@ def identifier(value, label):
 
 
 def sha(value, label):
-    require(isinstance(value, str) and SHA.fullmatch(value), label + " must be a full lowercase commit SHA")
+    require(isinstance(value, str) and SHA.fullmatch(value) and value != "0" * 40,
+            label + " must be a full lowercase commit SHA")
 
 
 def relative_path(value, label):
     text(value, label)
     path = PurePosixPath(value)
     require(not path.is_absolute() and ".." not in path.parts and "\\" not in value
-            and str(path) == value and value != ".", label + " must be a relative path without traversal")
+            and str(path) == value and value != "."
+            and not any(ord(c) < 32 or ord(c) == 127 for c in value),
+            label + " must be a relative path without traversal or control characters")
 
 
 def ref(value, label, pattern=False):
     text(value, label)
     require(value.startswith(("refs/tags/", "refs/heads/")), label + " must name a full tag or branch ref")
-    require(not any(c.isspace() or ord(c) < 32 for c in value)
+    require(not any(c.isspace() or ord(c) < 32 or ord(c) == 127 for c in value)
             and not any(c in value for c in ("..", "@{", "\\", ":", "?", "[", "^", "~", "//"))
-            and not value.endswith(("/", ".", ".lock"))
-            and all(part and not part.startswith(".") for part in value.split("/")), label + " is not a valid ref")
+            and not value.endswith(("/", "."))
+            and all(part and not part.startswith(".") and not part.endswith(".lock")
+                    for part in value.split("/")), label + " is not a valid ref")
     require(pattern or "*" not in value, label + " must be an exact ref")
+    require(value.count("*") <= 1, label + " must contain at most one discovery wildcard")
+
+
+def app_pr(value, label):
+    require(isinstance(value, str) and APP_PR.fullmatch(value), label + " must be a Collie app PR URL")
+
+
+def target_branch(value, label):
+    text(value, label)
+    require(not value.startswith(("refs/", "-")) and value not in {"HEAD", "@"}
+            and not SHA.fullmatch(value.lower()),
+            label + " must name a target branch, not a full ref or commit")
+    ref("refs/heads/" + value, label)
+
+
+def integration(value, label):
+    require(isinstance(value, str) and value in INTEGRATIONS, label + " integration is invalid")
+
+
+def validate_history(history, label):
+    """Validate past events independently of the latest review or application plan."""
+    require(isinstance(history, list) and history, label + " integration_history must be a nonempty list")
+    prs = set()
+    merges = set()
+    for event in history:
+        name = label + " integration history"
+        keys(event, {"pr", "target_branch", "merge_commit", "source_head", "layer", "integration"}, set(), name)
+        app_pr(event["pr"], name + " PR")
+        target_branch(event["target_branch"], name + " target branch")
+        sha(event["merge_commit"], name + " merge commit")
+        sha(event["source_head"], name + " source head")
+        identifier(event["layer"], name + " layer")
+        integration(event["integration"], name)
+        merge = (event["target_branch"], event["merge_commit"])
+        require(event["pr"] not in prs and merge not in merges, name + " is duplicated")
+        prs.add(event["pr"])
+        merges.add(merge)
 
 
 def validate_ledger(data, source):
     label = source["id"] + " ledger"
     keys(data, {"schema", "source", "reviewed_head", "reviewed_date", "scope", "features"}, set(), label)
-    require(type(data["schema"]) is int and data["schema"] == 1, label + " schema must be 1")
+    require(type(data["schema"]) is int and data["schema"] == 2, label + " schema must be 2")
     require(data["source"] == source["id"], label + " source differs")
     sha(data["reviewed_head"], label + " reviewed_head")
     require(data["reviewed_head"] == source["snapshot"]["commit"], label + " reviewed head differs from source snapshot")
@@ -91,7 +143,7 @@ def validate_ledger(data, source):
     layers = set()
     for feature in data["features"]:
         keys(feature, {"id", "title", "status", "upstream_commits", "paths", "reason"},
-             {"integration", "application", "verification"}, label + " feature")
+             {"integration", "application", "verification", "integration_history"}, label + " feature")
         identifier(feature["id"], label + " feature id")
         name = label + " feature " + feature["id"]
         require(feature["id"] not in seen, name + " is duplicated")
@@ -107,37 +159,78 @@ def validate_ledger(data, source):
             require(len(set(values)) == len(values), name + " " + field + " contains duplicates")
         if "verification" in feature:
             text(feature["verification"], name + " verification")
-        selected = feature["status"] in {"proposed", "adopted"}
-        require(selected == ("application" in feature), name + " application must be present only for proposed/adopted features")
-        require(selected == ("integration" in feature), name + " integration must be present only for proposed/adopted features")
+        selected = feature["status"] == "selected"
+        require(selected == ("application" in feature), name + " application must be present only for selected features")
+        require(selected == ("integration" in feature), name + " integration must be present only for selected features")
         if selected:
-            require(isinstance(feature["integration"], str) and feature["integration"] in {"direct", "adapted", "inspired"}, name + " integration is invalid")
+            integration(feature["integration"], name)
             application = feature["application"]
-            keys(application, {"layer"}, {"pr", "commit"}, name + " application")
+            keys(application, {"layer"}, {"pr"}, name + " application")
             identifier(application["layer"], name + " layer")
             require(application["layer"] not in layers, name + " layer is duplicated")
             layers.add(application["layer"])
             if "pr" in application:
-                require(isinstance(application["pr"], str) and APP_PR.fullmatch(application["pr"]), name + " PR must be a Collie app PR URL")
-            if feature["status"] == "adopted":
-                require("pr" in application and "commit" in application, name + " adopted feature needs its merged app PR and commit")
-                sha(application["commit"], name + " app commit")
-            else:
-                require("commit" not in application, name + " proposed feature cannot claim an adopted commit")
+                app_pr(application["pr"], name + " PR")
+        if "integration_history" in feature:
+            validate_history(feature["integration_history"], name)
+
+
+def validate_route(source, label):
+    route = source["route"]
+    require(isinstance(route, str) and route in ROUTES, label + " route is invalid")
+    if route == "upstream-merge":
+        require("snapshot" not in source and "ledger" not in source,
+                label + " upstream-merge uses app provenance, not a snapshot or ledger")
+        require(source.get("provenance") == APP_MERGE_PROVENANCE,
+                label + " upstream-merge must refer to the app's verified upstream merge provenance")
+        require(source["repository"] in MERGE_DISCOVERY_REFS,
+                label + " repository is not supported by the app upstream-merge verifier")
+        require(source["discovery_ref"] == MERGE_DISCOVERY_REFS[source["repository"]],
+                label + " upstream-merge discovery must cover Signal tags or Molly branches; select an exact ref per operation")
+        return
+
+    require("snapshot" in source, label + " route requires a pinned snapshot")
+    snapshot = source["snapshot"]
+    if route == "historical-only":
+        require(source["discovery_ref"] is None, label + " historical sources cannot actively track discovery refs")
+        require("ledger" not in source, label + " historical sources cannot have a selective-feature ledger")
+        require("provenance" in source, label + " historical sources require original provenance")
+        relative_path(source["provenance"], label + " historical provenance")
+        keys(snapshot, {"ref", "commit", "ref_origin"}, set(), label + " historical snapshot")
+        require(snapshot["ref_origin"] == "archived-bundle", label + " historical snapshot must retain its archived-bundle origin")
+    else:
+        require("provenance" not in source, label + " selective-feature provenance is its review ledger")
+        require("ledger" in source, label + " selective-feature requires a review ledger")
+        ref(source["discovery_ref"], label + " discovery ref", pattern=True)
+        if source["repository"] == "johanw666/Signal-Android":
+            require(source["discovery_ref"] == "refs/tags/*-JW",
+                    label + " Johan discovery must select custom *-JW tags, not the clean Signal branch")
+        keys(snapshot, {"ref", "commit", "ref_origin", "signal_base"}, set(), label + " selective-feature snapshot")
+        require(snapshot["ref_origin"] == "upstream", label + " selective-feature snapshot must be upstream")
+    ref(snapshot["ref"], label + " snapshot ref")
+    sha(snapshot["commit"], label + " snapshot commit")
+    if route == "selective-feature":
+        require(fnmatch.fnmatchcase(snapshot["ref"], source["discovery_ref"]), label + " snapshot does not match discovery refs")
+        base = snapshot["signal_base"]
+        keys(base, {"ref", "commit"}, set(), label + " Signal base")
+        ref(base["ref"], label + " Signal ref")
+        require(base["ref"].startswith("refs/tags/"), label + " Signal base must be a tag")
+        sha(base["commit"], label + " Signal commit")
+        require(base["commit"] != snapshot["commit"], label + " fork snapshot cannot equal its Signal base")
 
 
 def validate(root=ROOT):
     directory = Path(root).resolve() / "upstreams"
     data = read_json(directory / "sources.json")
     keys(data, {"schema", "sources"}, set(), "registry")
-    require(type(data["schema"]) is int and data["schema"] == 1, "registry schema must be 1")
+    require(type(data["schema"]) is int and data["schema"] == 2, "registry schema must be 2")
     require(isinstance(data["sources"], list) and data["sources"], "sources must be a nonempty list")
     ids = set()
     repositories = set()
     ledgers = set()
     for source in data["sources"]:
-        keys(source, {"id", "repository", "status", "strategy", "tracking", "baseline"},
-             {"snapshot", "ledger"}, "source")
+        keys(source, {"id", "repository", "route", "discovery_ref"},
+             {"provenance", "snapshot", "ledger"}, "source")
         identifier(source["id"], "source id")
         label = "source " + source["id"]
         require(source["id"] not in ids, label + " is duplicated")
@@ -146,32 +239,7 @@ def validate(root=ROOT):
         require(isinstance(repository, str) and REPOSITORY.fullmatch(repository), label + " repository must be owner/name")
         require(repository.lower() not in repositories, label + " repository is duplicated")
         repositories.add(repository.lower())
-        text(source["baseline"], label + " baseline")
-        require(isinstance(source["status"], str) and source["status"] in {"active", "historical"}, label + " status is invalid")
-        if source["status"] == "historical":
-            require(source["strategy"] == "historical" and source["tracking"] is None,
-                    label + " historical sources cannot actively track updates")
-        else:
-            require(isinstance(source["strategy"], str) and source["strategy"] in {"tag-diff", "selected-commits"}, label + " active strategy is invalid")
-            ref(source["tracking"], label + " tracking", pattern=True)
-            if source["strategy"] == "tag-diff":
-                require(source["tracking"].startswith("refs/tags/"), label + " tag-diff must track tags")
-        if "snapshot" in source:
-            snapshot = source["snapshot"]
-            keys(snapshot, {"ref", "commit", "ref_origin"}, {"signal_base"}, label + " snapshot")
-            ref(snapshot["ref"], label + " snapshot ref")
-            sha(snapshot["commit"], label + " snapshot commit")
-            require(isinstance(snapshot["ref_origin"], str) and snapshot["ref_origin"] in {"upstream", "archived-bundle"}, label + " ref origin is invalid")
-            if source["status"] == "active":
-                require(snapshot["ref_origin"] == "upstream", label + " active snapshot must be upstream")
-                require(fnmatch.fnmatchcase(snapshot["ref"], source["tracking"]), label + " snapshot does not match tracked refs")
-            if "signal_base" in snapshot:
-                base = snapshot["signal_base"]
-                keys(base, {"ref", "commit"}, set(), label + " Signal base")
-                ref(base["ref"], label + " Signal ref")
-                require(base["ref"].startswith("refs/tags/"), label + " Signal base must be a tag")
-                sha(base["commit"], label + " Signal commit")
-                require(base["commit"] != snapshot["commit"], label + " fork snapshot cannot equal its Signal base")
+        validate_route(source, label)
         if "ledger" in source:
             require("snapshot" in source, label + " ledger requires a pinned snapshot")
             relative_path(source["ledger"], label + " ledger path")
