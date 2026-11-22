@@ -57,6 +57,39 @@ authority; this registry does not duplicate its applied revisions.
 Discovery refs can move; an operation's selected revision must be exact.
 Preserve recorded provenance rather than refreshing old pins to today's heads.
 
+### What's waiting upstream
+
+```sh
+python3 tools/upstreams/status.py            # app revision origin/main of ~/Dev/collieim-android
+python3 tools/upstreams/status.py --app PATH --revision REV --molly-branch molly-8.36 --json
+```
+
+The command is read-only: it never merges, never changes the app checkout, this
+repository or the registry, and it loads the registry through the same validator
+as `validate.py`. For Signal and Molly it reads the app revision's merge history,
+takes the newest two-parent `Layer: upgrade` merge with an `Upstream:` trailer for
+that repository, and treats the merge's second parent as the last merged upstream
+commit. It then resolves the candidate (Signal: the highest `v<number>` tag,
+peeled; Molly: the branch named in the last merge's trailer, never switched
+silently, with newer `molly-<number>` release branches listed for you to choose
+with `--molly-branch`) and prints the number of commits the app lacks, their date
+span, the `last..candidate` range and the command to run in the app checkout:
+
+```sh
+python3 tooling/upstream/merge-upstream.py signal <tag> --expected-commit <full sha>
+```
+
+`--expected-commit` makes the merge stop if the ref moved after this report. It
+comes from app PR #227; if the app revision's `merge-upstream.py` does not have
+it yet, the report says so. A candidate that no longer contains the last merged
+commit is flagged as rewritten. For the selective source (Johan) it only lists
+`*-JW` tags newer than the pinned review snapshot, flags a moved or missing
+pinned tag, and says "manual review". Only upstream commit objects (no file
+contents) are fetched, into a cache repository (`--cache`, default
+`~/.cache/collie-upstream-status`) that borrows the app checkout's objects;
+`--no-fetch` counts with what the cache holds. Run `git fetch origin` in the app
+checkout first when you want its latest `origin/main`.
+
 ## Johan source selection
 
 The initial review pins tag `v8.36.0.0-JW` to commit
@@ -188,7 +221,7 @@ then explain the benefit and evidence in ordinary language.
 
 ```sh
 python3 tools/upstreams/validate.py
-python3 -m unittest discover -s tests -p 'test_upstream_sources.py' -v
+python3 -m unittest discover -s tests -p 'test_upstream_*.py' -v
 ```
 
 The validator is offline and does not fetch, check out or apply code. It checks
