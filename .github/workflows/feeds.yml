@@ -144,6 +144,11 @@ jobs:
           python distribution/beta_inputs.py metadata --receipt "$RUNNER_TEMP/beta-inputs.json" \
             --output "$RUNNER_TEMP/beta-metadata" --evidence "$RUNNER_TEMP/beta-metadata-inputs.json"
           echo "BETA_ARGS=--beta-apks $RUNNER_TEMP/beta-apks --beta-fastlane $RUNNER_TEMP/beta-metadata --beta-tag $BETA_TAG" >> "$GITHUB_ENV"
+      - name: Keep the native files of the Beta this site serves
+        run: |
+          python distribution/beta_inputs.py native-plan --tag "$BETA_TAG" --output "$RUNNER_TEMP/beta-native-plan.json" > "$RUNNER_TEMP/beta-native.json"
+          cat "$RUNNER_TEMP/beta-native.json"
+          if [ -f "$RUNNER_TEMP/beta-native-plan.json" ]; then echo "KEEP_NATIVE=--keep-native-plan $RUNNER_TEMP/beta-native-plan.json" >> "$GITHUB_ENV"; fi
       - name: Retain the verified release input identities
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
@@ -167,7 +172,7 @@ jobs:
           python distribution/feed.py --site "$RUNNER_TEMP/site" --apks "$RUNNER_TEMP/apks" \
             --native "$RUNNER_TEMP/native" --native-plan "$RUNNER_TEMP/app-metadata/build-inputs/native-artifacts.json" \
             --latest "$LATEST" --fastlane "$RUNNER_TEMP/app-metadata/fastlane/metadata/android" --keystore "$RUNNER_TEMP/repo.p12" --build-tools "$bt" \
-            ${BETA_ARGS:---preserve-beta} \
+            ${BETA_ARGS:---preserve-beta} ${KEEP_NATIVE} \
             --previous-site "$RUNNER_TEMP/previous-site" --previous-baseline "$RUNNER_TEMP/deploy-baseline.json"
           rm -f "$RUNNER_TEMP/repo.p12"
           rm -rf "$RUNNER_TEMP/fdroid-work" "$RUNNER_TEMP/fdroid-beta-work"

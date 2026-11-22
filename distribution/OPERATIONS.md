@@ -108,6 +108,35 @@ Host migration preserves URLs/certificate and verifies mirrors before DNS switch
 Disable or minimize access logs (no IP/user-agent retention unless required), keep
 operational counters, monitor TLS expiry, index age/signatures and immutable hashes.
 
+## Retention policy on the Pages site
+
+The Pages site has a 950,000,000-byte ceiling (`SITE_LIMIT`). A Stable or Beta APK is
+about 96 MB, so the site cannot keep every old APK. Each whole-site update (`feed.py`,
+`retained_artifacts.py`) keeps:
+
+- Per channel, the APKs in the newly signed index plus the newest
+  `RETAINED_PREVIOUS_APKS` (1) older APK URL. A client holding the cached index of the
+  previous release can still download it. A client whose cached index is older than that
+  gets a 404, refreshes its index (F-Droid does this on every update check) and takes the
+  current APK. Older versions stay downloadable from the GitHub release pages. APK URLs
+  never change bytes, and an APK is never replaced.
+- A preserved Beta route (a Stable-only update) is copied byte for byte, so its signed
+  index still names every APK it holds; the previous-APK limit applies when the Beta route
+  is rebuilt for a new Beta.
+- Native Maven files only while a current release plan names them: the plan of the release
+  being published and the plan of the served Beta (`--keep-native-plan`, exported from the
+  Beta tag by `beta_inputs.py native-plan`). A native generation no current release uses is
+  dropped from the site, which means that old tags can no longer be rebuilt from repo.collie.im
+  alone; the native inputs are reproducible from their sources.
+- Signed-index and receipt archives (`_generations/`), diff files, versioned icons and listing
+  artwork, which are small.
+
+With two APKs per channel and the native files of the current release the site settles near
+700 MB, leaving room for several more releases of each channel. Raising
+`RETAINED_PREVIOUS_APKS` by one costs about 192 MB (one APK in each channel); check the
+headroom before doing that. Retirement happens on the next whole-site update after a
+change, so a forced `feeds.yml` run applies a changed policy to the same releases.
+
 ## Evidence limits
 
 No production repository/index key, DNS, TLS, live policy or protected history was

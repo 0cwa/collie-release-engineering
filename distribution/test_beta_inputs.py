@@ -23,6 +23,7 @@ VERSION = '8.36.3-1-beta1'
 COMMIT = 'c' * 40
 TAG_OID = 'd' * 40
 ROOT = f'repos/{beta.APP}/'
+release_inputs_origin = beta.release_inputs.ORIGIN
 
 
 def release(number=7, tag=TAG, **changes):
@@ -222,6 +223,49 @@ class BetaInputTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'must increase'):
             feed.release_identity(channels.BETA, TAG, 'Collie TrailBlazer Beta ' + VERSION, VERSION, 178201, 178201)
 
+    def test_native_plan_of_the_beta_tag_is_exported_from_its_commit_only(self):
+        plan = json.dumps({'files': [{'path': 'im/collie/x/1/x-1.pom', 'bytes': 4, 'sha256': 'a' * 64,
+            'url': release_inputs_origin + 'native-inputs/v2/maven/im/collie/x/1/x-1.pom'}]}).encode()
+        entry = {'type': 'blob', 'mode': '100644', 'size': len(plan), 'sha': 'e' * 40}
+        class Reader:
+            def __init__(self, api): pass
+            def root_tree(self, commit):
+                assert commit == COMMIT
+                return 'f' * 40
+            def directory(self, root, path):
+                assert (root, path) == ('f' * 40, 'build-inputs')
+                return 'd' * 40
+            def tree(self, oid): return {'native-artifacts.json': entry}
+            def blob(self, found): return plan
+        output = self.root / 'plan.json'
+        with patch.object(beta.release_inputs, 'MetadataReader', Reader):
+            result = beta.export_native_plan(TAG, output, api=self.api, metadata_api=None)
+        self.assertEqual(output.read_bytes(), plan)
+        self.assertEqual(result, {'tag': TAG, 'source_commit': COMMIT, 'sha256': hashlib.sha256(plan).hexdigest()})
+        entry['mode'] = '100755'
+        with patch.object(beta.release_inputs, 'MetadataReader', Reader), self.assertRaisesRegex(ValueError, 'regular JSON'):
+            beta.export_native_plan(TAG, self.root / 'other.json', api=self.api, metadata_api=None)
+        self.api.verified = False
+        with self.assertRaisesRegex(ValueError, 'verified signed tag'):
+            beta.export_native_plan(TAG, self.root / 'third.json', api=self.api, metadata_api=None)
+
+    def test_native_plan_command_uses_the_served_beta_and_does_nothing_without_one(self):
+        out = self.root / 'plan.json'
+        run = lambda served: (patch.object(beta, 'served_version', return_value=served),
+                              patch('sys.argv', ['beta_inputs.py', 'native-plan', '--output', str(out)]),
+                              patch('sys.stdout', io.StringIO()))
+        with patch.object(beta, 'export_native_plan', return_value={'tag': TAG}) as export:
+            a, b, c = run(VERSION)
+            with a, b, c:
+                beta.main()
+            export.assert_called_once_with(TAG, out)
+            export.reset_mock()
+            a, b, c = run(None)
+            with a, b, c as printed:
+                beta.main()
+            export.assert_not_called()
+            self.assertEqual(json.loads(printed.getvalue()), {'tag': ''})
+
     def test_apk_match_refuses_changed_pinned_helpers(self):
         tools = self.root / 'tools'
         tools.mkdir()
@@ -284,6 +328,8 @@ class BetaRouteRebuildTests(unittest.TestCase):
         deploy_job = workflow[workflow.index('\n  deploy:\n'):]
         self.assertIn('beta_inputs.py stage --tag "$BETA_TAG" --sha256 "$BETA_SHA256"', deploy_job)
         self.assertIn('${BETA_ARGS:---preserve-beta}', deploy_job)
+        self.assertIn('beta_inputs.py native-plan --tag "$BETA_TAG"', deploy_job)
+        self.assertIn('${KEEP_NATIVE}', deploy_job)
 
 
 if __name__ == '__main__':

@@ -328,6 +328,24 @@ def export_metadata(receipt, destination, *, api=release_inputs.github_metadata_
                       for path, data in verified]}
 
 
+def export_native_plan(tag, destination, *, api=release_inputs.github_read,
+                       metadata_api=release_inputs.github_metadata_read):
+    """Write the native input plan of a Beta tag, so its files can stay on the site while it is served."""
+    commit, _ = tag_commit(tag, api=api)
+    reader = release_inputs.MetadataReader(metadata_api)
+    tree = reader.directory(reader.root_tree(commit), 'build-inputs')
+    entry = reader.tree(tree).get('native-artifacts.json')
+    if (entry is None or entry['type'] != 'blob' or entry['mode'] != '100644'
+            or not 0 < entry['size'] <= release_inputs.MAX_TEXT_BYTES):
+        raise ValueError('Beta source native plan must be a bounded regular JSON file')
+    data = reader.blob(entry)
+    release_inputs.native_records(json.loads(data, object_pairs_hook=release_inputs.unique_properties))
+    destination = Path(destination)
+    with destination.open('xb') as output:
+        output.write(data)
+    return {'tag': tag, 'source_commit': commit, 'sha256': hashlib.sha256(data).hexdigest()}
+
+
 def write_new(path, value):
     with Path(path).open('x', encoding='utf-8') as output:
         output.write(json.dumps(value, sort_keys=True, indent=2) + '\n')
@@ -351,6 +369,9 @@ def main():
     staged.add_argument('--source-commit', required=True)
     staged.add_argument('--apks', type=Path, required=True)
     staged.add_argument('--receipt', type=Path, required=True)
+    native = sub.add_parser('native-plan', help='save the native plan of the new or the served Beta, if there is one')
+    native.add_argument('--tag', default='')
+    native.add_argument('--output', type=Path, required=True)
     metadata = sub.add_parser('metadata')
     metadata.add_argument('--receipt', type=Path, required=True)
     metadata.add_argument('--output', type=Path, required=True)
@@ -365,6 +386,10 @@ def main():
         value = verify(args.tag, args.work, args.build_tools)
         write_new(args.output, value)
         print(json.dumps({k: value[k] for k in ('tag', 'version_code', 'sha256', 'source_commit')}))
+    elif args.action == 'native-plan':
+        served = served_version()
+        tag = args.tag or ('' if served is None else PROFILE.tag_prefix + served)
+        print(json.dumps(export_native_plan(tag, args.output) if tag else {'tag': ''}))
     elif args.action == 'stage':
         write_new(args.receipt, stage(args.tag, args.sha256, args.source_commit, args.apks))
     else:

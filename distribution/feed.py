@@ -450,6 +450,8 @@ def main():
                    help='retain published immutable URLs from this frozen pre-build site snapshot')
     p.add_argument('--previous-baseline',type=Path,
                    help='the deploy baseline captured together with --previous-site')
+    p.add_argument('--keep-native-plan',type=Path,action='append',default=[],
+                   help='native plan of another current release (the served Beta); its files stay with the plan copied into the site')
     p.add_argument('--verify-live-site',action='store_true',
                    help='verify the uploaded candidate inventory and both signed routes against Pages')
     a = p.parse_args()
@@ -487,7 +489,7 @@ def main():
         raise SystemExit('site and work directories must not exist yet')
     if not os.environ.get('FDROID_KEYSTORE_PASS'):
         raise SystemExit('FDROID_KEYSTORE_PASS is not set')
-    previous=None
+    previous=None;native_keep=None
     if a.previous_site:
         previous=retained_artifacts.load_previous_site(a.previous_site,a.previous_baseline,
             parse_inventory=_inventory_files,byte_limit=SITE_LIMIT)
@@ -495,6 +497,12 @@ def main():
     build_tools = Path(a.build_tools)
     site.mkdir(parents=True)
     native_count = copy_native(a.native, a.native_plan, site) if a.native and a.native_plan else 0
+    if previous is not None:
+        # Native files stay only while a current release plan names them: the one just copied
+        # into the site, and the plan of the served Beta (--keep-native-plan).
+        native_keep={p.relative_to(site).as_posix() for p in (site/'native-inputs').rglob('*') if p.is_file()}
+        for plan in a.keep_native_plan:
+            native_keep.update(release_inputs.native_records(json.loads(plan.read_text())))
     build_fdroid(a.apks, a.fastlane, a.keystore, build_tools, work, site, profile,
                  tag=a.latest, title=a.title, prior_version_code=a.prior_version_code,
                  prerelease=a.prerelease)
@@ -524,9 +532,11 @@ def main():
                          f'{APP_RELEASES}{a.latest}/collie.apk', state='preview' if a.preview else 'active')
     (site / 'CNAME').write_text('repo.collie.im\n')
     repo_path='fdroid/repo' if profile.name=='stable' else 'fdroid/beta/repo'
+    site_names=lambda: {p.relative_to(site).as_posix() for p in site.rglob('*') if p.is_file()}
     if previous is not None:
         native_paths={p.relative_to(site).as_posix() for p in (site/'native-inputs').rglob('*') if p.is_file()}
-        native_paths.update(name for name in previous.files if name.startswith('native-inputs/'))
+        native_paths.update(name for name in previous.retained_files(a.preserve_beta,rebuild_beta,site_names(),native_keep)
+                            if name.startswith('native-inputs/'))
         native_count=len(native_paths)
     state = {'schema': 1, 'latest': a.latest, 'repository_fingerprint': fingerprint,
              'apks': sorted(p.name for p in (site / repo_path).glob('*.apk')),
@@ -534,7 +544,7 @@ def main():
     if previous is not None:
         # The selected APKs alone enter the new signed index. Older URLs remain
         # downloadable for clients using a previously cached signed index.
-        state['retained_apks']=sorted(Path(name).name for name in previous.retained_files(a.preserve_beta,rebuild_beta)
+        state['retained_apks']=sorted(Path(name).name for name in previous.retained_files(a.preserve_beta,rebuild_beta,site_names(),native_keep)
             if name.startswith('fdroid/repo/') and name.endswith('.apk') and Path(name).name not in state['apks'])
     if profile.name!='stable':state['channel']=profile.name
     if a.preview:state['preview']=True
@@ -545,7 +555,7 @@ def main():
         (site/'feed-state.json').write_text(json.dumps(state,indent=1)+'\n')
     if previous is not None:
         retained_artifacts.retain(site,previous,preserve_beta=a.preserve_beta,rebuild_beta=rebuild_beta,
-                                  byte_limit=SITE_LIMIT)
+                                  byte_limit=SITE_LIMIT,native_keep=native_keep)
         # This compares the live manifest with the original frozen capture. It
         # never substitutes a newly captured site or a newer Beta generation.
         verify_beta_snapshot_is_current(previous.beta)

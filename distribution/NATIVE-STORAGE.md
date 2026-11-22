@@ -50,8 +50,10 @@ It does not capture a different Beta generation during the build. The existing
 deployment guard still checks the live site against the original baseline before
 creating a Pages deployment.
 
-Each whole-site update preserves every previously published version-addressed
-native Maven artifact and every Stable `im.collie.app_<versionCode>.apk` URL.
+Each whole-site update preserves the version-addressed native Maven artifacts that a
+current release plan (the published release, the served Beta) still names, and the
+Stable `im.collie.app_<versionCode>.apk` URLs of the indexed and the newest previous
+release; the bounded policy is in OPERATIONS.md ("Retention policy on the Pages site").
 It also retains signed-index and repository-receipt archives at the known
 `_generations/<digest>/` paths, F-Droid diff files, versioned icons, and package
 listing artwork. Previously retained URLs remain retained on subsequent updates.
@@ -63,8 +65,8 @@ Unknown native paths, malformed APK paths, missing files, or changed bytes fail
 the build. An existing immutable URL can be reused only with identical bytes.
 
 `FEEDS_KEEP_RELEASES` controls which releases enter the newly signed F-Droid
-index. It is not a deletion policy. Older APKs are copied after index generation,
-so clients with a cached signed index can still download their referenced APK.
+index. Older APKs, up to the previous-release allowance, are copied after index
+generation, so clients with a cached signed index can still download their referenced APK.
 The current `feed-state.json` lists indexed APKs under `apks` and older served
 APKs under `retained_apks`. The public inventory covers all served files. The
 complete existing Beta route is preserved when `--preserve-beta` is enabled;
