@@ -30,7 +30,7 @@ Then:
 
 ## Upstream upgrades (Signal / Molly)
 
-Decided 2026-11-21: upstream code lands as real Git merges, so Git records what Collie has taken and later merges start from the last one. Take every Signal tag, and Molly's branch when it moves, as one ordinary app PR:
+Decided 2026-11-21: upstream code lands as real Git merges, so Git records what Collie has taken and later merges start from the last one. Take every Signal tag, and Molly's branch when it moves, as one ordinary app PR. To see what is waiting and get the exact command, run `python3 tools/upstreams/status.py` (read-only; see the [source registry](../upstreams/README.md#whats-waiting-upstream)):
 
 ```
 python3 tooling/upstream/merge-upstream.py signal <new Signal tag>
