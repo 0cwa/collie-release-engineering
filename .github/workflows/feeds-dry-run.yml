@@ -1,10 +1,15 @@
 name: F-Droid and Pages dry run
 # Builds the full site with a throwaway key, an explicit preview marker, and no deploy.
+# It also runs the complete Beta check on the newest TrailBlazer prerelease, served or not.
 on:
   pull_request:
     paths:
       - distribution/feed.py
       - distribution/release_inputs.py
+      - distribution/beta_inputs.py
+      - distribution/apk_match.py
+      - distribution/retained_artifacts.py
+      - distribution/beta-metadata/**
       - distribution/metadata/**
       - distribution/config.public.yml
       - distribution/site/**
@@ -42,6 +47,22 @@ jobs:
         run: |
           python distribution/release_inputs.py native --plan "$RUNNER_TEMP/app-metadata/build-inputs/native-artifacts.json" \
             --output "$RUNNER_TEMP/native"
+      - name: Check the newest Beta exactly as the feed would, and export its listing
+        run: |
+          python distribution/beta_inputs.py select --force > "$RUNNER_TEMP/beta-select.json"
+          cat "$RUNNER_TEMP/beta-select.json"
+          tag=$(jq -er '.tag | select(length > 0)' "$RUNNER_TEMP/beta-select.json")
+          bt=$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)
+          python distribution/beta_inputs.py verify --tag "$tag" --work "$RUNNER_TEMP/beta" --build-tools "$bt" \
+            --output "$RUNNER_TEMP/beta-verified.json"
+          sha=$(python distribution/apk_match.py --tools "$RUNNER_TEMP/apk-match-tools" \
+            "$(jq -r .unsigned_apk "$RUNNER_TEMP/beta-verified.json")" "$(jq -r .published_apk "$RUNNER_TEMP/beta-verified.json")")
+          test "$sha" = "$(jq -r .sha256 "$RUNNER_TEMP/beta-verified.json")"
+          echo "Beta $tag: published APK $sha is its CI build plus signature"
+          python distribution/beta_inputs.py metadata --receipt "$RUNNER_TEMP/beta-verified.json" \
+            --output "$RUNNER_TEMP/beta-metadata" --evidence "$RUNNER_TEMP/beta-metadata-inputs.json"
+          echo "BETA_TAG=$tag" >> "$GITHUB_ENV"
+          echo "BETA_APKS=$(dirname "$(jq -r .published_apk "$RUNNER_TEMP/beta-verified.json")")" >> "$GITHUB_ENV"
       - name: Retain the verified release input identities
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
@@ -50,6 +71,8 @@ jobs:
             ${{ runner.temp }}/release-inputs.json
             ${{ runner.temp }}/metadata-inputs.json
             ${{ runner.temp }}/app-metadata/build-inputs/native-artifacts.json
+            ${{ runner.temp }}/beta-verified.json
+            ${{ runner.temp }}/beta-metadata-inputs.json
           if-no-files-found: error
           retention-days: 90
       - name: Build the site with a throwaway key
@@ -61,6 +84,8 @@ jobs:
           bt=$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)
           python distribution/feed.py --site "$RUNNER_TEMP/site" --apks "$RUNNER_TEMP/apks" \
             --native "$RUNNER_TEMP/native" --native-plan "$RUNNER_TEMP/app-metadata/build-inputs/native-artifacts.json" \
-            --latest "$LATEST" --fastlane "$RUNNER_TEMP/app-metadata/fastlane/metadata/android" --keystore "$RUNNER_TEMP/repo.p12" --build-tools "$bt" --preview
-          find "$RUNNER_TEMP/site" -maxdepth 3 | sort | head -40
+            --latest "$LATEST" --fastlane "$RUNNER_TEMP/app-metadata/fastlane/metadata/android" --keystore "$RUNNER_TEMP/repo.p12" --build-tools "$bt" --preview \
+            --beta-apks "$BETA_APKS" --beta-fastlane "$RUNNER_TEMP/beta-metadata" --beta-tag "$BETA_TAG"
+          find "$RUNNER_TEMP/site" -maxdepth 4 | sort | head -60
+          jq -e '.beta.version_name' "$RUNNER_TEMP/site/feed-state.json"
           grep -c 'Add repository' "$RUNNER_TEMP/site/index.html"

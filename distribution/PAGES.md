@@ -15,9 +15,10 @@ blocks this feed nor belongs in Android main.
 
 The two-phase [`pages-release.yml`](../.github/workflows/pages-release.yml) route
 for approved native/receipt-based promotions remains subject to the exact gates
-below. TrailBlazer Beta has a separate candidate/readiness/Pages approval path
-and is not live as of 2026-11-17. A successful scheduled Stable publication does
-not establish acceptance or approval for a new two-phase wrapper or Beta release.
+below. Since 2026-11-22 TrailBlazer Beta is published by the scheduled
+`feeds.yml` route instead ([BETA-FEED-OPERATIONS.md](BETA-FEED-OPERATIONS.md));
+the Beta sections of this file describe the retired candidate/readiness/Pages
+path and are removed with it.
 See the [dual-release policy](../docs/DUAL-RELEASE-POLICY.md) for the product and
 source boundaries. For an existing Stable site without a canonical inventory,
 see the separately reviewed [inventory bootstrap change (#61)](https://github.com/0cwa/collie-release-engineering/pull/61);
@@ -349,7 +350,9 @@ Preparation uses the `pages-preparation` environment with `deployment: false`,
 has contents read only,
 and executes the reviewed engineering policy against data assets.
 
-For Beta readiness, register an internal GitHub App with repository Actions read
+(Retired with the Beta readiness route; the Beta feed reads the public app
+repository's build artifacts with the workflow's own `GITHUB_TOKEN`.) For Beta
+readiness, register an internal GitHub App with repository Actions read
 and GitHub's mandatory Metadata read, and install it on only
 `0cwa/collieim-android`. In the engineering repository, provision
 `pages-preparation` for the exact deployment branch `main` with the App client ID

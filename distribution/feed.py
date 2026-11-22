@@ -599,6 +599,29 @@ def build_fdroid(apks, fastlane, keystore, build_tools, work, site, profile=chan
                     ignore=shutil.ignore_patterns('*.asc', 'status'))
 
 
+def build_beta_route(apks, fastlane, tag, keystore, build_tools, work, site, previous_release, *, preview=False):
+    """Rebuild fdroid/beta/repo from one verified TrailBlazer prerelease APK.
+
+    The release itself (immutable prerelease, signed tag, byte match with its CI
+    build) is checked by beta_inputs.py before this runs. Here the APK must carry
+    the Beta package and signer and a versionCode above the served Beta index.
+    """
+    profile=channels.BETA
+    version_name=tag[len(profile.tag_prefix):]
+    prior=previous_release['version_code'] if previous_release else 0
+    build_fdroid(apks,fastlane,keystore,Path(build_tools),Path(work),Path(site),profile,tag=tag,
+                 title=f'{profile.app_title} {version_name}',prior_version_code=prior,prerelease=True)
+    route=Path(site)/'fdroid/beta/repo'
+    if preview:
+        data=json.loads((route/'index-v2.json').read_text())
+    else:
+        data=binary_repo.verify_indexes(route,profile.repository_certificate,profile)
+    tuples=binary_repo.release_tuples(data,profile)
+    if len(tuples)!=1 or next(iter(tuples))[1]!=version_name:
+        raise ValueError('generated Beta index must contain exactly the selected release')
+    return {'version_name':version_name,'version_code':next(iter(tuples))[0]}
+
+
 def keystore_fingerprint(keystore):
     der = subprocess.run(['keytool', '-exportcert', '-keystore', str(keystore), '-storetype', 'PKCS12',
                           '-alias', 'collie-repo', '-storepass:env', 'FDROID_KEYSTORE_PASS'],
@@ -631,6 +654,10 @@ def main():
     p.add_argument('--prerelease', action='store_true')
     p.add_argument('--preview', action='store_true',
                    help='render an unpublished Stable preview with a disposable repository key')
+    p.add_argument('--beta-apks',type=Path,
+                   help='directory holding the verified trailblazer-beta.apk: rebuild the Beta route in this site')
+    p.add_argument('--beta-fastlane',type=Path,help='Beta listing exported from the Beta release tag')
+    p.add_argument('--beta-tag',help='verified immutable TrailBlazer prerelease tag')
     p.add_argument('--preserve-beta',action='store_true',
                    help='retain the current verified Beta route in a Stable whole-site build')
     p.add_argument('--previous-site',type=Path,
@@ -682,8 +709,17 @@ def main():
     if profile.name=='stable':required+=('native','native_plan','latest')
     missing=[name for name in required if not getattr(a,name)]
     if missing:p.error('required for '+profile.name+' generation: '+', '.join('--'+x.replace('_','-') for x in missing))
+    rebuild_beta=a.beta_apks is not None
+    if rebuild_beta:
+        if profile.name!='stable' or a.preserve_beta or not (a.beta_fastlane and a.beta_tag):
+            p.error('--beta-apks rebuilds the Beta route in a Stable site build and needs --beta-fastlane and --beta-tag')
+        if not a.preview and not a.previous_site:
+            p.error('a production Beta rebuild needs --previous-site for its versionCode floor')
+        if not a.beta_tag.startswith(channels.BETA.tag_prefix):
+            p.error('--beta-tag must be a TrailBlazer tag')
     site, work = Path(a.site), Path(a.site).parent / 'fdroid-work'
-    if site.exists() or work.exists():
+    beta_work=Path(a.site).parent/'fdroid-beta-work'
+    if site.exists() or work.exists() or beta_work.exists():
         raise SystemExit('site and work directories must not exist yet')
     if not os.environ.get('FDROID_KEYSTORE_PASS'):
         raise SystemExit('FDROID_KEYSTORE_PASS is not set')
@@ -691,7 +727,7 @@ def main():
     if a.previous_site:
         previous=retained_artifacts.load_previous_site(a.previous_site,a.previous_baseline,
             parse_inventory=_inventory_files,byte_limit=SITE_LIMIT)
-        previous.retained_files(a.preserve_beta)
+        previous.retained_files(a.preserve_beta,rebuild_beta)
     build_tools = Path(a.build_tools)
     site.mkdir(parents=True)
     native_count = copy_native(a.native, a.native_plan, site) if a.native and a.native_plan else 0
@@ -699,6 +735,10 @@ def main():
                  tag=a.latest, title=a.title, prior_version_code=a.prior_version_code,
                  prerelease=a.prerelease)
     retained_beta=None
+    built_beta=None
+    if rebuild_beta:
+        built_beta=build_beta_route(a.beta_apks,a.beta_fastlane,a.beta_tag,a.keystore,build_tools,beta_work,site,
+                                    previous.beta_release if previous is not None else None,preview=a.preview)
     if a.preserve_beta:
         if profile.name!='stable' or a.preview:
             raise ValueError('Beta retention is only for a production Stable site build')
@@ -730,17 +770,18 @@ def main():
     if previous is not None:
         # The selected APKs alone enter the new signed index. Older URLs remain
         # downloadable for clients using a previously cached signed index.
-        state['retained_apks']=sorted(Path(name).name for name in previous.retained_files(a.preserve_beta)
+        state['retained_apks']=sorted(Path(name).name for name in previous.retained_files(a.preserve_beta,rebuild_beta)
             if name.startswith('fdroid/repo/') and name.endswith('.apk') and Path(name).name not in state['apks'])
     if profile.name!='stable':state['channel']=profile.name
     if a.preview:state['preview']=True
     (site / 'feed-state.json').write_text(json.dumps(state, indent=1) + '\n')
-    if retained_beta is not None and retained_beta['release'] is not None:
-        state['beta']={'version_name':retained_beta['release']['version_name'],
-                       'version_code':retained_beta['release']['version_code']}
+    beta_release=built_beta or (retained_beta['release'] if retained_beta is not None else None)
+    if beta_release is not None:
+        state['beta']={'version_name':beta_release['version_name'],'version_code':beta_release['version_code']}
         (site/'feed-state.json').write_text(json.dumps(state,indent=1)+'\n')
     if previous is not None:
-        retained_artifacts.retain(site,previous,preserve_beta=a.preserve_beta,byte_limit=SITE_LIMIT)
+        retained_artifacts.retain(site,previous,preserve_beta=a.preserve_beta,rebuild_beta=rebuild_beta,
+                                  byte_limit=SITE_LIMIT)
         # This compares the live manifest with the original frozen capture. It
         # never substitutes a newly captured site or a newer Beta generation.
         verify_beta_snapshot_is_current(previous.beta)

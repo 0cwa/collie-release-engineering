@@ -1,5 +1,9 @@
 # TrailBlazer Beta pre-readiness evidence
 
+Retired on 2026-11-22: the Beta feed no longer uses this archive. See
+[BETA-FEED-OPERATIONS.md](BETA-FEED-OPERATIONS.md). This file goes with
+`beta_evidence.py` in a follow-up removal.
+
 `beta_evidence.py` builds and verifies the immutable evidence archive used before
 the Android Beta readiness run. It does not sign artifacts, upload a GitHub release
 asset, create a readiness artifact, approve a Pages promotion, or publish a feed.

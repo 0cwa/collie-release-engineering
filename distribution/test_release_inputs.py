@@ -159,8 +159,8 @@ class ReleaseInputTests(unittest.TestCase):
         for name in ('feeds.yml', 'feeds-dry-run.yml'):
             workflow = (root / '.github/workflows' / name).read_text()
             with self.subTest(workflow=name):
-                self.assertEqual(workflow.count('uses: actions/checkout@'), 1)
-                self.assertNotIn('repository: ${{ env.APP_REPO }}', workflow)
+                self.assertEqual(workflow.count('uses: actions/checkout@'), 2 if name == 'feeds.yml' else 1)
+                self.assertNotIn('repository:', workflow)
                 self.assertNotIn('steps.inputs.outputs.', workflow)
                 self.assertIn('release_inputs.py metadata --receipt "$RUNNER_TEMP/release-inputs.json"', workflow)
                 self.assertIn('--output "$RUNNER_TEMP/app-metadata" --evidence "$RUNNER_TEMP/metadata-inputs.json"', workflow)

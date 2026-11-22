@@ -177,7 +177,9 @@ class FeedCoexistenceTests(unittest.TestCase):
         self.assertIn('--feed-baseline "$RUNNER_TEMP/deploy-baseline.json"',workflow)
         self.assertIn('release_inputs.py metadata --receipt "$RUNNER_TEMP/release-inputs.json"',workflow)
         self.assertIn('--native-plan "$RUNNER_TEMP/app-metadata/build-inputs/native-artifacts.json"',workflow)
-        self.assertEqual(workflow.count('uses: actions/checkout@'),1)
+        # The deploy job and the secret-free Beta check each check out this repository, never the app.
+        self.assertEqual(workflow.count('uses: actions/checkout@'),2)
+        self.assertNotIn('repository:',workflow)
 
     def test_beta_listing_must_be_from_exact_receipt_commit_and_artwork(self):
         with tempfile.TemporaryDirectory() as tmp:

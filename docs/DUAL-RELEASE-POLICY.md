@@ -15,8 +15,8 @@ separately reviewed administration change, not live repository settings.
 | Primary APK | `collie.apk` (five Stable APKs) | `trailblazer-beta.apk` |
 | APK signing identity | Existing Stable key | Separate pinned Beta key |
 | F-Droid feed | `https://repo.collie.im/fdroid/repo/` | `https://repo.collie.im/fdroid/beta/repo/` |
-| GitHub publication | Draft → verification prerelease → verified full release | Reviewed Beta prerelease |
-| Current source contract | `main`, exact-commit `pr.yml` readiness | Intended `trailblazer-beta`, exact approved build and Beta readiness evidence; activation gated |
+| GitHub publication | Draft → verification prerelease → verified full release | Immutable Beta prerelease |
+| Current source contract | `main`, exact-commit `pr.yml` readiness | `trailblazer-beta`; the APK must equal a `build-release.yml` build of the signed tag's commit |
 
 The complete identities and certificate pins are in
 [`distribution/channel_profile.py`](../distribution/channel_profile.py).
@@ -99,15 +99,15 @@ not establish the source proof. Record the selected source branch in Android
 publication evidence and retain same-byte promotion. Existing engineering feed
 receipts keep their immutable release, tag, APK and source bindings.
 
-For TrailBlazer, approve the complete source and build identity first, including
-package, signer, branding, version-code floor and successful exact-source build.
-Activate the reviewed `trailblazer-beta` protection and source route only with
-those changes. Then use the active plan, preparation and source/build/release
-receipts; the signed candidate index and isolated client test; the successful
-exact readiness run/artifact; and the separate Pages approval described in
-[`BETA-FEED-OPERATIONS.md`](../distribution/BETA-FEED-OPERATIONS.md). The first
-publication also needs a verified complete served-site inventory. The candidate,
-readiness and Pages steps each retain their existing independent approval inputs.
+For TrailBlazer (decided 2026-11-22), publishing the GitHub prerelease is the
+approval. The scheduled feed workflow takes the newest immutable TrailBlazer
+prerelease when its tag is a verified signed tag, its APK equals the successful
+`trailblazer-beta` `build-release.yml` build of that commit plus its signature, the
+APK carries the pinned Beta package and signer, and its versionCode exceeds the
+served Beta index. [`BETA-FEED-OPERATIONS.md`](../distribution/BETA-FEED-OPERATIONS.md)
+has the details. The Android release no longer has to stay a draft: the app
+repository has GitHub immutable releases enabled, so a published release's tag and
+assets are frozen, and the feed checks those frozen bytes against CI.
 
 The following are **status observations from 2026-11-17**, to recheck before any
 activation. They are not standing approvals or permanent branch state:
@@ -118,7 +118,7 @@ activation. They are not standing approvals or permanent branch state:
 | [App #184](https://github.com/0cwa/collieim-android/pull/184) → [#183](https://github.com/0cwa/collieim-android/pull/183) | Both merged: reviewed Actions bindings, then the runner-context correction. Before analysis, verify the corrected workflow's current hosted audit and obtain its new exact execution approval. Merging these corrections does not authorize the candidate dispatch. |
 | [App #182](https://github.com/0cwa/collieim-android/pull/182) | Draft preparation-aware Beta verifier pin, held until the exact RC analysis approval/dispatch dependency is resolved. Its presence does not approve a build, signing, readiness or publication run. |
 | Beta source and feed | The intended `trailblazer-beta` branch and live Beta index were absent. Existing engineering checks also name held branding/source-workflow commits; confirm the complete approved source is reachable and passes those checks. Do not weaken the checks to accept unrelated source. |
-| Beta readiness | The app workflow exists, but its current engineering pin and the absent intended source route do not establish usable preparation-aware readiness. Complete the held pin/source work and a real successful run before publication. |
+| Beta readiness | Superseded on 2026-11-22: the Beta feed checks the published release against its CI build instead of a readiness run. |
 | Updater | Current app source contains the signed-feed updater. The published `v8.35.1-3-rc2` came from `cc55c02bef64b2980c5f384a6a04f52ffb7bef92`, with automatic app updates disabled. Source changes require a new verified APK before they reach users. |
 
 The accompanying [app updater-profile change (#185)](https://github.com/0cwa/collieim-android/pull/185)
