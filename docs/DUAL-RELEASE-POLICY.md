@@ -12,7 +12,7 @@ separately reviewed administration change, not live repository settings.
 | --- | --- | --- |
 | Android package | `im.collie.app` | `im.collie.app.trailblazer` |
 | GitHub tag | `v<version>` | `trailblazer-v<version>` |
-| Primary APK | `collie.apk` | `trailblazer-beta.apk` |
+| Primary APK | `collie.apk` (five Stable APKs) | `trailblazer-beta.apk` |
 | APK signing identity | Existing Stable key | Separate pinned Beta key |
 | F-Droid feed | `https://repo.collie.im/fdroid/repo/` | `https://repo.collie.im/fdroid/beta/repo/` |
 | GitHub publication | Draft → verification prerelease → verified full release | Reviewed Beta prerelease |
@@ -24,6 +24,18 @@ The products have separate installation identities and version-code histories.
 Each feed uses its own default F-Droid channel (`releaseChannels` absent or empty).
 Changing product requires a deliberate installation choice; an in-app channel
 toggle must not substitute one package or signer for the other.
+
+When a Stable prerelease and a TrailBlazer Beta ship together (decided
+2026-11-21), the Stable `v<version>` release keeps its five Stable APKs and
+`publication.json` and also carries the signed Beta APK as `collie-beta.apk`.
+The separate `trailblazer-v<version>` release with `trailblazer-beta.apk` may
+still exist. `collie-beta.apk` is a convenience copy: it stays Beta-signed,
+keeps package `im.collie.app.trailblazer` and the Beta version-code history, and
+does not make the Stable release a Beta release or put Beta in the Stable feed.
+The app's `tooling/release/publication.py`
+([app #224](https://github.com/0cwa/collieim-android/pull/224)) accepts it and
+verifies it against the pinned Beta certificate. First shipped in
+[`v8.36.3-1-rc2`](https://github.com/0cwa/collieim-android/releases/tag/v8.36.3-1-rc2).
 
 GitHub's `prerelease` flag describes publication eligibility within these routes.
 A Stable `-betaN` or `-rcN` version suffix does not select the TrailBlazer product.
@@ -39,7 +51,7 @@ Use the app's reviewed
 [`docs/RELEASING.md`](https://github.com/0cwa/collieim-android/blob/main/docs/RELEASING.md)
 and workflows at the chosen immutable revision. The release candidate retains
 `im.collie.app`, its existing signing key, the canonical APK and its four
-compatibility names.
+compatibility names; a joint round may add `collie-beta.apk` as described above.
 New version codes must exceed the published history for that package, including
 published candidates. The Stable feed admits verified full releases; Stable
 Obtainium configuration continues to exclude prereleases.
