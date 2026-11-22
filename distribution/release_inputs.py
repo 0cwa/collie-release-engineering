@@ -376,7 +376,7 @@ def listing_kind(path, entry):
         if tail in ('title.txt', 'short_description.txt', 'full_description.txt') or re.fullmatch(r'changelogs/[0-9]+\.txt', tail):
             if entry['size'] <= MAX_TEXT_BYTES:
                 return 'text'
-        if tail in ('images/icon.png', 'images/featureGraphic.png') or re.fullmatch(r'images/phoneScreenshots/[0-9]+\.png', tail):
+        if tail in ('images/icon.png', 'images/featureGraphic.png') or re.fullmatch(r'images/phoneScreenshots/[A-Za-z0-9][A-Za-z0-9_-]{0,63}\.png', tail):
             if 0 < entry['size'] <= MAX_PNG_BYTES:
                 return 'png'
     raise ValueError('unreviewed Fastlane path, mode or file size: ' + path)
