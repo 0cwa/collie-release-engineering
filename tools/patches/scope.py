@@ -328,7 +328,7 @@ NEXT_PORT_NATIVE_PATHS = frozenset({
     'tools/native/rust-toolchain-payloads.json',
     'tools/native/setup_webrtc.py',
     'tools/native/stage_artifacts.py',
-    'tools/native/test_build_native_driver.py',
+    'tools/native/test_native_driver.py',
     'tools/native/test_build_ringrtc.py',
     'tools/native/test_build_sources.py',
     'tools/native/test_efficient_ringrtc.py',
