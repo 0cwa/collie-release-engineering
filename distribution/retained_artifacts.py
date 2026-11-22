@@ -2,6 +2,9 @@
 
 Old APKs are copied only after the new F-Droid index has been generated. They
 remain downloadable by clients with a cached index without entering the new one.
+Retention is bounded: per channel, the previous RETAINED_PREVIOUS_APKS APKs below
+the indexed ones stay, and a native Maven file stays only while a current release
+plan references it. See distribution/OPERATIONS.md ("Retention policy").
 """
 from dataclasses import dataclass
 import hashlib
@@ -21,6 +24,9 @@ FILE_LIMIT = 40000
 SITE_LIMIT = 950_000_000
 STABLE_ROUTE = 'fdroid/repo/'
 BETA_ROUTE = 'fdroid/beta/repo/'
+# Per channel, old APK URLs kept next to the indexed ones. A client holding the cached index of the
+# previous release can still download it; older versions stay on the GitHub release pages.
+RETAINED_PREVIOUS_APKS = 1
 ARCHIVE_INDEX_FILES = frozenset({'entry.jar', 'entry.json', 'index-v1.jar', 'index-v1.json',
                                  'index-v2.json', 'index.jar', 'index.xml'})
 
@@ -111,6 +117,12 @@ def versioned_native_path(name):
         r'(?:-[A-Za-z0-9_.-]+)?\.(?:aar|jar|pom)(?:\.(?:asc|sha1|sha256|sha512))?', filename) is not None
 
 
+def apk_code(name):
+    """versionCode of a channel-route APK path, else None."""
+    match = re.fullmatch(r'fdroid/(?:beta/)?repo/[A-Za-z0-9_.]+_([1-9][0-9]*)\.apk', name)
+    return int(match[1]) if match else None
+
+
 def generation_archive_path(name):
     match = re.fullmatch(r'_generations/[0-9a-f]{64}/([A-Za-z0-9_.-]+)', name)
     return match is not None and match[1] in ARCHIVE_INDEX_FILES | {'repository-receipt.json'}
@@ -149,15 +161,34 @@ class PreviousSite:
                           if name.startswith(BETA_ROUTE)},
                 'release': self.beta_release}
 
-    def retained_files(self, preserve_beta, rebuild_beta=False):
+    def retained_files(self, preserve_beta, rebuild_beta=False, current=frozenset(), native_keep=None):
+        """Previous files the candidate keeps.
+
+        current: site paths the candidate already holds (its indexed APKs count as newest).
+        native_keep: site paths of native files still referenced by a current release plan;
+        None keeps every previous native file (no pruning).
+        """
         # A rebuilt Beta route keeps only the previous route's immutable URLs (APKs, listing files).
         if preserve_beta and rebuild_beta:
             raise ValueError('the Beta route is either preserved or rebuilt')
         if self.beta['files'] and not (preserve_beta or rebuild_beta):
             raise ValueError('a previous Beta route requires --preserve-beta or a rebuilt Beta route')
-        return {name: record for name, record in self.files.items()
+        kept = {name: record for name, record in self.files.items()
                 if immutable_public_path(name) or
                 (preserve_beta and name.startswith(BETA_ROUTE))}
+        # A preserved Beta route stays byte for byte: its signed index still names every APK it holds.
+        routes = [STABLE_ROUTE] + ([] if preserve_beta else [BETA_ROUTE])
+        for route in routes:
+            old = {name: apk_code(name) for name in kept
+                   if name.startswith(route) and apk_code(name) is not None and name not in current}
+            keep = sorted(old, key=old.get, reverse=True)[:RETAINED_PREVIOUS_APKS]
+            for name in old:
+                if name not in keep:
+                    del kept[name]
+        if native_keep is not None:
+            kept = {name: record for name, record in kept.items()
+                    if not name.startswith('native-inputs/') or name in native_keep}
+        return kept
 
 
 def verify_snapshot(previous, *, byte_limit=SITE_LIMIT):
@@ -251,7 +282,7 @@ def _copy(source, target, expected):
         raise ValueError('retained artifact changed during copy: ' + str(source))
 
 
-def retain(site, previous, *, preserve_beta, rebuild_beta=False, byte_limit=SITE_LIMIT):
+def retain(site, previous, *, preserve_beta, rebuild_beta=False, byte_limit=SITE_LIMIT, native_keep=None):
     """Admit the complete candidate before copying; never overwrite an immutable URL."""
     site = Path(site)
     if site.resolve() == previous.root.resolve() or site.resolve().is_relative_to(previous.root.resolve()) or previous.root.resolve().is_relative_to(site.resolve()):
@@ -260,7 +291,7 @@ def retain(site, previous, *, preserve_beta, rebuild_beta=False, byte_limit=SITE
     current = _tree_records(site, byte_limit)
     if INVENTORY in current:
         raise ValueError('write the candidate inventory only after immutable artifact retention')
-    selected = previous.retained_files(preserve_beta, rebuild_beta)
+    selected = previous.retained_files(preserve_beta, rebuild_beta, frozenset(current), native_keep)
     for name, record in selected.items():
         if name in current and current[name] != record:
             raise ValueError('immutable published URL has different candidate bytes: ' + name)

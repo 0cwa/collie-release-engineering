@@ -254,9 +254,53 @@ class RetainedArtifactsTests(unittest.TestCase):
         current = repository(channels.STABLE, 103, '8.35.3', b'latest APK')
         write_files(final, current)
         retention.retain(final, second, preserve_beta=False)
+        # The indexed APK and the newest previous one stay; 100 and 101 are retired in turn.
         self.assertEqual({p.name for p in (final / 'fdroid/repo').glob('*.apk')},
-            {'im.collie.app_100.apk', 'im.collie.app_101.apk', 'im.collie.app_102.apk', 'im.collie.app_103.apk'})
+            {'im.collie.app_102.apk', 'im.collie.app_103.apk'})
         self.assertEqual((final / 'fdroid/repo/index-v2.json').read_bytes(), current['fdroid/repo/index-v2.json'])
+
+    def test_apk_policy_keeps_the_indexed_apks_and_one_previous_per_channel(self):
+        self.assertEqual(retention.RETAINED_PREVIOUS_APKS, 1)
+        stable = {f'fdroid/repo/im.collie.app_{code}.apk': b'stable %d' % code for code in (98, 99, 100)}
+        beta = {f'fdroid/beta/repo/im.collie.app.trailblazer_{code}.apk': b'beta %d' % code for code in (201, 202, 203)}
+        self.blobs.update(stable)
+        self.blobs.update(repository(channels.BETA, 204, '8.40.0', b'beta 204'))
+        self.blobs.update(beta)
+        self.snapshot()
+        previous = self.load()
+        indexed = frozenset({'fdroid/repo/im.collie.app_102.apk', 'fdroid/beta/repo/im.collie.app.trailblazer_205.apk'})
+        names = lambda found: {n for n in found if n.endswith('.apk')}
+        # A rebuilt Beta route: newest previous stays for both channels, older ones go.
+        self.assertEqual(names(previous.retained_files(False, True, indexed)),
+                         {'fdroid/repo/im.collie.app_101.apk',
+                          'fdroid/beta/repo/im.collie.app.trailblazer_204.apk'})
+        # A preserved Beta route is retained byte for byte, since its signed index names those APKs.
+        kept = names(previous.retained_files(True, False, indexed))
+        self.assertEqual({n for n in kept if '/beta/' in n},
+                         {n for n in self.blobs if '/beta/' in n and n.endswith('.apk')})
+        self.assertEqual({n for n in kept if '/beta/' not in n}, {'fdroid/repo/im.collie.app_101.apk'})
+        # Two indexed Stable APKs (FEEDS_KEEP_RELEASES=2) do not count against the previous allowance.
+        both = indexed | {'fdroid/repo/im.collie.app_101.apk'}
+        self.assertEqual({n for n in names(previous.retained_files(False, True, both)) if '/beta/' not in n},
+                         {'fdroid/repo/im.collie.app_100.apk', 'fdroid/repo/im.collie.app_101.apk'})
+        # Without a candidate APK the newest previous one is kept, never every old version.
+        self.assertEqual({n for n in names(previous.retained_files(False, True)) if '/beta/' not in n},
+                         {'fdroid/repo/im.collie.app_101.apk'})
+
+    def test_native_files_stay_only_while_a_current_release_plan_names_them(self):
+        other = 'native-inputs/v2/maven/org/signal/libsignal-client/3.0/libsignal-client-3.0.jar'
+        self.blobs[other] = b'other native'
+        self.snapshot()
+        previous = self.load()
+        native = lambda found: {n for n in found if n.startswith('native-inputs/')}
+        self.assertEqual(native(previous.retained_files(False)), {OLD_NATIVE, other})
+        self.assertEqual(native(previous.retained_files(False, native_keep={other})), {other})
+        self.assertEqual(native(previous.retained_files(False, native_keep=set())), set())
+        self.candidate()
+        result = retention.retain(self.site, previous, preserve_beta=False, native_keep={NEW_NATIVE})
+        self.assertEqual(native(result), {NEW_NATIVE})
+        self.assertFalse((self.site / OLD_NATIVE).exists())
+        self.assertTrue((self.site / self.old_apk).exists())
 
     def test_archived_evidence_diffs_and_artwork_survive_consecutive_stable_updates_with_beta(self):
         generation = '_generations/' + 'a' * 64 + '/'
@@ -387,9 +431,9 @@ class RetainedArtifactsTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'outside the retained site'):
             feed.capture_deploy_baseline(self.root / 'other/baseline.json', retained_site=self.root / 'other')
 
-    def run_feed(self, raw):
+    def run_feed(self, raw, *extra):
         arguments = ['feed.py', '--site', str(self.site), '--latest', 'v8.35.2', '--preserve-beta',
-                     '--previous-site', str(self.old), '--previous-baseline', str(self.baseline)]
+                     '--previous-site', str(self.old), '--previous-baseline', str(self.baseline), *extra]
         for name in ('apks', 'native', 'native-plan', 'fastlane', 'keystore', 'build-tools'):
             arguments += ['--' + name, str(self.root / name)]
         def build(_apks, _listing, _key, _tools, _work, site, _profile, **_kwargs):
@@ -422,15 +466,30 @@ class RetainedArtifactsTests(unittest.TestCase):
         state = json.loads((self.site / 'feed-state.json').read_bytes())
         self.assertEqual(state['apks'], ['im.collie.app_102.apk'])
         self.assertEqual(state['retained_apks'], ['im.collie.app_101.apk'])
-        self.assertEqual(state['native_files'], 2)
+        # The old native file is no longer named by a current release plan: it is retired.
+        self.assertEqual(state['native_files'], 1)
         self.assertEqual(state['beta'], {'version_name': '8.40.0', 'version_code': 201})
         manifest = feed._inventory_files((self.site / feed.SITE_INVENTORY).read_bytes())
         self.assertIn(self.old_apk, manifest)
-        self.assertIn(OLD_NATIVE, manifest)
+        self.assertNotIn(OLD_NATIVE, manifest)
+        self.assertIn(NEW_NATIVE, manifest)
         self.assertEqual({p.relative_to(self.site).as_posix() for p in self.site.rglob('*') if p.is_file()},
                          {feed.SITE_INVENTORY, *manifest})
         index = json.loads((self.site / 'fdroid/repo/index-v2.json').read_bytes())
         self.assertEqual({row[0] for row in retention.binary_repo.release_tuples(index)}, {102})
+
+    def test_feed_cli_keeps_native_files_named_by_the_served_beta_plan(self):
+        self.blobs.update(repository(channels.BETA, 201, '8.40.0', b'Beta APK'))
+        raw = self.snapshot()
+        data = self.blobs[OLD_NATIVE]
+        plan = self.root / 'beta-native.json'
+        prefix = 'native-inputs/v1/maven/'
+        plan.write_text(json.dumps({'files': [{'path': OLD_NATIVE[len(prefix):], 'url': retention.ORIGIN + OLD_NATIVE,
+            'bytes': len(data), 'sha256': hashlib.sha256(data).hexdigest()}]}))
+        self.run_feed(raw, '--keep-native-plan', str(plan))
+        manifest = feed._inventory_files((self.site / feed.SITE_INVENTORY).read_bytes())
+        self.assertIn(OLD_NATIVE, manifest)
+        self.assertEqual(json.loads((self.site / 'feed-state.json').read_bytes())['native_files'], 2)
 
     def test_feed_cli_refuses_a_newer_live_site_instead_of_adopting_it(self):
         self.snapshot()
