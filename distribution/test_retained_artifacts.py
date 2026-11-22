@@ -189,7 +189,9 @@ class RetainedArtifactsTests(unittest.TestCase):
                     self.assertTrue(retention.immutable_public_path(route + relative))
                     self.assertTrue(pages.immutable(route + relative))
             for relative in ('entry.jar', 'index-v2.json', 'icons/icon.png', 'icons-640/icon.png',
-                             'diff/latest.json', 'other.package/en-US/abc.png'):
+                             'diff/latest.json', 'other.package/en-US/abc.png',
+                             f'{profile.package}/en-US/phoneScreenshots/1.png',
+                             f'{profile.package}/en-US/phoneScreenshots/settings-overview.png'):
                 with self.subTest(name=route + relative):
                     self.assertFalse(retention.immutable_public_path(route + relative))
         for name in (generation + 'private.json', '_generations/short/entry.jar',

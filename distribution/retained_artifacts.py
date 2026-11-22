@@ -128,7 +128,10 @@ def immutable_public_path(name):
             return False
         return (relative.endswith('.apk') or relative.startswith('diff/') or
                 (relative.startswith('icons') and not relative.endswith('/icon.png')) or
-                relative.startswith(profile.package + '/'))
+                # fdroid names listing artwork it content-addresses (icon_<b64 sha256>=.png);
+                # Fastlane screenshots keep their source names and may change between releases.
+                (relative.startswith(profile.package + '/') and
+                 re.fullmatch(r'[A-Za-z0-9_-]+=\.png', relative.rsplit('/', 1)[-1]) is not None))
     return False
 
 
