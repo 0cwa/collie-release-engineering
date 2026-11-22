@@ -67,10 +67,10 @@ TrailBlazer Beta product have different purposes and publication routes.
 - A full release is the same APK, promoted only after a rebuild on the other side (GitHub or this machine) matches it.
 - Release notes: `distribution/release-notes/<version>.md` here, in the maintainer's style (see existing files). App CI refuses to publish without one. In-app notices (e.g. the later move to one `collie.apk`) ship as ordinary app PRs.
 - The Stable F-Droid feed carries verified full Stable releases only. TrailBlazer
-  Beta has a separate package, APK signer, feed and readiness/Pages approval path;
-  its GitHub releases remain prereleases. Its source and feed activation gates
-  are listed in the dual-release policy. Pages must preserve both approved feeds
-  and native inputs when either feed changes.
+  Beta has a separate package, APK signer and feed; its GitHub releases remain
+  immutable prereleases, and `feeds.yml` publishes the newest one once its APK
+  matches its CI build ([BETA-FEED-OPERATIONS.md](../distribution/BETA-FEED-OPERATIONS.md)).
+  Pages must preserve both feeds and native inputs when either feed changes.
 
 ## Security fuzzing pilot
 
@@ -79,8 +79,9 @@ The focused Socket/Android pilot and its evidence expectations are documented in
 ## To retire
 
 Retire the historical app-source composer and generated publication commits on
-app `main` (G/I). This does not retire the active Beta plan/receipt chain or its
-preparation and verification helpers. Before removing any file under `source/`,
+app `main` (G/I). The Beta feed no longer uses the Beta plan/receipt chain, its
+evidence archive, `beta-feed-candidate.yml` or the app's `beta-readiness.yml`;
+remove them after checking their remaining consumers. Before removing any file under `source/`,
 candidate plans/receipts, or `tools/patches`, identify its current workflow,
 distribution and test consumers; remove only obsolete composition paths in a
 reviewed change.
@@ -89,7 +90,7 @@ reviewed change.
 `preparation_verifier.py`, `stage_preparation.py`, and the active Beta collection,
 signing and publication helpers live in `tools/release`, apart from the historical
 composer in `tools/patches`. `distribution/beta_evidence.py` and
-`distribution/pages.py` still verify this receipt graph. Moving them again must
+`distribution/pages.py` still contain the retired Beta verification of this receipt graph. Moving them again must
 update imports, immutable verifier pins, workflow consumers and tests together;
 the directory name is not a retirement criterion.
 

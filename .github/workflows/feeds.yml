@@ -1,7 +1,9 @@
 name: Update F-Droid and Pages
 # Every 30 minutes: if collieim-android has a newer full release than repo.collie.im serves,
 # rebuild the whole Pages site (F-Droid repo with the newest full releases, landing page,
-# unchanged native inputs) and deploy it. Prereleases are never published here.
+# unchanged native inputs) and deploy it. Stable prereleases are never published here.
+# With BETA_FEED_ENABLED=true it also does this for the newest TrailBlazer Beta prerelease
+# (fdroid/beta/repo/), after the beta job proves the APK is its CI build plus signature.
 # Enable with the repository variable FEEDS_ENABLED=true.
 on:
   schedule:
@@ -39,9 +41,56 @@ jobs:
           echo "latest=$latest" >> "$GITHUB_OUTPUT"
           if [ "$latest" != "$served" ] || [ "$FORCE" = true ]; then echo deploy=true >> "$GITHUB_OUTPUT"; fi
 
+  # No secrets here. Selects the newest TrailBlazer prerelease and, if the feed does not serve it,
+  # checks that its APK is the build-release.yml artifact of its signed tag commit plus its signature.
+  beta:
+    if: vars.FEEDS_ENABLED == 'true' && vars.BETA_FEED_ENABLED == 'true' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    outputs:
+      changed: ${{ steps.verify.outputs.changed }}
+      tag: ${{ steps.verify.outputs.tag }}
+      sha256: ${{ steps.verify.outputs.sha256 }}
+      source_commit: ${{ steps.verify.outputs.source_commit }}
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: '3.12.14'
+      - id: verify
+        env:
+          FORCE: ${{ inputs.force || false }}
+        run: |
+          force=; [ "$FORCE" = true ] && force=--force
+          python distribution/beta_inputs.py select $force > "$RUNNER_TEMP/beta-select.json"
+          cat "$RUNNER_TEMP/beta-select.json"
+          if [ "$(jq -r .changed "$RUNNER_TEMP/beta-select.json")" != true ]; then echo changed=false >> "$GITHUB_OUTPUT"; exit 0; fi
+          tag=$(jq -r .tag "$RUNNER_TEMP/beta-select.json")
+          bt=$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)
+          python distribution/beta_inputs.py verify --tag "$tag" --work "$RUNNER_TEMP/beta" --build-tools "$bt" \
+            --output "$RUNNER_TEMP/beta-verified.json"
+          sha=$(python distribution/apk_match.py --tools "$RUNNER_TEMP/apk-match-tools" \
+            "$(jq -r .unsigned_apk "$RUNNER_TEMP/beta-verified.json")" "$(jq -r .published_apk "$RUNNER_TEMP/beta-verified.json")")
+          test "$sha" = "$(jq -r .sha256 "$RUNNER_TEMP/beta-verified.json")"
+          { echo changed=true; echo "tag=$tag"; echo "sha256=$sha"
+            echo "source_commit=$(jq -r .source_commit "$RUNNER_TEMP/beta-verified.json")"; } >> "$GITHUB_OUTPUT"
+      - if: steps.verify.outputs.changed == 'true'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: collie-beta-verified-input
+          path: ${{ runner.temp }}/beta-verified.json
+          if-no-files-found: error
+          retention-days: 90
+
   deploy:
-    needs: check
-    if: needs.check.outputs.deploy == 'true'
+    needs: [check, beta]
+    # A failed Beta check never holds back a Stable update; the run still shows the failure.
+    if: >-
+      !cancelled() && needs.check.result == 'success' &&
+      (needs.check.outputs.deploy == 'true' || (needs.beta.result == 'success' && needs.beta.outputs.changed == 'true'))
     runs-on: ubuntu-24.04
     permissions:
       contents: read
@@ -54,6 +103,10 @@ jobs:
     env:
       GH_TOKEN: ${{ github.token }}
       LATEST: ${{ needs.check.outputs.latest }}
+      BETA_CHANGED: ${{ needs.beta.result == 'success' && needs.beta.outputs.changed == 'true' }}
+      BETA_TAG: ${{ needs.beta.outputs.tag }}
+      BETA_SHA256: ${{ needs.beta.outputs.sha256 }}
+      BETA_SOURCE: ${{ needs.beta.outputs.source_commit }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -83,6 +136,14 @@ jobs:
         run: |
           python distribution/release_inputs.py native --plan "$RUNNER_TEMP/app-metadata/build-inputs/native-artifacts.json" \
             --output "$RUNNER_TEMP/native"
+      - name: Stage the verified Beta APK and its listing from the Beta tag
+        if: env.BETA_CHANGED == 'true'
+        run: |
+          python distribution/beta_inputs.py stage --tag "$BETA_TAG" --sha256 "$BETA_SHA256" --source-commit "$BETA_SOURCE" \
+            --apks "$RUNNER_TEMP/beta-apks" --receipt "$RUNNER_TEMP/beta-inputs.json"
+          python distribution/beta_inputs.py metadata --receipt "$RUNNER_TEMP/beta-inputs.json" \
+            --output "$RUNNER_TEMP/beta-metadata" --evidence "$RUNNER_TEMP/beta-metadata-inputs.json"
+          echo "BETA_ARGS=--beta-apks $RUNNER_TEMP/beta-apks --beta-fastlane $RUNNER_TEMP/beta-metadata --beta-tag $BETA_TAG" >> "$GITHUB_ENV"
       - name: Retain the verified release input identities
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
@@ -91,6 +152,8 @@ jobs:
             ${{ runner.temp }}/release-inputs.json
             ${{ runner.temp }}/metadata-inputs.json
             ${{ runner.temp }}/app-metadata/build-inputs/native-artifacts.json
+            ${{ runner.temp }}/beta-inputs.json
+            ${{ runner.temp }}/beta-metadata-inputs.json
           if-no-files-found: error
           retention-days: 90
       - name: Build the site
@@ -103,10 +166,11 @@ jobs:
           bt=$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)
           python distribution/feed.py --site "$RUNNER_TEMP/site" --apks "$RUNNER_TEMP/apks" \
             --native "$RUNNER_TEMP/native" --native-plan "$RUNNER_TEMP/app-metadata/build-inputs/native-artifacts.json" \
-            --latest "$LATEST" --fastlane "$RUNNER_TEMP/app-metadata/fastlane/metadata/android" --keystore "$RUNNER_TEMP/repo.p12" --build-tools "$bt" --preserve-beta \
+            --latest "$LATEST" --fastlane "$RUNNER_TEMP/app-metadata/fastlane/metadata/android" --keystore "$RUNNER_TEMP/repo.p12" --build-tools "$bt" \
+            ${BETA_ARGS:---preserve-beta} \
             --previous-site "$RUNNER_TEMP/previous-site" --previous-baseline "$RUNNER_TEMP/deploy-baseline.json"
           rm -f "$RUNNER_TEMP/repo.p12"
-          rm -rf "$RUNNER_TEMP/fdroid-work"
+          rm -rf "$RUNNER_TEMP/fdroid-work" "$RUNNER_TEMP/fdroid-beta-work"
       - id: upload
         uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
         with:

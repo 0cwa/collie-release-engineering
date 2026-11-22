@@ -146,9 +146,12 @@ class PreviousSite:
                           if name.startswith(BETA_ROUTE)},
                 'release': self.beta_release}
 
-    def retained_files(self, preserve_beta):
-        if self.beta['files'] and not preserve_beta:
-            raise ValueError('a previous Beta route requires --preserve-beta')
+    def retained_files(self, preserve_beta, rebuild_beta=False):
+        # A rebuilt Beta route keeps only the previous route's immutable URLs (APKs, listing files).
+        if preserve_beta and rebuild_beta:
+            raise ValueError('the Beta route is either preserved or rebuilt')
+        if self.beta['files'] and not (preserve_beta or rebuild_beta):
+            raise ValueError('a previous Beta route requires --preserve-beta or a rebuilt Beta route')
         return {name: record for name, record in self.files.items()
                 if immutable_public_path(name) or
                 (preserve_beta and name.startswith(BETA_ROUTE))}
@@ -245,7 +248,7 @@ def _copy(source, target, expected):
         raise ValueError('retained artifact changed during copy: ' + str(source))
 
 
-def retain(site, previous, *, preserve_beta, byte_limit=SITE_LIMIT):
+def retain(site, previous, *, preserve_beta, rebuild_beta=False, byte_limit=SITE_LIMIT):
     """Admit the complete candidate before copying; never overwrite an immutable URL."""
     site = Path(site)
     if site.resolve() == previous.root.resolve() or site.resolve().is_relative_to(previous.root.resolve()) or previous.root.resolve().is_relative_to(site.resolve()):
@@ -254,7 +257,7 @@ def retain(site, previous, *, preserve_beta, byte_limit=SITE_LIMIT):
     current = _tree_records(site, byte_limit)
     if INVENTORY in current:
         raise ValueError('write the candidate inventory only after immutable artifact retention')
-    selected = previous.retained_files(preserve_beta)
+    selected = previous.retained_files(preserve_beta, rebuild_beta)
     for name, record in selected.items():
         if name in current and current[name] != record:
             raise ValueError('immutable published URL has different candidate bytes: ' + name)
