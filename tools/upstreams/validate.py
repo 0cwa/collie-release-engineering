@@ -23,13 +23,19 @@ APP_MERGE_PROVENANCE = (
 )
 # These are the repositories supported by the app's upstream-merge verifier.
 MERGE_DISCOVERY_REFS = {
-    "signalapp/Signal-Android": "refs/tags/v*",
+    "signalapp/signal-android": "refs/tags/v*",
     "mollyim/mollyim-android": "refs/heads/*",
 }
+JOHAN_REPOSITORY = "johanw666/signal-android"
 
 
 class RegistryError(ValueError):
     pass
+
+
+def repository_identity(value):
+    """GitHub owner/name is case-insensitive: compare repositories only through this form."""
+    return value.lower()
 
 
 def require(condition, message):
@@ -183,9 +189,10 @@ def validate_route(source, label):
                 label + " upstream-merge uses app provenance, not a snapshot or ledger")
         require(source.get("provenance") == APP_MERGE_PROVENANCE,
                 label + " upstream-merge must refer to the app's verified upstream merge provenance")
-        require(source["repository"] in MERGE_DISCOVERY_REFS,
+        identity = repository_identity(source["repository"])
+        require(identity in MERGE_DISCOVERY_REFS,
                 label + " repository is not supported by the app upstream-merge verifier")
-        require(source["discovery_ref"] == MERGE_DISCOVERY_REFS[source["repository"]],
+        require(source["discovery_ref"] == MERGE_DISCOVERY_REFS[identity],
                 label + " upstream-merge discovery must cover Signal tags or Molly branches; select an exact ref per operation")
         return
 
@@ -202,7 +209,7 @@ def validate_route(source, label):
         require("provenance" not in source, label + " selective-feature provenance is its review ledger")
         require("ledger" in source, label + " selective-feature requires a review ledger")
         ref(source["discovery_ref"], label + " discovery ref", pattern=True)
-        if source["repository"] == "johanw666/Signal-Android":
+        if repository_identity(source["repository"]) == JOHAN_REPOSITORY:
             require(source["discovery_ref"] == "refs/tags/*-JW",
                     label + " Johan discovery must select custom *-JW tags, not the clean Signal branch")
         keys(snapshot, {"ref", "commit", "ref_origin", "signal_base"}, set(), label + " selective-feature snapshot")
@@ -237,8 +244,8 @@ def validate(root=ROOT):
         ids.add(source["id"])
         repository = source["repository"]
         require(isinstance(repository, str) and REPOSITORY.fullmatch(repository), label + " repository must be owner/name")
-        require(repository.lower() not in repositories, label + " repository is duplicated")
-        repositories.add(repository.lower())
+        require(repository_identity(repository) not in repositories, label + " repository is duplicated")
+        repositories.add(repository_identity(repository))
         validate_route(source, label)
         if "ledger" in source:
             require("snapshot" in source, label + " ledger requires a pinned snapshot")

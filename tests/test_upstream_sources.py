@@ -231,6 +231,36 @@ class UpstreamSourcesTest(unittest.TestCase):
         with self.assertRaisesRegex(registry.RegistryError, "Johan|custom|JW"):
             self.validate()
 
+    def test_repository_identity_ignores_case_in_every_comparison(self):
+        for cased in ("Johanw666/Signal-Android", "johanw666/signal-android", "JOHANW666/SIGNAL-ANDROID"):
+            with self.subTest(repository=cased, clean_main=True):
+                source = self.source("johanw666")
+                original = dict(source), dict(source["snapshot"])
+                source["repository"] = cased
+                source["discovery_ref"] = source["snapshot"]["ref"] = "refs/heads/main"
+                with self.assertRaisesRegex(registry.RegistryError, "Johan|custom|JW"):
+                    self.validate()
+                source.update(original[0])
+                source["snapshot"] = original[1]
+            with self.subTest(repository=cased, accepted=True):
+                self.source("johanw666")["repository"] = cased
+                self.assertEqual(self.validate(), (4, 1))
+                self.source("johanw666")["repository"] = "johanw666/Signal-Android"
+        for cased in ("SignalApp/signal-android", "MOLLYIM/Mollyim-Android"):
+            with self.subTest(repository=cased, merge=True):
+                source = self.source("signal" if cased.lower().startswith("signal") else "molly")
+                original = source["repository"]
+                source["repository"] = cased
+                self.assertEqual(self.validate(), (4, 1))
+                source["repository"] = original
+        for cased in ("SIGNALAPP/Signal-android", "signalapp/signal-android"):
+            with self.subTest(repository=cased, duplicate=True):
+                source = self.source("molly")
+                source["repository"] = cased
+                with self.assertRaisesRegex(registry.RegistryError, "supported|duplicated"):
+                    self.validate()
+                source["repository"] = "mollyim/mollyim-android"
+
     def test_all_commit_evidence_requires_full_lowercase_sha(self):
         feature = self.ledger["features"][0]
         history = self.integration_record()
