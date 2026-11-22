@@ -15,10 +15,9 @@ blocks this feed nor belongs in Android main.
 
 The two-phase [`pages-release.yml`](../.github/workflows/pages-release.yml) route
 for approved native/receipt-based promotions remains subject to the exact gates
-below. Since 2026-11-22 TrailBlazer Beta is published by the scheduled
-`feeds.yml` route instead ([BETA-FEED-OPERATIONS.md](BETA-FEED-OPERATIONS.md));
-the Beta sections of this file describe the retired candidate/readiness/Pages
-path and are removed with it.
+below. It publishes Stable only. Since 2026-11-22 TrailBlazer Beta is published by
+the scheduled `feeds.yml` route ([BETA-FEED-OPERATIONS.md](BETA-FEED-OPERATIONS.md)),
+and the Pages route only retains the served Beta files.
 See the [dual-release policy](../docs/DUAL-RELEASE-POLICY.md) for the product and
 source boundaries. For an existing Stable site without a canonical inventory,
 see the separately reviewed [inventory bootstrap change (#61)](https://github.com/0cwa/collie-release-engineering/pull/61);
@@ -80,102 +79,6 @@ native-manifest.json  # optional schema2 feed approval; required native-only
 native/native-inputs/v1/maven/<exact six paths>
 ```
 
-### TrailBlazer Beta readiness artifact
-
-Beta Pages input is schema 2 and selects only `trailblazer-beta`. Its approved
-GitHub Actions run must belong to `0cwa/collieim-android`, use the exact
-`trailblazer-beta` branch and `.github/workflows/beta-readiness.yml` workflow,
-finish successfully, and point at the same immutable source commit named by the
-release receipts. `prepare` reads the run and artifact records from GitHub and
-downloads the approved artifact bytes. It checks the downloaded archive SHA256
-against both the API digest and `approval.json`; API metadata alone is not proof.
-
-The ZIP must contain exactly one regular file, `trailblazer-beta-readiness.json`,
-with no extra files or directories. The JSON schema is version 1 and has exactly
-these keys and types:
-
-```json
-{
-  "schema": 1,
-  "kind": "collie-trailblazer-readiness",
-  "repository": "0cwa/collieim-android",
-  "branch": "trailblazer-beta",
-  "workflow_path": ".github/workflows/beta-readiness.yml",
-  "run_id": 123,
-  "run_attempt": 1,
-  "head_sha": "<40 lowercase hex characters>",
-  "package": "im.collie.app.trailblazer",
-  "version_name": "<validated APK versionName>",
-  "version_code": 123,
-  "tag": "trailblazer-v<versionName>",
-  "title": "Collie TrailBlazer Beta <versionName>",
-  "apk_asset": "trailblazer-beta.apk",
-  "source_receipt_sha256": "<64 lowercase hex characters>",
-  "build_receipt_sha256": "<64 lowercase hex characters>",
-  "release_receipt_sha256": "<64 lowercase hex characters>",
-  "repository_receipt_sha256": "<64 lowercase hex characters>",
-  "release_manifest_sha256": "<64 lowercase hex characters>",
-  "apk_sha256": "<64 lowercase hex characters>",
-  "apk_certificate_sha256": "<64 lowercase hex characters>"
-}
-```
-
-The Android workflow must generate this JSON from the validated release inputs
-and upload it as the single member of the exact readiness artifact. This
-engineering checkout does not contain the app-side generator; the existence
-and implementation of the named Android workflow must be verified in its
-repository before an approved run is accepted. The current consumer/verifier
-is the existing Pages command, with no separate readiness command:
-
-```sh
-python distribution/pages.py prepare <bundle-dir> <new-output-dir> \
-  --policy <reviewed-40-hex-engineering-revision> --channel trailblazer-beta
-```
-
-For local Beta preparation, supply `COLLIE_APP_READINESS_TOKEN` through the
-approved credential environment. It must have Actions read on
-`0cwa/collieim-android`. The verifier uses it only for the exact run attempt,
-artifact metadata, and ZIP. Metadata redirects are rejected. The ZIP may
-redirect to HTTPS storage, and the bearer stays on the initial GitHub API request.
-An absent token or denied artifact request stops verification.
-
-Before it accepts the readiness manifest, the verifier runs the full selected
-Beta source/build/release/repository receipt graph, compares every manifest
-receipt hash and release identity against those documents, and compares the APK
-hash against the candidate APK bytes. Beta receipt validation accepts only the
-Beta package, `trailblazer-beta.apk` alias, and provisioned Beta APK certificate;
-the default migration-receipt profile remains stable. Promotion also verifies
-the prior signed Beta index and requires the candidate versionCode to exceed its
-maximum.
-
-### Beta repository evidence boundary
-
-The repository receipt used to prepare a Beta candidate is explicitly
-prepublication evidence. Produce it only after the signed local F-Droid indexes
-and APK have passed the pinned verifier, with the Beta-only stage argument:
-
-```sh
-python distribution/receipt.py <signed-beta-index-dir> \
-  --approval <release-approval.json> \
-  --receipt-bundle <source-build-release-receipts-dir> \
-  --metadata-revision <40-hex-metadata-commit> \
-  --fingerprint <beta-index-certificate-sha256> \
-  --generation <approved-generation-sha256> \
-  --channel trailblazer-beta --repository-stage prepublication \
-  --client-evidence <completed-isolated-client-evidence-file>
-```
-
-The receipt records local index verification as `PASS`, isolated client
-add/refresh/install/upgrade acceptance as `PASS` only when its evidence file is
-provided, and production HTTPS/provider read-back as `NOT RUN` with no digest.
-Pages preparation requires the completed client gate and rejects a missing
-client result. It accepts the explicitly pending production read-back because
-that observation cannot exist before deployment; source, build and release
-receipt evidence must still all pass. The shared verifier exposes this narrow
-boundary as `--promotion --channel trailblazer-beta --repository-stage
-prepublication` (or its equivalent API arguments). Ordinary promotion
-verification and stable defaults retain their all-evidence-passed behavior.
-
 Production endpoint and provider-cache observations are completed only after
 the approved snapshots are deployed. They are recorded and checked through the
 Pages journal's canonical preflight and phase1/phase2 read-backs; they are not
@@ -199,12 +102,7 @@ only for first empty origin), candidate_generation_sha256 (existing fdroid repo
 inventory digest), repository_certificate_sha256, repository_receipt_sha256
 (canonical shared schema2 receipt digest), release_approvals (JSON basenames),
 landing_sha256 (canonical landing inventory digest), maximum_bytes<=950000000.
-Beta requires schema 2 and adds exact fields `channel` (trailblazer-beta),
-`source_branch`, `source_commit`, `readiness_workflow`, `readiness_run_id`,
-`readiness_attempt`, `readiness_artifact_id`, `readiness_artifact_sha256`, and
-`readiness_commit`; the source and readiness commits must match. Beta release
-approvals and all four receipt documents must be schema 2. Stable schema 1 and
-schema 2 remain supported with their existing identity rules.
+Stable schema 1 and schema 2 remain supported with their existing identity rules.
 The signing/publication receipt's raw final-manifest and canonical release-receipt
 links remain distinct; legacy RC1 has null canonical source link, never fake
 new-source evidence. New-v2 approvals require the approved source/build/release
@@ -350,28 +248,9 @@ Preparation uses the `pages-preparation` environment with `deployment: false`,
 has contents read only,
 and executes the reviewed engineering policy against data assets.
 
-(Retired with the Beta readiness route; the Beta feed reads the public app
-repository's build artifacts with the workflow's own `GITHUB_TOKEN`.) For Beta
-readiness, register an internal GitHub App with repository Actions read
-and GitHub's mandatory Metadata read, and install it on only
-`0cwa/collieim-android`. In the engineering repository, provision
-`pages-preparation` for the exact deployment branch `main` with the App client ID
-in environment variable `COLLIE_READINESS_APP_CLIENT_ID` and its private key in
-environment secret `COLLIE_READINESS_APP_PRIVATE_KEY`. Leave the private key in
-the environment secret store. The pinned mint step requests Actions read for
-`collieim-android` explicitly and runs only for Beta feed preparation. The token
-is passed only to the Beta verifier step, which removes it from the process
-environment before preparing any subprocess. Engineering asset download and
-deployment retain the engineering workflow token.
-
-For hosted proof, separately approve a manual dispatch on reviewed `main` with
-`preparation_mode=feed`, `feed_channel=trailblazer-beta`, and `verify_only=true`.
-Use the exact reviewed policy commit and Pages bundle asset ID and SHA-256.
-This runs the real readiness ZIP verification, snapshot preparation and live
-baseline preflight, even with production publication disabled. Verify those steps
-succeeded and both upload and deployment paths were skipped. Record the run and
-attempt with the approved bundle and readiness artifact identities. Production
-publication requires its own approved run with `verify_only=false`. Deployment jobs keep pages:write/id-token:write on the
+For hosted proof of an approved bundle, dispatch `pages-release.yml` on reviewed
+`main` with the exact reviewed policy commit and Pages bundle asset ID and SHA-256;
+record the run and attempt with those identities. Deployment jobs keep pages:write/id-token:write on the
 github-pages environment and use the artifact ID emitted by the pinned official
 Pages uploader to create a deployment through GitHub's documented Pages API. The
 local poller obtains its OIDC token from the Actions runtime and registers the

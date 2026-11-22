@@ -69,9 +69,11 @@ release before enabling the variable.
 The earlier route (a pre-index archive on an engineering draft release,
 `beta-feed-candidate.yml`, schema 2 source/build/release and repository receipts,
 `beta_evidence.py` evidence archives, the app's `beta-readiness.yml`, a readiness
-GitHub App and a Beta `pages-release.yml` input with `approval.json`) is no longer
-used for the Beta feed. It required the Android release to stay a draft until
-readiness, which immutable releases make unnecessary, and its readiness run had to
-run on the exact source commit, so a verifier pin update on `trailblazer-beta` made
-an already built Beta unpublishable. Those files are removed in a follow-up after
-their remaining consumers are checked.
+GitHub App and a Beta `pages-release.yml` input with `approval.json`) was removed.
+It required the Android release to stay a draft until readiness, which immutable
+releases make unnecessary, and its readiness run had to run on the exact source
+commit, so a verifier pin update on `trailblazer-beta` made an already built Beta
+unpublishable. The readiness GitHub App and its `pages-preparation` environment
+variable and secret (`COLLIE_READINESS_APP_CLIENT_ID`,
+`COLLIE_READINESS_APP_PRIVATE_KEY`) are no longer read by any workflow and can be
+deleted in repository settings.

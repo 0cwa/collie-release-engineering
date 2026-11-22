@@ -6,7 +6,6 @@ on:
       - tools/release/**
       - .github/workflows/pages*.yml
       - .github/workflows/feeds*.yml
-      - .github/workflows/beta-feed-candidate.yml
   workflow_dispatch:
 permissions:
   contents: read

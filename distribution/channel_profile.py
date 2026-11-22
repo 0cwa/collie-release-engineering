@@ -14,7 +14,6 @@ class ChannelProfile:
     apk_certificate: str | None
     repository_certificate: str | None
     source_branch: str
-    readiness_workflow: str
 
 
 STABLE = ChannelProfile(
@@ -24,7 +23,7 @@ STABLE = ChannelProfile(
     metadata_dir='distribution/metadata',
     apk_certificate='f8cc0c0c052e5635c26fcd293c2b0af3e87d61ff7f2df3602a9af6e91f73c826',
     repository_certificate='b0c5dcbac2b65ada4e8f641910097fb0bf86a5f7255319584d453c2932f5233c',
-    source_branch='main', readiness_workflow='pr.yml',
+    source_branch='main',
 )
 
 # Beta APK signing awaits provisioning of its separate durable APK key. The repository
@@ -36,7 +35,6 @@ BETA = ChannelProfile(
     repository_url='https://repo.collie.im/fdroid/beta/repo/',
     metadata_dir='distribution/beta-metadata', apk_certificate='a515c03498bce8852b835544910b09ccc11a3abbed23e826e9c62c002680fe98',
     repository_certificate='b0c5dcbac2b65ada4e8f641910097fb0bf86a5f7255319584d453c2932f5233c', source_branch='trailblazer-beta',
-    readiness_workflow='.github/workflows/beta-readiness.yml',
 )
 
 
