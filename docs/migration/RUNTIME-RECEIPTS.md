@@ -5,7 +5,7 @@ The existing local `release_collect.py` → `release_sign.py` → `release_publi
 For the existing local schema1 route, propose a plan without changing or upgrading historical evidence:
 
 ```sh
-python3 tools/patches/runtime_receipts.py import-legacy \
+python3 tools/release/runtime_receipts.py import-legacy \
   --manifest manifest.json --engineering-revision "$ENGINEERING_REVISION" \
   --purpose production > legacy-plan.json
 ```
@@ -47,12 +47,12 @@ The portable receipt/runtime/schema implementations are kept byte-for-byte and m
 
 ## Release-preparation verification (operator-side first slice)
 
-`tools/patches/preparation_verifier.py` independently reads the approved plan and complete local Git objects, then checks the prepared commit against a baseline commit SHA that the operator selected before making preparation edits. Capture that baseline before preparation; passing a baseline SHA after the fact proves only which commit was checked, not when it was selected. The verifier records the baseline commit's Git committer timestamp, which is not independent wall-clock evidence.
+`tools/release/preparation_verifier.py` independently reads the approved plan and complete local Git objects, then checks the prepared commit against a baseline commit SHA that the operator selected before making preparation edits. Capture that baseline before preparation; passing a baseline SHA after the fact proves only which commit was checked, not when it was selected. The verifier records the baseline commit's Git committer timestamp, which is not independent wall-clock evidence.
 
 Example from the engineering repository root (use a new output path outside the source checkout):
 
 ```sh
-python3 tools/patches/preparation_verifier.py \
+python3 tools/release/preparation_verifier.py \
   --checkout /path/to/prepared-app-checkout \
   --baseline-commit <full-40-character-commit-sha-captured-before-preparation> \
   --release-plan /path/to/approved-release-plan.json \

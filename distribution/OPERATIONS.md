@@ -185,9 +185,9 @@ bundle. `fixtures/v2-release-input.json` is synthetic test input, never release
 evidence or production signer approval.
 
 These schema-2 tests depend on the reviewed extraction/shared-contract revision.
-In the final merged engineering checkout `tools/patches` supplies the shared
+In the final merged engineering checkout `tools/release` supplies the shared
 module. For stacked draft combination tests, explicitly set `PYTHONPATH` to that
-reviewed checkout's `tools/patches`; do not substitute unreviewed policy code in
+reviewed checkout's `tools/release`; do not substitute unreviewed policy code in
 privileged workflows. `receipt.py --client-evidence <recorded-json>` records the
 operator's actual client evidence digest; it is a claim bound to a file, not an
 independent signature or proof of application rebuild reproducibility.
