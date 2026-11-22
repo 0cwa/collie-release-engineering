@@ -12,7 +12,6 @@ jobs:
       - run: python3 -m unittest discover -s tests -v
       - name: Test active release receipts, artifacts, Beta producers and version reservations
         run: python3 -m unittest discover -s tools/release -p 'test_*.py' -v
-      - run: PYTHONPATH=tools/patches python3 -m unittest tools/patches/test_hosted_eligibility.py tools/patches/test_native_release_route.py -v
   native-tooling:
     name: Native tooling unit tests
     runs-on: ubuntu-24.04

@@ -1,6 +1,6 @@
 # Collie development cycle
 
-Decided 2026-11-10. Where this conflicts with older docs here (`source/PUBLICATION.md`, `docs/PATCH-PIPELINE.md` contributor sections) or with app `docs/VERIFY.md`, this file wins until those are retired.
+Decided 2026-11-10. Where this conflicts with older docs here or with app `docs/VERIFY.md`, this file wins.
 
 ## Day-to-day work
 
@@ -78,24 +78,25 @@ The focused Socket/Android pilot and its evidence expectations are documented in
 
 ## To retire
 
-Retire the historical app-source composer and generated publication commits on
-app `main` (G/I). The retired Beta feed route (`beta-feed-candidate.yml`,
+Retire generated publication commits on app `main` (G/I). The historical
+app-source composer (`tools/patches`, `molly-build.json`) was removed on
+2026-11-22, after the first upstream-merge upgrade (`v8.36.3-1-rc2`) shipped as a
+full release; its `patches/molly`, `patches/ports` and `patches/forks` forest is
+kept byte-for-byte under `archive/patch-forest`. [archive/README.md](../archive/README.md)
+names the last commit with the composer and how to reproduce a patch-built
+release from it. The retired Beta feed route (`beta-feed-candidate.yml`,
 `beta_evidence.py`, the Beta part of `pages.py` and the app's `beta-readiness.yml`)
-has been removed. Before removing any file under `source/`,
-candidate plans/receipts, or `tools/patches`, identify its current workflow,
-distribution and test consumers; remove only obsolete composition paths in a
-reviewed change.
+has been removed. Before removing candidate plans/receipts or other tools,
+identify their current workflow, distribution and test consumers; remove only
+obsolete paths in a reviewed change.
 
 `migration_receipts.py`, `runtime_receipts.py`, `release_artifacts.py`,
 `preparation_verifier.py`, `stage_preparation.py`, and the active Beta collection,
-signing and publication helpers live in `tools/release`, apart from the historical
-composer in `tools/patches`. The Beta producers there served the retired Beta
-route; check their remaining consumers before removing them. Moving them must
+signing and publication helpers live in `tools/release`. The Beta producers
+there served the retired Beta route; check their remaining consumers before removing them. Moving them must
 update imports, immutable verifier pins, workflow consumers and tests together;
 the directory name is not a retirement criterion.
 
 Keep native-input delivery (`repo.collie.im/native-inputs`) and Pages/F-Droid
 publishing; `pages-release.yml` stays until native files have another publishing
-route. After the first upstream-merge upgrade ships as a full release, the historical
-`patches/molly`, `patches/ports` and `patches/forks` forest may be archived under
-`archive/patch-forest`. Apply the same consumer check before deleting any tools.
+route.

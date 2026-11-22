@@ -77,7 +77,8 @@ class UpstreamSourcesTest(unittest.TestCase):
             "commit": "b13bff463547475bbe1ae55335add689f52532e0",
             "ref_origin": "archived-bundle",
         })
-        self.assertEqual(self.source("signal-foss")["provenance"], "patches/forks/signal-foss/provenance.json")
+        self.assertEqual(self.source("signal-foss")["provenance"], "archive/patch-forest/forks/signal-foss/provenance.json")
+        self.assertTrue((ROOT / self.source("signal-foss")["provenance"]).is_file())
 
     def test_checked_in_integrations_record_distinct_historical_targets(self):
         ledger = registry.read_json(ROOT / "upstreams/johanw666/review.json")

@@ -20,7 +20,7 @@
       "repository": "tw-hx/Signal-Android",
       "route": "historical-only",
       "discovery_ref": null,
-      "provenance": "patches/forks/signal-foss/provenance.json",
+      "provenance": "archive/patch-forest/forks/signal-foss/provenance.json",
       "snapshot": {
         "ref": "refs/heads/upstream-fork/signal-foss-8.33.2.0-FOSS",
         "commit": "b13bff463547475bbe1ae55335add689f52532e0",
