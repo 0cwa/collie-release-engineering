@@ -1,5 +1,5 @@
 {
-  "schema": 1,
+  "schema": 2,
   "source": "johanw666",
   "reviewed_head": "8f4ad8577344e844945ee8e73d95fd1fcc7208bc",
   "reviewed_date": "2026-11-14",
@@ -8,24 +8,44 @@
     {
       "id": "group-profile-sharing",
       "title": "Do not automatically share a group profile because a blocked inviter is a contact",
-      "status": "proposed",
+      "status": "selected",
       "upstream_commits": ["8f4ad8577344e844945ee8e73d95fd1fcc7208bc"],
       "paths": ["app/src/main/java/org/thoughtcrime/securesms/groups/v2/processing/GroupsV2StateProcessor.kt"],
       "reason": "Add the fork's explicit blocked-contact guard to the trusted-inviter branch. An approval of a previous join request can avoid the existing blocked-new-inviter leave path, so the profile-sharing predicate must itself reject a blocked inviter.",
       "integration": "adapted",
       "application": {"layer": "group-profile-sharing", "pr": "https://github.com/0cwa/collieim-android/pull/142"},
-      "verification": "Six focused state-processor regressions cover blocked system/profile-sharing contacts accepting an earlier join request, both trusted unblocked contact types, hidden contacts, and unchanged blocked unsolicited-add behavior. Compilation and execution require the app PR checks."
+      "integration_history": [
+        {
+          "pr": "https://github.com/0cwa/collieim-android/pull/142",
+          "target_branch": "main",
+          "merge_commit": "4772439eefd3b24ecc5a69441d80f291707add48",
+          "source_head": "8f4ad8577344e844945ee8e73d95fd1fcc7208bc",
+          "layer": "group-profile-sharing",
+          "integration": "adapted"
+        }
+      ],
+      "verification": "At the original review, six focused state-processor regressions covered blocked system/profile-sharing contacts accepting an earlier join request, both trusted unblocked contact types, hidden contacts, and unchanged blocked unsolicited-add behavior. Compilation and execution were left to the app PR checks; the historical merge record does not establish their results."
     },
     {
       "id": "text-only-web-previews",
       "title": "Allow webpage previews without downloaded images",
-      "status": "proposed",
+      "status": "selected",
       "upstream_commits": ["8f4ad8577344e844945ee8e73d95fd1fcc7208bc"],
       "paths": ["app/src/main/java/org/thoughtcrime/securesms/linkpreview/LinkPreviewRepository.java", "app/src/main/java/org/thoughtcrime/securesms/keyvalue/MiscellaneousValues.kt"],
       "reason": "Implemented a Collie proposal inspired by the fork's separate image preference. Unlike the reviewed fork code, the generic-web path gates before the optional image fetch and decode. A backed-up local preference defaults to true, with a Chats control below Generate link previews. Cache refresh, callback invalidation and conversation/story/share submission guards apply the latest preference, clear both thumbnail and attachment ID, and preserve special Signal cards without a global forwarding change.",
       "integration": "inspired",
       "application": {"layer": "web-link-preview-images", "pr": "https://github.com/0cwa/collieim-android/pull/143"},
-      "verification": "Added repository request-count and response-close tests, policy/metadata tests, legacy and V2 preview-cache/race tests, real share/story submission tests, settings persistence and ViewModel tests, and Compose screen tests. These app tests have not been compiled or executed in this environment; the app PR checks and API 35 screen verification remain required before merge."
+      "integration_history": [
+        {
+          "pr": "https://github.com/0cwa/collieim-android/pull/143",
+          "target_branch": "trailblazer-beta",
+          "merge_commit": "171f05376614b6480b77404067fb5a612f5e60b9",
+          "source_head": "8f4ad8577344e844945ee8e73d95fd1fcc7208bc",
+          "layer": "web-link-preview-images",
+          "integration": "inspired"
+        }
+      ],
+      "verification": "Added repository request-count and response-close tests, policy/metadata tests, legacy and V2 preview-cache/race tests, real share/story submission tests, settings persistence and ViewModel tests, and Compose screen tests. At the original review these app tests had not been compiled or executed in that environment, and the app PR checks and API 35 screen verification were outstanding. The historical merge record does not establish their results."
     },
     {
       "id": "group-admission-policy",

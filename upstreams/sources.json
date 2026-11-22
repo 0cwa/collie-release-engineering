@@ -1,29 +1,26 @@
 {
-  "schema": 1,
+  "schema": 2,
   "sources": [
     {
       "id": "signal",
       "repository": "signalapp/Signal-Android",
-      "status": "active",
-      "strategy": "tag-diff",
-      "tracking": "refs/tags/v*",
-      "baseline": "0cwa/collieim-android:app/build.gradle.kts canonicalVersionName"
+      "route": "upstream-merge",
+      "discovery_ref": "refs/tags/v*",
+      "provenance": "https://github.com/0cwa/collieim-android/blob/main/docs/VERIFY.md#verify-an-upstream-merge"
     },
     {
       "id": "molly",
       "repository": "mollyim/mollyim-android",
-      "status": "active",
-      "strategy": "selected-commits",
-      "tracking": "refs/heads/main",
-      "baseline": "docs/DEVELOPMENT-CYCLE.md: Upstream upgrades (Signal / Molly)"
+      "route": "upstream-merge",
+      "discovery_ref": "refs/heads/*",
+      "provenance": "https://github.com/0cwa/collieim-android/blob/main/docs/VERIFY.md#verify-an-upstream-merge"
     },
     {
       "id": "signal-foss",
       "repository": "tw-hx/Signal-Android",
-      "status": "historical",
-      "strategy": "historical",
-      "tracking": null,
-      "baseline": "patches/forks/signal-foss/provenance.json",
+      "route": "historical-only",
+      "discovery_ref": null,
+      "provenance": "patches/forks/signal-foss/provenance.json",
       "snapshot": {
         "ref": "refs/heads/upstream-fork/signal-foss-8.33.2.0-FOSS",
         "commit": "b13bff463547475bbe1ae55335add689f52532e0",
@@ -33,10 +30,8 @@
     {
       "id": "johanw666",
       "repository": "johanw666/Signal-Android",
-      "status": "active",
-      "strategy": "selected-commits",
-      "tracking": "refs/tags/*-JW",
-      "baseline": "upstreams/johanw666/review.json",
+      "route": "selective-feature",
+      "discovery_ref": "refs/tags/*-JW",
       "snapshot": {
         "ref": "refs/tags/v8.36.0.0-JW",
         "commit": "8f4ad8577344e844945ee8e73d95fd1fcc7208bc",

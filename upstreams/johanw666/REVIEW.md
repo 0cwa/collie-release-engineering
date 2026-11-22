@@ -24,18 +24,39 @@ The review selects feature ideas and code suitable for Collie. It does not treat
 the entire custom fork as a maintained security boundary or a replacement for
 Signal/Molly updates.
 
-## Selection and implementation order
+## Historical application integrations
 
-| Priority | Feature | Decision and next step |
+GitHub PR and merge-commit records checked on 2026-11-22 establish these past
+integrations of the selected features:
+
+| Feature | App PR | Actual target branch | Merge commit |
+| --- | --- | --- | --- |
+| Blocked inviter profile sharing (`adapted`) | [#142](https://github.com/0cwa/collieim-android/pull/142) | `main` | [`4772439eefd3b24ecc5a69441d80f291707add48`](https://github.com/0cwa/collieim-android/commit/4772439eefd3b24ecc5a69441d80f291707add48) |
+| Text-only webpage previews (`inspired`) | [#143](https://github.com/0cwa/collieim-android/pull/143) | `trailblazer-beta` | [`171f05376614b6480b77404067fb5a612f5e60b9`](https://github.com/0cwa/collieim-android/commit/171f05376614b6480b77404067fb5a612f5e60b9) |
+
+The [ledger](review.json) preserves each event's reviewed source head, layer and
+integration category independently of the latest review decision. These records
+do not claim present inclusion on either target, inclusion on another branch, a
+release, or passing app checks. Reconciliation does not advance the original
+2026-11-14 review date, source head or selective scope.
+
+## Original selection and implementation order
+
+The decisions, implementation descriptions and validation limitations below
+describe the original review and proposals. The historical merges above do not
+retroactively establish missing build or device evidence.
+
+| Priority | Feature | Decision and next step at review |
 | --- | --- | --- |
 | 1 | Blocked inviter and automatic profile sharing | Propose one narrow app PR with a state-processor regression. |
-| 2 | Text-only webpage previews | Implemented as an independent app proposal with an early image gate, cache/submission guards and a Chats setting; app checks and API 35 verification remain pending. |
+| 2 | Text-only webpage previews | Implemented as an independent app proposal with an early image gate, cache/submission guards and a Chats setting; app checks and API 35 verification were pending at review. |
 | 3 | Group admission policy | Redesign the policy and member-state handling before exposing a setting. |
 | 4 | Attachment-only deletion | Define sync, quote, backup and thread-cache behavior before implementing. |
 | Existing | Initial passphrase keyboard focus | Already supplied by Molly in Collie; avoid a duplicate port. |
 
 The [machine-readable ledger](review.json) has exact paths, decisions and intended
-verification. `proposed` means reviewed for an app PR, not merged or released.
+verification. Its schema 2 `selected` status describes a review decision, with
+historical integrations recorded separately; it does not mean merged or released.
 
 ### 1. Blocked inviter profile sharing
 
@@ -114,12 +135,12 @@ retain their existing behavior.
    persistence/backup inclusion, settings ViewModel behavior and the Compose row
    also have regression tests.
 
-[App PR #143](https://github.com/0cwa/collieim-android/pull/143) is an
-independently reviewable `Layer: web-link-preview-images` proposal,
-not an adopted change. The app tests have not been compiled or executed in this
-environment. CI and the required API 35 screen verification remain outstanding
-before merge; neither the source review nor these test additions establish a
-passing Android build.
+[App PR #143](https://github.com/0cwa/collieim-android/pull/143) was an
+independently reviewable `Layer: web-link-preview-images` proposal. At the original
+review, the app tests had not been compiled or executed in that environment, and
+CI and the required API 35 screen verification were outstanding. Neither that
+source review nor the later historical merge record establishes a passing
+Android build or completed screen verification.
 
 ### 3. Group admission controls
 
@@ -165,11 +186,13 @@ project license does not erase those notices if any later design reuses code.
 
 ## PR boundaries
 
-The engineering PR introduces the source index, this review and offline ledger
+The initial engineering PR introduced the source index, this review and offline ledger
 checks. [App PR #142](https://github.com/0cwa/collieim-android/pull/142) carries
 only `Layer: group-profile-sharing`, upstream
 attribution and focused regression coverage. Future feature PRs should update
 their individual ledger entries; [app PR #143](https://github.com/0cwa/collieim-android/pull/143)
 uses `Layer: web-link-preview-images`. App features need not depend on or re-import the
-historical patch forest. After a PR merges, record its actual app SHA and move
-that entry from `proposed` to `adopted` in a small engineering follow-up.
+historical patch forest. After a PR merges, verify and record its actual target
+branch and merge SHA with the source snapshot and attribution for that
+integration. Keep these historical events separate from later review decisions
+and current app-state verification, as described in the [source-route contract](../README.md).
