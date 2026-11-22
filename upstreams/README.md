@@ -13,7 +13,7 @@ the [development cycle](../docs/DEVELOPMENT-CYCLE.md).
 | [Signal](https://github.com/signalapp/Signal-Android) | `upstream-merge` | Merge an explicitly selected Signal tag; the verified upstream parent is recorded in app history. |
 | [Molly](https://github.com/mollyim/mollyim-android) | `upstream-merge` | Merge an explicitly selected Molly branch at a resolved commit; the branch and verified upstream parent are recorded in app history. |
 | [Johan's fork](https://github.com/johanw666/Signal-Android) | `selective-feature` | Review custom `*-JW` snapshots, with the corresponding Signal base pinned separately, and port individual features. |
-| [Signal-FOSS](https://github.com/tw-hx/Signal-Android) | `historical-only` | Preserve the archived snapshot and `patches/forks/signal-foss/provenance.json`; no new discovery or import route. |
+| [Signal-FOSS](https://github.com/tw-hx/Signal-Android) | `historical-only` | Preserve the archived snapshot and `archive/patch-forest/forks/signal-foss/provenance.json`; no new discovery or import route. |
 
 ## Source-route contract
 
@@ -75,8 +75,8 @@ separate: neither a reviewed head nor a past merge proves present inclusion.
 Keep independent features in independent app PRs. Stack PRs only when one needs
 another's implementation. Each feature gets a stable `Layer:` value so its
 commits can be found together and exported with `git format-patch` when needed.
-Do not add the app changes to the historical `molly-build.json`, patch composer
-or generated source publication chain.
+Do not add the app changes to the archived patch composer
+([archive/README.md](../archive/README.md)) or a generated source publication chain.
 
 ## Reviewing the next release
 
