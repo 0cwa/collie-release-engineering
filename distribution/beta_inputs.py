@@ -18,7 +18,6 @@ import subprocess
 import urllib.request
 import zipfile
 
-import binary_repo
 import channel_profile as channels
 import release_inputs
 
@@ -212,8 +211,19 @@ def extract_unsigned(archive, destination, commit):
 
 
 def apk_identity(apk, build_tools):
+    """Same signer and badging reads as feed.apk_identity, which the index build applies again."""
     tools = Path(build_tools)
-    return binary_repo.inspect(apk, tools / 'aapt2', tools / 'apksigner', PROFILE)
+    certs = subprocess.run([str(tools / 'apksigner'), 'verify', '--print-certs', str(apk)],
+                           check=True, capture_output=True, text=True).stdout
+    digests = re.findall(r'certificate SHA-256 digest: ([0-9a-f]{64})', certs)
+    badging = subprocess.run([str(tools / 'aapt2'), 'dump', 'badging', str(apk)],
+                             check=True, capture_output=True, text=True).stdout
+    match = re.search(r"package: name='([^']+)' versionCode='([0-9]+)' versionName='([^']+)'", badging)
+    if len(digests) != 1 or match is None or 'application-debuggable' in badging:
+        lines = [line for line in certs.splitlines() if 'SHA-256 digest' in line]
+        raise ValueError('expected one APK signer and release package metadata: ' + '; '.join(lines))
+    return {'package': match[1], 'version_code': int(match[2]), 'version_name': match[3],
+            'apk_certificate_sha256': digests[0]}
 
 
 def fetch_release(tag, *, api=release_inputs.github_read):
