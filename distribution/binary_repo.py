@@ -64,7 +64,7 @@ def verify_release_approval(a,bundle,profile=STABLE):
         return None
     if bundle is None:raise ValueError('schema2 requires externally approved receipt bundle')
     import sys
-    sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'tools'/'patches'))
+    sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'tools'/'release'))
     import migration_receipts as receipts
     documents={kind:receipts.load(bundle/(kind+'.json'),kind,profile=profile.name) for kind in ('source','build','release')}
     receipts.verify_release_inputs(**documents,approved=a['receipt_approvals'],raw_manifest_sha256=a['release_manifest_sha256'],promotion=True,profile=profile.name)

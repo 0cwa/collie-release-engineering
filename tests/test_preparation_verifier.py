@@ -9,7 +9,7 @@ import sys
 import tempfile
 import unittest
 
-sys.path.insert(0, str(Path(__file__).parents[1] / 'tools/patches'))
+sys.path.insert(0, str(Path(__file__).parents[1] / 'tools/release'))
 import preparation_verifier as verifier
 import runtime_receipts
 

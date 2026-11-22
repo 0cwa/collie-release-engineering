@@ -3,7 +3,7 @@ on:
   pull_request:
     paths:
       - distribution/**
-      - tools/patches/**
+      - tools/release/**
       - .github/workflows/pages*.yml
       - .github/workflows/feeds*.yml
       - .github/workflows/beta-feed-candidate.yml

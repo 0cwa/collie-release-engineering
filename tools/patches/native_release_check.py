@@ -6,10 +6,14 @@ import hashlib
 import json
 import re
 import subprocess
+import sys
 import tempfile
 import zipfile
 from pathlib import Path
 
+# The active release helpers live in tools/release; this historical checker
+# reuses their APK checks when run directly or through tools/patches/build.py.
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'release'))
 import release_artifacts
 
 ABIS = ('arm64-v8a', 'armeabi-v7a', 'x86_64')
