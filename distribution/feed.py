@@ -18,6 +18,7 @@ sys.path.insert(0, str(HERE))
 import binary_repo, site_page  # noqa: E402
 import channel_profile as channels  # noqa: E402
 import retained_artifacts  # noqa: E402
+import release_inputs  # noqa: E402
 
 ORIGIN = 'https://repo.collie.im/'
 REPO_URL = ORIGIN + 'fdroid/repo'
@@ -39,18 +40,16 @@ def sha256(path):
 
 
 def copy_native(native, plan, site):
-    files = json.loads(Path(plan).read_text())['files']
-    for entry in files:
-        rel = entry['path']
-        if rel.startswith('/') or '..' in Path(rel).parts:
-            raise SystemExit(f'bad native path {rel}')
+    # Files sit at their site paths (native-inputs/v<N>/maven/...), as release_inputs.py native stages them.
+    records = release_inputs.native_records(json.loads(Path(plan).read_text()))
+    for rel, entry in sorted(records.items()):
         src = Path(native) / rel
         if src.stat().st_size != entry['bytes'] or sha256(src) != entry['sha256']:
             raise SystemExit(f'native file does not match plan: {rel}')
-        dest = site / 'native-inputs/v1/maven' / rel
+        dest = site / rel
         dest.parent.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(src, dest)
-    return len(files)
+    return len(records)
 
 
 def validate_release_identity(profile, tag, title, version_name, version_code):

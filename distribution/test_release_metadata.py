@@ -199,8 +199,17 @@ class MetadataExportTests(unittest.TestCase):
         self.api.commit = self.api.save(add=False)
         self.assert_rejected('path, mode or file size')
 
+    def test_named_png_screenshots_are_exported(self):
+        # Collie 8.36.3-1 ships phoneScreenshots/settings-overview.png next to the numbered ones.
+        path = inputs.METADATA_PREFIX + '/en-US/images/phoneScreenshots/settings-overview.png'
+        self.api.write(path, PNG)
+        record = self.export(self.receipt(self.api.save()))
+        self.assertIn(path, {item['path'] for item in record['files']})
+        self.assertEqual((self.destination / path).read_bytes(), PNG)
+
     def test_unreviewed_code_hidden_paths_and_non_png_images_are_rejected(self):
-        for path in ('en-US/run.sh', 'en-US/.hidden', 'en-US/images/icon.svg', 'en-US/images/phoneScreenshots/run.py'):
+        for path in ('en-US/run.sh', 'en-US/.hidden', 'en-US/images/icon.svg', 'en-US/images/phoneScreenshots/run.py',
+                     'en-US/images/phoneScreenshots/.hidden.png', 'en-US/images/phoneScreenshots/a.b.png'):
             with self.subTest(path=path):
                 full = inputs.METADATA_PREFIX + '/' + path
                 self.api.write(full, b'unreviewed input')

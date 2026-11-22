@@ -196,7 +196,7 @@ jobs:
           [ "$served" = "$LATEST" ] || { echo "::error::repo.collie.im still serves $served"; exit 1; }
           curl -fsSI https://repo.collie.im/fdroid/repo/index-v1.jar >/dev/null
           python distribution/feed.py --site "$RUNNER_TEMP/site" --verify-live-site
-          jq -r '.files[] | .path + " " + .sha256' "$RUNNER_TEMP/app-metadata/build-inputs/native-artifacts.json" | head -2 | while read -r path sum; do
+          jq -r '.files[] | .url + " " + .sha256' "$RUNNER_TEMP/app-metadata/build-inputs/native-artifacts.json" | head -2 | while read -r url sum; do
             echo "$sum  -" > "$RUNNER_TEMP/expect"
-            curl -fsSL "https://repo.collie.im/native-inputs/v1/maven/$path?$(date +%s)" | sha256sum -c "$RUNNER_TEMP/expect"
+            curl -fsSL "$url?$(date +%s)" | sha256sum -c "$RUNNER_TEMP/expect"
           done

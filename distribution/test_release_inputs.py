@@ -3,6 +3,7 @@ import copy
 from email.message import Message
 import hashlib
 import io
+import json
 import tempfile
 import unittest
 import urllib.request
@@ -267,6 +268,35 @@ class ReleaseInputTests(unittest.TestCase):
                 inputs.stage_native({'files': [good, child]}, Path(temporary) / 'native', downloader=downloader)
             downloader.assert_not_called()
 
+    def test_each_native_file_keeps_its_own_versioned_route(self):
+        # Collie 8.36.3-1's plan serves libsignal from native-inputs/v2 and ringrtc from v1.
+        files = []
+        for route, path in (('native-inputs/v2/maven/', 'im/collie/native/libsignal/1/libsignal.pom'),
+                            ('native-inputs/v1/maven/', 'im/collie/native/ringrtc/1/ringrtc.pom')):
+            files.append({'path': path, 'url': inputs.ORIGIN + route + path, 'bytes': 4,
+                          'sha256': hashlib.sha256(b'data').hexdigest()})
+        plan = {'repository': inputs.ORIGIN + 'native-inputs/v2/maven/', 'files': files}
+        self.assertEqual(set(inputs.native_records(plan)),
+                         {'native-inputs/v2/maven/im/collie/native/libsignal/1/libsignal.pom',
+                          'native-inputs/v1/maven/im/collie/native/ringrtc/1/ringrtc.pom'})
+        for url in ('https://example.invalid/native-inputs/v2/maven/' + files[0]['path'],
+                    inputs.ORIGIN + 'native-inputs/v0/maven/' + files[0]['path'],
+                    inputs.ORIGIN + 'fdroid/repo/' + files[0]['path'],
+                    inputs.ORIGIN + 'native-inputs/v2/maven/other/' + files[0]['path']):
+            with self.subTest(url=url), self.assertRaisesRegex(ValueError, 'noncanonical'):
+                inputs.native_records({'files': [{**files[0], 'url': url}]})
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            def download(url, target, size, digest, *, hosts):
+                target.parent.mkdir(parents=True, exist_ok=True)
+                target.write_bytes(b'data')
+            self.assertEqual(inputs.stage_native(plan, root / 'native', downloader=download), 2)
+            (root / 'plan.json').write_text(json.dumps(plan))
+            import feed
+            self.assertEqual(feed.copy_native(root / 'native', root / 'plan.json', root / 'site'), 2)
+            for name in inputs.native_records(plan):
+                self.assertEqual((root / 'site' / name).read_bytes(), b'data')
+
     def test_native_inputs_use_the_exact_declared_fixed_origin_bytes(self):
         path = 'im/collie/native/library/1/library.pom'
         value = {'path': path, 'url': inputs.ORIGIN + inputs.NATIVE_PREFIX + path,
@@ -279,7 +309,7 @@ class ReleaseInputTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             destination = Path(temporary) / 'native'
             self.assertEqual(inputs.stage_native({'files': [value]}, destination, downloader=download), 1)
-            self.assertEqual((destination / path).read_bytes(), b'data')
+            self.assertEqual((destination / inputs.NATIVE_PREFIX / path).read_bytes(), b'data')
             self.assertEqual(calls, [(value['url'], 4, value['sha256'], {'repo.collie.im'})])
             with self.assertRaisesRegex(ValueError, 'new native'):
                 inputs.stage_native({'files': [value]}, destination, downloader=download)
