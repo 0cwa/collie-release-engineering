@@ -210,13 +210,15 @@ class BetaInputTests(unittest.TestCase):
         self.assertTrue(beta.is_new_beta(TAG, None))
         self.assertTrue(beta.is_new_beta(TAG, '8.36.3-1-beta0'))
         self.assertFalse(beta.is_new_beta(None, VERSION))
-        with patch('sys.argv', ['beta_inputs.py', 'select', '--force']), \
-                patch('sys.stderr', io.StringIO()), self.assertRaises(SystemExit):
-            beta.main()
         with patch.object(beta, 'newest_tag', return_value=TAG), patch.object(beta, 'served_version', return_value=VERSION), \
                 patch('sys.argv', ['beta_inputs.py', 'select']), patch('sys.stdout', io.StringIO()) as out:
             beta.main()
         self.assertEqual(json.loads(out.getvalue()), {'tag': TAG, 'served': VERSION, 'changed': False})
+        # The dry-run workflow still asks to verify the newest Beta whatever is served.
+        with patch.object(beta, 'newest_tag', return_value=TAG), patch.object(beta, 'served_version', return_value=VERSION), \
+                patch('sys.argv', ['beta_inputs.py', 'select', '--force']), patch('sys.stdout', io.StringIO()) as out:
+            beta.main()
+        self.assertTrue(json.loads(out.getvalue())['changed'])
         with self.assertRaisesRegex(ValueError, 'must increase'):
             feed.release_identity(channels.BETA, TAG, 'Collie TrailBlazer Beta ' + VERSION, VERSION, 178201, 178201)
 

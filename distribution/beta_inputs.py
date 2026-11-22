@@ -337,6 +337,9 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     sub = parser.add_subparsers(dest='action', required=True)
     select = sub.add_parser('select', help='print the newest Beta tag and whether the feed already serves it')
+    select.add_argument('--force', action='store_true',
+                        help='report the newest Beta as new even if served: for dry runs that verify it. '
+                             'feeds.yml never passes this; a forced site rebuild keeps the served Beta')
     check = sub.add_parser('verify')
     check.add_argument('--tag', required=True)
     check.add_argument('--work', type=Path, required=True)
@@ -356,7 +359,8 @@ def main():
     if args.action == 'select':
         tag = newest_tag()
         served = served_version()
-        print(json.dumps({'tag': tag or '', 'served': served, 'changed': is_new_beta(tag, served)}))
+        changed = is_new_beta(tag, served) or (args.force and tag is not None)
+        print(json.dumps({'tag': tag or '', 'served': served, 'changed': changed}))
     elif args.action == 'verify':
         value = verify(args.tag, args.work, args.build_tools)
         write_new(args.output, value)
