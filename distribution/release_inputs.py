@@ -454,6 +454,17 @@ def export_metadata(receipt, destination, *, api=github_metadata_read):
             'files': [record for _, _, record in verified]}
 
 
+NATIVE_ROUTE = re.compile(re.escape(ORIGIN) + r'(native-inputs/v[1-9][0-9]{0,2}/maven/)(.+)')
+
+
+def native_site_path(value):
+    """Site path of one native file from its URL; a plan may mix routes (v1 ringrtc, v2 libsignal)."""
+    match = NATIVE_ROUTE.fullmatch(str(value.get('url'))) if isinstance(value, dict) else None
+    if match is None or match[2] != value.get('path'):
+        raise ValueError('invalid, duplicate or noncanonical native input')
+    return match[1] + match[2]
+
+
 def native_records(plan):
     values = plan.get('files') if isinstance(plan, dict) else None
     if not isinstance(values, list) or not 0 < len(values) <= 40000:
@@ -463,12 +474,12 @@ def native_records(plan):
         path = value.get('path') if isinstance(value, dict) else None
         if (not isinstance(path, str) or not re.fullmatch(r'[A-Za-z0-9_.+/-]+', path)
                 or any(part in ('', '.', '..') for part in path.split('/'))
-                or PurePosixPath(path).is_absolute() or path in records
+                or PurePosixPath(path).is_absolute()
                 or type(value.get('bytes')) is not int or value['bytes'] <= 0
                 or not DIGEST.fullmatch(str(value.get('sha256', '')))
-                or value.get('url') != ORIGIN + NATIVE_PREFIX + path):
+                or native_site_path(value) in records):
             raise ValueError('invalid, duplicate or noncanonical native input')
-        records[path] = value
+        records[native_site_path(value)] = value
     if sum(value['bytes'] for value in records.values()) > MAX_BYTES:
         raise ValueError('native input plan exceeds byte budget')
     for path in records:
