@@ -27,8 +27,6 @@ SITE_LIMIT = 950_000_000
 SITE_INVENTORY='site-manifest.json'
 SITE_INVENTORY_LIMIT=32*1024*1024
 SITE_ORIGIN='https://repo.collie.im/'
-BETA_ICON_SHA256='f6a0751bf26db92367f6012f063d643bf49144728bb4c90dcdbd2f48f27ba4b2'
-BETA_REQUIRED_SOURCE_COMMITS=('ae514b281b9c','62e74987dcdb71bad6b4f52244e01c7d66cd51ba')
 
 
 def sha256(path):
@@ -113,217 +111,6 @@ def validate_generated_index(work,profile):
     if not isinstance(package,dict) or package.get('releaseChannels') not in (None,[]):
         raise ValueError('Beta package index releaseChannels must be absent or empty')
 
-
-def validate_beta_source_input(source_checkout, fastlane, approved_source_commit, *,
-                               required_source_commits=BETA_REQUIRED_SOURCE_COMMITS):
-    """Bind listing and artwork to the immutable source commit from verified receipts."""
-    original_metadata=Path(source_checkout)/'fastlane/metadata/trailblazer-beta'
-    if original_metadata.is_symlink():
-        raise ValueError('Beta Fastlane metadata root must not be a symlink')
-    checkout=Path(source_checkout).resolve()
-    metadata=(checkout/'fastlane/metadata/trailblazer-beta').resolve()
-    supplied=Path(fastlane).resolve()
-    if supplied!=metadata or not metadata.is_dir():
-        raise ValueError('Beta Fastlane input must be fastlane/metadata/trailblazer-beta from the approved source checkout')
-    if not re.fullmatch('[0-9a-f]{40}',str(approved_source_commit)):
-        raise ValueError('verified Beta source commit is required')
-    head=subprocess.run(['git','--no-replace-objects','-C',str(checkout),'rev-parse','HEAD'],check=True,capture_output=True,text=True).stdout.strip()
-    if head!=approved_source_commit:
-        raise ValueError('Beta source checkout differs from the immutable approved source commit')
-    for required_commit in required_source_commits:
-        if not re.fullmatch('[0-9a-f]{12,40}',str(required_commit)):
-            raise ValueError('invalid required Beta source ancestor')
-        try:
-            subprocess.run(['git','--no-replace-objects','-C',str(checkout),'merge-base','--is-ancestor',required_commit,head],
-                           check=True,capture_output=True)
-        except subprocess.CalledProcessError as exc:
-            raise ValueError('approved Beta source commit omits required branding or source-workflow change') from exc
-    if any(path.is_symlink() for path in metadata.rglob('*')):
-        raise ValueError('symlink in approved Beta Fastlane metadata')
-    icon=metadata/'en-US/images/icon.png'
-    if not icon.is_file() or sha256(icon)!=BETA_ICON_SHA256:
-        raise ValueError('Beta icon differs from approved TrailBlazer artwork')
-    title=metadata/'en-US/title.txt'
-    if not title.is_file() or title.read_text(encoding='utf-8').strip()!='Collie TrailBlazer':
-        raise ValueError('Beta listing title differs from approved TrailBlazer branding')
-    return metadata
-
-
-def stage_beta_source_metadata(checkout, commit, destination):
-    """Copy only regular metadata blobs from the receipt-bound Git tree."""
-    prefix='fastlane/metadata/trailblazer-beta/'
-    listing=subprocess.check_output(['git','--no-replace-objects','-C',str(checkout),'ls-tree','-rz',
-        '--full-tree',commit,'--',prefix])
-    destination=Path(destination)
-    destination.mkdir()
-    for entry in listing.split(b'\0'):
-        if not entry:continue
-        header,raw_path=entry.split(b'\t',1)
-        mode,kind,oid=header.split()
-        name=raw_path.decode('utf-8')
-        if mode not in (b'100644',b'100755') or kind!=b'blob' or not name.startswith(prefix):
-            raise ValueError('Beta metadata must contain only regular Git blobs')
-        relative=Path(name[len(prefix):])
-        if relative.is_absolute() or any(part in ('.','..') for part in relative.parts):
-            raise ValueError('invalid Beta metadata Git path')
-        target=destination/relative
-        target.parent.mkdir(parents=True,exist_ok=True)
-        with target.open('xb') as output:
-            subprocess.run(['git','--no-replace-objects','-C',str(checkout),'cat-file','blob',oid.decode('ascii')],
-                           stdout=output,check=True)
-    icon=destination/'en-US/images/icon.png'
-    title=destination/'en-US/title.txt'
-    if (not icon.is_file() or sha256(icon)!=BETA_ICON_SHA256 or not title.is_file() or
-            title.read_text(encoding='utf-8').strip()!='Collie TrailBlazer'):
-        raise ValueError('committed Beta metadata differs from approved branding')
-    return destination
-
-
-def verified_public_beta_history(build_tools, scratch, *, api=None, download=None, selected_release=None):
-    """Derive a first-feed version floor from every public immutable Beta release."""
-    import beta_evidence
-    if api is None:api=beta_evidence.github_public_read
-    if download is None:download=download_public_asset
-    highest=0
-    page=1
-    while page<=100:
-        releases=api(f'repos/0cwa/collieim-android/releases?per_page=100&page={page}')
-        if not isinstance(releases,list):raise ValueError('authoritative public release history is unavailable')
-        for release in releases:
-            if (not isinstance(release,dict) or type(release.get('draft')) is not bool or
-                    type(release.get('prerelease')) is not bool or
-                    type(release.get('id')) is not int or release['id']<=0):
-                raise ValueError('malformed authoritative public release history')
-            tag=release.get('tag_name')
-            if not isinstance(tag,str) or not tag.startswith(channels.BETA.tag_prefix):continue
-            if release['draft']:continue
-            if not release['prerelease']:
-                raise ValueError('published TrailBlazer tag is not marked as a prerelease')
-            version_name=tag[len(channels.BETA.tag_prefix):]
-            validate_release_identity(channels.BETA,tag,
-                channels.BETA.app_title+' '+version_name,version_name,1)
-            if release.get('name')!=channels.BETA.app_title+' '+version_name:
-                raise ValueError('public Beta release title differs from channel contract')
-            assets=release.get('assets')
-            if not isinstance(assets,list):raise ValueError('Beta release assets are unavailable')
-            matches=[row for row in assets if isinstance(row,dict) and row.get('name')==channels.BETA.apk_asset]
-            if len(matches)!=1:raise ValueError('public Beta release lacks its unique approved APK asset')
-            asset=matches[0]
-            if (type(asset.get('id')) is not int or asset['id']<=0 or
-                    asset.get('state')!='uploaded' or type(asset.get('size')) is not int or
-                    not 0<asset['size']<=SITE_LIMIT or
-                    not re.fullmatch('sha256:[0-9a-f]{64}',str(asset.get('digest')))):
-                raise ValueError('public Beta APK asset lacks authoritative identity and digest')
-            asset_url=urlparse(asset.get('browser_download_url',''))
-            expected_path='/0cwa/collieim-android/releases/download/'+tag+'/'+channels.BETA.apk_asset
-            if (asset_url.scheme!='https' or asset_url.netloc!='github.com' or
-                    unquote(asset_url.path)!=expected_path):
-                raise ValueError('public Beta APK asset URL differs from fixed repository/tag/name')
-            with tempfile.TemporaryDirectory(prefix='beta-history-',dir=scratch) as temporary:
-                apk=Path(temporary)/channels.BETA.apk_asset
-                digest=download(asset['browser_download_url'],apk,asset['size'])
-                if apk.stat().st_size!=asset['size'] or digest!=asset['digest'][7:]:
-                    raise ValueError('public Beta APK differs from GitHub asset size or digest')
-                identity=binary_repo.inspect(apk,Path(build_tools)/'aapt2',
-                                             Path(build_tools)/'apksigner',channels.BETA)
-            if (identity.get('package')!=channels.BETA.package or
-                    identity.get('apk_certificate_sha256')!=channels.BETA.apk_certificate):
-                raise ValueError('public Beta APK package or signing certificate differs')
-            if identity.get('version_name')!=version_name:
-                raise ValueError('public Beta APK version differs from immutable release tag')
-            if selected_release is not None and release['id']==selected_release['release_id']:
-                if (tag!=selected_release['tag'] or version_name!=selected_release['version_name'] or
-                        identity['version_code']!=selected_release['version_code'] or
-                        asset['digest'][7:]!=selected_release['apk_sha256']):
-                    raise ValueError('selected public Beta release differs from approved candidate')
-                continue
-            highest=max(highest,identity['version_code'])
-        if len(releases)<100: return highest
-        page+=1
-    raise ValueError('public Beta release history exceeds verification page limit')
-
-
-def download_public_asset(url,destination,expected_size):
-    parsed=urlparse(url)
-    if parsed.scheme!='https' or parsed.netloc!='github.com' or not parsed.path.startswith('/0cwa/collieim-android/releases/download/'):
-        raise ValueError('Beta APK history asset left the fixed public app release host')
-    digest=hashlib.sha256();size=0
-    with urllib.request.urlopen(url,timeout=120) as response,Path(destination).open('xb') as output:
-        final=urlparse(response.geturl())
-        if final.scheme!='https' or final.netloc not in {'github.com','release-assets.githubusercontent.com'}:
-            raise ValueError('Beta APK asset redirect left fixed GitHub asset hosts')
-        while True:
-            block=response.read(1024*1024)
-            if not block:break
-            size+=len(block)
-            if size>expected_size:raise ValueError('public Beta APK history asset exceeds declared byte size')
-            digest.update(block);output.write(block)
-    return digest.hexdigest()
-
-
-def build_beta_candidate(release_input_archive, bundle_sha256, engineering_asset_id, evidence_scratch,
-                        source_checkout, fastlane, keystore, build_tools, site, *, fetch=None,
-                        api=None, run_api=None, tag_verifier=None):
-    """Build a Beta-only signed feed from the independently approved release graph."""
-    import beta_evidence
-    profile=channels.BETA
-    channels.require_trusted(profile);channels.require_apk_trusted(profile)
-    if not os.environ.get('FDROID_KEYSTORE_PASS'):
-        raise ValueError('FDROID_KEYSTORE_PASS is required for the Beta repository signer')
-    scratch=Path(evidence_scratch)
-    unpacked=scratch/'feed-release-input'
-    verified=beta_evidence.verify_release_input_archive(release_input_archive,
-        bundle_sha256=bundle_sha256,asset_id=engineering_asset_id,scratch=scratch,
-        destination=unpacked,
-        tools={'aapt':Path(build_tools)/'aapt2','apksigner':Path(build_tools)/'apksigner'},
-        api=api,run_api=run_api,tag_verifier=tag_verifier)
-    try:
-        validate_beta_source_input(source_checkout,fastlane,verified['source_commit'])
-        metadata=stage_beta_source_metadata(source_checkout,verified['source_commit'],
-                                            unpacked/'approved-metadata')
-        apk_dir=unpacked/'apk'
-        apk_files=sorted(path.name for path in apk_dir.glob('*.apk'))
-        if apk_files!=[profile.apk_asset] or sha256(apk_dir/profile.apk_asset)!=verified['apk_sha256']:
-            raise ValueError('approved evidence APK bytes differ from selected Beta release')
-        history=capture_beta_route(scratch/'prior-beta-route',fetch=fetch)
-        prior_code=max(verified_public_beta_history(build_tools,scratch,api=api,selected_release=verified),
-                       history['release']['version_code'] if history['release'] else 0)
-        release_identity(profile,verified['tag'],verified['title'],verified['version_name'],
-                         verified['version_code'],prior_code)
-        if Path(site).exists():raise ValueError('new Beta candidate output directory required')
-        work=Path(site).parent/'fdroid-work'
-        if work.exists():raise ValueError('new F-Droid work directory required')
-        if keystore_fingerprint(keystore)!=profile.repository_certificate:
-            raise ValueError('Beta repository signer pin is unset or differs')
-        Path(site).mkdir(parents=True)
-        build_fdroid(apk_dir,metadata,keystore,Path(build_tools),work,Path(site),profile,
-            tag=verified['tag'],title=verified['title'],prior_version_code=prior_code,prerelease=True)
-        generated=Path(site)/'fdroid/beta/repo'
-        staged_title=work/'build'/profile.package/'fastlane/metadata/android/en-US/title.txt'
-        repository_icon=generated/'collie-icon.png'
-        if (not staged_title.is_file() or staged_title.read_text(encoding='utf-8').strip()!='Collie TrailBlazer' or
-                not repository_icon.is_file() or sha256(repository_icon)!=BETA_ICON_SHA256):
-            raise ValueError('generated Beta listing or repository icon differs from approved source artwork')
-        index=binary_repo.verify_indexes(generated,profile.repository_certificate,profile)
-        tuples=binary_repo.release_tuples(index,profile)
-        if {(row[0],row[1]) for row in tuples}!={(verified['version_code'],verified['version_name'])}:
-            raise ValueError('generated Beta index does not contain exactly the approved release')
-        state={'schema':1,'channel':profile.name,'latest':verified['tag'],
-            'version_name':verified['version_name'],'version_code':verified['version_code'],
-            'apk_sha256':verified['apk_sha256'],'repository_fingerprint':profile.repository_certificate}
-        (Path(site)/'feed-state.json').write_text(json.dumps(state,sort_keys=True)+'\n')
-        (Path(site)/'CNAME').write_text('repo.collie.im\n')
-        files={p.relative_to(site).as_posix():{'sha256':sha256(p),'bytes':p.stat().st_size}
-               for p in sorted(Path(site).rglob('*')) if p.is_file()}
-        (Path(site)/SITE_INVENTORY).write_text(json.dumps({'schema':1,'kind':'collie-pages-public-inventory',
-            'origin':SITE_ORIGIN,'files':files},sort_keys=True,separators=(',',':'))+'\n')
-        return {'channel':profile.name,'source_commit':verified['source_commit'],'release_id':verified['release_id'],
-            'tag':verified['tag'],'title':verified['title'],'version_name':verified['version_name'],
-            'version_code':verified['version_code'],'apk_sha256':verified['apk_sha256'],
-            'repository_certificate_sha256':profile.repository_certificate,
-            'inventory_sha256':sha256(Path(site)/SITE_INVENTORY)}
-    finally:
-        shutil.rmtree(unpacked,ignore_errors=True)
 
 def channel_repository_config(config,profile):
     """Set F-Droid's signed repo address before update; stable source stays byte-identical."""
@@ -647,7 +434,7 @@ def main():
     for name in ('site', 'apks', 'native', 'native-plan', 'latest', 'fastlane', 'keystore', 'build-tools',
                  'capture-live-site'):
         p.add_argument('--' + name, required=False)
-    p.add_argument('--channel', choices=('stable','trailblazer-beta'), default='stable')
+    p.add_argument('--channel', choices=('stable',), default='stable')
     p.add_argument('--title')
     p.add_argument('--prior-version-code', type=int)
     p.add_argument('--prerelease', action='store_true')
@@ -665,13 +452,6 @@ def main():
                    help='the deploy baseline captured together with --previous-site')
     p.add_argument('--verify-live-site',action='store_true',
                    help='verify the uploaded candidate inventory and both signed routes against Pages')
-    p.add_argument('--release-input-archive',type=Path,
-                   help='independently approved fixed pre-index Beta release input tar')
-    p.add_argument('--release-input-sha256')
-    p.add_argument('--engineering-asset-id',type=int)
-    p.add_argument('--evidence-scratch',type=Path)
-    p.add_argument('--source-checkout',type=Path)
-    p.add_argument('--candidate-receipt',type=Path)
     a = p.parse_args()
     if a.capture_live_site:
         capture_live_site(a.capture_live_site)
@@ -689,21 +469,6 @@ def main():
         raise ValueError('immutable artifact retention is only for a production Stable site build')
     if a.preview and profile.name!='stable':
         raise ValueError('Preview generation supports Stable only')
-    if profile.name=='trailblazer-beta':
-        required_beta=('site','fastlane','keystore','build_tools','release_input_archive','release_input_sha256',
-                       'engineering_asset_id','evidence_scratch','source_checkout')
-        missing=[name for name in required_beta if not getattr(a,name)]
-        if missing:p.error('required for authenticated Beta generation: '+', '.join('--'+x.replace('_','-') for x in missing))
-        if a.latest or a.title or a.prior_version_code is not None or a.apks:
-            p.error('Beta release identity, APK and monotonic floor are derived from verified release inputs')
-        result=build_beta_candidate(a.release_input_archive,a.release_input_sha256,a.engineering_asset_id,
-            a.evidence_scratch,a.source_checkout,a.fastlane,a.keystore,a.build_tools,a.site)
-        result['site_bytes']=sum(item.stat().st_size for item in Path(a.site).rglob('*') if item.is_file())
-        if a.candidate_receipt:
-            with Path(a.candidate_receipt).open('x',encoding='utf-8') as output:
-                output.write(json.dumps(result,sort_keys=True,indent=2)+'\n')
-        print(json.dumps(result,sort_keys=True,indent=2))
-        return
     required=('apks','fastlane','keystore','build_tools')
     if profile.name=='stable':required+=('native','native_plan','latest')
     missing=[name for name in required if not getattr(a,name)]

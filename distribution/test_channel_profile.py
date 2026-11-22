@@ -38,11 +38,6 @@ class ChannelProfileTest(unittest.TestCase):
             self.assertTrue(state['preview'])
             self.assertEqual(state['repository_fingerprint'],'0'*64)
 
-    def test_beta_cannot_bypass_repository_pin_with_preview(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            with self.assertRaisesRegex(ValueError,'Stable only'):
-                self.run_feed_cli(Path(tmp),'0'*64,preview=True,channel='trailblazer-beta')
-
     def test_default_feed_cli_keeps_production_pin_and_active_render(self):
         with tempfile.TemporaryDirectory() as tmp:
             rendered=self.run_feed_cli(Path(tmp),channels.STABLE.repository_certificate)

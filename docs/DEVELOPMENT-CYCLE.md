@@ -79,9 +79,9 @@ The focused Socket/Android pilot and its evidence expectations are documented in
 ## To retire
 
 Retire the historical app-source composer and generated publication commits on
-app `main` (G/I). The Beta feed no longer uses the Beta plan/receipt chain, its
-evidence archive, `beta-feed-candidate.yml` or the app's `beta-readiness.yml`;
-remove them after checking their remaining consumers. Before removing any file under `source/`,
+app `main` (G/I). The retired Beta feed route (`beta-feed-candidate.yml`,
+`beta_evidence.py`, the Beta part of `pages.py` and the app's `beta-readiness.yml`)
+has been removed. Before removing any file under `source/`,
 candidate plans/receipts, or `tools/patches`, identify its current workflow,
 distribution and test consumers; remove only obsolete composition paths in a
 reviewed change.
@@ -89,8 +89,8 @@ reviewed change.
 `migration_receipts.py`, `runtime_receipts.py`, `release_artifacts.py`,
 `preparation_verifier.py`, `stage_preparation.py`, and the active Beta collection,
 signing and publication helpers live in `tools/release`, apart from the historical
-composer in `tools/patches`. `distribution/beta_evidence.py` and
-`distribution/pages.py` still contain the retired Beta verification of this receipt graph. Moving them again must
+composer in `tools/patches`. The Beta producers there served the retired Beta
+route; check their remaining consumers before removing them. Moving them must
 update imports, immutable verifier pins, workflow consumers and tests together;
 the directory name is not a retirement criterion.
 

@@ -2,23 +2,17 @@
 """Build/read back two approved Pages snapshots; never signs or deploys."""
 import argparse
 import hashlib
-import io
 import os
 import json
 from pathlib import Path, PurePosixPath
 import re
 import shutil
 import sys
-import subprocess
 import tarfile
 import tempfile
 import time
-import zipfile
 import urllib.request
-from functools import partial
-from urllib.parse import urlsplit
 import binary_repo as b
-import feed as feed_builder
 import site_page
 import retained_artifacts
 import native_generations
@@ -84,143 +78,6 @@ def public_site_name(name, profile=channels.STABLE):
     if retained_artifacts.generation_archive_path(name):return True
     return bool(re.fullmatch(r'assets/[A-Za-z0-9_.-]+\.(png|svg|css|webp)',name))
 
-def github_read(endpoint):
-    result=subprocess.run(['gh','api','--hostname','github.com','--method','GET',endpoint],
-                          check=True,capture_output=True,text=True,timeout=60)
-    if len(result.stdout)>1024*1024:raise ValueError('GitHub provenance response exceeds limit')
-    return json.loads(result.stdout)
-
-APP_REPOSITORY = '0cwa/collieim-android'
-
-
-class ReadinessRedirect(urllib.request.HTTPRedirectHandler):
-    def __init__(self, archive):
-        self.archive = archive
-
-    def redirect_request(self, req, fp, code, msg, headers, newurl):
-        target = urlsplit(newurl)
-        if (not self.archive or target.scheme != 'https' or not target.hostname
-                or target.username is not None or target.password is not None):
-            return None
-        return super().redirect_request(req, fp, code, msg, headers, newurl)
-
-
-def read_app_actions(endpoint, token, limit, *, archive=False):
-    if not token or not token.strip():
-        raise ValueError('COLLIE_APP_READINESS_TOKEN is required for Beta readiness')
-    prefix = f'repos/{APP_REPOSITORY}/actions/'
-    allowed_path = (r'artifacts/[1-9][0-9]*/zip' if archive else
-                    r'(?:runs/[1-9][0-9]*/attempts/[1-9][0-9]*|artifacts/[1-9][0-9]*)')
-    if not endpoint.startswith(prefix) or not re.fullmatch(allowed_path, endpoint[len(prefix):]):
-        raise ValueError('unexpected Android readiness API endpoint')
-    request = urllib.request.Request(
-        'https://api.github.com/' + endpoint,
-        headers={'Accept': 'application/vnd.github+json', 'User-Agent': 'Collie-Pages-preparer'},
-    )
-    # urllib does not copy unredirected headers to a new request.
-    request.add_unredirected_header('Authorization', 'Bearer ' + token)
-    opener = urllib.request.build_opener(ReadinessRedirect(archive))
-    try:
-        with opener.open(request, timeout=60) as response:
-            contents = response.read(limit + 1)
-    except urllib.error.HTTPError as exc:
-        exc.close()
-        raise ValueError(f'Android readiness request returned HTTP {exc.code}') from None
-    except (OSError, ValueError):
-        raise ValueError('Android readiness request failed') from None
-    if not contents or len(contents) > limit:
-        raise ValueError('Android readiness response is empty or exceeds its byte limit')
-    return contents
-
-
-def github_app_read(endpoint, *, token):
-    return json.loads(read_app_actions(endpoint, token, 1024 * 1024))
-
-
-def github_artifact_bytes(artifact_id, *, token):
-    return read_app_actions(
-        f'repos/{APP_REPOSITORY}/actions/artifacts/{artifact_id}/zip',
-        token, MAX_READINESS_ARTIFACT_BYTES, archive=True,
-    )
-
-
-READINESS_MANIFEST='trailblazer-beta-readiness.json'
-MAX_READINESS_ARTIFACT_BYTES=8*1024*1024
-READINESS_FIELDS={'schema','kind','repository','branch','workflow_path','run_id','run_attempt','head_sha',
-    'package','version_name','version_code','tag','title','apk_asset','source_receipt_sha256',
-    'build_receipt_sha256','release_receipt_sha256','repository_receipt_sha256',
-    'release_manifest_sha256','apk_sha256','apk_certificate_sha256'}
-
-def parse_readiness_archive(archive,approval,artifact_digest):
-    actual=hashlib.sha256(archive).hexdigest()
-    if artifact_digest not in (actual,'sha256:'+actual) or actual!=approval['readiness_artifact_sha256']:
-        raise ValueError('downloaded Beta readiness artifact digest differs')
-    try:
-        with zipfile.ZipFile(io.BytesIO(archive)) as zf:
-            infos=zf.infolist()
-            if len(infos)!=1 or infos[0].filename!=READINESS_MANIFEST or infos[0].file_size>64*1024:
-                raise ValueError('Beta readiness artifact must contain only the fixed manifest')
-            mode=(infos[0].external_attr >> 16) & 0o170000
-            if mode not in (0,0o100000):raise ValueError('Beta readiness manifest must be a regular file')
-            raw=zf.read(infos[0])
-    except (zipfile.BadZipFile,RuntimeError,OSError) as exc:
-        raise ValueError('invalid Beta readiness artifact archive') from exc
-    def unique(pairs):
-        values={}
-        for key,value in pairs:
-            if key in values:raise ValueError('duplicate readiness manifest field')
-            values[key]=value
-        return values
-    try: manifest=json.loads(raw.decode('utf-8'),object_pairs_hook=unique)
-    except (json.JSONDecodeError,UnicodeDecodeError) as exc:raise ValueError('invalid Beta readiness manifest JSON') from exc
-    if not isinstance(manifest,dict) or set(manifest)!=READINESS_FIELDS:raise ValueError('Beta readiness manifest fields/schema')
-    if (type(manifest['schema']) is not int or manifest['schema']!=1 or manifest['kind']!='collie-trailblazer-readiness' or
-        manifest['repository']!='0cwa/collieim-android' or manifest['branch']!=channels.BETA.source_branch or
-        manifest['workflow_path']!=channels.BETA.readiness_workflow or
-        type(manifest['run_id']) is not int or type(manifest['run_attempt']) is not int or
-        manifest['run_id']!=approval['readiness_run_id'] or manifest['run_attempt']!=approval['readiness_attempt'] or
-        not re.fullmatch('[0-9a-f]{40}',manifest['head_sha']) or manifest['head_sha']!=approval['source_commit']):
-        raise ValueError('Beta readiness manifest provenance differs')
-    for key in ('source_receipt_sha256','build_receipt_sha256','release_receipt_sha256','repository_receipt_sha256',
-                'release_manifest_sha256','apk_sha256','apk_certificate_sha256'):
-        if not isinstance(manifest[key],str) or not re.fullmatch('[0-9a-f]{64}',manifest[key]):
-            raise ValueError('invalid readiness digest '+key)
-    if type(manifest['version_code']) is not int or manifest['version_code']<=0:
-        raise ValueError('invalid readiness version code')
-    for key in ('package','version_name','tag','title','apk_asset'):
-        if not isinstance(manifest[key],str) or not manifest[key] or len(manifest[key])>256:
-            raise ValueError('invalid readiness identity '+key)
-    return manifest
-
-def validate_beta_provenance(approval,profile=channels.BETA,api=None,download=None,*,readiness_token=None):
-    if api is None:api=partial(github_app_read,token=readiness_token)
-    if (approval.get('source_branch')!=profile.source_branch or approval.get('readiness_workflow')!=profile.readiness_workflow or
-        type(approval.get('readiness_run_id')) is not int or approval['readiness_run_id']<=0 or
-        type(approval.get('readiness_attempt')) is not int or approval['readiness_attempt']<=0 or
-        type(approval.get('readiness_artifact_id')) is not int or approval['readiness_artifact_id']<=0 or
-        not re.fullmatch('[0-9a-f]{64}',approval.get('readiness_artifact_sha256','')) or
-        not re.fullmatch('[0-9a-f]{40}',approval.get('source_commit','')) or
-        approval.get('readiness_commit')!=approval.get('source_commit')):
-        raise ValueError('exact allowlisted Beta source and successful readiness provenance required')
-    repository=APP_REPOSITORY;run_id=approval['readiness_run_id'];attempt=approval['readiness_attempt']
-    run=api(f'repos/{repository}/actions/runs/{run_id}/attempts/{attempt}')
-    if (run.get('id')!=run_id or run.get('run_attempt')!=attempt or run.get('head_repository',{}).get('full_name')!=repository or
-        run.get('head_branch')!=profile.source_branch or run.get('head_sha')!=approval['source_commit'] or
-        run.get('path')!=profile.readiness_workflow or run.get('status')!='completed' or run.get('conclusion')!='success' or
-        run.get('event') not in ('push','workflow_dispatch')):
-        raise ValueError('authoritative GitHub Beta readiness run differs')
-    artifact=api(f"repos/{repository}/actions/artifacts/{approval['readiness_artifact_id']}")
-    if (artifact.get('id')!=approval['readiness_artifact_id'] or
-        artifact.get('name')!=f'trailblazer-beta-readiness-{run_id}-{attempt}' or
-        artifact.get('expired') is not False or artifact.get('workflow_run',{}).get('id')!=run_id or
-        type(artifact.get('size_in_bytes')) is not int or not 0<artifact['size_in_bytes']<=MAX_READINESS_ARTIFACT_BYTES or
-        artifact.get('digest') not in (approval['readiness_artifact_sha256'],'sha256:'+approval['readiness_artifact_sha256'])):
-        raise ValueError('authoritative GitHub Beta readiness artifact differs')
-    if download is None:download=partial(github_artifact_bytes,token=readiness_token)
-    contents=download(approval['readiness_artifact_id'])
-    if len(contents)!=artifact['size_in_bytes']:raise ValueError('downloaded Beta readiness artifact size differs')
-    return parse_readiness_archive(contents,approval,artifact['digest'])
-
 def immutable(name):
     return retained_artifacts.immutable_public_path(name)
 
@@ -247,20 +104,15 @@ def archive(site,output,manifest):
             if h.hexdigest()!=expected['sha256']:raise ValueError('artifact changed during archiving')
     return {'sha256':b.sha(output),'bytes':output.stat().st_size}
 
-def prepare(bundle,output,expected_policy,expected_channel=None,profile_override=None,*,readiness_token=None):
+def prepare(bundle,output,expected_policy,expected_channel=None,profile_override=None):
     a=b.load(bundle/'approval.json')
     channel=a.get('channel','stable')
     if expected_channel is not None and channel!=expected_channel:raise ValueError('approval channel differs from selected channel')
-    if channel not in ('stable','trailblazer-beta'):raise ValueError('unknown distribution channel')
-    profile=profile_override or (channels.STABLE if channel=='stable' else channels.BETA)
+    if channel!='stable':raise ValueError('unknown distribution channel')
+    profile=profile_override or channels.STABLE
     if profile.name!=channel:raise ValueError('selected channel profile differs from approval')
-    if profile.name=='trailblazer-beta':
-        channels.require_trusted(profile)
-        channels.require_apk_trusted(profile)
     native_only=a.get('kind')=='collie-pages-native-input'
     fields={'schema','kind','origin','previous_site_sha256','previous_manifest_sha256','candidate_generation_sha256','repository_certificate_sha256','repository_receipt_sha256','release_approvals','landing_sha256','maximum_bytes','policy_revision'}
-    if channel=='trailblazer-beta':
-        fields.update({'channel','source_branch','source_commit','readiness_workflow','readiness_run_id','readiness_attempt','readiness_artifact_id','readiness_artifact_sha256','readiness_commit'})
     if native_only:fields={'schema','kind','origin','previous_site_sha256','previous_manifest_sha256','native_manifest_sha256','maximum_bytes','policy_revision'}
     elif a.get('schema')==2 and profile.name=='stable':fields.add('native_manifest_sha256')
     elif a.get('schema')==2 and 'native_manifest_sha256' in a:fields.add('native_manifest_sha256')
@@ -269,10 +121,6 @@ def prepare(bundle,output,expected_policy,expected_channel=None,profile_override
     allowed_schema=(1,) if native_only else ((1,2) if profile.name=='stable' else (2,))
     if set(a)!=fields or type(a['schema']) is not int or a['schema'] not in allowed_schema or a['kind'] not in ('collie-pages-input','collie-pages-native-input'):raise ValueError('Pages input fields/schema')
     if a['origin']!=ORIGIN or a['policy_revision']!=expected_policy or not re.fullmatch('[0-9a-f]{40}',expected_policy):raise ValueError('origin/policy approval differs')
-    if profile.name=='trailblazer-beta' and (profile.source_branch!='trailblazer-beta' or not profile.readiness_workflow):raise ValueError('Beta source readiness profile is not configured')
-    readiness=None
-    if profile.name=='trailblazer-beta':
-        readiness=validate_beta_provenance(a,profile,readiness_token=readiness_token)
     if type(a['maximum_bytes']) is not int or not 0<a['maximum_bytes']<=MAX_BYTES:raise ValueError('Pages budget')
     if a['previous_manifest_sha256'] is not None and not re.fullmatch('[0-9a-f]{64}',a['previous_manifest_sha256']):raise ValueError('previous manifest digest')
     keys=('previous_site_sha256',) if native_only else ('previous_site_sha256','candidate_generation_sha256','repository_certificate_sha256','repository_receipt_sha256','landing_sha256')
@@ -280,8 +128,6 @@ def prepare(bundle,output,expected_policy,expected_channel=None,profile_override
         if not re.fullmatch('[0-9a-f]{64}',a[key]):raise ValueError('Pages digest '+key)
     old=bundle/'previous';candidate=bundle/'candidate';landing=bundle/'landing'
     old_files=inventory(old);landing_files={} if native_only else inventory(landing)
-    if profile.name=='trailblazer-beta' and any(name.startswith('fdroid/beta/repo/') for name in old_files) and 'fdroid/beta/repo/entry.jar' not in old_files:
-        raise ValueError('previous Beta feed lacks its signed entry index')
     pinned_native=native_files()
     supplied_native=inventory(bundle/'native')
     native_digest=a.get('native_manifest_sha256')
@@ -329,23 +175,12 @@ def prepare(bundle,output,expected_policy,expected_channel=None,profile_override
         if (old/'index.html').is_file() and site_page.has_add_link((old/'index.html').read_text(),ORIGIN) and not site_page.has_add_link(text,ORIGIN):raise ValueError('an active repository landing must remain active during updates')
         if a['repository_certificate_sha256'].upper() not in text or profile.apk_certificate.upper() not in text:raise ValueError('landing fingerprints differ')
         if not isinstance(a['release_approvals'],list) or not a['release_approvals']:raise ValueError('release approvals missing')
-        approvals=[];approved_records=[]
+        approvals=[]
         for name in a['release_approvals']:
             if not re.fullmatch(r'[A-Za-z0-9_-]+\.json',name):raise ValueError('release approval filename')
             path=bundle/'releases'/name;approval=b.approval(path,profile)
-            if profile.name=='trailblazer-beta' and approval['schema']!=2:raise ValueError('Beta publication requires schema2 receipt graph')
-            release=b.verify_release_approval(approval,bundle/'bundles'/str(approval['release_id']) if approval['schema']==2 else None,profile)
-            approvals.append(path);approved_records.append((approval,release))
-        if profile.name=='trailblazer-beta':
-            if not approved_records or any(a['tag']!=profile.tag_prefix+a['version_name'] or
-                a['version_code']<=0 or a['package']!=profile.package for a,_ in approved_records):
-                raise ValueError('Beta release approval channel identity differs')
-            if readiness is not None and len(approved_records)==1:
-                feed_builder.validate_release_identity(profile,approved_records[0][0]['tag'],readiness['title'],
-                    approved_records[0][0]['version_name'],approved_records[0][0]['version_code'])
-            if any(release is not None and release['payload']['source_commit']!=a['source_commit']
-                   for approval,release in approved_records):
-                raise ValueError('Beta readiness source commit differs from release receipt')
+            b.verify_release_approval(approval,bundle/'bundles'/str(approval['release_id']) if approval['schema']==2 else None,profile)
+            approvals.append(path)
         _,data=b.approved_generation(candidate,a['repository_certificate_sha256'],a['candidate_generation_sha256'],approvals,profile)
         repo_path='fdroid/repo' if profile.name=='stable' else 'fdroid/beta/repo'
         expected_address=profile.repository_url.rstrip('/')
@@ -360,41 +195,6 @@ def prepare(bundle,output,expected_policy,expected_channel=None,profile_override
         if payload['generation']!=a['candidate_generation_sha256'] or payload['repository_certificate_sha256']!=a['repository_certificate_sha256']:raise ValueError('repository receipt identity differs')
         selected=[b.approval(p,profile) for p in approvals]
         if not any(x['apk_sha256']==payload['apk_sha256'] and x['apk_certificate_sha256']==payload['apk_certificate_sha256'] and x['release_manifest_sha256']==payload['release_manifest_sha256'] and x.get('release_receipt_sha256')==payload['release_receipt_sha256'] for x in selected):raise ValueError('repository receipt release differs')
-        if profile.name=='trailblazer-beta':
-            if len(selected)!=1 or readiness is None:raise ValueError('Beta readiness must bind exactly one schema2 release')
-            release_bundle=bundle/'bundles'/str(selected[0]['release_id'])
-            graph={kind:receipts.load(release_bundle/(kind+'.json'),kind,profile=profile.name)
-                   for kind in ('source','build','release')}
-            repository_digest=a['repository_receipt_sha256']
-            receipts.verify_graph(**graph,repository=receipt,
-                approved={**selected[0]['receipt_approvals'],'repository':repository_digest},
-                promotion=True,profile=profile.name,repository_stage='prepublication')
-            source_payload=graph['source']['payload'];release_payload=graph['release']['payload']
-            expected_readiness={
-                'package':profile.package,'version_name':release_payload['version_name'],
-                'version_code':release_payload['version_code'],
-                'tag':profile.tag_prefix+release_payload['version_name'],
-                'title':profile.app_title+' '+release_payload['version_name'],
-                'apk_asset':profile.apk_asset,
-                'source_receipt_sha256':selected[0]['receipt_approvals']['source'],
-                'build_receipt_sha256':selected[0]['receipt_approvals']['build'],
-                'release_receipt_sha256':selected[0]['receipt_approvals']['release'],
-                'repository_receipt_sha256':repository_digest,
-                'release_manifest_sha256':release_payload['release_manifest_sha256'],
-                'apk_sha256':release_payload['apk_sha256'],
-                'apk_certificate_sha256':release_payload['apk_certificate_sha256']}
-            if any(readiness.get(k)!=v for k,v in expected_readiness.items()):
-                raise ValueError('Beta readiness manifest release/receipt identity differs')
-            if source_payload['published_commit']!=a['source_commit'] or release_payload['source_commit']!=a['source_commit']:
-                raise ValueError('Beta source commit differs from full receipt graph')
-            apk_path=candidate/f"{profile.package}_{release_payload['version_code']}.apk"
-            if not apk_path.is_file() or b.sha(apk_path)!=readiness['apk_sha256']:
-                raise ValueError('Beta readiness APK bytes differ from candidate bundle')
-            if previous_data is not None:
-                previous_codes=[item[0] for item in b.release_tuples(previous_data,profile)]
-                candidate_codes=[item[0] for item in b.release_tuples(data,profile)]
-                if not candidate_codes or (previous_codes and min(candidate_codes)<=max(previous_codes)):
-                    raise ValueError('Beta versionCode must exceed verified previous signed index')
         for entry in payload['indexes']:
             if b.sha(candidate/entry['file'])!=entry['sha256']:raise ValueError('repository receipt index differs')
         candidate_files=inventory(candidate)
@@ -815,15 +615,13 @@ def unpack(archive_path,destination):
 
 def main():
     p=argparse.ArgumentParser();s=p.add_subparsers(dest='cmd',required=True)
-    a=s.add_parser('prepare');a.add_argument('bundle',type=Path);a.add_argument('output',type=Path);a.add_argument('--policy',required=True);a.add_argument('--channel',choices=('stable','trailblazer-beta'),default='stable')
-    a=s.add_parser('preflight');a.add_argument('plan',type=Path);a.add_argument('journal',type=Path);a.add_argument('--channel',choices=('stable','trailblazer-beta'),default='stable')
-    a=s.add_parser('readback');a.add_argument('plan',type=Path);a.add_argument('journal',type=Path);a.add_argument('--phase',choices=['phase1','phase2'],required=True);a.add_argument('--channel',choices=('stable','trailblazer-beta'),default='stable')
+    a=s.add_parser('prepare');a.add_argument('bundle',type=Path);a.add_argument('output',type=Path);a.add_argument('--policy',required=True);a.add_argument('--channel',choices=('stable',),default='stable')
+    a=s.add_parser('preflight');a.add_argument('plan',type=Path);a.add_argument('journal',type=Path);a.add_argument('--channel',choices=('stable',),default='stable')
+    a=s.add_parser('readback');a.add_argument('plan',type=Path);a.add_argument('journal',type=Path);a.add_argument('--phase',choices=['phase1','phase2'],required=True);a.add_argument('--channel',choices=('stable',),default='stable')
     a=s.add_parser('unpack');a.add_argument('archive',type=Path);a.add_argument('destination',type=Path)
     args=p.parse_args()
-    readiness_token = os.environ.pop('COLLIE_APP_READINESS_TOKEN', None)
     if args.cmd=='prepare':
-        print(json.dumps(prepare(args.bundle,args.output,args.policy,args.channel,
-                                 readiness_token=readiness_token)['artifacts'],indent=2))
+        print(json.dumps(prepare(args.bundle,args.output,args.policy,args.channel)['artifacts'],indent=2))
     elif args.cmd=='preflight':print(json.dumps(preflight(b.load(args.plan),args.journal,expected_channel=args.channel),indent=2))
     elif args.cmd=='readback':
         guard_id = os.environ.get('COLLIE_DEPLOYED_GUARD_ID')
