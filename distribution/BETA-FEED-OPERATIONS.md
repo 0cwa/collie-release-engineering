@@ -33,7 +33,7 @@ already at that path. Archive creation below sets the required member permission
 without changing the local files:
 
 ```sh
-python3 tools/patches/stage_preparation.py \
+python3 tools/release/stage_preparation.py \
   --channel trailblazer-beta \
   --release-plan <approved-release-plan.json> \
   --approved-release-plan-sha256 <approved-raw-plan-sha256> \

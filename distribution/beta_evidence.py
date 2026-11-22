@@ -17,7 +17,7 @@ import binary_repo as binary
 import channel_profile as channels
 import pages
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'tools' / 'patches'))
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'tools' / 'release'))
 import migration_receipts as receipts
 import release_artifacts as artifacts
 import release_publish

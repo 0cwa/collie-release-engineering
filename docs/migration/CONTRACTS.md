@@ -6,7 +6,7 @@ reviewed source, Gradle/native recipes, tests, BUILD and Git-only VERIFY.
 Engineering owns reconstruction, receipts, upstream synchronization, release
 controls and binary repository infrastructure. Keep old route until cutover.
 
-The strict `tools/patches/migration_receipts.py` parser defines schema2 source,
+The strict `tools/release/migration_receipts.py` parser defines schema2 source,
 build, release and repository receipts; JSON schema is included beside this file.
 Envelope: schema, kind, payload, evidence. Unknown or duplicate fields fail.
 `digest` hashes canonical JSON (sorted keys, compact ASCII UTF8) rather than file
@@ -53,7 +53,7 @@ Production index key provisioning, DNS and publication require separate approval
 
 ## Executable graph verification
 
-Use `python3 tools/patches/migration_receipts.py --source source.json --build
+Use `python3 tools/release/migration_receipts.py --source source.json --build
 build.json --release release.json --repository repository.json --approvals
 approved-digests.json` to compare all four canonical document digests with
 independently authenticated approvals and check every cross-document link.

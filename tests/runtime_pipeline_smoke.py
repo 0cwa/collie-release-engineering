@@ -19,7 +19,7 @@ import sys
 import types
 from unittest.mock import patch
 
-ROOT=Path(__file__).parents[1];sys.path.insert(0,str(ROOT/'tools/patches'))
+ROOT=Path(__file__).parents[1];sys.path.insert(0,str(ROOT/'tools/release'))
 import release_artifacts as a
 import release_collect as collect
 import release_sign as sign
@@ -135,7 +135,7 @@ for name,doc in [('source.json',source_receipt),('build.json',b),('release.json'
 results.append('PASS same canonical source/build/release graph exported for existing distribution ingestion')
 if args.distribution_repo:
  path=args.distribution_repo.resolve()/'distribution/binary_repo.py'
- assert (args.distribution_repo.resolve()/'tools/patches/migration_receipts.py').read_bytes()==(ROOT/'tools/patches/migration_receipts.py').read_bytes(), 'combined deployment must use the same exact receipt verifier'
+ assert (args.distribution_repo.resolve()/'tools/release/migration_receipts.py').read_bytes()==(ROOT/'tools/release/migration_receipts.py').read_bytes(), 'combined deployment must use the same exact receipt verifier'
  spec=importlib.util.spec_from_file_location('fixture_binary_repo',path);binary_repo=importlib.util.module_from_spec(spec);spec.loader.exec_module(binary_repo)
  bundle=root/'published-bundle';bundle.mkdir()
  for name in ('source.json','build.json','release.json'):(bundle/name).write_bytes(remote['assets'][name])

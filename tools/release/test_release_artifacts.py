@@ -66,9 +66,12 @@ class ReleaseArtifactsTests(unittest.TestCase):
         self.assertIn('VERSION_CODE: ${{ inputs.version_code }}', step)
         commands = [line.strip() for line in step.splitlines() if 'a.validate_version_code(' in line]
         self.assertEqual(len(commands), 1)
+        # The archived workflow predates the move of the release helpers to tools/release.
+        self.assertIn('sys.path.insert(0,"tools/patches")', commands[0])
+        command = commands[0].replace('sys.path.insert(0,"tools/patches")', 'sys.path.insert(0,"tools/release")')
         for code, expected in (('177203', False), ('177204', True), ('invalid', False)):
             with self.subTest(code=code):
-                run = subprocess.run(['bash', '-e', '-c', commands[0]], cwd=root,
+                run = subprocess.run(['bash', '-e', '-c', command], cwd=root,
                                      env=dict(os.environ, VERSION_CODE=code), capture_output=True, text=True)
                 self.assertEqual(run.returncode == 0, expected, run.stderr)
 

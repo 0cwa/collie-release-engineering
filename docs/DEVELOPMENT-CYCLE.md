@@ -85,13 +85,13 @@ candidate plans/receipts, or `tools/patches`, identify its current workflow,
 distribution and test consumers; remove only obsolete composition paths in a
 reviewed change.
 
-Keep `migration_receipts.py`, `runtime_receipts.py`, `release_artifacts.py`,
+`migration_receipts.py`, `runtime_receipts.py`, `release_artifacts.py`,
 `preparation_verifier.py`, `stage_preparation.py`, and the active Beta collection,
-signing and publication helpers in `tools/patches` while their consumers remain.
-`distribution/beta_evidence.py` and `distribution/pages.py` still verify this
-receipt graph. A future relocation must update imports, immutable verifier pins,
-workflow consumers and tests together; the directory name is not a retirement
-criterion.
+signing and publication helpers live in `tools/release`, apart from the historical
+composer in `tools/patches`. `distribution/beta_evidence.py` and
+`distribution/pages.py` still verify this receipt graph. Moving them again must
+update imports, immutable verifier pins, workflow consumers and tests together;
+the directory name is not a retirement criterion.
 
 Keep native-input delivery (`repo.collie.im/native-inputs`) and Pages/F-Droid
 publishing; `pages-release.yml` stays until native files have another publishing

@@ -9,7 +9,7 @@ import tempfile
 import types
 import unittest
 from unittest.mock import patch
-sys.path.insert(0,str(Path(__file__).parents[1]/'tools/patches'))
+sys.path.insert(0,str(Path(__file__).parents[1]/'tools/release'))
 import release_artifacts as a
 import release_publish as m
 from test_release_plan_support import legacy_args

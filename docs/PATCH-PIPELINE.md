@@ -776,7 +776,7 @@ as `MOLLY_KEYSTORE`, `MOLLY_KEY_ALIAS`, and, optionally,
    Use the manifest's pinned Android SDK build-tools directory and run:
 
    ```sh
-   python3 tools/patches/release_sign.py \
+   python3 tools/release/release_sign.py \
      --manifest unsigned/manifest.json --manifest-sha256 MANIFEST_SHA256 \
      --approved-commit COMMIT --approved-run RUN_ID --certificate-sha256 CERT_SHA256 \
      --apks unsigned --output signed --build-tools "$ANDROID_HOME/build-tools/VERSION" --scratch SCRATCH \
@@ -811,7 +811,7 @@ as `MOLLY_KEYSTORE`, `MOLLY_KEY_ALIAS`, and, optionally,
    every asset and compares its bytes with the approved digests.
 
    ```sh
-   python3 tools/patches/release_publish.py draft --repo OWNER/REPO --tag vVERSION \
+   python3 tools/release/release_publish.py draft --repo OWNER/REPO --tag vVERSION \
      --approved-commit COMMIT --final-manifest signed/final-manifest.json \
      --final-manifest-sha256 FINAL_MANIFEST_SHA256 --provenance unsigned/manifest.json \
      --notes RELEASE_NOTES --scratch SCRATCH --signing-key SSH_PRIVATE_KEY \

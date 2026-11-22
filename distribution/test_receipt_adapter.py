@@ -3,7 +3,7 @@ import contextlib,copy,io,json,runpy,sys,tempfile,unittest
 from pathlib import Path
 from unittest.mock import patch
 import binary_repo as b
-sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'tools'/'patches'))
+sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'tools'/'release'))
 import migration_receipts as m
 
 class ReceiptAdapterTest(unittest.TestCase):
