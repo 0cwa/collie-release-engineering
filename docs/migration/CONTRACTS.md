@@ -1,90 +1,57 @@
-# Versioned handoffs and ownership
+# Retained receipt contracts
 
-Keep one canonical Collie artifact with optional FCM; all five filenames are
-byte aliases. No additional product profiles are introduced. Application owns
-reviewed source, Gradle/native recipes, tests, BUILD and Git-only VERIFY.
-Engineering owns reconstruction, receipts, upstream synchronization, release
-controls and binary repository infrastructure. Keep old route until cutover.
+The receipt helpers and fixtures remain for historical verification and existing
+distribution imports. Current release procedures are in the
+[development cycle](../DEVELOPMENT-CYCLE.md#releases),
+[Stable feed inputs](../../distribution/RELEASE-INPUTS.md) and
+[TrailBlazer Beta feed](../../distribution/BETA-FEED-OPERATIONS.md).
+The current Beta feed does not use the retired receipt/readiness route.
 
-The strict `tools/release/migration_receipts.py` parser defines schema2 source,
-build, release and repository receipts; JSON schema is included beside this file.
-Envelope: schema, kind, payload, evidence. Unknown or duplicate fields fail.
-`digest` hashes canonical JSON (sorted keys, compact ASCII UTF8) rather than file
-whitespace. Evidence PASS requires an evidence SHA256, but is still a claim until
-that evidence is independently checked. UNKNOWN/NOT RUN are never success.
-These unsigned documents are not signed attestations.
+## Receipt verification
 
-Source receipts bind authentic upstream, generator/verifier/engineering revisions,
-ordered layer digests, reconstructed tree, ordered overlay digests and final G/tree.
-G never contains its own receipt/hash. Build receipts bind the source receipt,
-G/tree, recipe, toolchain/dependency/native digests, unsigned APK and declared
-trust level. Release receipts separately bind source/engineering/workflow IDs,
-build/source receipts, package/version, signed bytes and APK signer, all five
-aliases. Repository receipts bind the approved release digest, exact APK, index
-signer (distinct from APK signer), fdroidserver/metadata versions and index hashes.
+[`migration_receipts.py`](../../tools/release/migration_receipts.py) defines and
+validates the source, build, release and repository receipt contracts. Its parser
+rejects unknown, missing and duplicate fields. The `stable` profile is the default;
+`--channel trailblazer-beta` selects the retained Beta identity contract.
 
-`release_artifacts.validate_manifest` keeps schema1 equality semantics intact;
-schema2 requires independently supplied source_commit, engineering_revision and
-workflow_revision approvals. Do not infer approvals from candidate contents.
-The historical adapter reports missing source/build receipts as UNKNOWN.
+Receipt identities use canonical JSON digests. `release_manifest_sha256` instead
+binds the exact raw final-manifest bytes; `release_receipt_sha256` binds the
+canonical release receipt. The verifier checks independently approved digests and
+cross-document links. A digest supplied by a candidate is not approval.
 
-## Version reservation and local operator migration
+```sh
+python3 tools/release/migration_receipts.py \
+  --source source.json --build build.json --release release.json \
+  --repository repository.json --approvals approved-digests.json
+```
 
-Production signing and actual own-repository publishing now require
-`--version-ledger`, `--published-inventory`, and
-`--published-inventory-sha256`. Rehearsal and publish dry-run remain available.
-The inventory is a freshly reviewed JSON list of {release, code, sha256}; obtain
-codes and bytes from actual published APKs, not tag arithmetic. Authenticate its
-SHA256 outside the candidate. Keep one durable ledger on the signing host; all
-sign/promote commands MUST use the same ledger/lock. This is not a distributed
-lock. Do not enable another publisher without a shared serialization mechanism.
+`--promotion` requires completed evidence. The retained Beta prepublication mode
+also requires `--repository-stage prepublication`: signed-index and client checks
+must pass, while production HTTPS read-back remains `NOT RUN` until publication.
+These unsigned receipts establish document consistency; operators still verify
+the linked evidence. A historical import preserves missing evidence as `UNKNOWN`.
 
-Reservations bind version_name, code and unsigned-manifest digest, under flock,
-atomic replace and fsync. Publish binds that reservation to signed bytes and
-rejects substitution. New signing/promoting must exceed RC1 code177702 and all
-inventory/reservation codes. Failed signing retains its reservation; resume exact
-inputs. An already published RC1 feed ingestion preserves code/bytes and does
-not go through new-release signing. Historical parsers retain RC3 semantics.
+## Retained runtime adapters
 
-Operator rollback: retain old main, tag, APK and signer; revert preparatory code
-if necessary, retaining ledger/evidence and never reusing allocated codes. Do not
-merge cutover until reviewed engineering refs are durable and G/I/base are pinned.
-Production index key provisioning, DNS and publication require separate approval.
+[`runtime_receipts.py`](../../tools/release/runtime_receipts.py) adapts the
+collector, signer and publisher in `tools/release`. Plans explicitly select
+`legacy` or `new-source`; missing receipts never select legacy automatically.
+Plan approval binds raw bytes, while source/build/release approvals bind canonical
+receipt digests. Approvals are obtained outside the candidate.
 
-## Executable graph verification
+Production new-source collection verifies the checkout and invokes the pinned
+[`preparation_verifier.py`](../../tools/release/preparation_verifier.py). The
+operator selects the baseline before preparation, then reviews the actual project
+log and changelog before approving the build receipt. Signing preserves version
+reservations, and publication retries require the same approved bytes. Use the
+helpers' `--help` for their arguments.
 
-Use `python3 tools/release/migration_receipts.py --source source.json --build
-build.json --release release.json --repository repository.json --approvals
-approved-digests.json` to compare all four canonical document digests with
-independently authenticated approvals and check every cross-document link.
-The approval document has exactly source, build, release, repository SHA256s;
-never calculate approval from a candidate and present that as authorization.
-Source commit/tree, engineering revision, APK digest and APK signer must agree
-throughout the graph. Shape-valid replacement documents fail these checks.
+## Fixtures
 
-Add `--promotion` for a promotion decision: every receipt must have nonempty
-PASS evidence with digests. UNKNOWN/NOT RUN/BLOCKED/FAIL cannot promote. This
-verifies document consistency, not truth of evidence or signer attestations;
-operators still inspect/authenticate linked evidence and approve immutable
-inputs. Synthetic graph fixtures deliberately contain UNKNOWN evidence and
-therefore fail promotion. Historical RC1 remains importable, not upgraded into
-a complete new evidence chain.
-
-Current non-rehearsal signing requires explicit single-collie mode before any
-key access. Own-repository publishing requires the same mode before any GitHub
-mutation, including dry-run validation. Historical five-profile parsing and
-rehearsal remain available for verification; production cannot select them.
-
-## Distinct raw and canonical release bindings
-
-`release.payload.release_manifest_sha256` and
-`repository.payload.release_manifest_sha256` both mean SHA256 of exact raw
-final-manifest.json bytes. `repository.payload.release_receipt_sha256` means
-canonical `migration_receipts.digest(release-v2)` and is separately bound. Never
-interpret a raw-file digest as a canonical receipt identity. A legacy repository
-receipt explicitly uses null canonical receipt identity, parses as legacy-only
-evidence, and cannot pass full graph promotion. `verify_release_inputs` consumes
-externally approved source/build/release receipt digests plus the raw manifest
-digest before new-schema binary ingestion. Historical RC1 schema1 remains readable
-without manufacturing source/build evidence. Draft-v2 schema fixtures were
-amended before production use; no old signed release is changed.
+[`fixtures/`](fixtures/) contains historical RC1 manifest/provenance inputs and
+synthetic receipt graphs used by
+[`test_migration_receipts.py`](../../tools/release/test_migration_receipts.py).
+Synthetic graphs deliberately contain `UNKNOWN` evidence and fail promotion. The optional
+[`runtime_pipeline_smoke.py`](../../tests/runtime_pipeline_smoke.py) exercises the
+retained adapters with a disposable fixture APK and key; it does not build Collie
+or publish a production release.

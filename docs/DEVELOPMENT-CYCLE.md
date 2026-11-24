@@ -6,7 +6,7 @@ Decided 2026-11-10. Where this conflicts with older docs here or with app `docs/
 
 - App `main` (`0cwa/collieim-android`) is the source. Change app code directly in ordinary PRs; do not re-import app changes as engineering layers.
 - Every non-merge app commit carries one `Layer: <feature>` trailer (lowercase, hyphens), e.g. `Layer: collie-branding`. The app `pr.yml` check enforces it.
-- Required app PR checks: fast lint and `Layer:` trailers. Unit tests and a debug APK build run on every PR but are not required.
+- Required app PR checks: fast lint and `Layer:` trailers. The app workflow also runs unit tests, an unsigned production build and the aggregate `Security readiness` check.
 - `main` in both repos: PRs only, required checks green, signed commits, no force pushes, no required human review. Agents merge with `gh pr merge`.
 
 ## Merging PRs
@@ -76,26 +76,17 @@ TrailBlazer Beta product have different purposes and publication routes.
 
 The focused Socket/Android pilot and its evidence expectations are documented in [SECURITY-FUZZING.md](SECURITY-FUZZING.md). It is a development and release confidence measure; it does not change release approval or branch enforcement.
 
-## To retire
+## Retained compatibility tools
 
-Retire generated publication commits on app `main` (G/I). The historical
-app-source composer (`tools/patches`, `molly-build.json`) was removed on
-2026-11-22, after the first upstream-merge upgrade (`v8.36.3-1-rc2`) shipped as a
-full release; its `patches/molly`, `patches/ports` and `patches/forks` forest is
-kept byte-for-byte under `archive/patch-forest`. [archive/README.md](../archive/README.md)
-names the last commit with the composer and how to reproduce a patch-built
-release from it. The retired Beta feed route (`beta-feed-candidate.yml`,
-`beta_evidence.py`, the Beta part of `pages.py` and the app's `beta-readiness.yml`)
-has been removed. Before removing candidate plans/receipts or other tools,
-identify their current workflow, distribution and test consumers; remove only
-obsolete paths in a reviewed change.
+The historical app-source composer and patch forest are documented in
+[archive/README.md](../archive/README.md). Use that pinned history only to
+reproduce patch-built releases.
 
-`migration_receipts.py`, `runtime_receipts.py`, `release_artifacts.py`,
-`preparation_verifier.py`, `stage_preparation.py`, and the active Beta collection,
-signing and publication helpers live in `tools/release`. The Beta producers
-there served the retired Beta route; check their remaining consumers before removing them. Moving them must
-update imports, immutable verifier pins, workflow consumers and tests together;
-the directory name is not a retirement criterion.
+Receipt adapters and release helpers remain in `tools/release`; their presence
+is not a current release procedure. See the [compatibility contracts](migration/CONTRACTS.md)
+and the release runbooks above. Before removing or moving them, check workflow,
+distribution, test and immutable-verifier consumers and update those consumers
+together.
 
 Keep native-input delivery (`repo.collie.im/native-inputs`) and Pages/F-Droid
 publishing; `pages-release.yml` stays until native files have another publishing

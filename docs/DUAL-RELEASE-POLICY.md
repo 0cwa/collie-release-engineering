@@ -3,7 +3,7 @@
 This is the maintained policy for the Android app, release engineering and
 CollieSocket repositories. [DEVELOPMENT-CYCLE.md](DEVELOPMENT-CYCLE.md) governs
 ordinary changes. Engineering owns distribution and release evidence; app source
-changes go through app PRs. Ruleset requests in this change are proposals for a
+changes go through app PRs. The ruleset requests below are proposals for a
 separately reviewed administration change, not live repository settings.
 
 ## Two products, with a separate publication stage
@@ -25,23 +25,19 @@ Each feed uses its own default F-Droid channel (`releaseChannels` absent or empt
 Changing product requires a deliberate installation choice; an in-app channel
 toggle must not substitute one package or signer for the other.
 
-When a Stable prerelease and a TrailBlazer Beta ship together (decided
-2026-11-21), the Stable `v<version>` release keeps its five Stable APKs and
-`publication.json` and also carries the signed Beta APK as `collie-beta.apk`.
+When a Stable prerelease and a TrailBlazer Beta ship together, the Stable
+`v<version>` release keeps its five Stable APKs and `publication.json` and also
+carries the signed Beta APK as `collie-beta.apk`.
 The separate `trailblazer-v<version>` release with `trailblazer-beta.apk` may
 still exist. `collie-beta.apk` is a convenience copy: it stays Beta-signed,
 keeps package `im.collie.app.trailblazer` and the Beta version-code history, and
 does not make the Stable release a Beta release or put Beta in the Stable feed.
-The app's `tooling/release/publication.py`
-([app #224](https://github.com/0cwa/collieim-android/pull/224)) accepts it and
-verifies it against the pinned Beta certificate. First shipped in
-[`v8.36.3-1-rc2`](https://github.com/0cwa/collieim-android/releases/tag/v8.36.3-1-rc2).
+The app's `tooling/release/publication.py` verifies the copy against the pinned
+Beta certificate.
 
 GitHub's `prerelease` flag describes publication eligibility within these routes.
 A Stable `-betaN` or `-rcN` version suffix does not select the TrailBlazer product.
-The published Stable
-[`v8.35.1-3-rc2`](https://github.com/0cwa/collieim-android/releases/tag/v8.35.1-3-rc2),
-for example, is a full release despite its suffix. Product selection must use the complete package/tag/asset/signer/feed
+Product selection must use the complete package/tag/asset/signer/feed
 identity. Reproducibility establishes artifact identity; product readiness also
 needs the approved feature scope and applicable behavior evidence.
 
@@ -56,11 +52,8 @@ New version codes must exceed the published history for that package, including
 published candidates. The Stable feed admits verified full releases; Stable
 Obtainium configuration continues to exclude prereleases.
 
-The accompanying [app publication-policy change (#186)](https://github.com/0cwa/collieim-android/pull/186)
-introduces `publication.json`.
-Use that record-based workflow only after it has merged; this engineering policy
-does not make an unmerged workflow available. The schema 1 record binds the
-product (`edition=collie`), repository and release ID, signed annotated tag object,
+The schema 1 `publication.json` record binds the product (`edition=collie`),
+repository and release ID, signed annotated tag object,
 source commit, package/version/signer, `built_on=local|github`, and every APK's
 asset ID, name, size and SHA256. It is uploaded to the draft after all five
 identical APKs exist and before publishing the candidate with `prerelease=true`
@@ -109,24 +102,8 @@ has the details. The Android release no longer has to stay a draft: the app
 repository has GitHub immutable releases enabled, so a published release's tag and
 assets are frozen, and the feed checks those frozen bytes against CI.
 
-The following are **status observations from 2026-11-17**, to recheck before any
-activation. They are not standing approvals or permanent branch state:
-
-| Dependency | Observed state and remaining gate |
-| --- | --- |
-| [App #177](https://github.com/0cwa/collieim-android/pull/177) | Draft conservative 8.35.2 RC, based on `agent/rc-8351-published-base` rather than `main`. Its exact candidate analysis, preparation/provenance and applicable runtime evidence remain gates. Resolve its feature/source scope before choosing a Stable route. |
-| [App #184](https://github.com/0cwa/collieim-android/pull/184) → [#183](https://github.com/0cwa/collieim-android/pull/183) | Both merged: reviewed Actions bindings, then the runner-context correction. Before analysis, verify the corrected workflow's current hosted audit and obtain its new exact execution approval. Merging these corrections does not authorize the candidate dispatch. |
-| [App #182](https://github.com/0cwa/collieim-android/pull/182) | Draft preparation-aware Beta verifier pin, held until the exact RC analysis approval/dispatch dependency is resolved. Its presence does not approve a build, signing, readiness or publication run. |
-| Beta source and feed | The intended `trailblazer-beta` branch and live Beta index were absent. Existing engineering checks also name held branding/source-workflow commits; confirm the complete approved source is reachable and passes those checks. Do not weaken the checks to accept unrelated source. |
-| Beta readiness | Superseded on 2026-11-22: the Beta feed checks the published release against its CI build instead of a readiness run. |
-| Updater | Current app source contains the signed-feed updater. The published `v8.35.1-3-rc2` came from `cc55c02bef64b2980c5f384a6a04f52ffb7bef92`, with automatic app updates disabled. Source changes require a new verified APK before they reach users. |
-
-The accompanying [app updater-profile change (#185)](https://github.com/0cwa/collieim-android/pull/185)
-selects the fixed profile by exact
-application ID and keeps Stable defaults. It is source preparation until merged,
-compiled, tested and released. It does not add a Beta Gradle flavor, activate the
-held Beta source, or publish a feed. Keep the app's fixed profile contract and
-engineering's `channel_profile.py` consistent through reviewed source changes;
+Keep the app's fixed profile contract and engineering's `channel_profile.py`
+consistent through reviewed source changes;
 do not fetch release policy dynamically at runtime.
 
 ## Repository protection proposals and drift report
@@ -147,10 +124,9 @@ confirm those exact checks on a successful current PR before applying it.
 
 Protect both `refs/tags/v*` and `refs/tags/trailblazer-v*`. Keep tag creation in its
 own ruleset with the existing `RepositoryRole` ID `5`, `always` bypass. Put tag
-update/deletion in a separate ruleset with **no bypass actors**. At the observation
-date, app ruleset `26505853` covered only `v*` and applied that bypass to creation,
-update and deletion together. In the reviewed settings change, install the
-unbypassable immutability rule first, then narrow the existing rule to creation
+update/deletion in a separate ruleset with **no bypass actors**. In the reviewed
+settings change, install the unbypassable immutability rule first, then narrow
+the existing rule to creation
 and extend it to both tag namespaces. Preserve unrelated source/signature rules.
 
 Run the advisory checker from this repository:
@@ -200,12 +176,11 @@ reference in its release notes or linked release evidence:
 | Tests | Exact workflow run/attempt or independently reviewed test record for both sources; results and the tested scenarios |
 | Runtime claim | Applicable app/server integration evidence, with any untested deployment or device behavior stated explicitly |
 
-The app's v3 fixture
-[`PIN.txt`](https://github.com/0cwa/collieim-android/blob/e52b15b48f0977ba19458916aab1e8a36450dc02/app/src/test/resources/colliesocket-contract-v3/PIN.txt)
-records contract commit `9751c1effba7c94f49474febd941ca7fe3ba31cc` and source tree
-`fc88c12cddc75f5f6a66191763da57a3f44dd7f8`. This is a contract reference, not a
-tested release pair or proof that shipped clients implement v3. Preserve the
-fixture ownership/manifest checks and the advisory scope of
+Read the app's v3 fixture
+[`PIN.txt`](https://github.com/0cwa/collieim-android/blob/main/app/src/test/resources/colliesocket-contract-v3/PIN.txt)
+at the tested app revision for its contract commit and source tree. A contract pin
+does not establish a tested release pair or prove that shipped clients implement
+v3. Preserve the fixture ownership/manifest checks and the advisory scope of
 [SECURITY-FUZZING.md](SECURITY-FUZZING.md). Record an actual tested pair before
 making a release compatibility claim; do not infer it from similar version names
 or passing schema fixtures.

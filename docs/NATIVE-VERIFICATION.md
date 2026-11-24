@@ -5,63 +5,45 @@ review. It separates the work that can be run now from the evidence still needed
 to close that finding. A successful APK rebuild, a valid download checksum, or a
 host JNI test run does not by itself reproduce the Android native libraries.
 
-## Current state and immutable target
+## Pinned native-v1 target
 
-As checked on 2026-11-13, Android `main` is
-`75192c5b92c50af23b0c5f8fd92891c4a8e5398e`. Its
-[`build-inputs/engineering.json`](https://github.com/0cwa/collieim-android/blob/75192c5b92c50af23b0c5f8fd92891c4a8e5398e/build-inputs/engineering.json)
-pins recipe `36779887ffc0bb1ecff55a87c350740662570039` and explicitly says that
-independent reproduction is not established. The native lock at engineering
-baseline `b6ec5ca32e97136ba83488a1b7b86f7559d5a4e2` is byte-identical to the
-Android lock. Its SHA-256 is
-`557e20c3f8c1d6290af3007bb8eba5469e5a77f569b8efc7dc2edc1e68ba7856`.
+The procedure below targets the inputs in
+[`tools/native/native-lock.json`](../tools/native/native-lock.json): libsignal
+0.106.1 and RingRTC 2.74.0. Published generations are registered separately in
+[`distribution/native-generations.json`](../distribution/native-generations.json),
+which includes the later libsignal 0.107.0 inputs. Select the lock and app revision
+for the release being verified; the native-v1 commands below do not verify that
+later generation.
 
-| Input | Exact value |
+The lock records source commits, patch hashes, toolchain references and binary
+hashes. Its expected prepared trees are:
+
+| Source | Prepared tree |
 | --- | --- |
-| libsignal base | `904c8dc8216073b078a5f2f5090e3da8382e6a92` |
-| RingRTC base | `bdbb0dd1b9f418850dfe1fa3cd4b1c2b1123436f` |
-| WebRTC base | `d7dbd6fdddac949e89501e6ea947a344e9ffde72` |
-| depot_tools | `ce5a30784f7323ee224f3a6e7d4ae208dd6d17fe` |
-| libsignal prepared tree | `de930179286b4fe68875475c1b0678615e180908` |
-| RingRTC prepared tree | `e993dcb5807367a5aab4c9620fdb1f039ae0a013` |
-| WebRTC prepared tree | `46c89976e694cb5c3ea74e2632df7600ab693918` |
-| libsignal Android AAR | `4247031a753f73f12753d04f14d9316436bbf07af2097c1b897feedd360dbd9a` |
-| libsignal client JAR | `c361b8e905c770b838535fdac5a0bdf0f995f8ed6ce0a6837cb4c7360e8c5a79` |
-| RingRTC Android AAR | `51f1f9b1f2335ba1b6557b5f0810227ac66a54ec8cbf0f2c789091b0ab5d245b` |
+| libsignal | `de930179286b4fe68875475c1b0678615e180908` |
+| RingRTC | `e993dcb5807367a5aab4c9620fdb1f039ae0a013` |
+| WebRTC | `46c89976e694cb5c3ea74e2632df7600ab693918` |
 
-The three mailbox/patch sets and their hashes are in
-[`tools/native/native-lock.json`](../tools/native/native-lock.json). The app's
-[`native-artifacts.json`](https://github.com/0cwa/collieim-android/blob/75192c5b92c50af23b0c5f8fd92891c4a8e5398e/build-inputs/native-artifacts.json)
-also pins the six published binary/POM files. Published POMs have been transformed
-to Collie coordinates; their hashes intentionally differ from the source POM
-hashes in the native lock. Binary bytes are unchanged by staging.
+The [2026-11-13 native-v1 audit](https://github.com/0cwa/collie-release-engineering/blob/4f94f62fac634e3dd4a443c838fa6c65db8fe664/docs/evidence/native-published-input-audit-2026-11-13.json)
+records the app and recipe revisions, published hashes and archive/ELF checks.
+It did not rebuild the native sources. Published POMs use Collie coordinates and
+therefore differ from the source POM hashes in the lock; staging leaves binary
+bytes unchanged.
 
-The [2026-11-13 published-input audit](evidence/native-published-input-audit-2026-11-13.json)
-retrieved all six published files and matched their recorded byte lengths and
-SHA-256 hashes. The three archives also passed the expected library-coverage
-and ELF class/machine checks. This is current distribution evidence only; it
-records that no independent native build was performed.
-
-The old `distribution/evidence/native-independent-verification.json` records an
-independent check of existing archive bytes. Its scope explicitly excludes a
-native source rebuild. Do not reuse its `PASS` as evidence for this task.
-
-The new `--fresh` RingRTC mode and archive comparator make fresh-output checks
-and mismatch diagnosis executable. They do not record an actual independent
-build, authenticate every bootstrap input, or grant release permission. All
-diagnostic/comparison receipts retain `release_allowed: false`.
+Fresh builds and archive comparisons do not authenticate every bootstrap input
+or establish independence by themselves. Diagnostic/comparison receipts retain
+`release_allowed: false`.
 
 ## Work order and completion criteria
 
-1. Prepare and review the verifier change and run its focused tests.
-2. Provision a disposable verifier host, independent of the original local
+1. Provision a disposable verifier host, independent of the original local
    builder. Complete the authenticated input/bootstrap inventory below.
-3. Reconstruct the pinned sources, build libsignal and all four RingRTC/WebRTC
+2. Reconstruct the pinned sources, build libsignal and all four RingRTC/WebRTC
    ABIs with absent output directories, and compare the three resulting
    archives with the published target.
-4. Investigate every difference. Preserve failed runs and the original lock.
-5. Exercise the distributed binaries using the runtime matrix below.
-6. Review the complete evidence and then update the app's provenance statement
+3. Investigate every difference. Preserve failed runs and the original lock.
+4. Exercise the distributed binaries using the runtime matrix below.
+5. Review the complete evidence and then update the app's provenance statement
    through a separate app PR. Record the verifier's exact revision as well as
    the original recipe revision; neither identity should be lost.
 
@@ -83,18 +65,8 @@ dependency download inputs may be reused after their provenance is checked.
 Retain the runner/image identity, OS/package inventory, free disk/RAM, CPU count,
 tool digests and input origin URLs with the run evidence.
 
-No native-capable runner has been established by this change. The review
-workspace had roughly 58 GiB free disk and 9.7 GiB RAM, Java 21, and no installed
-Rust toolchain, Android SDK or Docker. No full native rebuild was run there.
-There is no measured minimum for this exact Collie build. Budget conservatively
-for all four WebRTC outputs and dependencies, and check actual free space before
-starting. GitHub documents standard public Ubuntu runners with 14 GB storage;
-do not assume that label guarantees enough space. Its larger runner examples
-include 150 GB/16 GB RAM and 300 GB/32 GB RAM. Selecting or purchasing a runner is
-an operator setup decision, not something this runbook has performed.
-
-Sources: [GitHub runner specifications](https://docs.github.com/en/actions/how-tos/write-workflows/choose-where-workflows-run/choose-the-runner-for-a-job),
-[larger runner specifications](https://docs.github.com/en/actions/reference/runners/larger-runners).
+Budget for all four WebRTC outputs and dependencies, and check actual free
+space before starting. No measured minimum for this exact build is recorded here.
 
 | Required input | Verification and remaining boundary |
 | --- | --- |
@@ -105,7 +77,7 @@ Sources: [GitHub runner specifications](https://docs.github.com/en/actions/how-t
 | WebRTC JDK 25 and WebRTC NDK `2@30.0.15729638` | Obtain through the pinned WebRTC dependency setup. RingRTC requires `workspace/src/third_party/jdk/current`. The separate NDK r28 above is used by RingRTC Rust/AAR work; do not replace one NDK with the other. |
 | Gradle 9.6.0 all ZIP for libsignal | Official ZIP SHA-256 `87a2216cc1f9122192d4e0fe905ffdf1b4c72cff797e9f733b174e157cadd396`; extracted contents are checked before and after the build. |
 | Gradle 9.3.1 all ZIP for RingRTC | Official ZIP SHA-256 `17f277867f6914d61b1aa02efab1ba7bb439ad652ca485cd8ca6842fccec6e43`; extracted contents are checked before and after the build. |
-| depot_tools and WebRTC dependencies | Pin depot_tools as above; independently repeat [CIPD-PROVENANCE.md](../tools/native/CIPD-PROVENANCE.md). The build checks the retained 70 Git repositories and 59 CIPD payload manifests. |
+| depot_tools and WebRTC dependencies | Use the depot_tools revision in the lock; independently repeat [CIPD-PROVENANCE.md](../tools/native/CIPD-PROVENANCE.md). The build checks the retained 70 Git repositories and 59 CIPD payload manifests. |
 | Host C/C++ tools, protobuf, Python/vpython and wheels | Install from recorded authenticated sources. Existing guards do not establish a complete host/bootstrap closure. Record this as a trust boundary until the inventory is reviewed. |
 | Cargo and Maven/Gradle dependencies | Populate clean download caches from the pinned source manifests and record their origins/digests. Do not import prior build caches, targets, transformed outputs or user init scripts. See the offline prerequisite below. |
 
@@ -347,14 +319,15 @@ and exact test steps. The operator should distinguish traffic intentionally
 outside a policy from a fallback that violates it; document that policy before
 testing, not after observing an unexpected connection.
 
-## Evidence handoff and CI preparation
+## Evidence handoff
 
 Retain the verifier revision, app revision, original recipe revision, native
 lock, source receipts, bootstrap inventory and authentication evidence, all
 build logs and exit codes, fresh-build receipts, three output hashes, archive
 comparison and runtime matrix. Store large artifacts as immutable CI artifacts
-with IDs/digests/retention details; commit a small reviewed manifest and durable
-links. Bind a hosted run's repository, workflow revision, run ID and attempt to
+with IDs/digests/retention details and durable links in the PR, following
+[the development cycle](DEVELOPMENT-CYCLE.md#merging-prs). Bind a hosted run's
+repository, workflow revision, run ID and attempt to
 the evidence. Record who controlled the independent builder.
 
 Review failure evidence as well as successful output. Do not let a generated
@@ -363,11 +336,3 @@ and retrieve evidence from the trusted workflow/operator path. A new app PR can
 then update provenance to the exact result demonstrated. Until that evidence
 exists, preserve `trusted-local native outputs; independent reproduction not
 established`.
-
-For the separate CI finding, reuse the existing
-[host JNI/unit-test repair PR #104](https://github.com/0cwa/collieim-android/pull/104).
-Its recorded passing run is evidence about host tests, not Android native
-reproduction. Revalidate the full suite on the combined current source, prepare
-the unsigned production build and stable required checks, and require release
-checks for the exact release source. Activate enforcement only with a reviewed
-passing baseline; this runbook does not change repository rules.
