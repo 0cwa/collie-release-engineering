@@ -16,7 +16,7 @@ separately reviewed administration change, not live repository settings.
 | APK signing identity | Existing Stable key | Separate pinned Beta key |
 | F-Droid feed | `https://repo.collie.im/fdroid/repo/` | `https://repo.collie.im/fdroid/beta/repo/` |
 | GitHub publication | Draft → verification prerelease → verified full release | Immutable Beta prerelease |
-| Current source contract | `main`, exact-commit `pr.yml` readiness | `trailblazer-beta`; the APK must equal a `build-release.yml` build of the signed tag's commit |
+| Current source contract | `main`, exact-commit `pr.yml` readiness | `main`; the APK must equal a `build-release.yml` dispatch of the signed tag's commit |
 
 The complete identities and certificate pins are in
 [`distribution/channel_profile.py`](../distribution/channel_profile.py).
@@ -92,12 +92,16 @@ not establish the source proof. Record the selected source branch in Android
 publication evidence and retain same-byte promotion. Existing engineering feed
 receipts keep their immutable release, tag, APK and source bindings.
 
-For TrailBlazer (decided 2026-11-22), publishing the GitHub prerelease is the
-approval. The scheduled feed workflow takes the newest immutable TrailBlazer
-prerelease when its tag is a verified signed tag, its APK equals the successful
-`trailblazer-beta` `build-release.yml` build of that commit plus its signature, the
-APK carries the pinned Beta package and signer, and its versionCode exceeds the
-served Beta index. [`BETA-FEED-OPERATIONS.md`](../distribution/BETA-FEED-OPERATIONS.md)
+For TrailBlazer, publishing the GitHub prerelease is the approval. The reviewed
+Beta source must first land on app `main`; then dispatch `build-release.yml` on
+`main` for that exact commit, sign its output, and publish the signed annotated
+tag and APK as an immutable prerelease. The scheduled feed workflow takes the
+newest immutable TrailBlazer prerelease only when its tag is verified, its APK
+equals the successful `main` `build-release.yml` dispatch of that tagged commit
+plus its signature, the APK carries the pinned Beta package and signer, and its
+versionCode exceeds the served Beta index. Stable and Beta retain separate
+package, signer, tag, asset and feed identities despite sharing app `main` as
+their source branch. [`BETA-FEED-OPERATIONS.md`](../distribution/BETA-FEED-OPERATIONS.md)
 has the details. The Android release no longer has to stay a draft: the app
 repository has GitHub immutable releases enabled, so a published release's tag and
 assets are frozen, and the feed checks those frozen bytes against CI.

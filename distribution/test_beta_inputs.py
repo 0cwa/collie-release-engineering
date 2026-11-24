@@ -55,7 +55,8 @@ class GitHub:
         self.release = release()
         self.pages = {1: [release(1, 'v8.36.3-1-rc2', prerelease=True, name='Collie 8.36.3-1-rc2'), self.release]}
         self.verified = True
-        self.run = {'id': 44948699471, 'run_attempt': 1, 'head_sha': COMMIT, 'head_branch': 'trailblazer-beta',
+        self.run = {'id': 44948699471, 'run_attempt': 1, 'head_sha': COMMIT, 'head_branch': 'main',
+                    'display_title': 'Build TrailBlazer Beta',
                     'event': 'workflow_dispatch', 'path': '.github/workflows/build-release.yml',
                     'status': 'completed', 'conclusion': 'success', 'head_repository': {'full_name': beta.APP}}
         self.zip = artifact_zip()
@@ -74,7 +75,7 @@ class GitHub:
             return {'sha': TAG_OID, 'tag': TAG, 'object': {'type': 'commit', 'sha': COMMIT},
                     'verification': {'verified': self.verified}}
         if endpoint.startswith(ROOT + 'actions/workflows/build-release.yml/runs?head_sha=' + COMMIT):
-            return {'workflow_runs': [copy.deepcopy(self.run)]}
+            return {'workflow_runs': copy.deepcopy(getattr(self, 'runs', [self.run]))}
         if endpoint.startswith(ROOT + f"actions/runs/{self.run['id']}/artifacts"):
             return {'artifacts': [copy.deepcopy(self.artifact)]}
         raise AssertionError('unexpected API request: ' + endpoint)
@@ -156,19 +157,33 @@ class BetaInputTests(unittest.TestCase):
             self.identity.return_value = {'package': channels.BETA.package, 'version_code': 178201,
                                           'version_name': VERSION, 'apk_certificate_sha256': channels.BETA.apk_certificate}
 
-    def test_build_must_be_a_successful_trailblazer_beta_dispatch_of_the_tag_commit(self):
-        for key, value in (('head_branch', 'main'), ('event', 'pull_request'), ('conclusion', 'failure'),
+    def test_build_must_be_a_successful_main_dispatch_of_the_tag_commit(self):
+        # Main carries the reviewed candidate; the TrailBlazer branch is no longer a feed source.
+        self.assertEqual(beta.build_artifact(COMMIT, api=self.api)['run_id'], 44948699471)
+        for key, value in (('head_branch', 'trailblazer-beta'), ('event', 'pull_request'), ('conclusion', 'failure'),
                            ('path', '.github/workflows/other.yml'), ('head_sha', 'f' * 40),
                            ('head_repository', {'full_name': 'someone/fork'})):
             with self.subTest(key=key):
                 original = copy.deepcopy(self.api.run)
                 self.api.run[key] = value
-                with self.assertRaisesRegex(ValueError, 'no successful trailblazer-beta build'):
+                with self.assertRaisesRegex(ValueError, 'no successful main build'):
                     beta.build_artifact(COMMIT, api=self.api)
                 self.api.run = original
         self.api.artifact['expired'] = True
         with self.assertRaisesRegex(ValueError, 'unexpired APK artifact'):
             beta.build_artifact(COMMIT, api=self.api)
+
+    def test_newer_stable_run_cannot_shadow_older_beta_and_edition_evidence_is_required(self):
+        beta_run = copy.deepcopy(self.api.run)
+        stable_run = {**copy.deepcopy(beta_run), 'id': beta_run['id'] + 1,
+                      'display_title': 'Build Stable'}
+        self.api.runs = [stable_run, beta_run]
+        self.assertEqual(beta.build_artifact(COMMIT, api=self.api)['run_id'], beta_run['id'])
+        for title in (None, 'Build Stable', 'Build TrailBlazer Beta '):
+            with self.subTest(title=title):
+                self.api.runs = [{**beta_run, 'display_title': title}]
+                with self.assertRaisesRegex(ValueError, 'no successful main build'):
+                    beta.build_artifact(COMMIT, api=self.api)
 
     def test_artifact_must_be_from_the_same_commit_with_matching_checksums(self):
         for archive, pattern in ((artifact_zip(commit='f' * 40), 'different commit'),

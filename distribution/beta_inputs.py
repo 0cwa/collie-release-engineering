@@ -4,7 +4,7 @@ A Beta enters the feed the way Stable does: from its published GitHub release.
 The release must be an immutable prerelease (GitHub then freezes its tag and
 assets). Its single trailblazer-beta.apk must carry the pinned Beta package and
 signer, its tag must be a verified annotated tag, and the APK must equal a
-successful build-release.yml run of that tagged commit on trailblazer-beta plus
+successful build-release.yml workflow_dispatch of that tagged commit on main plus
 its signature (see apk_match.py). No app code runs here.
 """
 from __future__ import annotations
@@ -30,6 +30,7 @@ DIGEST = release_inputs.DIGEST
 METADATA_PREFIX = 'fastlane/metadata/' + PROFILE.name
 BUILD_WORKFLOW = '.github/workflows/build-release.yml'
 BUILD_ARTIFACT = 'unsigned-release-apk'
+BUILD_RUN_TITLE = 'Build TrailBlazer Beta'
 ARTIFACT_FILES = {'SHA256SUMS', 'source-tree.txt', 'source-commit.txt', PROFILE.apk_asset}
 MAX_BYTES = release_inputs.MAX_BYTES
 STATE_URL = release_inputs.ORIGIN + 'feed-state.json'
@@ -152,6 +153,7 @@ def build_artifact(commit, *, api=release_inputs.github_read):
                       key=lambda r: r['id'], reverse=True):
         repository = run.get('head_repository')
         if (run.get('head_sha') != commit or run.get('head_branch') != PROFILE.source_branch
+                or run.get('display_title') != BUILD_RUN_TITLE
                 or run.get('event') != 'workflow_dispatch' or run.get('path') != BUILD_WORKFLOW
                 or run.get('status') != 'completed' or run.get('conclusion') != 'success'
                 or not isinstance(repository, dict) or repository.get('full_name') != APP):
@@ -173,7 +175,7 @@ def build_artifact(commit, *, api=release_inputs.github_read):
             raise ValueError('build artifact identity differs from its run')
         return {'run_id': run['id'], 'run_attempt': run.get('run_attempt'), 'artifact_id': artifact['id'],
                 'bytes': artifact['size_in_bytes'], 'sha256': artifact['digest'][7:]}
-    raise ValueError('no successful trailblazer-beta build of this commit with an unexpired APK artifact; '
+    raise ValueError('no successful main build of this commit with an unexpired APK artifact; '
                      'dispatch build-release.yml for the tag commit again')
 
 

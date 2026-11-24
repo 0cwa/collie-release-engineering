@@ -68,8 +68,15 @@ TrailBlazer Beta product have different purposes and publication routes.
 - Release notes: `distribution/release-notes/<version>.md` here, in the maintainer's style (see existing files). App CI refuses to publish without one. In-app notices (e.g. the later move to one `collie.apk`) ship as ordinary app PRs.
 - The Stable F-Droid feed carries verified full Stable releases only. TrailBlazer
   Beta has a separate package, APK signer and feed; its GitHub releases remain
-  immutable prereleases, and `feeds.yml` publishes the newest one once its APK
-  matches its CI build ([BETA-FEED-OPERATIONS.md](../distribution/BETA-FEED-OPERATIONS.md)).
+  immutable prereleases. Merge its reviewed source to app `main`, dispatch
+  `build-release.yml` for that exact commit, then sign and publish the candidate;
+  `feeds.yml` accepts only a matching `main` build titled `Build TrailBlazer Beta`.
+  Keep `BETA_FEED_ENABLED` unset or `false` until the policy switch and first
+  immutable candidate are ready; turn it on with `FEEDS_ENABLED=true`, and set it
+  back to `false` to pause candidate publication while preserving the served Beta
+  route. An existing enabled feed rejects a new candidate until the switch lands.
+  See
+  [BETA-FEED-OPERATIONS.md](../distribution/BETA-FEED-OPERATIONS.md).
   Pages must preserve both feeds and native inputs when either feed changes.
 
 ## Security fuzzing pilot

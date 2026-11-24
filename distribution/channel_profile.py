@@ -34,7 +34,7 @@ BETA = ChannelProfile(
     apk_asset='trailblazer-beta.apk',
     repository_url='https://repo.collie.im/fdroid/beta/repo/',
     metadata_dir='distribution/beta-metadata', apk_certificate='a515c03498bce8852b835544910b09ccc11a3abbed23e826e9c62c002680fe98',
-    repository_certificate='b0c5dcbac2b65ada4e8f641910097fb0bf86a5f7255319584d453c2932f5233c', source_branch='trailblazer-beta',
+    repository_certificate='b0c5dcbac2b65ada4e8f641910097fb0bf86a5f7255319584d453c2932f5233c', source_branch='main',
 )
 
 
