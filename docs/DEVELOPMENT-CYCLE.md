@@ -6,7 +6,7 @@ Decided 2026-11-10. Where this conflicts with older docs here or with app `docs/
 
 - App `main` (`0cwa/collieim-android`) is the source. Change app code directly in ordinary PRs; do not re-import app changes as engineering layers.
 - Every non-merge app commit carries one `Layer: <feature>` trailer (lowercase, hyphens), e.g. `Layer: collie-branding`. The app `pr.yml` check enforces it.
-- Required app PR checks: fast lint and `Layer:` trailers. Unit tests and a debug APK build run on every PR but are not required.
+- Required app PR checks: fast lint and `Layer:` trailers. The app workflow also runs unit tests, an unsigned production build and the aggregate `Security readiness` check.
 - `main` in both repos: PRs only, required checks green, signed commits, no force pushes, no required human review. Agents merge with `gh pr merge`.
 
 ## Merging PRs
