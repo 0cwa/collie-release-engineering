@@ -1,6 +1,6 @@
 # Security fuzzing pilot
 
-The advisory pilot exercises focused production entry points in [Collie Socket](https://github.com/0cwa/colliesocket/tree/main/fuzz) and [Collie Android](https://github.com/0cwa/collieim-android/tree/main/tooling/fuzz-encrypted-push). It covers Socket enrollment parsing and control-frame decoding in raw and synthetic-keyed modes, Android event parse/decide behavior, and endpoint-update promotion sequences. Android `ControlFrame.build` constructs outgoing authenticated frames; its fixed-nonce check covers repeatable construction, header identity, and size, not independent authentication verification or incoming decryption. The Android arbitrary-byte target derives decision context from the production parse result and uses the default `identityMatches = true`; it checks parser/decision consistency and replay handling, not an independent schema or enrollment-identity oracle. The pilot does not claim coverage of Whistle, Collie Pack, native code, or Python tooling.
+The advisory pilot exercises focused production entry points in [Collie Socket](https://github.com/0cwa/colliesocket/tree/main/fuzz) and [Collie Android](https://github.com/0cwa/collieim-android/tree/main/tooling/fuzz-encrypted-push). It covers Socket enrollment parsing and control-frame decoding in raw and synthetic-keyed modes, Android event parse/decide behavior, and endpoint-update promotion sequences. Android `ControlFrame.build` constructs outgoing authenticated frames; its fixed-nonce check covers repeatable construction, header identity, and size, not independent authentication verification or incoming decryption. The Android arbitrary-byte target derives decision context from the production parse result and uses the default `identityMatches = true`; it checks parser/decision consistency and replay handling, not an independent schema or enrollment-identity oracle. The pilot does not claim coverage of the push provider, Collie Pack, native code, or Python tooling.
 
 ## Scope and invariants
 
@@ -15,43 +15,14 @@ The Android contract fixture is pinned under `app/src/test/resources/colliesocke
 
 ## Regression and bounded discovery
 
-Run Android deterministic fixtures and saved crash inputs from the Android repository root:
+Use the harness instructions at the source revision being tested:
 
-```sh
-./gradlew :fuzz-encrypted-push:test --no-daemon --no-configuration-cache --max-workers=1 -Dorg.gradle.jvmargs=-Xmx1g
-```
+- [Android JVM checks](https://github.com/0cwa/collieim-android/blob/main/tooling/fuzz-encrypted-push/README.md) cover deterministic replay, bounded Jazzer discovery, resource limits and crash storage.
+- [Socket fuzzing](https://github.com/0cwa/colliesocket/blob/main/fuzz/README.md) covers pinned tools, bounded discovery, crash reproduction and regression seeds. Its ordinary `cargo test --locked --lib --bins` run replays committed seeds.
 
-Run the bounded Jazzer discovery target separately:
-
-```sh
-./gradlew :fuzz-encrypted-push:jazzerFuzz --no-daemon --no-configuration-cache --max-workers=1 -Dorg.gradle.jvmargs=-Xmx1g
-```
-
-The Android event parser and receiver `decide` target accept at most 4096 bytes, use a fixed clock, and permit protocol versions 1 through 3. Discovery is bounded to 60 seconds. Six pinned v3 event fixtures are initial seeds. The workflow caps the container at 4 GiB and two CPUs; Gradle uses one worker and a 1 GiB daemon heap. Keep minimized regression crashes in the module's `src/test/resources/im/molly/unifiedpush/receiver/EncryptedPushFuzzTestInputs/`; `.cifuzz-corpus/` is disposable rolling discovery data, capped at 512 files and 16 MiB. Cache growth is reported as a metric, not a success condition. Dispatch from a release tag replays that exact checked-out source revision and records its commit, contract pin, runtime, command, and bounds.
-
-From the Socket repository root, first install its pinned tools and create writable per-target discovery directories so generated inputs stay separate from committed seeds:
-
-```sh
-rustup toolchain install nightly-2025-09-15 --profile minimal
-cargo install cargo-fuzz --version 0.12.0 --locked
-mkdir -p target/fuzz-cache/enrollment_parse target/fuzz-cache/control_raw target/fuzz-cache/control_authenticated
-```
-
-Run deterministic Rust regression tests, including committed parser and decoder seeds, with:
-
-```sh
-cargo test --locked --lib --bins
-```
-
-Run bounded discovery for each target:
-
-```sh
-rustup run nightly-2025-09-15 cargo fuzz run enrollment_parse target/fuzz-cache/enrollment_parse fuzz/corpus/enrollment_parse -- -max_total_time=60 -timeout=5 -rss_limit_mb=2048 -max_len=8192
-rustup run nightly-2025-09-15 cargo fuzz run control_raw target/fuzz-cache/control_raw fuzz/corpus/control_raw -- -max_total_time=60 -timeout=5 -rss_limit_mb=2048 -max_len=8192
-rustup run nightly-2025-09-15 cargo fuzz run control_authenticated target/fuzz-cache/control_authenticated fuzz/corpus/control_authenticated -- -max_total_time=60 -timeout=5 -rss_limit_mb=2048 -max_len=8192
-```
-
-The Socket targets use synthetic credentials and do not read configuration, databases, network services, or live credentials. Its advisory workflow runs on pull requests, manual exact-ref dispatch, and a daily 04:27 UTC schedule. On this host, ASan binaries abort under the global allocator preload, so local discovery used libFuzzer without ASan; this is not equivalent to ASan-enabled GitHub evidence. The rolling discovery cache is separate from committed regression seeds, and cache growth is informational, not a pass condition.
+Keep rolling discovery caches separate from committed regression inputs. Cache
+growth is informational, not a pass condition. Record the exact source revision,
+tools, commands and resource bounds with each run.
 
 ## Candidate evidence
 
