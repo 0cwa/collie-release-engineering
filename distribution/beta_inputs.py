@@ -176,7 +176,7 @@ def build_artifact(commit, *, api=release_inputs.github_read):
         return {'run_id': run['id'], 'run_attempt': run.get('run_attempt'), 'artifact_id': artifact['id'],
                 'bytes': artifact['size_in_bytes'], 'sha256': artifact['digest'][7:]}
     raise ValueError('no successful main build of this commit with an unexpired APK artifact; '
-                     'dispatch build-release.yml for the tag commit again')
+                     'see the Beta feed runbook for exact-source artifact recovery')
 
 
 def download_artifact(artifact, destination):

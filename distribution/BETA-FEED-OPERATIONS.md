@@ -51,19 +51,24 @@ next scheduled run tries again.
    and `ref` set to that exact merge commit. Confirm the successful unsigned
    artifact identifies the same commit. This first immutable candidate must exist
    before the release-engineering feed PR dry run can verify it.
-3. Sign its `trailblazer-beta.apk` locally with the Beta key, tag that same commit
+2. Sign its `trailblazer-beta.apk` locally with the Beta key, tag that same commit
    with a signed annotated `trailblazer-v<version>` tag, and publish an immutable
    prerelease titled `Collie TrailBlazer Beta <version>` with that one APK.
-4. The next `feeds.yml` run verifies the candidate and publishes it (or dispatch
+3. The next `feeds.yml` run verifies the candidate and publishes it (or dispatch
    `feeds.yml` to skip the wait). An already enabled Beta feed rejects a new
    candidate until the policy switch is merged, while continuing to serve its
    existing route. A rejected or failed candidate leaves the
    currently served Beta route in place; it does not block an independent Stable
    update.
 
-The unsigned build artifact expires 14 days after the build. Publish the release
-before then, or dispatch `build-release.yml` for the same commit again; the build is
-reproducible, so any successful run of that commit is accepted.
+Complete release publication and feed verification within 14 days of the build,
+while the unsigned artifact is available. A fresh dispatch can rebuild the same
+commit while it is still the tip of `main`. After `main` advances, re-run the
+original Beta workflow within GitHub's
+[30-day window](https://docs.github.com/en/actions/how-tos/manage-workflow-runs/re-run-workflows-and-jobs)
+to keep its source SHA and ref. Verify that the run has exactly one artifact
+named `unsigned-release-apk` and that it is unexpired. If a usable artifact
+cannot be recovered, prepare a new Beta release with a higher version code.
 
 ## Turning it on and checking it
 
