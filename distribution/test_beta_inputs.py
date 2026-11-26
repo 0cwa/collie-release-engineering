@@ -14,6 +14,7 @@ import beta_inputs as beta
 import channel_profile as channels
 import feed
 import retained_artifacts as retention
+from test_release_inputs import add_manifest, download_release
 
 APK = b'published signed Beta APK fixture'
 APK_SHA = hashlib.sha256(APK).hexdigest()
@@ -139,6 +140,27 @@ class BetaInputTests(unittest.TestCase):
         self.assertEqual(result['build']['run_id'], 44948699471)
         self.assertEqual(Path(result['unsigned_apk']).read_bytes(), UNSIGNED)
         self.assertEqual(Path(result['published_apk']).read_bytes(), APK)
+        self.assertNotIn('manifest', result)
+
+    def test_beta_manifest_is_verified_in_both_feed_jobs(self):
+        manifest, raw = add_manifest(self.api.release, channels.BETA, COMMIT, 178201)
+        downloader = download_release(APK, raw)
+        verified = beta.verify(TAG, self.root / 'work', self.root / 'tools', api=self.api,
+                               downloader=downloader, artifact_downloader=self.artifact_download)
+        staged = beta.stage(TAG, APK_SHA, COMMIT, self.root / 'apks', build_tools=self.root / 'tools',
+                            api=self.api, downloader=downloader)
+        self.assertEqual(verified['manifest'], manifest)
+        self.assertEqual(staged['manifest'], manifest)
+
+    def test_beta_manifest_cannot_claim_a_different_commit(self):
+        _, raw = add_manifest(self.api.release, channels.BETA, 'f' * 40, 178201)
+        downloader = download_release(APK, raw)
+        with self.assertRaisesRegex(ValueError, 'release.json differs'):
+            beta.verify(TAG, self.root / 'work', self.root / 'tools', api=self.api,
+                        downloader=downloader, artifact_downloader=self.artifact_download)
+        with self.assertRaisesRegex(ValueError, 'release.json differs'):
+            beta.stage(TAG, APK_SHA, COMMIT, self.root / 'apks', build_tools=self.root / 'tools',
+                       api=self.api, downloader=downloader)
 
     def test_tag_must_be_a_verified_annotated_tag(self):
         self.api.verified = False

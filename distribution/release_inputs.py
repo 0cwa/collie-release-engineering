@@ -14,12 +14,14 @@ import json
 from pathlib import Path, PurePosixPath
 import re
 import subprocess
+from tempfile import TemporaryDirectory
 import urllib.request
 from urllib.parse import urlparse
 
 import channel_profile as channels
 
 APP_REPOSITORY = '0cwa/collieim-android'
+ASSET_HOSTS = {'github.com', 'release-assets.githubusercontent.com'}
 ORIGIN = 'https://repo.collie.im/'
 NATIVE_PREFIX = 'native-inputs/v1/maven/'
 MAX_BYTES = 950_000_000
@@ -52,6 +54,29 @@ def github_read(endpoint):
     return json.loads(result.stdout)
 
 
+def release_asset(assets, name, url, limit, *, optional=False):
+    if not isinstance(assets, list):
+        raise ValueError('release assets are unavailable')
+    matches = [asset for asset in assets if isinstance(asset, dict) and asset.get('name') == name]
+    if not matches and optional:
+        return None
+    if len(matches) != 1:
+        raise ValueError(f'release must contain exactly one {name}')
+    asset = matches[0]
+    if (type(asset.get('id')) is not int or asset['id'] <= 0 or asset.get('state') != 'uploaded'
+            or type(asset.get('size')) is not int or not 0 < asset['size'] <= limit
+            or not re.fullmatch(r'sha256:[0-9a-f]{64}', str(asset.get('digest', '')))
+            or asset.get('browser_download_url') != url):
+        raise ValueError(f'{name} asset identity, digest or URL differs')
+    return {'asset_id': asset['id'], 'bytes': asset['size'], 'sha256': asset['digest'][7:], 'url': url}
+
+
+def manifest_asset(assets, tag):
+    url = f'https://github.com/{APP_REPOSITORY}/releases/download/{tag}/release.json'
+    identity = release_asset(assets, 'release.json', url, MAX_TEXT_BYTES, optional=True)
+    return {'manifest_asset': identity} if identity is not None else {}
+
+
 def regular_release(value):
     """Keep only the immutable identity needed to fetch one regular APK."""
     if (not isinstance(value, dict) or type(value.get('id')) is not int or value['id'] <= 0
@@ -74,7 +99,8 @@ def regular_release(value):
             or asset.get('browser_download_url') != expected_url):
         raise ValueError('canonical APK asset identity, digest or URL differs')
     return {'release_id': value['id'], 'tag': tag, 'asset_id': asset['id'],
-            'bytes': asset['size'], 'sha256': asset['digest'][7:], 'url': expected_url}
+            'bytes': asset['size'], 'sha256': asset['digest'][7:], 'url': expected_url,
+            **manifest_asset(assets, tag)}
 
 
 def select_releases(latest, keep, *, api=github_read):
@@ -171,22 +197,15 @@ class FixedOriginRedirect(urllib.request.HTTPRedirectHandler):
         return super().redirect_request(req, fp, code, msg, headers, newurl)
 
 
-def download(url, destination, size, digest, *, hosts):
-    """Bound downloads and stream APK/native bytes instead of buffering them."""
-    parsed = urlparse(url)
-    if parsed.scheme != 'https' or parsed.netloc not in hosts:
-        raise ValueError('input URL left its fixed HTTPS origin')
+def write_verified(source, destination, size, digest):
+    """Stream input bytes while enforcing their declared size and SHA-256."""
     hasher = hashlib.sha256()
     count = 0
     destination = Path(destination)
     destination.parent.mkdir(parents=True, exist_ok=True)
-    opener = urllib.request.build_opener(FixedOriginRedirect(hosts))
-    with opener.open(url, timeout=60) as response, destination.open('xb') as output:
-        final = urlparse(response.geturl())
-        if final.scheme != 'https' or final.netloc not in hosts or response.status != 200:
-            raise ValueError('input redirect left its fixed HTTPS origins')
+    with destination.open('xb') as output:
         while True:
-            block = response.read(min(1024 * 1024, size - count + 1))
+            block = source.read(min(1024 * 1024, size - count + 1))
             if not block:
                 break
             count += len(block)
@@ -198,7 +217,54 @@ def download(url, destination, size, digest, *, hosts):
         raise ValueError('download differs from approved size or digest')
 
 
-def stage_releases(latest, keep, destination, *, api=github_read, downloader=download):
+def download(url, destination, size, digest, *, hosts):
+    """Bound downloads and stream APK/native bytes instead of buffering them."""
+    parsed = urlparse(url)
+    if parsed.scheme != 'https' or parsed.netloc not in hosts:
+        raise ValueError('input URL left its fixed HTTPS origin')
+    opener = urllib.request.build_opener(FixedOriginRedirect(hosts))
+    with opener.open(url, timeout=60) as response:
+        final = urlparse(response.geturl())
+        if final.scheme != 'https' or final.netloc not in hosts or response.status != 200:
+            raise ValueError('input redirect left its fixed HTTPS origins')
+        write_verified(response, destination, size, digest)
+
+
+def apk_identity(apk, build_tools):
+    """Read release package metadata and the verified signer from the actual APK."""
+    tools = Path(build_tools)
+    certs = subprocess.run([str(tools / 'apksigner'), 'verify', '--print-certs', str(apk)],
+                           check=True, capture_output=True, text=True).stdout
+    digests = re.findall(r'certificate SHA-256 digest: ([0-9a-f]{64})', certs)
+    badging = subprocess.run([str(tools / 'aapt2'), 'dump', 'badging', str(apk)],
+                             check=True, capture_output=True, text=True).stdout
+    match = re.search(r"package: name='([^']+)' versionCode='([0-9]+)' versionName='([^']+)'", badging)
+    if len(digests) != 1 or match is None or 'application-debuggable' in badging:
+        raise ValueError('expected one APK signer and release package metadata')
+    return {'package': match[1], 'version_code': int(match[2]), 'version_name': match[3],
+            'apk_certificate_sha256': digests[0]}
+
+
+def verify_manifest(release, profile, commit, identity, *, downloader):
+    asset = release['manifest_asset']
+    with TemporaryDirectory() as work:
+        path = Path(work) / 'release.json'
+        downloader(asset['url'], path, asset['bytes'], asset['sha256'], hosts=ASSET_HOSTS)
+        manifest = json.loads(path.read_bytes(), object_pairs_hook=unique_properties)
+    version = release['tag'][len(profile.tag_prefix):]
+    if (identity['package'] != profile.package or identity['apk_certificate_sha256'] != profile.apk_certificate
+            or identity['version_name'] != version or identity['version_code'] <= 0):
+        raise ValueError('release.json APK package, signer or version differs from the channel and tag')
+    expected = {'schema': 1, 'channel': profile.name, 'tag': release['tag'], 'source_commit': commit,
+                'version_name': version, 'version_code': identity['version_code'], 'package_id': profile.package,
+                'apk_name': profile.apk_asset, 'apk_sha256': release['sha256'], 'native_artifacts_path': NATIVE_PLAN}
+    if (manifest != expected or type(manifest['schema']) is not int
+            or type(manifest['version_code']) is not int):
+        raise ValueError('release.json differs from the verified tag, channel or APK')
+    return manifest
+
+
+def stage_releases(latest, keep, destination, *, build_tools=None, api=github_read, downloader=download):
     destination = Path(destination)
     if destination.exists():
         raise ValueError('new APK input directory required')
@@ -207,10 +273,19 @@ def stage_releases(latest, keep, destination, *, api=github_read, downloader=dow
         raise ValueError('selected release inputs exceed byte budget')
     commit, tag_oid = source_commit(latest, api=api)
     destination.mkdir(parents=True)
-    for release in releases:
-        downloader(release['url'], destination / (release['tag'] + '.apk'),
-                   release['bytes'], release['sha256'],
-                   hosts={'github.com', 'release-assets.githubusercontent.com'})
+    for index, release in enumerate(releases):
+        tag = release['tag']
+        apk = destination / (tag + '.apk')
+        downloader(release['url'], apk, release['bytes'], release['sha256'], hosts=ASSET_HOSTS)
+        if 'manifest_asset' in release:
+            if build_tools is None:
+                raise ValueError('Android build tools are required to verify release.json against the APK')
+            source = (commit, tag_oid) if tag == latest else source_commit(tag, api=api)
+            manifest = verify_manifest(release, channels.STABLE, source[0], apk_identity(apk, build_tools),
+                                       downloader=downloader)
+            releases[index] = {**release, 'manifest': manifest}
+            if tag != latest and source_commit(tag, api=api) != source:
+                raise ValueError('historical source tag changed during staging')
         current = regular_release(api(f"repos/{APP_REPOSITORY}/releases/{release['release_id']}"))
         if current != release:
             raise ValueError('release changed while its APK was staged; retry')
@@ -508,6 +583,7 @@ def main():
     releases.add_argument('--keep', type=int, default=1)
     releases.add_argument('--apks', type=Path, required=True)
     releases.add_argument('--receipt', type=Path, required=True)
+    releases.add_argument('--build-tools', type=Path)
     native = sub.add_parser('native')
     native.add_argument('--plan', type=Path, required=True)
     native.add_argument('--output', type=Path, required=True)
@@ -519,7 +595,7 @@ def main():
     if args.action == 'releases':
         if args.receipt.exists():
             parser.error('release input receipt must not exist')
-        value = stage_releases(args.latest, args.keep, args.apks)
+        value = stage_releases(args.latest, args.keep, args.apks, build_tools=args.build_tools)
         with args.receipt.open('x', encoding='utf-8') as output:
             output.write(json.dumps(value, sort_keys=True, indent=2) + '\n')
         print(json.dumps({key: value[key] for key in ('latest', 'source_commit', 'listing_commit')}))

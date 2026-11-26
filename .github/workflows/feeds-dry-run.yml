@@ -36,8 +36,9 @@ jobs:
       - name: Stage the exact latest regular release
         run: |
           latest=$(gh api "repos/$APP_REPO/releases/latest" -q .tag_name)
+          bt=$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)
           python distribution/release_inputs.py releases --latest "$latest" \
-            --apks "$RUNNER_TEMP/apks" --receipt "$RUNNER_TEMP/release-inputs.json"
+            --apks "$RUNNER_TEMP/apks" --receipt "$RUNNER_TEMP/release-inputs.json" --build-tools "$bt"
           echo "LATEST=$latest" >> "$GITHUB_ENV"
       - name: Export immutable listing and native metadata through the Git data API
         run: |

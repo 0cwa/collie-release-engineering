@@ -20,6 +20,7 @@ import zipfile
 
 import channel_profile as channels
 import release_inputs
+from release_inputs import apk_identity
 
 APP = release_inputs.APP_REPOSITORY
 PROFILE = channels.BETA
@@ -33,7 +34,7 @@ BUILD_ARTIFACT = 'unsigned-release-apk'
 ARTIFACT_FILES = {'SHA256SUMS', 'source-tree.txt', 'source-commit.txt', PROFILE.apk_asset}
 MAX_BYTES = release_inputs.MAX_BYTES
 STATE_URL = release_inputs.ORIGIN + 'feed-state.json'
-ASSET_HOSTS = {'github.com', 'release-assets.githubusercontent.com'}
+ASSET_HOSTS = release_inputs.ASSET_HOSTS
 
 
 def beta_release(value):
@@ -63,7 +64,8 @@ def beta_release(value):
             or asset.get('browser_download_url') != url):
         raise ValueError('Beta APK asset identity, digest or URL differs')
     return {'release_id': value['id'], 'tag': tag, 'version_name': version, 'asset_id': asset['id'],
-            'bytes': asset['size'], 'sha256': asset['digest'][7:], 'url': url}
+            'bytes': asset['size'], 'sha256': asset['digest'][7:], 'url': url,
+            **release_inputs.manifest_asset(assets, tag)}
 
 
 def newest_tag(*, api=release_inputs.github_read):
@@ -220,22 +222,6 @@ def extract_unsigned(archive, destination, commit):
     return apk
 
 
-def apk_identity(apk, build_tools):
-    """Same signer and badging reads as feed.apk_identity, which the index build applies again."""
-    tools = Path(build_tools)
-    certs = subprocess.run([str(tools / 'apksigner'), 'verify', '--print-certs', str(apk)],
-                           check=True, capture_output=True, text=True).stdout
-    digests = re.findall(r'certificate SHA-256 digest: ([0-9a-f]{64})', certs)
-    badging = subprocess.run([str(tools / 'aapt2'), 'dump', 'badging', str(apk)],
-                             check=True, capture_output=True, text=True).stdout
-    match = re.search(r"package: name='([^']+)' versionCode='([0-9]+)' versionName='([^']+)'", badging)
-    if len(digests) != 1 or match is None or 'application-debuggable' in badging:
-        lines = [line for line in certs.splitlines() if 'SHA-256 digest' in line]
-        raise ValueError('expected one APK signer and release package metadata: ' + '; '.join(lines))
-    return {'package': match[1], 'version_code': int(match[2]), 'version_name': match[3],
-            'apk_certificate_sha256': digests[0]}
-
-
 def fetch_release(tag, *, api=release_inputs.github_read):
     selected = beta_release(api(f'repos/{APP}/releases/tags/{tag}'))
     if selected['tag'] != tag:
@@ -259,16 +245,20 @@ def verify(tag, work, build_tools, *, api=release_inputs.github_read,
     if (identity['package'] != PROFILE.package or identity['apk_certificate_sha256'] != PROFILE.apk_certificate
             or identity['version_name'] != release['version_name']):
         raise ValueError('Beta APK package, signer or version differs from the channel and tag')
+    manifest = {}
+    if 'manifest_asset' in release:
+        manifest['manifest'] = release_inputs.verify_manifest(release, PROFILE, commit, identity,
+                                                             downloader=downloader)
     artifact_downloader(build, work / 'build-artifact.zip')
     unsigned = extract_unsigned(work / 'build-artifact.zip', work / 'unsigned', commit)
     if fetch_release(tag, api=api) != release or tag_commit(tag, api=api) != (commit, tag_object):
         raise ValueError('release or tag changed during verification; retry')
-    return {'schema': 1, 'kind': 'collie-beta-feed-input', 'repository': APP, **release,
+    return {'schema': 1, 'kind': 'collie-beta-feed-input', 'repository': APP, **release, **manifest,
             'version_code': identity['version_code'], 'source_commit': commit, 'tag_object': tag_object,
             'build': build, 'published_apk': str(published), 'unsigned_apk': str(unsigned)}
 
 
-def stage(tag, expected_sha256, source_commit, destination, *, api=release_inputs.github_read,
+def stage(tag, expected_sha256, source_commit, destination, *, build_tools=None, api=release_inputs.github_read,
           downloader=release_inputs.download):
     """Stage the verified release APK again in the job that signs the index."""
     destination = Path(destination)
@@ -277,12 +267,21 @@ def stage(tag, expected_sha256, source_commit, destination, *, api=release_input
     if not DIGEST.fullmatch(str(expected_sha256)) or not SHA.fullmatch(str(source_commit)):
         raise ValueError('verified Beta APK digest and source commit required')
     release = fetch_release(tag, api=api)
-    if release['sha256'] != expected_sha256 or tag_commit(tag, api=api)[0] != source_commit:
+    source = tag_commit(tag, api=api)
+    if release['sha256'] != expected_sha256 or source[0] != source_commit:
         raise ValueError('Beta release differs from the verified release')
     destination.mkdir(parents=True)
-    downloader(release['url'], destination / PROFILE.apk_asset, release['bytes'], release['sha256'],
-               hosts=ASSET_HOSTS)
-    return {'schema': 1, 'kind': 'collie-beta-feed-input', 'repository': APP, **release,
+    apk = destination / PROFILE.apk_asset
+    downloader(release['url'], apk, release['bytes'], release['sha256'], hosts=ASSET_HOSTS)
+    manifest = {}
+    if 'manifest_asset' in release:
+        if build_tools is None:
+            raise ValueError('Android build tools are required to verify release.json against the APK')
+        manifest['manifest'] = release_inputs.verify_manifest(release, PROFILE, source_commit,
+                                                             apk_identity(apk, build_tools), downloader=downloader)
+        if fetch_release(tag, api=api) != release or tag_commit(tag, api=api) != source:
+            raise ValueError('release or tag changed during staging; retry')
+    return {'schema': 1, 'kind': 'collie-beta-feed-input', 'repository': APP, **release, **manifest,
             'source_commit': source_commit}
 
 
@@ -368,6 +367,7 @@ def main():
     staged.add_argument('--sha256', required=True)
     staged.add_argument('--source-commit', required=True)
     staged.add_argument('--apks', type=Path, required=True)
+    staged.add_argument('--build-tools', type=Path)
     staged.add_argument('--receipt', type=Path, required=True)
     native = sub.add_parser('native-plan', help='save the native plan of the new or the served Beta, if there is one')
     native.add_argument('--tag', default='')
@@ -391,7 +391,8 @@ def main():
         tag = args.tag or ('' if served is None else PROFILE.tag_prefix + served)
         print(json.dumps(export_native_plan(tag, args.output) if tag else {'tag': ''}))
     elif args.action == 'stage':
-        write_new(args.receipt, stage(args.tag, args.sha256, args.source_commit, args.apks))
+        write_new(args.receipt, stage(args.tag, args.sha256, args.source_commit, args.apks,
+                                      build_tools=args.build_tools))
     else:
         receipt = json.loads(args.receipt.read_text(), object_pairs_hook=release_inputs.unique_properties)
         write_new(args.evidence, export_metadata(receipt, args.output))
