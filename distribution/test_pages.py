@@ -215,7 +215,7 @@ class PagesTest(unittest.TestCase):
         repo=self.bundle/'candidate'
         for name in ('entry.jar','entry.json','index-v1.jar','index-v2.json'):(repo/name).write_bytes(('signedfixture '+name).encode())
         apk=repo/'im.collie.app_1.apk';apk.write_bytes(b'fixtureAPK')
-        a=b.load(Path(__file__).parent/'approval.fixture.json');a.update(release_id=1,tag='syntheticfixture',version_code=1,version_name='fixture',apk_sha256=b.sha(apk));a['aliases']={k:b.sha(apk) for k in b.ALIASES}
+        a=b.load(Path(__file__).parent/'fixtures/legacy-release-approval.json');a.update(apk_sha256=b.sha(apk));a['aliases']={k:b.sha(apk) for k in b.ALIASES}
         (self.bundle/'releases/fixture.json').write_text(json.dumps(a))
         self.data={'repo':{'address':p.ORIGIN+'fdroid/repo'},'packages':{b.APP:{'versions':{a['apk_sha256']:{'manifest':{'versionCode':1,'versionName':'fixture','signer':{'sha256':[b.APK_CERTIFICATE]}},'file':{'name':'/'+apk.name,'sha256':b.sha(apk)}}}}}}
         receipt={'schema':2,'kind':'repository','payload':dict(release_manifest_sha256=a['release_manifest_sha256'],release_receipt_sha256=None,apk_sha256=a['apk_sha256'],apk_certificate_sha256=b.APK_CERTIFICATE,repository_certificate_sha256='a'*64,fdroidserver_revision='synthetic signedfixture transport mocked',metadata_revision='b'*40,indexes=[dict(file='entry.jar',sha256=b.sha(repo/'entry.jar'))],generation=b.generation_digest(repo)),'evidence':[dict(status='UNKNOWN',description='Synthetic Pages fixture; no production signing or deployment',sha256=None)]}

@@ -76,17 +76,15 @@ TrailBlazer Beta product have different purposes and publication routes.
 
 The focused Socket/Android pilot and its evidence expectations are documented in [SECURITY-FUZZING.md](SECURITY-FUZZING.md). It is a development and release confidence measure; it does not change release approval or branch enforcement.
 
-## Retained compatibility tools
+## Historical release tooling
 
 The historical app-source composer and patch forest are documented in
 [archive/README.md](../archive/README.md). Use that pinned history only to
 reproduce patch-built releases.
 
-Receipt adapters and release helpers remain in `tools/release`; their presence
-is not a current release procedure. See the [compatibility contracts](migration/CONTRACTS.md)
-and the release runbooks above. Before removing or moving them, check workflow,
-distribution, test and immutable-verifier consumers and update those consumers
-together.
+The retired release helpers and their [migration contracts](https://github.com/0cwa/collie-release-engineering/blob/retired/release-tools/docs/migration/CONTRACTS.md)
+are available at the `retired/release-tools` tag. The current Pages release
+workflow validates its receipt inputs with `distribution/migration_receipts.py`.
 
 Keep native-input delivery (`repo.collie.im/native-inputs`) and Pages/F-Droid
 publishing; `pages-release.yml` stays until native files have another publishing

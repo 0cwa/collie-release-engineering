@@ -16,7 +16,7 @@ class BinaryRepositoryTest(unittest.TestCase):
     def test_ingest_pins_approved_digest_after_apk_inspection(self):
         apk=self.root/'candidate.apk';apk.write_bytes(b'approved synthetic APK')
         manifest=self.root/'final-manifest.json';manifest.write_text('{}')
-        a=b.load(Path(__file__).parent/'approval.fixture.json');a.update(apk_sha256=b.sha(apk),release_manifest_sha256=b.sha(manifest));a['aliases']={k:a['apk_sha256'] for k in b.ALIASES}
+        a=b.load(Path(__file__).parent/'fixtures/legacy-release-approval.json');a.update(apk_sha256=b.sha(apk),release_manifest_sha256=b.sha(manifest));a['aliases']={k:a['apk_sha256'] for k in b.ALIASES}
         approval=self.root/'approval.json';approval.write_text(json.dumps(a))
         info={k:a[k] for k in ('package','version_code','version_name','apk_certificate_sha256')}
         def mutate(*args):apk.write_bytes(b'changed after inspection');return info
@@ -60,18 +60,6 @@ class BinaryRepositoryTest(unittest.TestCase):
         g=self.root/'g';g.mkdir();(g/'evil.apk').symlink_to('/etc/passwd')
         with patch('binary_repo.verify_indexes'):
             with self.assertRaisesRegex(ValueError,'symlink'):b.publish_local(g,self.root/'o','f'*64,'f'*64,[])
-    def test_r2_plan_only_emits_reviewable_commands(self):
-        import runpy,sys,io
-        from contextlib import redirect_stdout
-        g=self.root/'g';g.mkdir();(g/'im.collie.app_1.apk').write_bytes(b'canonical');(g/'entry.jar').write_bytes(b'signed');(g/'index-v1.jar').write_bytes(b'signed');(g/'index-v2.json').write_bytes(b'{}')
-        output=io.StringIO()
-        with patch.object(sys,'argv',['r2_plan.py',str(g),'--fingerprint','f'*64,'--bucket','test-bucket','--account','testaccount','--approved-generation',b.generation_digest(g),'--approval','fixture.json','--scratch',str(self.root)]),patch('binary_repo.approved_generation'),redirect_stdout(output):
-            runpy.run_path(str(Path(b.__file__).with_name('r2_plan.py')),run_name='__main__')
-        commands=output.getvalue()
-        self.assertIn('max-age=31536000,immutable',commands)
-        self.assertIn('no-cache,max-age=0,must-revalidate',commands)
-        self.assertLess(commands.index('/im.collie.app_1.apk'),commands.index('/entry.jar'))
-        self.assertIn('existing object SHA256 must equal',commands)
     def test_source_mutation_during_approved_copy_rejected(self):
         g=self.root/'g';g.mkdir();o=self.root/'o'
         for name in ['im.collie.app_1.apk','entry.jar','index-v1.jar','index-v2.json']:(g/name).write_bytes(b'approved')
@@ -82,16 +70,6 @@ class BinaryRepositoryTest(unittest.TestCase):
         with patch('binary_repo.approved_generation',return_value=(expected,{})),patch('binary_repo.immutable_copy',side_effect=mutate):
             with self.assertRaisesRegex(ValueError,'copy digest'):b.publish_local(g,o,'f'*64,expected,[])
         self.assertFalse((o/'im.collie.app_1.apk').exists())
-    def test_r2_upload_uses_private_pinned_snapshot(self):
-        import upload_r2
-        source=self.root/'object';source.write_bytes(b'approved');expected=b.sha(source)
-        def fake_aws(command,check):
-            source.write_bytes(b'mutated')
-            self.assertEqual(Path(command[5]).read_bytes(),b'approved')
-        with patch('upload_r2.subprocess.run',side_effect=fake_aws):
-            upload_r2.upload(source,expected,'https://testaccount.r2.cloudflarestorage.com','s3://bucket/key','no-cache',self.root)
-        with self.assertRaisesRegex(ValueError,'upload bytes mismatch'):
-            upload_r2.upload(source,expected,'https://testaccount.r2.cloudflarestorage.com','s3://bucket/key','no-cache',self.root)
     def indexes(self):
         row={'manifest':{'versionCode':1,'versionName':'1','signer':{'sha256':['c'*64]}},'file':{'name':'/im.collie.app_1.apk','sha256':'a'*64}}
         data={'packages':{b.APP:{'versions':{'a'*64:row}}}}
@@ -113,18 +91,18 @@ class BinaryRepositoryTest(unittest.TestCase):
         data,_=self.indexes()
         with patch('binary_repo.verify_indexes',return_value=data):
             with self.assertRaisesRegex(ValueError,'unapproved indexed'):b.approved_generation(g,'f'*64,b.generation_digest(g),[])
-    def test_private_file_rejected_before_r2_plan(self):
+    def test_private_file_rejected_from_public_inventory(self):
         g=self.root/'g';g.mkdir();(g/'keystore.p12').write_bytes(b'private')
         with self.assertRaisesRegex(ValueError,'unexpected public file'):b.public_files(g)
     def test_alternate_apk_certificate_cannot_be_approved(self):
         metadata=(Path(__file__).parent/'metadata/im.collie.app.yml').read_text()
         self.assertIn("AllowedAPKSigningKeys:\n  - '"+b.APK_CERTIFICATE+"'",metadata)
         self.assertNotIn('@APK_CERTIFICATE@',metadata)
-        a=b.load(Path(__file__).parent/'approval.fixture.json');a['apk_certificate_sha256']='0'*64
+        a=b.load(Path(__file__).parent/'fixtures/legacy-release-approval.json');a['apk_certificate_sha256']='0'*64
         path=self.root/'alternate-signer.json';path.write_text(json.dumps(a))
         with self.assertRaisesRegex(ValueError,'signing certificate differs'):b.approval(path)
     def test_boolean_schema_is_not_legacy_integer_one(self):
-        a=b.load(Path(__file__).parent/'approval.fixture.json');a['schema']=True
+        a=b.load(Path(__file__).parent/'fixtures/legacy-release-approval.json');a['schema']=True
         path=self.root/'boolean.json';path.write_text(json.dumps(a))
         with self.assertRaisesRegex(ValueError,'fields/schema'):b.approval(path)
     def test_unapproved_unknown_field(self):

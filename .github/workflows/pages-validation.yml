@@ -3,7 +3,6 @@ on:
   pull_request:
     paths:
       - distribution/**
-      - tools/release/**
       - .github/workflows/pages*.yml
       - .github/workflows/feeds*.yml
   workflow_dispatch:

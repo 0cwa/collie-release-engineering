@@ -3,7 +3,6 @@ import contextlib,copy,io,json,runpy,sys,tempfile,unittest
 from pathlib import Path
 from unittest.mock import patch
 import binary_repo as b
-sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'tools'/'release'))
 import migration_receipts as m
 
 class ReceiptAdapterTest(unittest.TestCase):
@@ -48,7 +47,7 @@ class ReceiptAdapterTest(unittest.TestCase):
         self.fixture['approval']['receipt_approvals']['source']=m.digest(self.fixture['source']);self.write()
         with self.assertRaisesRegex(ValueError,'passed evidence'):self.ingest()
     def test_legacy_cannot_claim_complete_graph(self):
-        a=b.load(Path(__file__).parent/'approval.fixture.json')
+        a=b.load(Path(__file__).parent/'fixtures/legacy-release-approval.json')
         self.assertIsNone(b.verify_release_approval(a,None))
         with self.assertRaisesRegex(ValueError,'legacy approval'):b.verify_release_approval(a,self.bundle)
         self.fixture['approval']['schema']=2;self.write()
