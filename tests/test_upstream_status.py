@@ -71,6 +71,12 @@ class UpstreamStatusTest(unittest.TestCase):
         for name in ("sources.json", "johanw666/review.json"):
             text = (ROOT / "upstreams" / name).read_text(encoding="utf-8").replace(PINNED, self.johan_base)
             (root / "upstreams" / name).write_text(text, encoding="utf-8")
+        registry = json.loads((root / "upstreams/sources.json").read_text(encoding="utf-8"))
+        for source in registry["sources"]:
+            if source["route"] == "historical-only":
+                provenance = root / source["provenance"]
+                provenance.parent.mkdir(parents=True, exist_ok=True)
+                provenance.write_text("{}\n", encoding="utf-8")
         return root
 
     def setup_johan(self, *tags):

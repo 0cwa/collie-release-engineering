@@ -2,6 +2,7 @@ import copy
 import importlib.util
 import json
 from pathlib import Path
+import subprocess
 import tempfile
 import unittest
 from unittest import mock
@@ -21,6 +22,9 @@ class UpstreamSourcesTest(unittest.TestCase):
         self.upstreams = self.root / "upstreams"
         (self.upstreams / "johanw666").mkdir(parents=True)
         self.sources = registry.read_json(ROOT / "upstreams/sources.json")
+        self.provenance = self.root / self.source("signal-foss")["provenance"]
+        self.provenance.parent.mkdir(parents=True)
+        self.provenance.write_text("{}\n", encoding="utf-8")
         self.ledger = registry.read_json(ROOT / "upstreams/johanw666/review.json")
         self.ledger["features"] = [{
             "id": "example-feature",
@@ -78,7 +82,6 @@ class UpstreamSourcesTest(unittest.TestCase):
             "ref_origin": "archived-bundle",
         })
         self.assertEqual(self.source("signal-foss")["provenance"], "archive/patch-forest/forks/signal-foss/provenance.json")
-        self.assertTrue((ROOT / self.source("signal-foss")["provenance"]).is_file())
 
     def test_checked_in_integrations_record_distinct_historical_targets(self):
         ledger = registry.read_json(ROOT / "upstreams/johanw666/review.json")
@@ -104,7 +107,7 @@ class UpstreamSourcesTest(unittest.TestCase):
     def test_validation_needs_no_network_or_git_process(self):
         with mock.patch("socket.create_connection", side_effect=AssertionError("network access")), \
                 mock.patch("subprocess.Popen", side_effect=AssertionError("external process")):
-            self.assertEqual(registry.validate(ROOT), (4, 1))
+            self.assertEqual(self.validate(), (4, 1))
 
     def test_duplicate_json_keys_are_rejected(self):
         self.write()
@@ -188,6 +191,21 @@ class UpstreamSourcesTest(unittest.TestCase):
         historical["snapshot"]["ref_origin"] = "upstream"
         with self.assertRaisesRegex(registry.RegistryError, "historical|archived"):
             self.validate()
+
+    def test_historical_provenance_can_come_from_the_local_archive_tag(self):
+        def git(*args):
+            subprocess.run(["git", *args], cwd=self.root, check=True)
+
+        git("init", "-q")
+        git("add", "-f", "--", str(self.provenance.relative_to(self.root)))
+        git("-c", "user.name=Fixture", "-c", "user.email=fixture@example.invalid",
+            "-c", "commit.gpgsign=false", "commit", "-qm", "Archive historical provenance")
+        self.provenance.unlink()
+        with self.assertRaisesRegex(registry.RegistryError, "historical provenance.*archive/patch-forest"):
+            self.validate()
+        git("-c", "tag.gpgsign=false", "-c", "user.name=Fixture", "-c", "user.email=fixture@example.invalid",
+            "tag", "-a", "archive/patch-forest", "-m", "Historical provenance fixture")
+        self.assertEqual(self.validate(), (4, 1))
 
     def test_historical_source_cannot_become_a_feature_import(self):
         historical = self.source("signal-foss")

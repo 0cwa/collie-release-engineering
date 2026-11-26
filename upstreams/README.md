@@ -35,6 +35,9 @@ For `selective-feature` sources, `discovery_ref` must be a full ref under
 This replaces schema 1's `status`, `strategy`, `tracking` and ambiguous `baseline`
 fields. Historical snapshot pins remain unchanged. An archived-bundle ref names
 the preserved bundle's ref, not a ref to look up in the live upstream repository.
+Historical provenance can be read from the checkout or from the local
+`archive/patch-forest` Git tag. If the file is absent from a shallow checkout,
+fetch the archive tag before running the registry checks.
 
 ### Signal and Molly operations
 
