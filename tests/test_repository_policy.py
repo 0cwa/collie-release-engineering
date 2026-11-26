@@ -13,6 +13,7 @@ from tools import repository_policy as checker
 
 
 APP = '0cwa/collieim-android'
+ENGINEERING = '0cwa/collie-release-engineering'
 ROLE = {'actor_id': 5, 'actor_type': 'RepositoryRole', 'bypass_mode': 'always'}
 IMMUTABLE = {'type': 'update', 'parameters': {'update_allows_fetch_and_merge': False}}
 
@@ -136,6 +137,21 @@ class PolicyTest(unittest.TestCase):
         pr_rules['rules'][-1]['parameters']['required_status_checks'] = [{'context': 'Fast lint'}]
         self.assertEqual(self.status([pr_rules, signatures], desired, 'refs/heads/main', desired['rules'][-1]), 'DRIFT')
 
+    def test_main_requires_code_owner_review_in_both_repositories(self):
+        for repository, name in (
+            (APP, 'Protect app main'),
+            (ENGINEERING, 'Protect release engineering main'),
+        ):
+            with self.subTest(repository=repository):
+                ruleset = next(x for x in self.policy['repositories'][repository]['rulesets']
+                               if x['request']['name'] == name)
+                self.assertEqual(ruleset['phase'], 'current')
+                parameters = next(x['parameters'] for x in ruleset['request']['rules']
+                                  if x['type'] == 'pull_request')
+                self.assertIs(parameters['require_code_owner_review'], True)
+                if repository == APP:
+                    self.assertEqual(parameters['allowed_merge_methods'], ['merge', 'squash'])
+
     def test_non_main_signature_bypass_does_not_count_as_protected_beta_source(self):
         desired = self.app['rulesets'][1]['request']
         other = {
@@ -153,28 +169,22 @@ class PolicyTest(unittest.TestCase):
             self.assertEqual(len(app_report), 1)
             self.assertEqual(app_report[0]['status'], 'UNKNOWN')
 
-    def test_existing_planned_branch_does_not_authorize_a_source_route(self):
+    def test_existing_beta_branch_does_not_authorize_a_source_route(self):
         snapshot = {'schema': 1, 'repositories': {APP: {
-            'default_branch': 'main', 'branches': ['main', 'trailblazer-beta', 'release/stable/8.35'],
+            'default_branch': 'main', 'branches': ['main', 'trailblazer-beta'],
             'rulesets': [x['request'] for x in self.app['rulesets']], 'errors': [],
         }}}
         findings = checker.report(self.policy, snapshot)
-        for ref in ('refs/heads/trailblazer-beta', 'refs/heads/release/stable/8.35'):
-            item = next(x for x in findings if x['item'] == ref)
-            self.assertEqual(item['status'], 'GATED')
-            self.assertIn('do not establish release authorization', item['detail'])
+        item = next(x for x in findings if x['item'] == 'refs/heads/trailblazer-beta')
+        self.assertEqual(item['status'], 'GATED')
+        self.assertIn('do not establish release authorization', item['detail'])
 
-    def test_stable_source_is_an_exact_ref_and_remains_gated(self):
-        snapshot = {'schema': 1, 'repositories': {APP: {
-            'default_branch': 'main', 'branches': ['main', 'release/stable/8.36', 'release/stable/8.35/other'],
-            'rulesets': [], 'errors': [],
-        }}}
-        request = next(x['request'] for x in self.app['rulesets']
-                       if x['phase'] == 'proposal-stable-maintenance')
-        self.assertEqual(request['conditions']['ref_name']['include'], ['refs/heads/release/stable/8.35'])
-        finding = next(x for x in checker.report(self.policy, snapshot)
-                       if x['item'] == 'refs/heads/release/stable/8.35')
-        self.assertTrue(finding['detail'].startswith('No matching branch observed.'))
+    def test_stable_maintenance_ref_is_retired(self):
+        retired_ref = 'refs/heads/release/stable/8.35'
+        self.assertNotIn(retired_ref, [x['ref'] for x in self.app['source_refs']])
+        for ruleset in self.app['rulesets']:
+            self.assertNotEqual(ruleset['phase'], 'proposal-stable-maintenance')
+            self.assertNotIn(retired_ref, ruleset['request']['conditions']['ref_name']['include'])
 
     def test_invalid_fixture_returns_two_without_a_network_fallback(self):
         with tempfile.TemporaryDirectory() as directory:

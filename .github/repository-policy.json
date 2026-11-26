@@ -13,16 +13,12 @@
         {
           "ref": "refs/heads/trailblazer-beta",
           "phase": "gated-beta-source"
-        },
-        {
-          "ref": "refs/heads/release/stable/8.35",
-          "phase": "proposal-stable-maintenance"
         }
       ],
       "rulesets": [
         {
           "phase": "current",
-          "activation_note": "Desired coverage already split across existing main rulesets; do not replace unrelated rules.",
+          "activation_note": "Apply code owner review and app merge methods to the existing main rulesets; preserve unrelated rules.",
           "request": {
             "name": "Protect app main",
             "target": "branch",
@@ -51,14 +47,13 @@
                 "parameters": {
                   "required_approving_review_count": 0,
                   "dismiss_stale_reviews_on_push": false,
-                  "require_code_owner_review": false,
+                  "require_code_owner_review": true,
                   "require_last_push_approval": false,
                   "required_review_thread_resolution": false,
                   "require_extra_approval_for_unattributed_changes": true,
                   "allowed_merge_methods": [
                     "merge",
-                    "squash",
-                    "rebase"
+                    "squash"
                   ]
                 }
               },
@@ -92,66 +87,6 @@
               "ref_name": {
                 "include": [
                   "refs/heads/trailblazer-beta"
-                ],
-                "exclude": []
-              }
-            },
-            "rules": [
-              {
-                "type": "deletion"
-              },
-              {
-                "type": "non_fast_forward"
-              },
-              {
-                "type": "required_signatures"
-              },
-              {
-                "type": "pull_request",
-                "parameters": {
-                  "required_approving_review_count": 0,
-                  "dismiss_stale_reviews_on_push": false,
-                  "require_code_owner_review": false,
-                  "require_last_push_approval": false,
-                  "required_review_thread_resolution": false,
-                  "require_extra_approval_for_unattributed_changes": true,
-                  "allowed_merge_methods": [
-                    "merge",
-                    "squash",
-                    "rebase"
-                  ]
-                }
-              },
-              {
-                "type": "required_status_checks",
-                "parameters": {
-                  "strict_required_status_checks_policy": false,
-                  "do_not_enforce_on_create": false,
-                  "required_status_checks": [
-                    {
-                      "context": "Fast lint"
-                    },
-                    {
-                      "context": "Layer trailers"
-                    }
-                  ]
-                }
-              }
-            ]
-          }
-        },
-        {
-          "phase": "proposal-stable-maintenance",
-          "activation_note": "Approved branch name only. Review the exact source, trusted CI and verifier before activating this ref.",
-          "request": {
-            "name": "Protect the Stable 8.35 maintenance source",
-            "target": "branch",
-            "enforcement": "active",
-            "bypass_actors": [],
-            "conditions": {
-              "ref_name": {
-                "include": [
-                  "refs/heads/release/stable/8.35"
                 ],
                 "exclude": []
               }
@@ -273,7 +208,7 @@
       "rulesets": [
         {
           "phase": "current",
-          "activation_note": "Desired coverage already split across existing main rulesets; keep current publication environments and other rules unchanged.",
+          "activation_note": "Apply code owner review to the existing main rulesets; preserve publication environments and unrelated rules.",
           "request": {
             "name": "Protect release engineering main",
             "target": "branch",
@@ -302,7 +237,7 @@
                 "parameters": {
                   "required_approving_review_count": 0,
                   "dismiss_stale_reviews_on_push": false,
-                  "require_code_owner_review": false,
+                  "require_code_owner_review": true,
                   "require_last_push_approval": false,
                   "required_review_thread_resolution": false,
                   "require_extra_approval_for_unattributed_changes": true,
