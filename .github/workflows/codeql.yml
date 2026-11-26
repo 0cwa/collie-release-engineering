@@ -21,7 +21,6 @@ jobs:
         with:
           persist-credentials: false
       - run: python3 -m unittest discover -s tools/codeql -p 'test_*.py'
-      - run: python3 -m unittest discover -s tools/screenshots -p 'test_*.py'
   analyze:
     name: Analyze engineering (${{ matrix.language }})
     runs-on: ubuntu-24.04

@@ -109,16 +109,17 @@ do not fetch release policy dynamically at runtime.
 
 [`repository-policy.json`](../.github/repository-policy.json) contains exact GitHub
 ruleset request bodies under each `request` key, plus activation notes outside the
-request. The Stable maintenance-source proposal in that file predates retirement
-of the branch. Applying rulesets requires a separate authorized review of current
+request. Applying rulesets requires a separate authorized review of current
 settings and dependencies.
 The [GitHub rulesets API](https://docs.github.com/en/rest/repos/rules) defines the
 request format.
 
-App and engineering main require PRs, signed commits, the current named required
-checks, and deletion/force-push restrictions. Changes covered by engineering's
-[`.github/CODEOWNERS`](../.github/CODEOWNERS) require maintainer review under the
-development policy. The proposed Beta source rules retain the app check names.
+The desired rules for app and engineering main require PRs, code owner review,
+signed commits, the current named required checks, and deletion/force-push
+restrictions. The desired app main rules allow merge and squash. Changes covered
+by engineering's [`.github/CODEOWNERS`](../.github/CODEOWNERS) require maintainer
+review under the development policy. The proposed Beta source rules retain the
+app check names.
 Source readiness requires the additional workflow evidence described above.
 The CollieSocket main proposal uses
 the contract, server, Signal and two platform-image job names from its `test.yml`;
