@@ -52,6 +52,13 @@ New version codes must exceed the published history for that package, including
 published candidates. The Stable feed admits verified full releases; Stable
 Obtainium configuration continues to exclude prereleases.
 
+The publisher reads `docs/release-notes/<version>.md` from the exact signed tag
+commit in the app. Its schema 1 `release.json` asset carries the canonical
+channel, tag, source commit, package and version, APK name and SHA-256, and
+native artifacts path. Feed staging validates the asset against the release
+API, resolved tag and downloaded APK. Older releases without the asset use
+tag and APK inspection.
+
 The schema 1 `publication.json` record binds the product (`edition=collie`),
 repository and release ID, signed annotated tag object,
 source commit, package/version/signer, `built_on=local|github`, and every APK's
@@ -68,18 +75,10 @@ Do not manufacture records for old published prereleases or replace their assets
 to make them pass a new verifier. Resolve any legacy candidate through a reviewed
 migration or a fresh candidate with a new version code.
 
-Publication and promotion dispatch on trusted app `main`. The Stable source
-allowlist is exactly `refs/heads/main` and `refs/heads/release/stable/8.35`.
-The maintenance source becomes eligible once its ref protections and matching
-Android verifier have landed and the selected source passes the exact-run gate.
-Historical verify-only use retains the `main` contract.
+Publication and promotion dispatch on trusted app `main`, the only Stable
+source branch. `release/stable/8.35` is retired.
 
-## Source activation gates
-
-App `main` remains the development source. The proposed protection below
-targets the exact `release/stable/8.35` ref. It creates no branch and applies no
-settings. Approve the selected exact source and scope, and verify the named
-ref's signed-commit, PR and check protections before activation.
+## Source verification
 
 The Stable publication verifier must match the owning Android repository,
 `.github/workflows/pr.yml`, the exact selected source ref and commit, and the
@@ -110,15 +109,18 @@ do not fetch release policy dynamically at runtime.
 
 [`repository-policy.json`](../.github/repository-policy.json) contains exact GitHub
 ruleset request bodies under each `request` key, plus activation notes outside the
-request. It describes current main coverage and gated source/tag changes. Applying
-it requires a separate authorized review of current settings and dependencies.
+request. The Stable maintenance-source proposal in that file predates retirement
+of the branch. Applying rulesets requires a separate authorized review of current
+settings and dependencies.
 The [GitHub rulesets API](https://docs.github.com/en/rest/repos/rules) defines the
 request format.
 
 App and engineering main require PRs, signed commits, the current named required
-checks, and deletion/force-push restrictions. Proposed Beta and Stable maintenance
-source rules retain the app check names; source readiness still requires the
-additional workflow evidence described above. The CollieSocket main proposal uses
+checks, and deletion/force-push restrictions. Changes covered by engineering's
+[`.github/CODEOWNERS`](../.github/CODEOWNERS) require maintainer review under the
+development policy. The proposed Beta source rules retain the app check names.
+Source readiness requires the additional workflow evidence described above.
+The CollieSocket main proposal uses
 the contract, server, Signal and two platform-image job names from its `test.yml`;
 confirm those exact checks on a successful current PR before applying it.
 

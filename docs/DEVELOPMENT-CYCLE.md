@@ -1,13 +1,15 @@
 # Collie development cycle
 
-Decided 2026-11-10. Where this conflicts with older docs here or with app `docs/VERIFY.md`, this file wins.
+Decided 2026-11-10. Where this conflicts with older docs here or with app [`docs/security/VERIFY.md`](https://github.com/0cwa/collieim-android/blob/main/docs/security/VERIFY.md), this file wins.
 
 ## Day-to-day work
 
 - App `main` (`0cwa/collieim-android`) is the source. Change app code directly in ordinary PRs; do not re-import app changes as engineering layers.
-- Every non-merge app commit carries one `Layer: <feature>` trailer (lowercase, hyphens), e.g. `Layer: collie-branding`. The app `pr.yml` check enforces it.
-- Required app PR checks: fast lint and `Layer:` trailers. The app workflow also runs unit tests, an unsigned production build and the aggregate `Security readiness` check.
-- `main` in both repos: PRs only, required checks green, signed commits, no force pushes, no required human review. Agents merge with `gh pr merge`.
+- Maintainer app commits carry a `Layer: <feature>` trailer where required by the app's PR checks. External contributors can submit PRs without `Layer:` trailers or signing keys. Maintainers can squash-merge them with a signed landed commit. See the app's [`.github/CONTRIBUTING.md`](https://github.com/0cwa/collieim-android/blob/main/.github/CONTRIBUTING.md).
+- The app workflow runs fast lint, unit tests, an unsigned production build and the aggregate `Security readiness` check.
+- `main` in both repos takes PRs with green required checks and signed commits, with force pushes disabled. Agents self-merge routine app code PRs once the evidence below is complete.
+- CI, workflow, release and build-input changes covered by [`.github/CODEOWNERS`](../.github/CODEOWNERS) require maintainer review.
+- The app's path-based `tooling/features.toml` and `tooling/ci/feature_diff.py` report Collie's feature differences from Molly. [Feature map](https://github.com/0cwa/collieim-android/blob/main/tooling/features.toml) · [Diff tool](https://github.com/0cwa/collieim-android/blob/main/tooling/ci/feature_diff.py)
 
 ## Merging PRs
 
@@ -43,7 +45,7 @@ python3 tooling/upstream/merge-upstream.py molly <Molly branch, e.g. molly-8.34>
 - Read what merges cleanly but doesn't belong, and remove it or adapt it: network calls that skip the proxy code, new Google dependencies (Firebase Messaging over `core/gms` stays), strings that say "Signal", donation or payment entry points. Donation UI stays out; donation strings stay as Molly has them.
 - If the merge changes the libsignal or ringrtc version in `gradle/libs.versions.toml`, the native libraries must be rebuilt (`tools/native`) and published first, or the app build fails.
 - Molly is often on an older Signal than Collie. Merging its branch then brings only Molly's own work, since Collie already has those Signal commits.
-- Agents may merge upgrade PRs once required checks and `Unit tests` are green.
+- Agents may merge upgrade PRs once required checks and `Unit tests` are green and any required maintainer review is in.
 
 ### Additional selected sources
 
@@ -65,7 +67,8 @@ TrailBlazer Beta product have different purposes and publication routes.
 - The maintainer signs it locally (APK key) and tags it locally (publication key, `WtFs…`, listed in app `.github/release-signers`).
 - One `collie.apk` is uploaded. App CI checks it, uploads the profile copies (`collie-foss`, `molly-continued`, `molly-foss-continued`, `molly-minimal`) and publishes a prerelease within minutes.
 - A full release is the same APK, promoted only after a rebuild on the other side (GitHub or this machine) matches it.
-- Release notes: `distribution/release-notes/<version>.md` here, in the maintainer's style (see existing files). App CI refuses to publish without one. In-app notices (e.g. the later move to one `collie.apk`) ship as ordinary app PRs.
+- App `main` is the single Stable source branch. `release/stable/8.35` is retired.
+- App CI reads `docs/release-notes/<version>.md` from the exact signed tag commit and requires notes before publishing. The release's schema 1 `release.json` carries the canonical release metadata. In-app notices ship as ordinary app PRs.
 - The Stable F-Droid feed carries verified full Stable releases only. TrailBlazer
   Beta has a separate package, APK signer and feed; its GitHub releases remain
   immutable prereleases, and `feeds.yml` publishes the newest one once its APK

@@ -126,8 +126,9 @@ jobs:
         run: python distribution/feed.py capture-deploy-baseline "$RUNNER_TEMP/deploy-baseline.json" --retain-site "$RUNNER_TEMP/previous-site"
       - name: Stage the selected immutable release and optional regular history
         run: |
+          bt=$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)
           python distribution/release_inputs.py releases --latest "$LATEST" --keep "$KEEP_RELEASES" \
-            --apks "$RUNNER_TEMP/apks" --receipt "$RUNNER_TEMP/release-inputs.json"
+            --apks "$RUNNER_TEMP/apks" --receipt "$RUNNER_TEMP/release-inputs.json" --build-tools "$bt"
       - name: Export immutable listing and native metadata through the Git data API
         run: |
           python distribution/release_inputs.py metadata --receipt "$RUNNER_TEMP/release-inputs.json" \
@@ -139,8 +140,9 @@ jobs:
       - name: Stage the verified Beta APK and its listing from the Beta tag
         if: env.BETA_CHANGED == 'true'
         run: |
+          bt=$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)
           python distribution/beta_inputs.py stage --tag "$BETA_TAG" --sha256 "$BETA_SHA256" --source-commit "$BETA_SOURCE" \
-            --apks "$RUNNER_TEMP/beta-apks" --receipt "$RUNNER_TEMP/beta-inputs.json"
+            --apks "$RUNNER_TEMP/beta-apks" --receipt "$RUNNER_TEMP/beta-inputs.json" --build-tools "$bt"
           python distribution/beta_inputs.py metadata --receipt "$RUNNER_TEMP/beta-inputs.json" \
             --output "$RUNNER_TEMP/beta-metadata" --evidence "$RUNNER_TEMP/beta-metadata-inputs.json"
           echo "BETA_ARGS=--beta-apks $RUNNER_TEMP/beta-apks --beta-fastlane $RUNNER_TEMP/beta-metadata --beta-tag $BETA_TAG" >> "$GITHUB_ENV"

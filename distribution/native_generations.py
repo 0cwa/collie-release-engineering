@@ -1,12 +1,19 @@
 """Admit only reviewed, hash-pinned additions to the immutable native-v1 set."""
 import hashlib
 import json
-from pathlib import PurePosixPath
+from pathlib import Path, PurePosixPath
 import re
 import stat
 
 
 ORIGIN = 'https://repo.collie.im/'
+REPOSITORY = '0cwa/collie-release-engineering'
+MAX_BYTES = 950_000_000
+BASELINE = Path(__file__).with_name('native-v1.json')
+REGISTRY = Path(__file__).with_name('native-generations.json')
+ARCHIVE_URL = re.compile(
+    rf'https://github\.com/{REPOSITORY}/releases/download/'
+    r'([A-Za-z0-9][A-Za-z0-9_.-]{0,127})/([A-Za-z0-9][A-Za-z0-9_.-]{0,127}\.zip)')
 
 
 def _unique(pairs):
@@ -28,7 +35,7 @@ def _read(path):
 
 def _validate_generation(manifest, baseline, generation):
     fields = {'schema', 'kind', 'origin', 'generation', 'files'}
-    if (not isinstance(manifest, dict) or set(manifest) != fields or
+    if (not isinstance(manifest, dict) or set(manifest) not in (fields, fields | {'archive'}) or
             type(manifest['schema']) is not int or manifest['schema'] != 1 or
             manifest['kind'] != 'collie-pages-native-generation' or manifest['origin'] != ORIGIN or
             type(manifest['generation']) is not int or manifest['generation'] != generation):
@@ -38,6 +45,13 @@ def _validate_generation(manifest, baseline, generation):
         raise ValueError('native generation must add a bounded artifact set')
     if any(files.get(name) != entry for name, entry in baseline.items()):
         raise ValueError('native generation must preserve every fixed native-v1 byte')
+    if 'archive' in manifest:
+        archive = manifest['archive']
+        if (not isinstance(archive, dict) or set(archive) != {'url', 'bytes', 'sha256'} or
+                not isinstance(archive['url'], str) or not ARCHIVE_URL.fullmatch(archive['url']) or
+                type(archive['bytes']) is not int or not 0 < archive['bytes'] <= MAX_BYTES or
+                not isinstance(archive['sha256'], str) or not re.fullmatch('[0-9a-f]{64}', archive['sha256'])):
+            raise ValueError('native archive requires a pinned CRE GitHub Release ZIP, byte count and digest')
     coordinates = {}
     for name, entry in files.items():
         if name in baseline:
@@ -55,7 +69,7 @@ def _validate_generation(manifest, baseline, generation):
             raise ValueError('new native file is not the versioned binary or POM')
         if (not isinstance(entry, dict) or set(entry) != {'sha256', 'bytes'} or
                 not isinstance(entry['sha256'], str) or not re.fullmatch('[0-9a-f]{64}', entry['sha256']) or
-                type(entry['bytes']) is not int or not 0 < entry['bytes'] <= 950_000_000):
+                type(entry['bytes']) is not int or not 0 < entry['bytes'] <= MAX_BYTES):
             raise ValueError('new native file needs exact digest and positive byte count')
         coordinates.setdefault((module, version), set()).add(filename)
     for (module, version), filenames in coordinates.items():
@@ -68,13 +82,13 @@ def _validate_generation(manifest, baseline, generation):
                 raise ValueError('new libsignal Android and client versions must match')
 
 
-def approved_files(supplied, baseline_path, registry_path):
+def _approved_generation(supplied, baseline_path, registry_path):
     """A caller-supplied manifest never becomes its own admission policy."""
     _, baseline = _read(baseline_path)
     if supplied == baseline:
         # Keep existing scheduled feed bundles valid; the complete prior site
         # retains later generations independently of the supplied addition set.
-        return baseline['files']
+        return baseline
     _, registry = _read(registry_path)
     if (not isinstance(registry, dict) or set(registry) != {'schema', 'manifests'} or
             type(registry['schema']) is not int or registry['schema'] != 1 or
@@ -99,7 +113,16 @@ def approved_files(supplied, baseline_path, registry_path):
             raise ValueError('registered native generation digest differs')
         _validate_generation(approved, baseline['files'], int(match[1]))
         if supplied == approved:
-            selected = approved['files']
+            selected = approved
     if selected is None:
         raise ValueError('native manifest is not a registered immutable generation')
     return selected
+
+
+def approved_files(supplied, baseline_path, registry_path):
+    return _approved_generation(supplied, baseline_path, registry_path)['files']
+
+
+def load_generation(path, *, baseline_path=BASELINE, registry_path=REGISTRY):
+    _, supplied = _read(path)
+    return _approved_generation(supplied, baseline_path, registry_path)

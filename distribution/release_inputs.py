@@ -13,13 +13,19 @@ import hashlib
 import json
 from pathlib import Path, PurePosixPath
 import re
+import stat
+import struct
 import subprocess
+from tempfile import TemporaryDirectory
 import urllib.request
 from urllib.parse import urlparse
+import zipfile
 
 import channel_profile as channels
+import native_generations
 
 APP_REPOSITORY = '0cwa/collieim-android'
+ASSET_HOSTS = {'github.com', 'release-assets.githubusercontent.com'}
 ORIGIN = 'https://repo.collie.im/'
 NATIVE_PREFIX = 'native-inputs/v1/maven/'
 MAX_BYTES = 950_000_000
@@ -52,6 +58,29 @@ def github_read(endpoint):
     return json.loads(result.stdout)
 
 
+def release_asset(assets, name, url, limit, *, optional=False):
+    if not isinstance(assets, list):
+        raise ValueError('release assets are unavailable')
+    matches = [asset for asset in assets if isinstance(asset, dict) and asset.get('name') == name]
+    if not matches and optional:
+        return None
+    if len(matches) != 1:
+        raise ValueError(f'release must contain exactly one {name}')
+    asset = matches[0]
+    if (type(asset.get('id')) is not int or asset['id'] <= 0 or asset.get('state') != 'uploaded'
+            or type(asset.get('size')) is not int or not 0 < asset['size'] <= limit
+            or not re.fullmatch(r'sha256:[0-9a-f]{64}', str(asset.get('digest', '')))
+            or asset.get('browser_download_url') != url):
+        raise ValueError(f'{name} asset identity, digest or URL differs')
+    return {'asset_id': asset['id'], 'bytes': asset['size'], 'sha256': asset['digest'][7:], 'url': url}
+
+
+def manifest_asset(assets, tag):
+    url = f'https://github.com/{APP_REPOSITORY}/releases/download/{tag}/release.json'
+    identity = release_asset(assets, 'release.json', url, MAX_TEXT_BYTES, optional=True)
+    return {'manifest_asset': identity} if identity is not None else {}
+
+
 def regular_release(value):
     """Keep only the immutable identity needed to fetch one regular APK."""
     if (not isinstance(value, dict) or type(value.get('id')) is not int or value['id'] <= 0
@@ -74,7 +103,8 @@ def regular_release(value):
             or asset.get('browser_download_url') != expected_url):
         raise ValueError('canonical APK asset identity, digest or URL differs')
     return {'release_id': value['id'], 'tag': tag, 'asset_id': asset['id'],
-            'bytes': asset['size'], 'sha256': asset['digest'][7:], 'url': expected_url}
+            'bytes': asset['size'], 'sha256': asset['digest'][7:], 'url': expected_url,
+            **manifest_asset(assets, tag)}
 
 
 def select_releases(latest, keep, *, api=github_read):
@@ -171,22 +201,15 @@ class FixedOriginRedirect(urllib.request.HTTPRedirectHandler):
         return super().redirect_request(req, fp, code, msg, headers, newurl)
 
 
-def download(url, destination, size, digest, *, hosts):
-    """Bound downloads and stream APK/native bytes instead of buffering them."""
-    parsed = urlparse(url)
-    if parsed.scheme != 'https' or parsed.netloc not in hosts:
-        raise ValueError('input URL left its fixed HTTPS origin')
+def write_verified(source, destination, size, digest):
+    """Stream input bytes while enforcing their declared size and SHA-256."""
     hasher = hashlib.sha256()
     count = 0
     destination = Path(destination)
     destination.parent.mkdir(parents=True, exist_ok=True)
-    opener = urllib.request.build_opener(FixedOriginRedirect(hosts))
-    with opener.open(url, timeout=60) as response, destination.open('xb') as output:
-        final = urlparse(response.geturl())
-        if final.scheme != 'https' or final.netloc not in hosts or response.status != 200:
-            raise ValueError('input redirect left its fixed HTTPS origins')
+    with destination.open('xb') as output:
         while True:
-            block = response.read(min(1024 * 1024, size - count + 1))
+            block = source.read(min(1024 * 1024, size - count + 1))
             if not block:
                 break
             count += len(block)
@@ -198,7 +221,54 @@ def download(url, destination, size, digest, *, hosts):
         raise ValueError('download differs from approved size or digest')
 
 
-def stage_releases(latest, keep, destination, *, api=github_read, downloader=download):
+def download(url, destination, size, digest, *, hosts):
+    """Bound downloads and stream APK/native bytes instead of buffering them."""
+    parsed = urlparse(url)
+    if parsed.scheme != 'https' or parsed.netloc not in hosts:
+        raise ValueError('input URL left its fixed HTTPS origin')
+    opener = urllib.request.build_opener(FixedOriginRedirect(hosts))
+    with opener.open(url, timeout=60) as response:
+        final = urlparse(response.geturl())
+        if final.scheme != 'https' or final.netloc not in hosts or response.status != 200:
+            raise ValueError('input redirect left its fixed HTTPS origins')
+        write_verified(response, destination, size, digest)
+
+
+def apk_identity(apk, build_tools):
+    """Read release package metadata and the verified signer from the actual APK."""
+    tools = Path(build_tools)
+    certs = subprocess.run([str(tools / 'apksigner'), 'verify', '--print-certs', str(apk)],
+                           check=True, capture_output=True, text=True).stdout
+    digests = re.findall(r'certificate SHA-256 digest: ([0-9a-f]{64})', certs)
+    badging = subprocess.run([str(tools / 'aapt2'), 'dump', 'badging', str(apk)],
+                             check=True, capture_output=True, text=True).stdout
+    match = re.search(r"package: name='([^']+)' versionCode='([0-9]+)' versionName='([^']+)'", badging)
+    if len(digests) != 1 or match is None or 'application-debuggable' in badging:
+        raise ValueError('expected one APK signer and release package metadata')
+    return {'package': match[1], 'version_code': int(match[2]), 'version_name': match[3],
+            'apk_certificate_sha256': digests[0]}
+
+
+def verify_manifest(release, profile, commit, identity, *, downloader):
+    asset = release['manifest_asset']
+    with TemporaryDirectory() as work:
+        path = Path(work) / 'release.json'
+        downloader(asset['url'], path, asset['bytes'], asset['sha256'], hosts=ASSET_HOSTS)
+        manifest = json.loads(path.read_bytes(), object_pairs_hook=unique_properties)
+    version = release['tag'][len(profile.tag_prefix):]
+    if (identity['package'] != profile.package or identity['apk_certificate_sha256'] != profile.apk_certificate
+            or identity['version_name'] != version or identity['version_code'] <= 0):
+        raise ValueError('release.json APK package, signer or version differs from the channel and tag')
+    expected = {'schema': 1, 'channel': profile.name, 'tag': release['tag'], 'source_commit': commit,
+                'version_name': version, 'version_code': identity['version_code'], 'package_id': profile.package,
+                'apk_name': profile.apk_asset, 'apk_sha256': release['sha256'], 'native_artifacts_path': NATIVE_PLAN}
+    if (manifest != expected or type(manifest['schema']) is not int
+            or type(manifest['version_code']) is not int):
+        raise ValueError('release.json differs from the verified tag, channel or APK')
+    return manifest
+
+
+def stage_releases(latest, keep, destination, *, build_tools=None, api=github_read, downloader=download):
     destination = Path(destination)
     if destination.exists():
         raise ValueError('new APK input directory required')
@@ -207,10 +277,19 @@ def stage_releases(latest, keep, destination, *, api=github_read, downloader=dow
         raise ValueError('selected release inputs exceed byte budget')
     commit, tag_oid = source_commit(latest, api=api)
     destination.mkdir(parents=True)
-    for release in releases:
-        downloader(release['url'], destination / (release['tag'] + '.apk'),
-                   release['bytes'], release['sha256'],
-                   hosts={'github.com', 'release-assets.githubusercontent.com'})
+    for index, release in enumerate(releases):
+        tag = release['tag']
+        apk = destination / (tag + '.apk')
+        downloader(release['url'], apk, release['bytes'], release['sha256'], hosts=ASSET_HOSTS)
+        if 'manifest_asset' in release:
+            if build_tools is None:
+                raise ValueError('Android build tools are required to verify release.json against the APK')
+            source = (commit, tag_oid) if tag == latest else source_commit(tag, api=api)
+            manifest = verify_manifest(release, channels.STABLE, source[0], apk_identity(apk, build_tools),
+                                       downloader=downloader)
+            releases[index] = {**release, 'manifest': manifest}
+            if tag != latest and source_commit(tag, api=api) != source:
+                raise ValueError('historical source tag changed during staging')
         current = regular_release(api(f"repos/{APP_REPOSITORY}/releases/{release['release_id']}"))
         if current != release:
             raise ValueError('release changed while its APK was staged; retry')
@@ -455,6 +534,11 @@ def export_metadata(receipt, destination, *, api=github_metadata_read):
 
 
 NATIVE_ROUTE = re.compile(re.escape(ORIGIN) + r'(native-inputs/v[1-9][0-9]{0,2}/maven/)(.+)')
+MAX_NATIVE_ZIP_DIRECTORY = 1024 * 1024
+ZIP_END = struct.Struct('<4s4H2IH')
+ZIP64_LOCATOR = struct.Struct('<4sIQI')
+ZIP64_END = struct.Struct('<4sQ2H2I4Q')
+ZIP_DIRECTORY_HEADER_BYTES = 46
 
 
 def native_site_path(value):
@@ -500,6 +584,118 @@ def stage_native(plan, destination, *, downloader=download):
     return len(records)
 
 
+def check_native_zip_directory(source, expected_entries):
+    """Bound the directory and count its physical headers before ZipFile reads it."""
+    end = source.seek(0, 2)
+    tail_start = max(0, end - ZIP_END.size - 65535)
+    source.seek(tail_start)
+    tail = source.read(ZIP_END.size + 65535)
+    # Use the same record selection as ZipFile, including its no-comment fast path.
+    start = len(tail) - ZIP_END.size
+    if start < 0 or tail[start:start + 4] != b'PK\x05\x06' or tail[-2:] != b'\0\0':
+        start = tail.rfind(b'PK\x05\x06')
+    if start < 0 or len(tail) - start < ZIP_END.size:
+        raise ValueError('missing or truncated native ZIP end record')
+    _, disk, directory_disk, disk_entries, entries, size, offset, comment_bytes = ZIP_END.unpack_from(tail, start)
+    if start + ZIP_END.size + comment_bytes != len(tail) or disk or directory_disk:
+        raise ValueError('invalid native ZIP end record')
+
+    directory_end = tail_start + start
+    if directory_end >= ZIP64_LOCATOR.size:
+        source.seek(directory_end - ZIP64_LOCATOR.size)
+        signature, locator_disk, record_offset, disks = ZIP64_LOCATOR.unpack(source.read(ZIP64_LOCATOR.size))
+        if signature == b'PK\x06\x07':
+            directory_end -= ZIP64_LOCATOR.size + ZIP64_END.size
+            if locator_disk or disks != 1 or record_offset != directory_end:
+                raise ValueError('invalid native ZIP64 locator')
+            source.seek(record_offset)
+            signature, length, _, _, disk, directory_disk, disk_entries, entries, size, offset = (
+                ZIP64_END.unpack(source.read(ZIP64_END.size)))
+            if signature != b'PK\x06\x06' or length != ZIP64_END.size - 12 or disk or directory_disk:
+                raise ValueError('invalid native ZIP64 end record')
+
+    if size > MAX_NATIVE_ZIP_DIRECTORY:
+        raise ValueError('native ZIP central directory exceeds byte budget')
+    if disk_entries != entries or entries != expected_entries:
+        raise ValueError('native archive must contain exactly the pinned generation files')
+    if size < entries * ZIP_DIRECTORY_HEADER_BYTES or offset + size != directory_end:
+        raise ValueError('invalid or truncated native ZIP central directory')
+
+    # ZipFile walks directory bytes without enforcing the EOCD entry count.
+    # Check the actual headers so a false count cannot bypass the inventory bound.
+    cursor = offset
+    for _ in range(entries):
+        if cursor + ZIP_DIRECTORY_HEADER_BYTES > directory_end:
+            raise ValueError('truncated native ZIP central directory')
+        source.seek(cursor)
+        header = source.read(ZIP_DIRECTORY_HEADER_BYTES)
+        if not header.startswith(b'PK\x01\x02'):
+            raise ValueError('invalid native ZIP central directory header')
+        name_bytes, extra_bytes, comment_bytes = struct.unpack_from('<3H', header, 28)
+        cursor += ZIP_DIRECTORY_HEADER_BYTES + name_bytes + extra_bytes + comment_bytes
+    if cursor != directory_end:
+        raise ValueError('native ZIP central directory differs from its declared entries or size')
+
+
+def fetch_native_archive(archive, records, destination, *, api, downloader, work):
+    tag, name = native_generations.ARCHIVE_URL.fullmatch(archive['url']).groups()
+    release = api(f'repos/{native_generations.REPOSITORY}/releases/tags/{tag}')
+    if (not isinstance(release, dict) or release.get('tag_name') != tag
+            or release.get('immutable') is not True or release.get('draft') is not False):
+        raise ValueError('native archive requires a published immutable CRE release')
+    asset = release_asset(release.get('assets'), name, archive['url'], MAX_BYTES)
+    if asset['bytes'] != archive['bytes'] or asset['sha256'] != archive['sha256']:
+        raise ValueError('native archive asset differs from the registered pin')
+    path = work / name
+    downloader(archive['url'], path, archive['bytes'], archive['sha256'], hosts=ASSET_HOSTS)
+    with path.open('rb') as source:
+        check_native_zip_directory(source, len(records))
+        with zipfile.ZipFile(source) as bundle:
+            extract_native_members(bundle, records, destination)
+
+
+def extract_native_members(bundle, records, destination):
+    members = bundle.infolist()
+    if len(members) != len(records) or {member.orig_filename for member in members} != records.keys():
+        raise ValueError('native archive must contain exactly the pinned generation files')
+    for member in members:
+        name = member.orig_filename
+        entry = records[name]
+        kind = stat.S_IFMT(member.external_attr >> 16)
+        if kind not in (0, stat.S_IFREG) or member.file_size != entry['bytes']:
+            raise ValueError('native archive member is not a pinned regular file of the expected size')
+        if member.compress_type not in (zipfile.ZIP_STORED, zipfile.ZIP_DEFLATED):
+            raise ValueError('native archive member uses an unsupported compression method')
+        with bundle.open(member) as source:
+            write_verified(source, destination / name, entry['bytes'], entry['sha256'])
+
+
+def stage_native_generation(manifest, destination, *, api=github_read, downloader=download,
+                            baseline_path=native_generations.BASELINE, registry_path=native_generations.REGISTRY):
+    generation = native_generations.load_generation(manifest, baseline_path=baseline_path, registry_path=registry_path)
+    records = generation['files']
+    if sum(value['bytes'] for value in records.values()) > MAX_BYTES:
+        raise ValueError('native input generation exceeds byte budget')
+    destination = Path(destination)
+    if destination.exists() or destination.is_symlink():
+        raise ValueError('new native input directory required')
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    with TemporaryDirectory(dir=destination.parent) as temporary:
+        work = Path(temporary)
+        staged = work / 'native'
+        staged.mkdir()
+        archived = {}
+        if 'archive' in generation:
+            prefix = f"native-inputs/v{generation['generation']}/"
+            archived = {path: entry for path, entry in records.items() if path.startswith(prefix)}
+            fetch_native_archive(generation['archive'], archived, staged, api=api, downloader=downloader, work=work)
+        for path, entry in sorted(records.items()):
+            if path not in archived:
+                downloader(ORIGIN + path, staged / path, entry['bytes'], entry['sha256'], hosts={'repo.collie.im'})
+        staged.rename(destination)
+    return len(records)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     sub = parser.add_subparsers(dest='action', required=True)
@@ -508,8 +704,11 @@ def main():
     releases.add_argument('--keep', type=int, default=1)
     releases.add_argument('--apks', type=Path, required=True)
     releases.add_argument('--receipt', type=Path, required=True)
+    releases.add_argument('--build-tools', type=Path)
     native = sub.add_parser('native')
-    native.add_argument('--plan', type=Path, required=True)
+    source = native.add_mutually_exclusive_group(required=True)
+    source.add_argument('--plan', type=Path)
+    source.add_argument('--generation-manifest', type=Path, help='stage a registered CRE native generation for Pages')
     native.add_argument('--output', type=Path, required=True)
     metadata = sub.add_parser('metadata')
     metadata.add_argument('--receipt', type=Path, required=True)
@@ -519,7 +718,7 @@ def main():
     if args.action == 'releases':
         if args.receipt.exists():
             parser.error('release input receipt must not exist')
-        value = stage_releases(args.latest, args.keep, args.apks)
+        value = stage_releases(args.latest, args.keep, args.apks, build_tools=args.build_tools)
         with args.receipt.open('x', encoding='utf-8') as output:
             output.write(json.dumps(value, sort_keys=True, indent=2) + '\n')
         print(json.dumps({key: value[key] for key in ('latest', 'source_commit', 'listing_commit')}))
@@ -533,8 +732,9 @@ def main():
         print(json.dumps({'metadata_files': len(value['files']), 'source_commit': value['source_commit'],
                           'listing_commit': value['listing_commit']}))
     else:
-        plan = json.loads(args.plan.read_text())
-        print(json.dumps({'native_files': stage_native(plan, args.output)}))
+        count = (stage_native(json.loads(args.plan.read_text()), args.output) if args.plan
+                 else stage_native_generation(args.generation_manifest, args.output))
+        print(json.dumps({'native_files': count}))
 
 
 if __name__ == '__main__':

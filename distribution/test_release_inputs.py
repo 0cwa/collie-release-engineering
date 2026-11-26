@@ -28,6 +28,29 @@ def release(number=10, tag=LATEST, **changes):
     return value
 
 
+def add_manifest(release, profile, commit, code, **changes):
+    tag = release['tag_name']
+    manifest = {'schema': 1, 'channel': profile.name, 'tag': tag, 'source_commit': commit,
+                'version_name': tag[len(profile.tag_prefix):], 'version_code': code,
+                'package_id': profile.package, 'apk_name': profile.apk_asset,
+                'apk_sha256': release['assets'][0]['digest'][7:], 'native_artifacts_path': inputs.NATIVE_PLAN}
+    manifest.update(changes)
+    raw = json.dumps(manifest).encode()
+    release['assets'].append({'id': 999, 'name': 'release.json', 'state': 'uploaded', 'size': len(raw),
+                              'digest': 'sha256:' + hashlib.sha256(raw).hexdigest(),
+                              'browser_download_url':
+                                  f'https://github.com/{inputs.APP_REPOSITORY}/releases/download/{tag}/release.json'})
+    return manifest, raw
+
+
+def download_release(apk, manifest=None):
+    def download(url, destination, size, digest, *, hosts):
+        assert hosts == inputs.ASSET_HOSTS
+        raw = manifest if url.endswith('/release.json') else apk
+        inputs.write_verified(io.BytesIO(raw), destination, size, digest)
+    return download
+
+
 class GitHub:
     def __init__(self, latest=None, pages=None):
         self.latest = release() if latest is None else latest
@@ -145,8 +168,54 @@ class ReleaseInputTests(unittest.TestCase):
             self.assertEqual(record['tag_object'], 'a' * 40)
             self.assertEqual((destination / (LATEST + '.apk')).read_bytes(), APK)
             self.assertEqual(record['releases'][0]['sha256'], APK_SHA)
+            self.assertNotIn('manifest', record['releases'][0])
             self.assertEqual(calls[0][1:3], (len(APK), APK_SHA))
             self.assertFalse(any('main' in endpoint for endpoint in api.calls))
+
+    def test_published_manifest_binds_real_apk_and_tag(self):
+        api = GitHub()
+        profile = inputs.channels.STABLE
+        manifest, raw = add_manifest(api.latest, profile, api.commit, 178201)
+        identity = {'package': profile.package, 'version_name': LATEST[1:], 'version_code': 178201,
+                    'apk_certificate_sha256': profile.apk_certificate}
+        with tempfile.TemporaryDirectory() as temp, patch.object(inputs, 'apk_identity', return_value=identity) as apk:
+            destination = Path(temp) / 'apks'
+            record = inputs.stage_releases(LATEST, 1, destination, build_tools=Path(temp), api=api,
+                                           downloader=download_release(APK, raw))
+            apk.assert_called_once_with(destination / (LATEST + '.apk'), Path(temp))
+            self.assertEqual(record['releases'][0]['manifest'], manifest)
+            self.assertEqual(list(destination.iterdir()), [destination / (LATEST + '.apk')])
+
+    def test_rejects_invalid_release_manifests_even_with_a_matching_asset_digest(self):
+        profile = inputs.channels.STABLE
+        identity = {'package': profile.package, 'version_name': LATEST[1:], 'version_code': 1,
+                    'apk_certificate_sha256': profile.apk_certificate}
+        for key, value in (
+                ('schema', True), ('schema', 2), ('tag', OLDER), ('channel', 'trailblazer-beta'),
+                ('source_commit', 'c' * 40), ('package_id', 'im.collie.app.trailblazer'),
+                ('apk_name', 'other.apk'), ('apk_sha256', '0' * 64), ('version_code', 2),
+                ('version_code', True), ('version_name', OLDER[1:]), ('native_artifacts_path', 'alternate.json')):
+            api = GitHub()
+            _, raw = add_manifest(api.latest, profile, api.commit, 1, **{key: value})
+            with (self.subTest(key=key, value=value), tempfile.TemporaryDirectory() as temp,
+                  patch.object(inputs, 'apk_identity', return_value=identity),
+                  self.assertRaisesRegex(ValueError, 'release.json differs')):
+                inputs.stage_releases(LATEST, 1, Path(temp) / 'apks', build_tools=Path(temp), api=api,
+                                      downloader=download_release(APK, raw))
+
+    def test_rejects_tampered_or_duplicate_manifest_asset(self):
+        api = GitHub()
+        profile = inputs.channels.STABLE
+        _, raw = add_manifest(api.latest, profile, api.commit, 1)
+        identity = {'package': profile.package, 'version_name': LATEST[1:], 'version_code': 1,
+                    'apk_certificate_sha256': profile.apk_certificate}
+        with (tempfile.TemporaryDirectory() as temp, patch.object(inputs, 'apk_identity', return_value=identity),
+              self.assertRaisesRegex(ValueError, 'approved size or digest')):
+            inputs.stage_releases(LATEST, 1, Path(temp) / 'apks', build_tools=Path(temp), api=api,
+                                  downloader=download_release(APK, raw[:-1] + b' '))
+        api.latest['assets'].append(api.latest['assets'][-1])
+        with self.assertRaisesRegex(ValueError, 'exactly one release.json'):
+            inputs.select_releases(LATEST, 1, api=api)
 
     def test_legacy_listing_exception_requires_both_exact_tag_and_source(self):
         tag, commit = next(iter(inputs.LEGACY_LISTINGS))
