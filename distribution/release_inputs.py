@@ -14,6 +14,7 @@ import json
 from pathlib import Path, PurePosixPath
 import re
 import stat
+import struct
 import subprocess
 from tempfile import TemporaryDirectory
 import urllib.request
@@ -533,6 +534,11 @@ def export_metadata(receipt, destination, *, api=github_metadata_read):
 
 
 NATIVE_ROUTE = re.compile(re.escape(ORIGIN) + r'(native-inputs/v[1-9][0-9]{0,2}/maven/)(.+)')
+MAX_NATIVE_ZIP_DIRECTORY = 1024 * 1024
+ZIP_END = struct.Struct('<4s4H2IH')
+ZIP64_LOCATOR = struct.Struct('<4sIQI')
+ZIP64_END = struct.Struct('<4sQ2H2I4Q')
+ZIP_DIRECTORY_HEADER_BYTES = 46
 
 
 def native_site_path(value):
@@ -578,6 +584,59 @@ def stage_native(plan, destination, *, downloader=download):
     return len(records)
 
 
+def check_native_zip_directory(source, expected_entries):
+    """Bound the directory and count its physical headers before ZipFile reads it."""
+    end = source.seek(0, 2)
+    tail_start = max(0, end - ZIP_END.size - 65535)
+    source.seek(tail_start)
+    tail = source.read(ZIP_END.size + 65535)
+    # Use the same record selection as ZipFile, including its no-comment fast path.
+    start = len(tail) - ZIP_END.size
+    if start < 0 or tail[start:start + 4] != b'PK\x05\x06' or tail[-2:] != b'\0\0':
+        start = tail.rfind(b'PK\x05\x06')
+    if start < 0 or len(tail) - start < ZIP_END.size:
+        raise ValueError('missing or truncated native ZIP end record')
+    _, disk, directory_disk, disk_entries, entries, size, offset, comment_bytes = ZIP_END.unpack_from(tail, start)
+    if start + ZIP_END.size + comment_bytes != len(tail) or disk or directory_disk:
+        raise ValueError('invalid native ZIP end record')
+
+    directory_end = tail_start + start
+    if directory_end >= ZIP64_LOCATOR.size:
+        source.seek(directory_end - ZIP64_LOCATOR.size)
+        signature, locator_disk, record_offset, disks = ZIP64_LOCATOR.unpack(source.read(ZIP64_LOCATOR.size))
+        if signature == b'PK\x06\x07':
+            directory_end -= ZIP64_LOCATOR.size + ZIP64_END.size
+            if locator_disk or disks != 1 or record_offset != directory_end:
+                raise ValueError('invalid native ZIP64 locator')
+            source.seek(record_offset)
+            signature, length, _, _, disk, directory_disk, disk_entries, entries, size, offset = (
+                ZIP64_END.unpack(source.read(ZIP64_END.size)))
+            if signature != b'PK\x06\x06' or length != ZIP64_END.size - 12 or disk or directory_disk:
+                raise ValueError('invalid native ZIP64 end record')
+
+    if size > MAX_NATIVE_ZIP_DIRECTORY:
+        raise ValueError('native ZIP central directory exceeds byte budget')
+    if disk_entries != entries or entries != expected_entries:
+        raise ValueError('native archive must contain exactly the pinned generation files')
+    if size < entries * ZIP_DIRECTORY_HEADER_BYTES or offset + size != directory_end:
+        raise ValueError('invalid or truncated native ZIP central directory')
+
+    # ZipFile walks directory bytes without enforcing the EOCD entry count.
+    # Check the actual headers so a false count cannot bypass the inventory bound.
+    cursor = offset
+    for _ in range(entries):
+        if cursor + ZIP_DIRECTORY_HEADER_BYTES > directory_end:
+            raise ValueError('truncated native ZIP central directory')
+        source.seek(cursor)
+        header = source.read(ZIP_DIRECTORY_HEADER_BYTES)
+        if not header.startswith(b'PK\x01\x02'):
+            raise ValueError('invalid native ZIP central directory header')
+        name_bytes, extra_bytes, comment_bytes = struct.unpack_from('<3H', header, 28)
+        cursor += ZIP_DIRECTORY_HEADER_BYTES + name_bytes + extra_bytes + comment_bytes
+    if cursor != directory_end:
+        raise ValueError('native ZIP central directory differs from its declared entries or size')
+
+
 def fetch_native_archive(archive, records, destination, *, api, downloader, work):
     tag, name = native_generations.ARCHIVE_URL.fullmatch(archive['url']).groups()
     release = api(f'repos/{native_generations.REPOSITORY}/releases/tags/{tag}')
@@ -589,18 +648,26 @@ def fetch_native_archive(archive, records, destination, *, api, downloader, work
         raise ValueError('native archive asset differs from the registered pin')
     path = work / name
     downloader(archive['url'], path, archive['bytes'], archive['sha256'], hosts=ASSET_HOSTS)
-    with zipfile.ZipFile(path) as bundle:
-        members = bundle.infolist()
-        if len(members) != len(records) or {member.orig_filename for member in members} != records.keys():
-            raise ValueError('native archive must contain exactly the pinned generation files')
-        for member in members:
-            name = member.orig_filename
-            entry = records[name]
-            kind = stat.S_IFMT(member.external_attr >> 16)
-            if kind not in (0, stat.S_IFREG) or member.file_size != entry['bytes']:
-                raise ValueError('native archive member is not a pinned regular file of the expected size')
-            with bundle.open(member) as source:
-                write_verified(source, destination / name, entry['bytes'], entry['sha256'])
+    with path.open('rb') as source:
+        check_native_zip_directory(source, len(records))
+        with zipfile.ZipFile(source) as bundle:
+            extract_native_members(bundle, records, destination)
+
+
+def extract_native_members(bundle, records, destination):
+    members = bundle.infolist()
+    if len(members) != len(records) or {member.orig_filename for member in members} != records.keys():
+        raise ValueError('native archive must contain exactly the pinned generation files')
+    for member in members:
+        name = member.orig_filename
+        entry = records[name]
+        kind = stat.S_IFMT(member.external_attr >> 16)
+        if kind not in (0, stat.S_IFREG) or member.file_size != entry['bytes']:
+            raise ValueError('native archive member is not a pinned regular file of the expected size')
+        if member.compress_type not in (zipfile.ZIP_STORED, zipfile.ZIP_DEFLATED):
+            raise ValueError('native archive member uses an unsupported compression method')
+        with bundle.open(member) as source:
+            write_verified(source, destination / name, entry['bytes'], entry['sha256'])
 
 
 def stage_native_generation(manifest, destination, *, api=github_read, downloader=download,

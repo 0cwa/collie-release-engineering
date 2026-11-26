@@ -3,6 +3,7 @@ import hashlib
 import io
 import shutil
 import stat
+import struct
 import unittest
 from unittest.mock import patch
 import zipfile
@@ -130,18 +131,23 @@ class NativeGenerationAdmissionTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'budget'):
             self.prepare()
 
-    def archive_fixture(self, *, change=None, extra=None, symlink=None):
+    def archive_fixture(self, *, change=None, extra=None, symlink=None,
+                        compression=zipfile.ZIP_STORED, comment=b''):
         raw = io.BytesIO()
         with zipfile.ZipFile(raw, 'w') as bundle:
+            bundle.comment = comment
             for name in self.new_files:
                 info = zipfile.ZipInfo(name)
                 if name == symlink:
                     info.external_attr = (stat.S_IFLNK | 0o777) << 16
                 data = (self.bundle / 'native' / name).read_bytes()
-                bundle.writestr(info, b'x' * len(data) if name == change else data)
+                bundle.writestr(info, b'x' * len(data) if name == change else data, compress_type=compression)
             if extra:
                 bundle.writestr(extra, b'extra')
-        self.archive = raw.getvalue()
+        self.pin_archive(raw.getvalue())
+
+    def pin_archive(self, raw):
+        self.archive = raw
         record = {'url': f'https://github.com/{inputs.native_generations.REPOSITORY}/releases/download/native-v2/native.zip',
                   'sha256': hashlib.sha256(self.archive).hexdigest(), 'bytes': len(self.archive)}
         self.generation['archive'] = record
@@ -188,6 +194,57 @@ class NativeGenerationAdmissionTest(unittest.TestCase):
         staged = self.root / 'staged'
         self.assertEqual(self.stage_generation(staged), len(self.generation['files']))
         self.assertEqual(p.inventory(staged), self.generation['files'])
+
+    def test_deflated_zip64_archive_with_comment_stages(self):
+        self.add_generation()
+        with patch.object(zipfile, 'ZIP64_LIMIT', 1):
+            self.archive_fixture(compression=zipfile.ZIP_DEFLATED, comment=b'native generation')
+        self.assertIn(b'PK\x06\x07', self.archive)
+        staged = self.root / 'staged'
+        self.assertEqual(self.stage_generation(staged), len(self.generation['files']))
+        self.assertEqual(p.inventory(staged), self.generation['files'])
+
+    def test_unsupported_compression_is_rejected_before_opening_members(self):
+        self.add_generation()
+        for compression in (zipfile.ZIP_BZIP2, zipfile.ZIP_LZMA):
+            with self.subTest(compression=compression):
+                self.archive_fixture(compression=compression)
+                with (patch.object(zipfile.ZipFile, 'open') as member_open,
+                      self.assertRaisesRegex(ValueError, 'unsupported compression')):
+                    self.stage_generation(self.root / 'staged')
+                member_open.assert_not_called()
+
+    def test_invalid_directories_are_rejected_before_zipfile_construction(self):
+        self.add_generation()
+        self.archive_fixture(extra='unexpected')
+        extra = self.archive
+        self.archive_fixture()
+        normal = self.archive
+        with patch.object(zipfile, 'ZIP64_LIMIT', 1):
+            self.archive_fixture()
+        zip64 = self.archive
+
+        def changed(raw, offset, fmt, *values):
+            data = bytearray(raw)
+            struct.pack_into(fmt, data, offset, *values)
+            return bytes(data)
+
+        for label, raw, error in (
+                ('oversize', changed(normal, len(normal) - 10, '<I', inputs.MAX_NATIVE_ZIP_DIRECTORY + 1),
+                 'exceeds byte budget'),
+                ('ZIP64 oversize', changed(zip64, zip64.index(b'PK\x06\x06') + 40, '<Q',
+                                           inputs.MAX_NATIVE_ZIP_DIRECTORY + 1), 'exceeds byte budget'),
+                ('excess entries', changed(normal, len(normal) - 14, '<HH', 101, 101), 'exactly the pinned'),
+                ('false count', changed(extra, len(extra) - 14, '<HH', len(self.new_files), len(self.new_files)),
+                 'differs from its declared entries'),
+                ('truncated end', normal[:-1], 'missing or truncated'),
+                ('wrong offset', changed(normal, len(normal) - 6, '<I', 0), 'invalid or truncated')):
+            with self.subTest(label=label):
+                self.pin_archive(raw)
+                with (patch.object(zipfile, 'ZipFile') as constructor,
+                      self.assertRaisesRegex(ValueError, error)):
+                    self.stage_generation(self.root / 'staged')
+                constructor.assert_not_called()
 
     def test_archive_members_must_match_reviewed_inventory_and_hashes(self):
         self.add_generation()
