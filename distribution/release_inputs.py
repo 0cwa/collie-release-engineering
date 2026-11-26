@@ -13,12 +13,15 @@ import hashlib
 import json
 from pathlib import Path, PurePosixPath
 import re
+import stat
 import subprocess
 from tempfile import TemporaryDirectory
 import urllib.request
 from urllib.parse import urlparse
+import zipfile
 
 import channel_profile as channels
+import native_generations
 
 APP_REPOSITORY = '0cwa/collieim-android'
 ASSET_HOSTS = {'github.com', 'release-assets.githubusercontent.com'}
@@ -575,6 +578,57 @@ def stage_native(plan, destination, *, downloader=download):
     return len(records)
 
 
+def fetch_native_archive(archive, records, destination, *, api, downloader, work):
+    tag, name = native_generations.ARCHIVE_URL.fullmatch(archive['url']).groups()
+    release = api(f'repos/{native_generations.REPOSITORY}/releases/tags/{tag}')
+    if (not isinstance(release, dict) or release.get('tag_name') != tag
+            or release.get('immutable') is not True or release.get('draft') is not False):
+        raise ValueError('native archive requires a published immutable CRE release')
+    asset = release_asset(release.get('assets'), name, archive['url'], MAX_BYTES)
+    if asset['bytes'] != archive['bytes'] or asset['sha256'] != archive['sha256']:
+        raise ValueError('native archive asset differs from the registered pin')
+    path = work / name
+    downloader(archive['url'], path, archive['bytes'], archive['sha256'], hosts=ASSET_HOSTS)
+    with zipfile.ZipFile(path) as bundle:
+        members = bundle.infolist()
+        if len(members) != len(records) or {member.orig_filename for member in members} != records.keys():
+            raise ValueError('native archive must contain exactly the pinned generation files')
+        for member in members:
+            name = member.orig_filename
+            entry = records[name]
+            kind = stat.S_IFMT(member.external_attr >> 16)
+            if kind not in (0, stat.S_IFREG) or member.file_size != entry['bytes']:
+                raise ValueError('native archive member is not a pinned regular file of the expected size')
+            with bundle.open(member) as source:
+                write_verified(source, destination / name, entry['bytes'], entry['sha256'])
+
+
+def stage_native_generation(manifest, destination, *, api=github_read, downloader=download,
+                            baseline_path=native_generations.BASELINE, registry_path=native_generations.REGISTRY):
+    generation = native_generations.load_generation(manifest, baseline_path=baseline_path, registry_path=registry_path)
+    records = generation['files']
+    if sum(value['bytes'] for value in records.values()) > MAX_BYTES:
+        raise ValueError('native input generation exceeds byte budget')
+    destination = Path(destination)
+    if destination.exists() or destination.is_symlink():
+        raise ValueError('new native input directory required')
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    with TemporaryDirectory(dir=destination.parent) as temporary:
+        work = Path(temporary)
+        staged = work / 'native'
+        staged.mkdir()
+        archived = {}
+        if 'archive' in generation:
+            prefix = f"native-inputs/v{generation['generation']}/"
+            archived = {path: entry for path, entry in records.items() if path.startswith(prefix)}
+            fetch_native_archive(generation['archive'], archived, staged, api=api, downloader=downloader, work=work)
+        for path, entry in sorted(records.items()):
+            if path not in archived:
+                downloader(ORIGIN + path, staged / path, entry['bytes'], entry['sha256'], hosts={'repo.collie.im'})
+        staged.rename(destination)
+    return len(records)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     sub = parser.add_subparsers(dest='action', required=True)
@@ -585,7 +639,9 @@ def main():
     releases.add_argument('--receipt', type=Path, required=True)
     releases.add_argument('--build-tools', type=Path)
     native = sub.add_parser('native')
-    native.add_argument('--plan', type=Path, required=True)
+    source = native.add_mutually_exclusive_group(required=True)
+    source.add_argument('--plan', type=Path)
+    source.add_argument('--generation-manifest', type=Path, help='stage a registered CRE native generation for Pages')
     native.add_argument('--output', type=Path, required=True)
     metadata = sub.add_parser('metadata')
     metadata.add_argument('--receipt', type=Path, required=True)
@@ -609,8 +665,9 @@ def main():
         print(json.dumps({'metadata_files': len(value['files']), 'source_commit': value['source_commit'],
                           'listing_commit': value['listing_commit']}))
     else:
-        plan = json.loads(args.plan.read_text())
-        print(json.dumps({'native_files': stage_native(plan, args.output)}))
+        count = (stage_native(json.loads(args.plan.read_text()), args.output) if args.plan
+                 else stage_native_generation(args.generation_manifest, args.output))
+        print(json.dumps({'native_files': count}))
 
 
 if __name__ == '__main__':

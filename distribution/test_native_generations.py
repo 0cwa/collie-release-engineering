@@ -1,10 +1,15 @@
 import copy
+import hashlib
+import io
 import shutil
+import stat
 import unittest
 from unittest.mock import patch
+import zipfile
 
 import binary_repo as b
 import pages as p
+import release_inputs as inputs
 import test_pages as fixtures
 
 
@@ -124,6 +129,92 @@ class NativeGenerationAdmissionTest(unittest.TestCase):
         self.write()
         with self.assertRaisesRegex(ValueError, 'budget'):
             self.prepare()
+
+    def archive_fixture(self, *, change=None, extra=None, symlink=None):
+        raw = io.BytesIO()
+        with zipfile.ZipFile(raw, 'w') as bundle:
+            for name in self.new_files:
+                info = zipfile.ZipInfo(name)
+                if name == symlink:
+                    info.external_attr = (stat.S_IFLNK | 0o777) << 16
+                data = (self.bundle / 'native' / name).read_bytes()
+                bundle.writestr(info, b'x' * len(data) if name == change else data)
+            if extra:
+                bundle.writestr(extra, b'extra')
+        self.archive = raw.getvalue()
+        record = {'url': f'https://github.com/{inputs.native_generations.REPOSITORY}/releases/download/native-v2/native.zip',
+                  'sha256': hashlib.sha256(self.archive).hexdigest(), 'bytes': len(self.archive)}
+        self.generation['archive'] = record
+        self.release = {'tag_name': 'native-v2', 'draft': False, 'immutable': True,
+                        'assets': [{'id': 1, 'name': 'native.zip', 'state': 'uploaded',
+                                    'browser_download_url': record['url'], 'size': record['bytes'],
+                                    'digest': 'sha256:' + record['sha256']}]}
+        self.register()
+
+    def stage_generation(self, destination):
+        def api(endpoint):
+            self.assertEqual(endpoint, f'repos/{inputs.native_generations.REPOSITORY}/releases/tags/native-v2')
+            return self.release
+
+        def downloader(url, output, size, digest, *, hosts):
+            if url.startswith(p.ORIGIN):
+                self.assertEqual(hosts, {'repo.collie.im'})
+                path = url.removeprefix(p.ORIGIN)
+                if 'archive' in self.generation:
+                    self.assertIn(path, self.original_files)
+                data = (self.bundle / 'native' / path).read_bytes()
+            else:
+                self.assertEqual(hosts, inputs.ASSET_HOSTS)
+                self.assertEqual(url, self.generation['archive']['url'])
+                data = self.archive
+            inputs.write_verified(io.BytesIO(data), output, size, digest)
+
+        return inputs.stage_native_generation(self.generation_path, destination, baseline_path=self.native_policy,
+                                              registry_path=self.registry_path, api=api, downloader=downloader)
+
+    def test_stage_archive_at_canonical_paths_and_use_for_pages_publication(self):
+        self.add_generation()
+        self.archive_fixture()
+        staged = self.bundle / 'staged'
+        self.assertEqual(self.stage_generation(staged), len(self.generation['files']))
+        shutil.rmtree(self.bundle / 'native')
+        staged.rename(self.bundle / 'native')
+        plan = self.prepare()
+        for path, record in self.generation['files'].items():
+            self.assertEqual(plan['manifests']['phase2'][path], record)
+
+    def test_generation_without_archive_fetches_all_files_from_pages(self):
+        self.add_generation()
+        staged = self.root / 'staged'
+        self.assertEqual(self.stage_generation(staged), len(self.generation['files']))
+        self.assertEqual(p.inventory(staged), self.generation['files'])
+
+    def test_archive_members_must_match_reviewed_inventory_and_hashes(self):
+        self.add_generation()
+        name = next(iter(self.new_files))
+        for mutation, error in (({'change': name}, 'approved size or digest'),
+                                ({'extra': '../unexpected'}, 'exactly the pinned'),
+                                ({'symlink': name}, 'pinned regular file')):
+            with self.subTest(mutation=mutation), self.assertRaisesRegex(ValueError, error):
+                self.archive_fixture(**mutation)
+                self.stage_generation(self.root / 'staged')
+            self.assertFalse((self.root / 'staged').exists())
+
+    def test_archive_requires_an_immutable_release_and_matching_asset_pin(self):
+        self.add_generation()
+        self.archive_fixture()
+        self.release['immutable'] = False
+        with self.assertRaisesRegex(ValueError, 'published immutable CRE release'):
+            self.stage_generation(self.root / 'staged')
+        self.release['immutable'] = True
+        self.release['assets'][0]['digest'] = 'sha256:' + '0' * 64
+        with self.assertRaisesRegex(ValueError, 'differs from the registered pin'):
+            self.stage_generation(self.root / 'staged')
+        self.archive_fixture()
+        self.archive = b'x' * len(self.archive)
+        with self.assertRaisesRegex(ValueError, 'approved size or digest'):
+            self.stage_generation(self.root / 'staged')
+        self.assertFalse((self.root / 'staged').exists())
 
 
 if __name__ == '__main__':

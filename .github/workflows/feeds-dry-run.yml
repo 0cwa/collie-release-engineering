@@ -6,6 +6,7 @@ on:
     paths:
       - distribution/feed.py
       - distribution/release_inputs.py
+      - distribution/native_generations.py
       - distribution/beta_inputs.py
       - distribution/apk_match.py
       - distribution/retained_artifacts.py

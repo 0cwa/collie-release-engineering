@@ -56,6 +56,21 @@ binary and POM; libsignal Android and client versions must match. New libsignal
 artifacts can reuse the original RingRTC coordinate without rebuilding or
 copying it into another generation.
 
+A generation may pin an `archive` object with the CRE GitHub Release ZIP's
+`url`, `bytes` and `sha256`. The ZIP must contain exactly the new generation's
+files at their full `native-inputs/vN/maven/…` paths. Stage the bundle with:
+
+```sh
+python3 distribution/release_inputs.py native \
+  --generation-manifest distribution/native-generations/vN.json \
+  --output /path/to/bundle/native
+```
+
+Staging checks the immutable release and asset through GitHub, verifies the
+ZIP and every member against their pins, and downloads the original v1 files
+from their Maven URLs. A generation without an archive uses those versioned
+Maven routes for all files.
+
 The bundle's `native-manifest.json` must equal that checked-in registered
 manifest, and its separately approved raw digest must match. The supplied
 `native/` inventory must equal the complete registered file map. A caller's
