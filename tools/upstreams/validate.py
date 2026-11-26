@@ -5,11 +5,14 @@ import argparse
 from datetime import date
 import fnmatch
 import json
+import os
 from pathlib import Path, PurePosixPath
 import re
+import subprocess
 
 
 ROOT = Path(__file__).resolve().parents[2]
+ARCHIVE_REF = "refs/tags/archive/patch-forest"
 SHA = re.compile(r"[0-9a-f]{40}\Z")
 ID = re.compile(r"[a-z0-9]+(?:-[a-z0-9]+)*\Z")
 REPOSITORY = re.compile(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+\Z")
@@ -26,7 +29,6 @@ MERGE_DISCOVERY_REFS = {
     "signalapp/signal-android": "refs/tags/v*",
     "mollyim/mollyim-android": "refs/heads/*",
 }
-JOHAN_REPOSITORY = "johanw666/signal-android"
 
 
 class RegistryError(ValueError):
@@ -181,7 +183,20 @@ def validate_ledger(data, source):
             validate_history(feature["integration_history"], name)
 
 
-def validate_route(source, label):
+def historical_provenance(root, value, label):
+    relative_path(value, label)
+    if (root / value).is_file():
+        return
+    # A partial clone can try to fetch a missing object. Use only local objects.
+    result = subprocess.run(
+        ["git", "cat-file", "-t", f"{ARCHIVE_REF}:{value}"], cwd=root,
+        env={**os.environ, "GIT_ALLOW_PROTOCOL": ""}, capture_output=True, text=True,
+    )
+    require(result.returncode == 0 and result.stdout.strip() == "blob",
+            f"{label} file {value} is missing from the checkout and {ARCHIVE_REF}")
+
+
+def validate_route(source, label, root):
     route = source["route"]
     require(isinstance(route, str) and route in ROUTES, label + " route is invalid")
     if route == "upstream-merge":
@@ -202,16 +217,13 @@ def validate_route(source, label):
         require(source["discovery_ref"] is None, label + " historical sources cannot actively track discovery refs")
         require("ledger" not in source, label + " historical sources cannot have a selective-feature ledger")
         require("provenance" in source, label + " historical sources require original provenance")
-        relative_path(source["provenance"], label + " historical provenance")
+        historical_provenance(root, source["provenance"], label + " historical provenance")
         keys(snapshot, {"ref", "commit", "ref_origin"}, set(), label + " historical snapshot")
         require(snapshot["ref_origin"] == "archived-bundle", label + " historical snapshot must retain its archived-bundle origin")
     else:
         require("provenance" not in source, label + " selective-feature provenance is its review ledger")
         require("ledger" in source, label + " selective-feature requires a review ledger")
         ref(source["discovery_ref"], label + " discovery ref", pattern=True)
-        if repository_identity(source["repository"]) == JOHAN_REPOSITORY:
-            require(source["discovery_ref"] == "refs/tags/*-JW",
-                    label + " Johan discovery must select custom *-JW tags, not the clean Signal branch")
         keys(snapshot, {"ref", "commit", "ref_origin", "signal_base"}, set(), label + " selective-feature snapshot")
         require(snapshot["ref_origin"] == "upstream", label + " selective-feature snapshot must be upstream")
     ref(snapshot["ref"], label + " snapshot ref")
@@ -227,7 +239,8 @@ def validate_route(source, label):
 
 
 def validate(root=ROOT):
-    directory = Path(root).resolve() / "upstreams"
+    root = Path(root).resolve()
+    directory = root / "upstreams"
     data = read_json(directory / "sources.json")
     keys(data, {"schema", "sources"}, set(), "registry")
     require(type(data["schema"]) is int and data["schema"] == 2, "registry schema must be 2")
@@ -246,7 +259,7 @@ def validate(root=ROOT):
         require(isinstance(repository, str) and REPOSITORY.fullmatch(repository), label + " repository must be owner/name")
         require(repository_identity(repository) not in repositories, label + " repository is duplicated")
         repositories.add(repository_identity(repository))
-        validate_route(source, label)
+        validate_route(source, label, root)
         if "ledger" in source:
             require("snapshot" in source, label + " ledger requires a pinned snapshot")
             relative_path(source["ledger"], label + " ledger path")

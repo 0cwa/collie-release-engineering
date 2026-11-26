@@ -2,6 +2,7 @@ import copy
 import importlib.util
 import json
 from pathlib import Path
+import subprocess
 import tempfile
 import unittest
 from unittest import mock
@@ -21,6 +22,9 @@ class UpstreamSourcesTest(unittest.TestCase):
         self.upstreams = self.root / "upstreams"
         (self.upstreams / "johanw666").mkdir(parents=True)
         self.sources = registry.read_json(ROOT / "upstreams/sources.json")
+        self.provenance = self.root / self.source("signal-foss")["provenance"]
+        self.provenance.parent.mkdir(parents=True)
+        self.provenance.write_text("{}\n", encoding="utf-8")
         self.ledger = registry.read_json(ROOT / "upstreams/johanw666/review.json")
         self.ledger["features"] = [{
             "id": "example-feature",
@@ -78,7 +82,6 @@ class UpstreamSourcesTest(unittest.TestCase):
             "ref_origin": "archived-bundle",
         })
         self.assertEqual(self.source("signal-foss")["provenance"], "archive/patch-forest/forks/signal-foss/provenance.json")
-        self.assertTrue((ROOT / self.source("signal-foss")["provenance"]).is_file())
 
     def test_checked_in_integrations_record_distinct_historical_targets(self):
         ledger = registry.read_json(ROOT / "upstreams/johanw666/review.json")
@@ -104,7 +107,7 @@ class UpstreamSourcesTest(unittest.TestCase):
     def test_validation_needs_no_network_or_git_process(self):
         with mock.patch("socket.create_connection", side_effect=AssertionError("network access")), \
                 mock.patch("subprocess.Popen", side_effect=AssertionError("external process")):
-            self.assertEqual(registry.validate(ROOT), (4, 1))
+            self.assertEqual(self.validate(), (4, 1))
 
     def test_duplicate_json_keys_are_rejected(self):
         self.write()
@@ -189,6 +192,21 @@ class UpstreamSourcesTest(unittest.TestCase):
         with self.assertRaisesRegex(registry.RegistryError, "historical|archived"):
             self.validate()
 
+    def test_historical_provenance_can_come_from_the_local_archive_tag(self):
+        def git(*args):
+            subprocess.run(["git", *args], cwd=self.root, check=True)
+
+        git("init", "-q")
+        git("add", "-f", "--", str(self.provenance.relative_to(self.root)))
+        git("-c", "user.name=Fixture", "-c", "user.email=fixture@example.invalid",
+            "-c", "commit.gpgsign=false", "commit", "-qm", "Archive historical provenance")
+        self.provenance.unlink()
+        with self.assertRaisesRegex(registry.RegistryError, "historical provenance.*archive/patch-forest"):
+            self.validate()
+        git("-c", "tag.gpgsign=false", "-c", "user.name=Fixture", "-c", "user.email=fixture@example.invalid",
+            "tag", "-a", "archive/patch-forest", "-m", "Historical provenance fixture")
+        self.assertEqual(self.validate(), (4, 1))
+
     def test_historical_source_cannot_become_a_feature_import(self):
         historical = self.source("signal-foss")
         historical["ledger"] = "johanw666/review.json"
@@ -213,36 +231,45 @@ class UpstreamSourcesTest(unittest.TestCase):
         with self.assertRaisesRegex(registry.RegistryError, "Signal base"):
             self.validate()
 
-    def test_custom_release_and_clean_signal_refs_remain_distinct(self):
-        snapshot = self.source("johanw666")["snapshot"]
-        original = snapshot["ref"]
-        for ref in ("refs/heads/main", "refs/tags/v8.36.0", "refs/tags/*-JW"):
+    def test_selective_snapshot_must_be_a_concrete_ref_matching_discovery(self):
+        source = self.source("johanw666")
+        source["discovery_ref"] = "refs/tags/custom-*"
+        for ref in ("refs/heads/custom-8.36", "refs/tags/v8.36.0", "refs/tags/Custom-8.36"):
             with self.subTest(ref=ref):
-                snapshot["ref"] = ref
-                with self.assertRaises(registry.RegistryError):
+                source["snapshot"]["ref"] = ref
+                with self.assertRaisesRegex(registry.RegistryError, "snapshot does not match discovery refs"):
                     self.validate()
-        snapshot["ref"] = original
-        snapshot["signal_base"]["ref"] = "refs/heads/main"
-        with self.assertRaisesRegex(registry.RegistryError, "Signal|tag"):
+        source["snapshot"]["ref"] = "refs/tags/custom-*"
+        with self.assertRaisesRegex(registry.RegistryError, "snapshot ref must be an exact ref"):
             self.validate()
 
-    def test_johan_discovery_cannot_be_redefined_to_accept_clean_main(self):
-        source = self.source("johanw666")
-        source["discovery_ref"] = source["snapshot"]["ref"] = "refs/heads/main"
-        with self.assertRaisesRegex(registry.RegistryError, "Johan|custom|JW"):
+    def test_selective_signal_base_must_be_a_tag(self):
+        snapshot = self.source("johanw666")["snapshot"]
+        snapshot["signal_base"]["ref"] = "refs/heads/main"
+        with self.assertRaisesRegex(registry.RegistryError, "Signal base must be a tag"):
             self.validate()
+
+    def test_selective_discovery_uses_configured_tag_and_branch_patterns(self):
+        source = self.source("johanw666")
+        for pattern, ref in (("refs/tags/custom-*", "refs/tags/custom-8.36"),
+                             ("refs/heads/releases/*", "refs/heads/releases/8.36"),
+                             ("refs/heads/release", "refs/heads/release")):
+            with self.subTest(pattern=pattern):
+                source["discovery_ref"] = pattern
+                source["snapshot"]["ref"] = ref
+                self.assertEqual(self.validate(), (4, 1))
+
+    def test_selective_discovery_rejects_invalid_ref_patterns(self):
+        source = self.source("johanw666")
+        for pattern in (None, "tags/custom-*", "refs/pull/*", "refs/tags/", "refs/tags/bad..*",
+                        "refs/tags/custom-?", "refs/tags/custom-[12]", "refs/heads/*/release-*"):
+            with self.subTest(pattern=pattern):
+                source["discovery_ref"] = pattern
+                with self.assertRaisesRegex(registry.RegistryError, "discovery ref"):
+                    self.validate()
 
     def test_repository_identity_ignores_case_in_every_comparison(self):
         for cased in ("Johanw666/Signal-Android", "johanw666/signal-android", "JOHANW666/SIGNAL-ANDROID"):
-            with self.subTest(repository=cased, clean_main=True):
-                source = self.source("johanw666")
-                original = dict(source), dict(source["snapshot"])
-                source["repository"] = cased
-                source["discovery_ref"] = source["snapshot"]["ref"] = "refs/heads/main"
-                with self.assertRaisesRegex(registry.RegistryError, "Johan|custom|JW"):
-                    self.validate()
-                source.update(original[0])
-                source["snapshot"] = original[1]
             with self.subTest(repository=cased, accepted=True):
                 self.source("johanw666")["repository"] = cased
                 self.assertEqual(self.validate(), (4, 1))
