@@ -1,2 +1,0 @@
-# Preserve source whitespace inside mailbox diff payloads.
-*.patch -whitespace

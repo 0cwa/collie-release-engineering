@@ -9,9 +9,7 @@ The Stable feed is live at [repo.collie.im](https://repo.collie.im/) and
 [`feeds.yml`](../.github/workflows/feeds.yml) workflow in release engineering.
 Native inputs share this site and its storage budget; see
 [NATIVE-STORAGE.md](NATIVE-STORAGE.md). Keep one canonical unchanged signed APK
-per selected version. The old R2 feed planner is historical. A later collie.im
-website on an application website branch remains a separate work item; it neither
-blocks this feed nor belongs in Android main.
+per selected version.
 
 The two-phase [`pages-release.yml`](../.github/workflows/pages-release.yml) route
 for approved native/receipt-based promotions remains subject to the exact gates
@@ -24,20 +22,12 @@ see the separately reviewed [inventory bootstrap change (#61)](https://github.co
 use that procedure only after its implementation is available at the approved
 engineering revision.
 
-## Historical infrastructure checks and tool scope
-
-Initial preparation recorded read-only Pages API responses of 404 for the app and
-engineering repositories and an empty engineering environments list. Those are
-historical observations, not evidence of current site availability, provisioning
-permissions or environment protections. Reinspect the current settings when
-approving a two-phase activation. The preparation and loopback records later in
-this document describe their exact candidate revisions; their pending public
-acceptance results do not describe the live scheduled Stable feed.
+## Hosting limits and tooling
 
 GitHub's published site limit is1GB and monthly soft transfer limit100GB. Packaging
 uses a conservative950,000,000byte ceiling for *each full site and its artifact*,
-including every retained APK, index archive, image, receipt and inventory. Nine
-RC1-sized APKs alone are873,489,069bytes; actual measured totals decide admission.
+including every retained APK, index archive, image, receipt and inventory. Measure
+the complete snapshot and archive before admission.
 Snapshots are additive: no old immutable URL is deleted/overwritten automatically.
 Before reaching the ceiling the operator must approve an archive/retirement or
 hosting decision, with originals/receipts retained on immutable GitHub release
@@ -104,8 +94,8 @@ inventory digest), repository_certificate_sha256, repository_receipt_sha256
 landing_sha256 (canonical landing inventory digest), maximum_bytes<=950000000.
 Stable schema 1 and schema 2 remain supported with their existing identity rules.
 The signing/publication receipt's raw final-manifest and canonical release-receipt
-links remain distinct; legacy RC1 has null canonical source link, never fake
-new-source evidence. New-v2 approvals require the approved source/build/release
+links remain distinct. Legacy receipts have a null canonical release receipt
+digest. New-v2 approvals require the approved source/build/release
 bundle and full shared verifier. Production APK certificate stays pinned f8cc0c...;
 repository test/production index identities are separate.
 
@@ -308,12 +298,8 @@ expiry or host migration, restore the approved artifacts/plan/durable journal an
 run the required read-back phase under a newly reviewed operator deployment;
 never silently reset the journal, rebuild/re-sign or substitute new bytes.
 
-The concrete local test package's plan/tar hashes, size, fingerprint and executed
-checks are recorded under distribution/evidence/PAGES-PREPARATION.json. It uses a
-disposable index test key and a STAGING landing, not a production deployment
-approval. Actual APK bytes/signer are the existing verified RC1. Production needs
-its separately approved real repository certificate, newly frozen package and
-read-back against the actual endpoint before advertising add instructions.
+Historical local Pages preparation reports are preserved at the
+[`retired/release-tools` tag](https://github.com/0cwa/collie-release-engineering/tree/retired/release-tools/distribution/evidence).
 
 Retain signed index generations and all referenced APKs through the explicitly
 approved cache/client window. At the size guard, halt rather than quietly pruning.
@@ -321,36 +307,11 @@ Archive/withdrawal must be a reviewed list with canonical GitHub release referen
 exact hashes and preserved historical evidence; no versioned URL may ever serve
 different bytes. Defective APKs need higher versions. Key-loss/compromise, access-log
 minimization, host migration and APK-vs-index-vs-HTTPS identity runbooks remain in
-OPERATIONS.md. No production hosting, domain, key, native input or APK changed here.
-
-## Executed local package evidence
-
-Implementation policy commit3da1b0946c6a5b8e76eb0eb43b135cf2e4a661e2 produced
-real RC1-based, disposable-index-key artifacts. Phase1 tar97,116,160bytes SHA256
-78a4eb370dd5d595d41ab71046a9cbe3f67f144e3ed4c7c402db7376d2c4ed24;
-phase2 tar97,187,840bytes SHA256
-9b242a538497afa577b0ba641700056241c482c7047c07d13efb682ee00e9450.
-Input tar97,146,880bytes SHA256
-a5e4c1290c1eeb77a1e55b7ff8dd221b9721c925485f3c093a741b0ab3f3e043.
-These are concrete tested staging objects, not a request to deploy this test key.
-Both snapshots were served/read back fully over loopback HTTP with all expected
-hashes, and phase1 retry retained the same journal. No public HTTPS/Pages/CDN check
-or deployment occurred. The test journal's injected loopback transport is labeled;
-it is not a production readback attestation. Private test key and bulky artifacts
-are removed after independent inspection; only text hashes/receipts persist.
-
-Forty-three standalone tests pass, including explicit repository/generation/previous-site
-substitution rejection, current-live manifest mismatch, every previous URL
-verification, cache-failure retry, mixed generation failure, byte-identical output
-from the same approved bundle in different directories, safe extraction, restricted
-public paths and manual-only workflow/action pins. Actual initial Pages activation
-and endpoint client acceptance remain NOT RUN.
+[OPERATIONS.md](OPERATIONS.md).
 
 The downloader rejects existing/dangling output and partial paths before network
 access, removes only its own created partial on failure, and uses exclusive
-publication so a concurrently created destination is preserved. Regression tests
-cover both preexisting and raced paths; the actual Pages artifact bytes above are
-unchanged by this download-helper correction.
+publication so a concurrently created destination is preserved.
 
 ## Native-v1 admission and initial native-only deployment
 
@@ -384,39 +345,9 @@ apply. Initial native URL conflicts fail preflight. A later separately signed
 feed bundle retains native-v1 forever; all bytes count toward950MB. No production
 settings, uploads, live feed, index key or new source build are authorized here.
 
-Native-only actual package acceptance: policy001c2c93b94baf9946512e4acd184e235c0b8a97,
-manifest SHA256637e69803bdec6aa117c9f3b85d966ef055041a2c066e4cb28447ecd29296838.
-Both tar artifacts are310,855,680bytes SHA256
-38aa1feae9b6aad9e6690f9b25f4e610e34752b51ef8dd1460fc366e186fa5d4;
-the actual six cached inputs total310,836,447bytes and each complete site is
-310,838,280bytes. The input archive was extracted with the production data-only
-parser; both snapshots contain exactly the six native files, preparation page
-and public inventory, with no APK/index/add link/key. Actual loopback HTTP full
-readback and retry passed. Fifty-one distribution tests pass. Evidence is
-NATIVE-PAGES-PREPARATION.json plus native-pages-plan/journal under evidence/.
-Canonical public HTTPS/Pages/CDN and independent native reproduction remain
-NOT RUN. These preparation hashes authorize no production operation; freeze and
-approve the final merged policy/bundle before any operator deployment.
-
 New native URLs are checked absent-or-identical even when an existing feed
 predates native hosting; complete prior native inventories are verified as part
 of the retained site. The native-only placeholder names native inputs and the
 inactive feed without claiming signed indexes. Ingestion also keeps the externally
 approved APK digest pinned after signer/metadata inspection, rejecting mutation
-before the target URL is staged. Both integrity regressions pass.
-
-An independent agent audited code390443afeaf7bad8c0aee58fa37cf6ced2d6c95a,
-ran19focused Pages/ingestion checks, hashed both real archives and every member,
-and matched all six native inputs to the existing source plan. The native-only
-page was also rendered and visually checked in an isolated cached headless TEST
-runtime without networking: native inputs named, feed inactive, no add link or
-signed-index claim. Unsigned observations and raw/canonical receipt references
-are preserved in native-independent-verification.json and
-native-maintenance-headless.json. The cached browser is not an application build
-dependency or public hosting proof. Existing Android testing JNI inside the
-accepted AAR remains unchanged; absence of test JNI was checked separately on
-the production APK, not asserted for these native inputs. No extra host-JVM
-artifact or private payload is included. Large generated package copies were
-removed after review; exact native policy inputs and documented commands recreate
-the package for a newly approved final policy. Independent native reproduction
-and canonical public HTTPS/Pages/CDN acceptance remain NOT RUN.
+before the target URL is staged.

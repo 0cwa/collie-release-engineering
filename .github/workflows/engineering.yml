@@ -9,9 +9,9 @@ jobs:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           persist-credentials: false
+      - name: Fetch archived upstream provenance
+        run: git fetch --no-tags --depth=1 origin refs/tags/archive/patch-forest:refs/tags/archive/patch-forest
       - run: python3 -m unittest discover -s tests -v
-      - name: Test active release receipts, artifacts, Beta producers and version reservations
-        run: python3 -m unittest discover -s tools/release -p 'test_*.py' -v
   native-tooling:
     name: Native tooling unit tests
     runs-on: ubuntu-24.04

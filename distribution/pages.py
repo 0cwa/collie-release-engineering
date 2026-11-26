@@ -16,13 +16,12 @@ import binary_repo as b
 import site_page
 import retained_artifacts
 import native_generations
+import migration_receipts as receipts
 try:
     from . import channel_profile as channels
 except ImportError:
     import channel_profile as channels
 
-sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'tools'/'release'))
-import migration_receipts as receipts
 ORIGIN='https://repo.collie.im/'
 MAX_BYTES=950_000_000  # conservative decimal1GB minus50MB operational margin
 NATIVE_POLICY=Path(__file__).with_name('native-v1.json')

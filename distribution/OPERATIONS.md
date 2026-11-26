@@ -1,15 +1,14 @@
 # Collie binary repository
 
-Current selected hosting adapter: GitHub Pages, documented in PAGES.md. Older
-R2 feed preparation below is historical/inactive for this rollout. The separate
-native-origin proposal is in NATIVE-STORAGE.md; no provider is activated here.
+GitHub Pages hosts the feed and native inputs. See [PAGES.md](PAGES.md) for
+publication and [NATIVE-STORAGE.md](NATIVE-STORAGE.md) for native storage.
 
 This is a custom binary feed, not an application build or official F-Droid catalogue
 submission. One `im.collie.app_<versionCode>.apk` is indexed for each approved release.
 The GitHub filenames containing `foss` do not select another product. Do not run
 `fdroid publish`, zipalign, APK signing or APK rewriting in this route.
 
-## Inputs and staging
+## Inputs and verification
 
 Install the hash-pinned `requirements.txt` in a fresh Python 3.12 environment using
 `uv pip sync --require-hashes requirements.txt`. The selected official fdroidserver
@@ -18,37 +17,18 @@ and compatibility `index-v1.jar`; the official library verifies both signatures.
 `index-v1.jar` uses the library's legacy algorithm verifier, as required by that
 format. Do not enable legacy verification for v2.
 
-`approval.fixture.json` is an explicit RC1 input example, not production approval.
-The operator approves the release ID, peeled tag, raw release manifest SHA256,
-APK SHA256, package, actual versionCode/name and signer SHA256. Its parser rejects
-unknown/duplicate fields and unequal aliases. Keep the legacy manifest unchanged;
-missing original source/build evidence stays UNKNOWN. Do not query latest.
-
-```
-python distribution/stage_rc1.py --approval approval.json \
-  --manifest final-manifest.json --apk collie.apk --workspace "$TASK_SCRATCH/stage" \
-  --sdk "$ANDROID_SDK_ROOT/build-tools/36.0.0"
-```
-
-Workspace is outside source, mode 0700; config mode 0600. The harness generates a
-30-day disposable **repository test key**, not an APK or production key. Never
-serve the workspace, keystore, config, approval, lock or promotion journal. Serve
-only `repo/`. `AllowedAPKSigningKeys` is checked in with the verified existing production APK certificate; strict approval parsing rejects another certificate;
-no `Builds` entries exist. The APK certificate stays
-`f8cc0c0c052e5635c26fcd293c2b0af3e87d61ff7f2df3602a9af6e91f73c826`.
+For a receipt-based Pages promotion, the operator approves the release ID, tag,
+raw release manifest SHA256, APK SHA256, package, versionCode/name and signer
+SHA256. The approval parser rejects unknown or duplicate fields and unequal
+aliases. The Stable APK certificate is pinned in the metadata and approval
+parser. See [PAGES.md](PAGES.md#trusted-approved-input-bundle) for the bundle
+format.
 
 Metadata declares optional FCM facts without asserting that client code is closed
 source. Additional anti-features require inspecting the applicable client/service
 implementation and fdroidserver taxonomy; no unsupported classification is added.
 
-## Provisioning gate
-
-`repo.collie.im` did not resolve during this task. No host/provider is assumed.
-Prefer an existing suitable owner-operated host after inspection. The single
-optional provider adapter is `r2_plan.py`: it emits reviewable AWS CLI commands
-for R2; it does not execute them. DNS, TLS, bucket/CDN access and cache rules need
-operator approval. This adapter is prepared, **not production-tested**. Do not
-interpret a DNS failure as proof that no infrastructure exists.
+## Repository index key
 
 Create the production repository index key only after approval. Keep it separate
 from the existing APK identity and HTTPS certificate. Generate offline using
@@ -57,16 +37,16 @@ outside source and origin, with two encrypted offline backups in separate places
 Test recovery in an isolated directory before publishing the public certificate.
 Record the real DER certificate SHA256 and pin the add link/QR to that value.
 Publish that fingerprint in the application repository only after approval.
-The landing generator always labels output staging; operator must separately
-review the production copy after endpoint read-back. Never advertise a test key.
+The operator reviews the production landing after endpoint read-back. Never
+advertise a test key.
 
 ## Publication and recovery
 
 1. Freeze approval, generation manifest, raw release-manifest digest, metadata
    commit, fdroidserver pin, exact APK digest and repository certificate.
 2. Validate indexes and all referenced APKs. Serialize signing and deployment;
-   local `publish-local` uses a file lock, R2 requires an external exclusive
-   operator lease. No PR code receives signing or deployment credentials.
+   local `publish-local` uses a file lock, and Pages uses the deployment controls
+   in [PAGES.md](PAGES.md). No PR code receives signing or deployment credentials.
 3. Upload immutable APKs/assets before mutable indexes; entry.jar is last. Never
    overwrite a versioned APK URL. Conflicting existing digest stops publication.
    Keep old generation files and immutable diff payloads while clients may refer
@@ -82,7 +62,7 @@ review the production copy after endpoint read-back. Never advertise a test key.
    bytes, so an old index remains safe. Do not weaken signature/hash validation.
 6. Read back all public bytes and verify v1/v2 repository signatures with pinned
    fingerprint; compare the APK digest and approved manifest. Write schema-2
-   repository receipt (contract in extraction) with metadata commit, index
+   repository receipt with metadata commit, index
    digests and actual test evidence. Preserve receipts beyond CI retention.
 7. Client acceptance: add fingerprint-pinned URL, refresh, install in disposable
    device, then upgrade from supported earlier APK. Official F-Droid and one
@@ -137,14 +117,6 @@ With two APKs per channel and the native files of the current release the site s
 headroom before doing that. Retirement happens on the next whole-site update after a
 change, so a forced `feeds.yml` run applies a changed policy to the same releases.
 
-## Evidence limits
-
-No production repository/index key, DNS, TLS, live policy or protected history was
-changed. Native reproduction and source cutover are separate from distributing
-already signed RC1. Hosting adapter, physical/disposable Android client installation
-and actual production-signed candidate upgrade tests require recorded execution;
-missing evidence is NOT RUN, not passed.
-
 ## Official references
 
 - https://f-droid.org/en/docs/Setup_an_F-Droid_App_Repo/
@@ -165,16 +137,14 @@ complete allowed public file set, not selected source directories. This manual
 approval is external to the candidate. Do not compute and auto-approve it inside
 a privileged candidate job.
 
-`publish-local` and `r2_plan.py` require `--approved-generation <sha256>` and one
+`publish-local` requires `--approved-generation <sha256>` and one
 `--approval <release-approval.json>` for each selected version. A valid repository
 signature alone is insufficient. Every indexed release must equal an explicit
 approved package/version/name/hash/certificate tuple, v1 and v2 must agree, and
 unexpected public paths (including disguised private JSON) are rejected before
 publication commands. Receipt generation recomputes the digest and rejects a
 supplied mismatch. Approval becomes invalid when any public file, release approval
-or repository signer changes. Historical staging tests dynamically compute their
-test approval digest only to exercise this interface; that is not production
-approval.
+or repository signer changes.
 
 The trusted local promoter freezes each approved public file hash before copying,
 checks temporary bytes against that hash before exposing a file, checks read-back
@@ -183,21 +153,12 @@ the journal. It never compares against a possibly changed candidate source as th
 approval authority. Standard fdroid `status/` outputs contain nonsecret local tool
 paths/command metadata; include them only after reviewing that privacy exposure.
 
-The R2 plan requires `--scratch <private-task-directory>` and emits calls to the
-trusted `upload_r2.py` wrapper. Each call copies its input into a fresh private
-snapshot, verifies the pinned SHA256, makes the snapshot read-only, and passes that
-snapshot to AWS CLI. Candidate changes after the snapshot cannot change the upload.
-Run the reviewed wrapper and plan in an isolated deployment environment without
-candidate processes; credentials are never passed to candidate code. Bucket lease,
-existing-object preflight and remote post-upload read-back remain explicit operator
-steps. Do not run a reviewed plan with another revision of the wrapper.
-
 ## Raw historical manifests and new receipt graphs
 
 The existing strict approval schema 1 is a **legacy** binary import. Its
 `release_manifest_sha256` always means SHA256 of raw final-manifest file bytes.
 A legacy repository receipt carries `release_receipt_sha256: null`; it can describe
-verified existing RC1 bytes but cannot pass complete new-source graph promotion.
+verified historical APK bytes but cannot pass complete new-source graph promotion.
 Historical source/build evidence is UNKNOWN, never manufactured.
 
 Approval schema 2 retains the raw manifest digest and adds required
@@ -213,29 +174,5 @@ raw/canonical identities and UNKNOWN evidence fail; legacy cannot supply a fake
 bundle. `fixtures/v2-release-input.json` is synthetic test input, never release
 evidence or production signer approval.
 
-These schema-2 tests depend on the reviewed extraction/shared-contract revision.
-In the final merged engineering checkout `tools/release` supplies the shared
-module. For stacked draft combination tests, explicitly set `PYTHONPATH` to that
-reviewed checkout's `tools/release`; do not substitute unreviewed policy code in
-privileged workflows. `receipt.py --client-evidence <recorded-json>` records the
-operator's actual client evidence digest; it is a claim bound to a file, not an
-independent signature or proof of application rebuild reproducibility.
-
-## Loopback staging delivery
-
-`serve_staging.py` serves only approved public path formats at
-http://127.0.0.1:8765/fdroid/repo/. It checks the approved generation before startup,
-requires the same fingerprint and selected release approvals as publication, and
-never serves the private workspace. Run through agent-heavy. Its HTTP cache
-contract returns no-store for404s, immutable for successful versioned APKs, and
-current bytes for mutable indexes even when a conditional request carries the
-same-second previous Last-Modified value. No real provider/CDN is configured by
-this adapter. See DEVICE-ACCEPTANCE.md for actual isolated client results and gaps.
-
-Current draft integration imports reviewed engineering dependency
-`087fdfb26f4e2ee4167165d761b0baf6197f6fe4` through a normal feature-branch merge.
-The distribution branch therefore contains its shared verifier and standalone
-`python3 -m unittest discover -s distribution -p 'test_*.py'` needs no ambient
-PYTHONPATH or unpublished local helper. PR3 is stacked on engineering PR2 until
-its dependencies merge. Retarget to main and rerun checks after dependency merge;
-no automatic protected-main update is enabled.
+`receipt.py --client-evidence <recorded-json>` records the operator's client
+evidence digest. The digest binds the claim to the recorded file.

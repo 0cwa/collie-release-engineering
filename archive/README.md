@@ -10,8 +10,10 @@ full release.
 
 ## Patch forest
 
-`patch-forest/` holds `patches/molly`, `patches/ports` and `patches/forks` moved
-unchanged. Their Git tree IDs are the same before and after the move:
+The [`archive/patch-forest` tag](https://github.com/0cwa/collie-release-engineering/tree/archive/patch-forest)
+preserves the forest moved by commit `0bd304c2e67b0b74c1e665d8cd71a33a6a81e0ed`.
+The Git tree IDs match the original `patches/molly`, `patches/ports` and
+`patches/forks` trees:
 
 | Path | Tree |
 | --- | --- |
@@ -19,10 +21,12 @@ unchanged. Their Git tree IDs are the same before and after the move:
 | `patch-forest/ports` | `6ddfecf3390e6561db0884c9ec4ec483514d000f` |
 | `patch-forest/forks` | `ba1a98bb6f4e207c7199d583888949a258f6d074` |
 
-Check with `git rev-parse HEAD:archive/patch-forest/molly` (and the others).
+Check with `git rev-parse refs/tags/archive/patch-forest:archive/patch-forest/molly`
+(and the others).
 Authorship and layer provenance stay in the patch headers, `series` files,
 `provenance.json` files and source bundles. The forest was extracted from app
-history as recorded in [`EXTRACTION.json`](../EXTRACTION.json). Files inside it
+history as recorded in [`EXTRACTION.json`](https://github.com/0cwa/collie-release-engineering/blob/archive/patch-forest/EXTRACTION.json).
+Files in the forest
 refer to paths as they were before the move (`patches/...`, `tools/patches/...`,
 `molly-build.json`).
 
