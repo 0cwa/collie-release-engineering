@@ -213,36 +213,45 @@ class UpstreamSourcesTest(unittest.TestCase):
         with self.assertRaisesRegex(registry.RegistryError, "Signal base"):
             self.validate()
 
-    def test_custom_release_and_clean_signal_refs_remain_distinct(self):
-        snapshot = self.source("johanw666")["snapshot"]
-        original = snapshot["ref"]
-        for ref in ("refs/heads/main", "refs/tags/v8.36.0", "refs/tags/*-JW"):
+    def test_selective_snapshot_must_be_a_concrete_ref_matching_discovery(self):
+        source = self.source("johanw666")
+        source["discovery_ref"] = "refs/tags/custom-*"
+        for ref in ("refs/heads/custom-8.36", "refs/tags/v8.36.0", "refs/tags/Custom-8.36"):
             with self.subTest(ref=ref):
-                snapshot["ref"] = ref
-                with self.assertRaises(registry.RegistryError):
+                source["snapshot"]["ref"] = ref
+                with self.assertRaisesRegex(registry.RegistryError, "snapshot does not match discovery refs"):
                     self.validate()
-        snapshot["ref"] = original
-        snapshot["signal_base"]["ref"] = "refs/heads/main"
-        with self.assertRaisesRegex(registry.RegistryError, "Signal|tag"):
+        source["snapshot"]["ref"] = "refs/tags/custom-*"
+        with self.assertRaisesRegex(registry.RegistryError, "snapshot ref must be an exact ref"):
             self.validate()
 
-    def test_johan_discovery_cannot_be_redefined_to_accept_clean_main(self):
-        source = self.source("johanw666")
-        source["discovery_ref"] = source["snapshot"]["ref"] = "refs/heads/main"
-        with self.assertRaisesRegex(registry.RegistryError, "Johan|custom|JW"):
+    def test_selective_signal_base_must_be_a_tag(self):
+        snapshot = self.source("johanw666")["snapshot"]
+        snapshot["signal_base"]["ref"] = "refs/heads/main"
+        with self.assertRaisesRegex(registry.RegistryError, "Signal base must be a tag"):
             self.validate()
+
+    def test_selective_discovery_uses_configured_tag_and_branch_patterns(self):
+        source = self.source("johanw666")
+        for pattern, ref in (("refs/tags/custom-*", "refs/tags/custom-8.36"),
+                             ("refs/heads/releases/*", "refs/heads/releases/8.36"),
+                             ("refs/heads/release", "refs/heads/release")):
+            with self.subTest(pattern=pattern):
+                source["discovery_ref"] = pattern
+                source["snapshot"]["ref"] = ref
+                self.assertEqual(self.validate(), (4, 1))
+
+    def test_selective_discovery_rejects_invalid_ref_patterns(self):
+        source = self.source("johanw666")
+        for pattern in (None, "tags/custom-*", "refs/pull/*", "refs/tags/", "refs/tags/bad..*",
+                        "refs/tags/custom-?", "refs/tags/custom-[12]", "refs/heads/*/release-*"):
+            with self.subTest(pattern=pattern):
+                source["discovery_ref"] = pattern
+                with self.assertRaisesRegex(registry.RegistryError, "discovery ref"):
+                    self.validate()
 
     def test_repository_identity_ignores_case_in_every_comparison(self):
         for cased in ("Johanw666/Signal-Android", "johanw666/signal-android", "JOHANW666/SIGNAL-ANDROID"):
-            with self.subTest(repository=cased, clean_main=True):
-                source = self.source("johanw666")
-                original = dict(source), dict(source["snapshot"])
-                source["repository"] = cased
-                source["discovery_ref"] = source["snapshot"]["ref"] = "refs/heads/main"
-                with self.assertRaisesRegex(registry.RegistryError, "Johan|custom|JW"):
-                    self.validate()
-                source.update(original[0])
-                source["snapshot"] = original[1]
             with self.subTest(repository=cased, accepted=True):
                 self.source("johanw666")["repository"] = cased
                 self.assertEqual(self.validate(), (4, 1))

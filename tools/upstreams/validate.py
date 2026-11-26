@@ -26,7 +26,6 @@ MERGE_DISCOVERY_REFS = {
     "signalapp/signal-android": "refs/tags/v*",
     "mollyim/mollyim-android": "refs/heads/*",
 }
-JOHAN_REPOSITORY = "johanw666/signal-android"
 
 
 class RegistryError(ValueError):
@@ -209,9 +208,6 @@ def validate_route(source, label):
         require("provenance" not in source, label + " selective-feature provenance is its review ledger")
         require("ledger" in source, label + " selective-feature requires a review ledger")
         ref(source["discovery_ref"], label + " discovery ref", pattern=True)
-        if repository_identity(source["repository"]) == JOHAN_REPOSITORY:
-            require(source["discovery_ref"] == "refs/tags/*-JW",
-                    label + " Johan discovery must select custom *-JW tags, not the clean Signal branch")
         keys(snapshot, {"ref", "commit", "ref_origin", "signal_base"}, set(), label + " selective-feature snapshot")
         require(snapshot["ref_origin"] == "upstream", label + " selective-feature snapshot must be upstream")
     ref(snapshot["ref"], label + " snapshot ref")

@@ -28,6 +28,10 @@ revision for an operation. The route determines the remaining fields:
 | `selective-feature` | `snapshot` has `ref`, full `commit`, `ref_origin: upstream`, and a separately pinned `signal_base` (`ref`, full `commit`); `ledger` is relative to this directory. | `provenance`; no archived-bundle snapshot. |
 | `historical-only` | `discovery_ref: null`, the original `provenance` path, and an exact `snapshot` with `ref_origin: archived-bundle`. | `ledger`, `snapshot.signal_base`; no active discovery. |
 
+For `selective-feature` sources, `discovery_ref` must be a full ref under
+`refs/tags/` or `refs/heads/` and may contain one `*` wildcard. The exact
+`snapshot.ref` must match that pattern case-sensitively.
+
 This replaces schema 1's `status`, `strategy`, `tracking` and ambiguous `baseline`
 fields. Historical snapshot pins remain unchanged. An archived-bundle ref names
 the preserved bundle's ref, not a ref to look up in the live upstream repository.
