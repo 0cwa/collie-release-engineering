@@ -409,8 +409,7 @@ def audit_run(run: dict, language: str, source: str) -> dict:
         errors.append(f"No successfully extracted {language} files were reported")
     if not expected and language != "java-kotlin":
         errors.append(f"No matching expected-file baseline establishes {language} coverage")
-    # CLI's repository-wide baseline includes tests and variants not built by
-    # the selected Android task. Java/Kotlin uses the separate compiler scope.
+    # Android's Java/Kotlin gate uses the compiler scope in collieim-android.
     missing = expected - extracted if language != "java-kotlin" else set()
     if missing:
         errors.append(f"{len(missing)} expected {language} file(s) were not extracted")
@@ -673,12 +672,6 @@ def markdown(report: dict) -> str:
             )
     for error in report["errors"]:
         lines.append(f"- {cell(error)}")
-    if "compiler_scope" in report:
-        for language in ("java", "kotlin"):
-            scope = report["compiler_scope"].get(language, {})
-            lines.append(f"- {language}: {len(scope.get('expected', []))} tracked compiler inputs; "
-                         f"{len(scope.get('extracted', []))} successfully extracted; "
-                         f"{len(scope.get('missing', []))} missing.")
     for run in report["runs"]:
         coverage = run["coverage"]
         lines += ["", f"### {cell(run['source'])}", "",
@@ -735,8 +728,6 @@ def main(argv: list[str] | None = None) -> int:
                         help="Checkout root containing trusted catalog, manifests, and CodeQL config")
     parser.add_argument("--analysis-config", help="Trusted CodeQL config path relative to --trusted-policy-root")
     parser.add_argument("--analysis-config-sha256", help="Expected SHA-256 of the exact config used by CodeQL init")
-    parser.add_argument("--compiler-inputs", type=Path)
-    parser.add_argument("--extracted-inputs", type=Path)
     args = parser.parse_args(argv)
     if not args.sarif and not args.sarif_options:
         parser.error("provide a SARIF file or directory")
@@ -772,16 +763,6 @@ def main(argv: list[str] | None = None) -> int:
             update_outcome(report)
     elif args.reviews:
         apply_reviews(report, args.reviews, args.source_root)
-    if args.language == "java-kotlin" and args.compiler_inputs and args.extracted_inputs:
-        import compile_scope
-        try:
-            scope = compile_scope.check(args.source_root, args.compiler_inputs, args.extracted_inputs)
-            report["compiler_scope"] = scope
-            if scope["passed"]:
-                report["errors"].remove("Java/Kotlin compiler scope has not been verified")
-        except (OSError, ValueError, KeyError, TypeError) as error:
-            report["errors"].append(f"Compiler scope: {error}")
-        update_outcome(report)
     for path, content in ((args.output, json.dumps(report, indent=2) + "\n"), (args.summary, markdown(report))):
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(content, encoding="utf-8")
