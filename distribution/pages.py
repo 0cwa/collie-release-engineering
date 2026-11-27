@@ -130,19 +130,24 @@ def prepare(bundle,output,expected_policy,expected_channel=None,profile_override
     pinned_native=native_files()
     supplied_native=inventory(bundle/'native')
     native_digest=a.get('native_manifest_sha256')
+    required_native=None
     if native_only and native_digest is None:raise ValueError('native manifest approval required')
     if native_digest is not None:
         if not isinstance(native_digest,str) or not re.fullmatch('[0-9a-f]{64}',native_digest) or b.sha(bundle/'native-manifest.json')!=native_digest:raise ValueError('native manifest digest differs')
-        approved_native=native_generations.approved_files(b.load(bundle/'native-manifest.json'),NATIVE_POLICY,NATIVE_GENERATIONS)
+        approved,required_native,known_native=native_generations.approved_generation(
+            b.load(bundle/'native-manifest.json'),NATIVE_POLICY,NATIVE_GENERATIONS)
+        approved_native=approved['files']
         if supplied_native!=approved_native:
             raise ValueError('native inputs differ from approved six files' if approved_native==pinned_native else
                              'native inputs differ from the exact approved file set')
     elif supplied_native:raise ValueError('native inputs lack approval')
     retained_native={n:e for n,e in old_files.items() if n.startswith('native-inputs/')}
-    # Only already published, externally approved native URLs may extend this
-    # set. New native input must match a separately registered immutable policy;
-    # every such policy retains the fixed native-v1 set without changes.
-    if retained_native and (any(retained_native.get(name)!=entry for name,entry in pinned_native.items()) or
+    if required_native is not None:
+        if any(retained_native.get(name)!=entry for name,entry in required_native.items()):
+            raise ValueError('published native baseline must remain complete and approved')
+        if any(known_native.get(name)!=entry for name,entry in retained_native.items()):
+            raise ValueError('retained native files differ from reviewed pins')
+    elif retained_native and (any(retained_native.get(name)!=entry for name,entry in pinned_native.items()) or
             any(not retained_artifacts.versioned_native_path(name) for name in retained_native) or
             (profile.name=='stable' and native_digest is None)):
         raise ValueError('published native v1 must remain complete and approved')

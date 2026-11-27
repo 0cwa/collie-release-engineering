@@ -37,9 +37,9 @@ candidate exceeds the limit, publication stops; use the documented retention
 policy or a reviewed storage change.
 
 The two-phase native publisher preserves the approved previous site's versioned
-native files and the six original native-v1 pins in both phases. Its previous
-inventory and site still require external digest approvals. This publication
-path does not apply the scheduled feed's pruning policy.
+native files in both phases. Its previous inventory and site still require
+external digest approvals. This publication path does not apply the scheduled
+feed's pruning policy.
 
 ## Admitting a new immutable native generation
 
@@ -49,12 +49,20 @@ hashes and byte counts; a source-only native candidate is not sufficient.
 
 A registered `native-generations/vN.json` (N at least 2) uses schema 1, kind
 `collie-pages-native-generation`, origin `https://repo.collie.im/`, integer
-`generation` N, and a `files` map. That map includes all six original native-v1
+`generation` N, and a `files` map. That map includes its pinned baseline
 entries unchanged, plus the exact newly reviewed artifacts under
 `native-inputs/vN/maven/im/collie/native/`. Each added coordinate has a versioned
 binary and POM; libsignal Android and client versions must match. New libsignal
 artifacts can reuse the original RingRTC coordinate without rebuilding or
 copying it into another generation.
+
+Without a `baseline` list, a registry entry uses the six original native-v1
+pins. For a later generation after scheduled retention has pruned old files,
+the reviewed registry entry can specify a `baseline` list of the exact active
+native paths. List any generations that establish those pins first in the
+registry. Every listed path must already have an immutable pin, and the bundle
+and captured prior site must both contain matching bytes. Other retained native
+files must match their registered pins and carry forward into both phases.
 
 A generation may pin an `archive` object with the CRE GitHub Release ZIP's
 `url`, `bytes` and `sha256`. The ZIP must contain exactly the new generation's
@@ -67,8 +75,8 @@ python3 distribution/release_inputs.py native \
 ```
 
 Staging checks the immutable release and asset through GitHub, verifies the
-ZIP and every member against their pins, and downloads the original v1 files
-from their Maven URLs. A generation without an archive uses those versioned
+ZIP and every member against their pins, and downloads the selected baseline
+files from their Maven URLs. A generation without an archive uses those versioned
 Maven routes for all files.
 
 The bundle's `native-manifest.json` must equal that checked-in registered
