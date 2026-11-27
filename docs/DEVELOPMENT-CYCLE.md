@@ -74,10 +74,10 @@ TrailBlazer Beta product have different purposes and publication routes.
   immutable prereleases. Merge its reviewed source to app `main`, dispatch
   `build-release.yml` for that exact commit, then sign and publish the candidate;
   `feeds.yml` accepts only a matching `main` build titled `Build TrailBlazer Beta`.
-  Keep `BETA_FEED_ENABLED` unset or `false` until the policy switch and first
-  immutable candidate are ready; turn it on with `FEEDS_ENABLED=true`, and set it
-  back to `false` to pause candidate publication while preserving the served Beta
-  route. An existing enabled feed rejects a new candidate until the switch lands.
+  Beta can ship alongside a Stable verification prerelease or full release, or
+  on its own. Enable scheduled Beta feed updates with `BETA_FEED_ENABLED=true`
+  alongside `FEEDS_ENABLED=true`. Pausing Beta feed updates preserves the served
+  Beta route.
   See
   [BETA-FEED-OPERATIONS.md](../distribution/BETA-FEED-OPERATIONS.md).
   Pages must preserve both feeds and native inputs when either feed changes.

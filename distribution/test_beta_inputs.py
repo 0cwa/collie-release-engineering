@@ -252,7 +252,7 @@ class BetaInputTests(unittest.TestCase):
                 patch('sys.argv', ['beta_inputs.py', 'select']), patch('sys.stdout', io.StringIO()) as out:
             beta.main()
         self.assertEqual(json.loads(out.getvalue()), {'tag': TAG, 'served': VERSION, 'changed': False})
-        # The dry-run workflow still asks to verify the newest Beta whatever is served.
+        # An explicit request can reverify the newest Beta even if it is already served.
         with patch.object(beta, 'newest_tag', return_value=TAG), patch.object(beta, 'served_version', return_value=VERSION), \
                 patch('sys.argv', ['beta_inputs.py', 'select', '--force']), patch('sys.stdout', io.StringIO()) as out:
             beta.main()
@@ -367,6 +367,15 @@ class BetaRouteRebuildTests(unittest.TestCase):
         self.assertIn('${BETA_ARGS:---preserve-beta}', deploy_job)
         self.assertIn('beta_inputs.py native-plan --tag "$BETA_TAG"', deploy_job)
         self.assertIn('${KEEP_NATIVE}', deploy_job)
+
+    def test_pr_preview_only_verifies_a_new_beta_candidate(self):
+        workflow = (Path(__file__).resolve().parents[1] / '.github/workflows/feeds-dry-run.yml').read_text()
+        self.assertIn('FORCE_BETA_VERIFY: ${{ inputs.force_beta_verify || false }}', workflow)
+        self.assertIn('if [[ "$FORCE_BETA_VERIFY" == true ]]; then args+=(--force); fi', workflow)
+        self.assertIn('beta_inputs.py select "${args[@]}"', workflow)
+        self.assertLess(workflow.index("jq -r '.changed'"), workflow.index('beta_inputs.py verify --tag'))
+        self.assertIn('apk_match.py', workflow)
+        self.assertIn('beta_inputs.py metadata --receipt', workflow)
 
 
 if __name__ == '__main__':

@@ -49,17 +49,14 @@ next scheduled run tries again.
 1. Merge the reviewed Beta source to app `main`. Confirm the merge commit is the
    intended source, then dispatch `build-release.yml` on `main` with `edition=beta`
    and `ref` set to that exact merge commit. Confirm the successful unsigned
-   artifact identifies the same commit. This first immutable candidate must exist
-   before the release-engineering feed PR dry run can verify it.
+   artifact identifies the same commit.
 2. Sign its `trailblazer-beta.apk` locally with the Beta key, tag that same commit
    with a signed annotated `trailblazer-v<version>` tag, and publish an immutable
    prerelease titled `Collie TrailBlazer Beta <version>` with that one APK.
 3. The next `feeds.yml` run verifies the candidate and publishes it (or dispatch
-   `feeds.yml` to skip the wait). An already enabled Beta feed rejects a new
-   candidate until the policy switch is merged, while continuing to serve its
-   existing route. A rejected or failed candidate leaves the
-   currently served Beta route in place; it does not block an independent Stable
-   update.
+   `feeds.yml` to skip the wait). Beta can ship by itself or alongside a Stable
+   verification prerelease or full release. If Beta verification fails, the
+   served Beta route stays in place and an independent Stable update can proceed.
 
 Complete release publication and feed verification within 14 days of the build,
 while the unsigned artifact is available. A fresh dispatch can rebuild the same
@@ -72,16 +69,17 @@ cannot be recovered, prepare a new Beta release with a higher version code.
 
 ## Turning it on and checking it
 
-Keep the repository variable `BETA_FEED_ENABLED` unset or `false` until the
-main-source build, signed prerelease and dry-run verification are ready. Set it
-to `true` alongside `FEEDS_ENABLED=true` to allow scheduled Beta publication.
+Set `BETA_FEED_ENABLED=true` alongside `FEEDS_ENABLED=true` to allow scheduled
+Beta publication.
 Setting it back to `false` stops Beta candidate publication; Stable site rebuilds
-continue to preserve the currently served Beta route byte for byte. Every pull
-request that changes the feed code runs
-[`feeds-dry-run.yml`](../.github/workflows/feeds-dry-run.yml), which performs the
-complete Beta check on the newest TrailBlazer release, served or not, and builds both
-routes with a throwaway key. It deploys nothing. Dispatch it on `main` to recheck a
-release before enabling the variable.
+continue to preserve the currently served Beta route byte for byte.
+
+[`feeds-dry-run.yml`](../.github/workflows/feeds-dry-run.yml) runs the distribution
+tests and builds a preview with a throwaway key. It verifies and includes a new
+Beta candidate when one is available. When the feed already serves the newest
+Beta, the preview builds Stable without needing the old Beta build artifact.
+Use `force_beta_verify` on a manual dry run to recheck a served Beta while its
+matching build artifact is still available. The dry run deploys nothing.
 
 ## Retired route
 
