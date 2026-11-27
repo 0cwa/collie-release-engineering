@@ -11,6 +11,7 @@ import tarfile
 import tempfile
 import unittest
 from unittest.mock import patch
+from zipfile import ZipFile
 
 import channel_profile as channels
 import feed
@@ -85,6 +86,119 @@ class RetainedArtifactsTests(unittest.TestCase):
                  'CNAME': b'repo.collie.im\n'}
         write_files(self.site, blobs)
         return blobs
+
+    def withdrawal_fixture(self):
+        self.blobs.update(repository(channels.STABLE, 102, '8.35.2', b'indexed Stable APK'))
+        self.blobs.update(repository(channels.BETA, 178302, '8.36.3-3-beta1', b'indexed Beta APK'))
+        self.blobs['fdroid/beta/repo/im.collie.app.trailblazer_178201.apk'] = b'previous Beta APK'
+        state = {'schema': 1, 'latest': 'v8.35.2',
+                 'repository_fingerprint': channels.STABLE.repository_certificate,
+                 'apks': [Path(self.new_apk).name], 'retained_apks': [Path(self.old_apk).name],
+                 'native_files': 1, 'beta': {'version_code': 178302}}
+        self.blobs['feed-state.json'] = (json.dumps(state, indent=1) + '\n').encode()
+        xml = (b'<fdroid><application><package><apkname>im.collie.app_102.apk</apkname>'
+               b'</package></application></fdroid>')
+        self.blobs['fdroid/repo/index.xml'] = xml
+        jar = io.BytesIO()
+        with ZipFile(jar, 'w') as archive:
+            archive.writestr('index.xml', xml)
+        self.blobs['fdroid/repo/index.jar'] = jar.getvalue()
+        self.snapshot()
+        previous = self.load()
+        record = previous.files[self.old_apk]
+        return self.old_apk, previous, {
+            'inventory_sha256': previous.inventory_record['sha256'],
+            'apk_version_code': 101, 'apk_sha256': record['sha256'], 'apk_bytes': record['bytes'],
+        }
+
+    def test_offline_withdrawal_omits_only_the_previous_stable_mirror(self):
+        previous_apk, _, pins = self.withdrawal_fixture()
+        arguments = ['feed.py', 'prepare-stable-previous-withdrawal',
+                     '--previous-site', str(self.old), '--previous-baseline', str(self.baseline),
+                     '--output', str(self.site)]
+        for name, value in pins.items():
+            arguments.extend(('--' + name.replace('_', '-'), str(value)))
+        output = io.StringIO()
+        with patch.object(sys, 'argv', arguments), contextlib.redirect_stdout(output):
+            feed.main()
+        receipt = json.loads(output.getvalue())
+        self.assertEqual(receipt['withdrawn_path'], previous_apk)
+        expected = {name: blob for name, blob in self.blobs.items() if name != previous_apk}
+        state = json.loads(expected['feed-state.json'])
+        state['retained_apks'] = []
+        expected['feed-state.json'] = (json.dumps(state, indent=1) + '\n').encode()
+        self.assertEqual(receipt['feed_state_sha256'], records(expected)['feed-state.json']['sha256'])
+        self.assertEqual(receipt['withdrawn_sha256'], pins['apk_sha256'])
+        self.assertEqual(receipt['prior_inventory_sha256'], pins['inventory_sha256'])
+        expected[retention.INVENTORY] = retention.inventory_bytes(records(expected))
+        actual = {path.relative_to(self.site).as_posix(): path.read_bytes()
+                  for path in self.site.rglob('*') if path.is_file()}
+        self.assertEqual(actual, expected)
+        self.assertEqual(receipt['site_bytes'], sum(len(blob) for blob in expected.values()))
+        self.assertEqual(receipt['inventory_sha256'],
+                         hashlib.sha256(expected[retention.INVENTORY]).hexdigest())
+        self.assertEqual((self.old / previous_apk).read_bytes(), self.blobs[previous_apk])
+
+    def test_offline_withdrawal_rejects_an_indexed_previous_stable_apk(self):
+        previous_apk, _, pins = self.withdrawal_fixture()
+        old_stable = repository(channels.STABLE, 101, '8.35.1', self.blobs[previous_apk])
+        index_path = 'fdroid/repo/index-v2.json'
+        data = json.loads(self.blobs[index_path])
+        data['packages'][channels.STABLE.package]['versions'].update(
+            json.loads(old_stable[index_path])['packages'][channels.STABLE.package]['versions'])
+        self.blobs[index_path] = json.dumps(data).encode()
+        self.snapshot()
+        previous = self.load()
+        pins['inventory_sha256'] = previous.inventory_record['sha256']
+        with self.assertRaisesRegex(ValueError, 'cannot withdraw an indexed Stable APK'):
+            retention.prepare_stable_previous_withdrawal(self.site, previous, **pins)
+        self.assertFalse(self.site.exists())
+
+    def test_offline_withdrawal_rejects_an_apk_in_the_legacy_index_jar(self):
+        _, _, pins = self.withdrawal_fixture()
+        jar = io.BytesIO()
+        with ZipFile(jar, 'w') as archive:
+            archive.writestr('index.xml', self.blobs['fdroid/repo/index.xml'].replace(b'102', b'101'))
+        self.blobs['fdroid/repo/index.jar'] = jar.getvalue()
+        self.snapshot()
+        previous = self.load()
+        pins['inventory_sha256'] = previous.inventory_record['sha256']
+        with self.assertRaisesRegex(ValueError, 'legacy Stable index differs'):
+            retention.prepare_stable_previous_withdrawal(self.site, previous, **pins)
+        self.assertFalse(self.site.exists())
+
+    def test_offline_withdrawal_rejects_stale_inventory_or_mismatched_apk(self):
+        _, previous, pins = self.withdrawal_fixture()
+        mutations = (('inventory_sha256', '0' * 64, 'inventory differs'),
+                     ('apk_sha256', '0' * 64, 'APK differs'),
+                     ('apk_bytes', pins['apk_bytes'] + 1, 'APK differs'),
+                     ('apk_version_code', 100, 'previous unindexed Stable APK'))
+        for key, value, message in mutations:
+            with self.subTest(key=key), self.assertRaisesRegex(ValueError, message):
+                retention.prepare_stable_previous_withdrawal(self.site, previous, **dict(pins, **{key: value}))
+        self.assertFalse(self.site.exists())
+
+    def test_offline_withdrawal_rejects_changed_signed_or_unrelated_bytes(self):
+        _, previous, pins = self.withdrawal_fixture()
+        for name in ('fdroid/repo/entry.jar', OLD_NATIVE):
+            target = self.old / name
+            target.write_bytes(b'tampered')
+            with self.subTest(name=name), self.assertRaisesRegex(ValueError, 'missing, extra, or changed'):
+                retention.prepare_stable_previous_withdrawal(self.site, previous, **pins)
+            target.write_bytes(self.blobs[name])
+        self.assertFalse(self.site.exists())
+
+    def test_stable_withdrawal_rejects_a_feed_state_without_the_exact_previous_mirror(self):
+        _, _, pins = self.withdrawal_fixture()
+        state = json.loads(self.blobs['feed-state.json'])
+        state['retained_apks'] = []
+        self.blobs['feed-state.json'] = (json.dumps(state, indent=1) + '\n').encode()
+        self.snapshot()
+        previous = self.load()
+        pins['inventory_sha256'] = previous.inventory_record['sha256']
+        with self.assertRaisesRegex(ValueError, 'sole previous mirror'):
+            retention.prepare_stable_previous_withdrawal(self.site, previous, **pins)
+        self.assertFalse(self.site.exists())
 
     def test_load_binds_all_files_and_checks_each_present_signed_route(self):
         self.blobs.update(repository(channels.BETA, 201, '8.40.0', b'Beta APK'))
