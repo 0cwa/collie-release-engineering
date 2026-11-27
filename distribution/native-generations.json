@@ -4,6 +4,18 @@
     {
       "path": "native-generations/v2.json",
       "sha256": "d02a3ddfedf2eed7f8152e57187b2829b2050b43406e4c0f64cb879c917c2e7d"
+    },
+    {
+      "path": "native-generations/v3.json",
+      "sha256": "955a6a24ed8719c18926e8934a3b8e7149a4178fd1aa70abd981a38724cd802c",
+      "baseline": [
+        "native-inputs/v1/maven/im/collie/native/ringrtc-android/2.74.0-collie.1/ringrtc-android-2.74.0-collie.1.aar",
+        "native-inputs/v1/maven/im/collie/native/ringrtc-android/2.74.0-collie.1/ringrtc-android-2.74.0-collie.1.pom",
+        "native-inputs/v2/maven/im/collie/native/libsignal-android/0.107.0-collie.1/libsignal-android-0.107.0-collie.1.aar",
+        "native-inputs/v2/maven/im/collie/native/libsignal-android/0.107.0-collie.1/libsignal-android-0.107.0-collie.1.pom",
+        "native-inputs/v2/maven/im/collie/native/libsignal-client/0.107.0-collie.1/libsignal-client-0.107.0-collie.1.jar",
+        "native-inputs/v2/maven/im/collie/native/libsignal-client/0.107.0-collie.1/libsignal-client-0.107.0-collie.1.pom"
+      ]
     }
   ]
 }
