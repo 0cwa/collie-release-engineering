@@ -14,6 +14,16 @@ on:
         description: Rebuild and deploy even if the newest release is already served
         type: boolean
         default: false
+      withdraw_stable_178204:
+        description: Withdraw only the previously approved Stable 178204 mirror
+        type: boolean
+        default: false
+      withdrawal_policy:
+        description: Exact reviewed main commit for the 178204 withdrawal
+        type: string
+      withdrawal_inventory:
+        description: Exact approved prepared inventory SHA-256 for the 178204 withdrawal
+        type: string
 permissions:
   contents: read
 concurrency:
@@ -24,7 +34,7 @@ env:
   KEEP_RELEASES: ${{ vars.FEEDS_KEEP_RELEASES || '1' }}
 jobs:
   check:
-    if: vars.FEEDS_ENABLED == 'true' && github.ref == 'refs/heads/main'
+    if: vars.FEEDS_ENABLED == 'true' && github.ref == 'refs/heads/main' && inputs.withdraw_stable_178204 != true
     runs-on: ubuntu-24.04
     outputs:
       latest: ${{ steps.check.outputs.latest }}
@@ -44,7 +54,7 @@ jobs:
   # No secrets here. Selects the newest TrailBlazer prerelease and, if the feed does not serve it,
   # checks that its APK is the build-release.yml artifact of its signed tag commit plus its signature.
   beta:
-    if: vars.FEEDS_ENABLED == 'true' && vars.BETA_FEED_ENABLED == 'true' && github.ref == 'refs/heads/main'
+    if: vars.FEEDS_ENABLED == 'true' && vars.BETA_FEED_ENABLED == 'true' && github.ref == 'refs/heads/main' && inputs.withdraw_stable_178204 != true
     runs-on: ubuntu-24.04
     outputs:
       changed: ${{ steps.verify.outputs.changed }}
@@ -207,3 +217,98 @@ jobs:
             echo "$sum  -" > "$RUNNER_TEMP/expect"
             curl -fsSL "$url?$(date +%s)" | sha256sum -c "$RUNNER_TEMP/expect"
           done
+
+  withdraw-stable-178204:
+    if: >-
+      github.event_name == 'workflow_dispatch' && inputs.withdraw_stable_178204 == true &&
+      vars.FEEDS_ENABLED == 'true' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      deployments: write
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: https://repo.collie.im
+    env:
+      BEFORE: 29e18b428fd72aff49fc4a3235a46b9f1b82006dad8ef9e06852ffaef70a5a60
+      AFTER: be7e524fb7cbb66d94cdfbc25b229c9be2f6df31d3abdfb6e2b5e3d34baaa71c
+      AFTER_FEED_STATE: 4a6670779f5b66602f3b40c2026712127aa6062dc88ed496b0e3dcc31c600644
+      WITHDRAWN_PATH: fdroid/repo/im.collie.app_178204.apk
+    steps:
+      - name: Check the exact reviewed dispatch inputs
+        env:
+          APPROVED_POLICY: ${{ inputs.withdrawal_policy }}
+          APPROVED_INVENTORY: ${{ inputs.withdrawal_inventory }}
+          FORCE: ${{ inputs.force }}
+        run: |
+          test "$FORCE" != true
+          test "$APPROVED_POLICY" = "$GITHUB_SHA"
+          test "$APPROVED_INVENTORY" = "$AFTER"
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: '3.12.14'
+          cache: pip
+          cache-dependency-path: |
+            distribution/requirements.txt
+            distribution/build-requirements.txt
+      - name: Install hash-pinned distribution requirements
+        run: |
+          python -m pip install --require-hashes --only-binary=:all: -r distribution/build-requirements.txt
+          python -m pip install --require-hashes --no-build-isolation -r distribution/requirements.txt
+      - name: Capture both signed routes and prepare the exact withdrawal
+        run: |
+          mkdir "$RUNNER_TEMP/withdrawal-evidence"
+          python distribution/feed.py capture-deploy-baseline "$RUNNER_TEMP/deploy-baseline.json" --retain-site "$RUNNER_TEMP/previous-site"
+          python distribution/feed.py prepare-stable-previous-withdrawal \
+            --previous-site "$RUNNER_TEMP/previous-site" --previous-baseline "$RUNNER_TEMP/deploy-baseline.json" \
+            --output "$RUNNER_TEMP/site" --inventory-sha256 "$BEFORE" \
+            --apk-version-code 178204 --apk-sha256 ad038fff740e3bec58a0992313836748846428de5159732f2cabcce809fc06bc --apk-bytes 96375758 \
+            > "$RUNNER_TEMP/withdrawal-evidence/withdrawal.json"
+          jq -e --arg after "$AFTER" --arg feed_state "$AFTER_FEED_STATE" --arg path "$WITHDRAWN_PATH" \
+            '.inventory_sha256 == $after and .feed_state_sha256 == $feed_state and .withdrawn_path == $path and .site_bytes == 605038043' \
+            "$RUNNER_TEMP/withdrawal-evidence/withdrawal.json"
+          cp "$RUNNER_TEMP/deploy-baseline.json" "$RUNNER_TEMP/withdrawal-evidence/"
+          cp "$RUNNER_TEMP/site/site-manifest.json" "$RUNNER_TEMP/withdrawal-evidence/"
+      - id: upload
+        uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
+        with:
+          path: ${{ runner.temp }}/site
+      - name: Verify the actual upload tar size
+        run: |
+          python distribution/feed.py verify-uploaded-archive "$RUNNER_TEMP/artifact.tar" > "$RUNNER_TEMP/withdrawal-evidence/archive-size.json"
+          jq -e '.pages_archive_bytes == 605112320' "$RUNNER_TEMP/withdrawal-evidence/archive-size.json"
+          sha256sum "$RUNNER_TEMP/artifact.tar" > "$RUNNER_TEMP/withdrawal-evidence/archive-sha256.txt"
+      - name: Deploy using the captured prior inventory guard
+        env:
+          ARTIFACT_ID: ${{ steps.upload.outputs.artifact_id }}
+          GITHUB_TOKEN: ${{ github.token }}
+        run: python distribution/deploy_pages.py --artifact-id "$ARTIFACT_ID" --timeout-seconds 1800 --feed-baseline "$RUNNER_TEMP/deploy-baseline.json"
+      - name: Read back the exact site and withdrawn URL
+        run: |
+          actual=''
+          for attempt in $(seq 20); do
+            curl -fsS --max-time 60 -H 'Cache-Control: no-cache' \
+              "https://repo.collie.im/site-manifest.json?$(date +%s)" -o "$RUNNER_TEMP/readback-manifest.json"
+            actual=$(sha256sum "$RUNNER_TEMP/readback-manifest.json" | cut -d ' ' -f 1)
+            [ "$actual" = "$AFTER" ] && break
+            test "$actual" = "$BEFORE"
+            sleep 30
+          done
+          test "$actual" = "$AFTER"
+          python distribution/feed.py --site "$RUNNER_TEMP/site" --verify-live-site > "$RUNNER_TEMP/withdrawal-evidence/readback.json"
+          status=$(curl -sS --max-time 60 -H 'Cache-Control: no-cache' --head -o /dev/null -w '%{http_code}' \
+            "https://repo.collie.im/$WITHDRAWN_PATH?$(date +%s)")
+          test "$status" = 404
+          printf '%s %s\n' "$status" "$WITHDRAWN_PATH" > "$RUNNER_TEMP/withdrawal-evidence/withdrawn-url-status.txt"
+      - name: Preserve the withdrawal evidence
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: stable-178204-withdrawal-evidence
+          path: ${{ runner.temp }}/withdrawal-evidence
+          if-no-files-found: error
+          retention-days: 90
