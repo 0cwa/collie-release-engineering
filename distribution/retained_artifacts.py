@@ -11,7 +11,10 @@ import hashlib
 import json
 from pathlib import Path
 import re
+import shutil
 import stat
+import xml.etree.ElementTree as ET
+from zipfile import BadZipFile, ZipFile
 
 import binary_repo
 import channel_profile as channels
@@ -280,6 +283,104 @@ def _copy(source, target, expected):
             outgoing.write(block)
     if size != expected['bytes'] or digest.hexdigest() != expected['sha256']:
         raise ValueError('retained artifact changed during copy: ' + str(source))
+
+
+def _verify_stable_index_mirrors(previous, data, indexed_names):
+    files = previous.files
+    for name in ('index-v1.json', 'index.xml', 'index.jar'):
+        if STABLE_ROUTE + name in files and files[STABLE_ROUTE + name]['bytes'] > INVENTORY_LIMIT:
+            raise ValueError('Stable index mirror exceeds the byte limit')
+    route = previous.root / STABLE_ROUTE
+    if STABLE_ROUTE + 'index-v1.json' in files:
+        legacy = json.loads((route / 'index-v1.json').read_bytes(), object_pairs_hook=_unique)
+        binary_repo.validate_index_parity(data, legacy, channels.STABLE)
+    legacy_xml = []
+    if STABLE_ROUTE + 'index.xml' in files:
+        legacy_xml.append((route / 'index.xml').read_bytes())
+    if STABLE_ROUTE + 'index.jar' in files:
+        try:
+            with ZipFile(route / 'index.jar') as archive:
+                entries = [entry for entry in archive.infolist() if entry.filename == 'index.xml']
+                if len(entries) != 1 or not 0 < entries[0].file_size <= INVENTORY_LIMIT:
+                    raise ValueError('invalid legacy Stable index JAR')
+                legacy_xml.append(archive.read(entries[0]))
+        except BadZipFile as exc:
+            raise ValueError('invalid legacy Stable index JAR') from exc
+    for raw in legacy_xml:
+        text = raw.decode('utf-8')
+        if '<!DOCTYPE' in text:
+            raise ValueError('legacy Stable index contains an XML document type')
+        root = ET.fromstring(text)
+        if root.tag != 'fdroid' or {entry.text for entry in root.findall('./application/package/apkname')} != indexed_names:
+            raise ValueError('legacy Stable index differs from signed v1/v2 APK membership')
+
+
+def prepare_stable_previous_withdrawal(site, previous, *, inventory_sha256, apk_version_code,
+                                     apk_sha256, apk_bytes, byte_limit=SITE_LIMIT):
+    """Stage an otherwise identical site without the previous unindexed Stable APK."""
+    if previous.inventory_record['sha256'] != inventory_sha256:
+        raise ValueError('withdrawal inventory differs from captured deploy baseline')
+    if type(apk_version_code) is not int or apk_version_code <= 0 or type(apk_bytes) is not int or apk_bytes <= 0:
+        raise ValueError('withdrawal requires a positive Stable version code and APK size')
+    verify_snapshot(previous, byte_limit=byte_limit)
+    stable = channels.STABLE
+    data = binary_repo.verify_indexes(previous.root / STABLE_ROUTE, stable.repository_certificate, stable)
+    versions = binary_repo.release_tuples(data, stable)
+    indexed_names = {version[3] for version in versions}
+    indexed = {STABLE_ROUTE + name for name in indexed_names}
+    name = f'{STABLE_ROUTE}{stable.package}_{apk_version_code}.apk'
+    if name in indexed:
+        raise ValueError('cannot withdraw an indexed Stable APK')
+    _verify_stable_index_mirrors(previous, data, indexed_names)
+    newest = max(version[0] for version in versions)
+    prior = [code for path in previous.files
+             if path.startswith(STABLE_ROUTE) and path not in indexed
+             and (code := apk_code(path)) is not None and code < newest]
+    if not prior or apk_version_code != max(prior):
+        raise ValueError('withdrawal must name the previous unindexed Stable APK')
+    if previous.files.get(name) != {'sha256': apk_sha256, 'bytes': apk_bytes}:
+        raise ValueError('withdrawal APK differs from captured bytes')
+
+    site = Path(site)
+    if site.resolve().is_relative_to(previous.root.resolve()):
+        raise ValueError('withdrawal output must be outside the captured previous site')
+    state_name = 'feed-state.json'
+    state_record = previous.files.get(state_name)
+    if state_record is None or state_record['bytes'] > INVENTORY_LIMIT:
+        raise ValueError('Stable withdrawal requires the captured feed state')
+    state_blob = (previous.root / state_name).read_bytes()
+    if hashlib.sha256(state_blob).hexdigest() != state_record['sha256']:
+        raise ValueError('feed state changed while preparing Stable withdrawal')
+    state = json.loads(state_blob, object_pairs_hook=_unique)
+    if (not isinstance(state, dict) or type(state.get('schema')) is not int or
+            state['schema'] != 1 or state.get('repository_fingerprint') != stable.repository_certificate or
+            state.get('apks') != sorted(indexed_names) or state.get('retained_apks') != [Path(name).name]):
+        raise ValueError('feed state does not name the signed Stable selection and the sole previous mirror')
+    state['retained_apks'] = []
+    new_state = (json.dumps(state, indent=1) + '\n').encode()
+    state_sha256 = hashlib.sha256(new_state).hexdigest()
+    planned = {path: entry for path, entry in previous.files.items() if path != name}
+    planned[state_name] = {'sha256': state_sha256, 'bytes': len(new_state)}
+    manifest = inventory_bytes(planned)
+    total = sum(entry['bytes'] for entry in planned.values()) + len(manifest)
+    if total > byte_limit:
+        raise ValueError('withdrawal candidate exceeds the site byte limit')
+    sha256 = hashlib.sha256(manifest).hexdigest()
+    site.mkdir()
+    try:
+        for path, entry in planned.items():
+            if path != state_name:
+                _copy(previous.root / path, site / path, entry)
+        (site / state_name).write_bytes(new_state)
+        (site / INVENTORY).write_bytes(manifest)
+        if _tree_records(site, byte_limit) != {**planned, INVENTORY: {'sha256': sha256, 'bytes': len(manifest)}}:
+            raise ValueError('withdrawal candidate differs from the planned inventory')
+    except Exception:
+        shutil.rmtree(site)
+        raise
+    return {'withdrawn_path': name, 'withdrawn_sha256': apk_sha256, 'withdrawn_bytes': apk_bytes,
+            'prior_inventory_sha256': inventory_sha256, 'feed_state_sha256': state_sha256,
+            'inventory_sha256': sha256, 'site_bytes': total}
 
 
 def retain(site, previous, *, preserve_beta, rebuild_beta=False, byte_limit=SITE_LIMIT, native_keep=None):

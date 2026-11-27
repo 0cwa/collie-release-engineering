@@ -416,6 +416,22 @@ def keystore_fingerprint(keystore):
 
 
 def main():
+    if len(sys.argv)>1 and sys.argv[1]=='prepare-stable-previous-withdrawal':
+        parser=argparse.ArgumentParser(description='Prepare an offline Pages candidate omitting only the previous unindexed Stable APK and updating the captured feed state')
+        for name in ('previous-site', 'previous-baseline', 'output'):
+            parser.add_argument('--'+name,type=Path,required=True)
+        parser.add_argument('--inventory-sha256',required=True)
+        parser.add_argument('--apk-version-code',type=int,required=True)
+        parser.add_argument('--apk-sha256',required=True)
+        parser.add_argument('--apk-bytes',type=int,required=True)
+        args=parser.parse_args(sys.argv[2:])
+        previous=retained_artifacts.load_previous_site(
+            args.previous_site,args.previous_baseline,parse_inventory=_inventory_files)
+        result=retained_artifacts.prepare_stable_previous_withdrawal(
+            args.output,previous,inventory_sha256=args.inventory_sha256,
+            apk_version_code=args.apk_version_code,apk_sha256=args.apk_sha256,apk_bytes=args.apk_bytes)
+        print(json.dumps(result))
+        return
     if len(sys.argv)>1 and sys.argv[1]=='verify-uploaded-archive':
         parser=argparse.ArgumentParser();parser.add_argument('archive',type=Path)
         args=parser.parse_args(sys.argv[2:])
