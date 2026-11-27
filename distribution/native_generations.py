@@ -1,4 +1,4 @@
-"""Admit only reviewed, hash-pinned additions to the immutable native-v1 set."""
+"""Admit only reviewed, hash-pinned additions to immutable native inputs."""
 import hashlib
 import json
 from pathlib import Path, PurePosixPath
@@ -44,7 +44,7 @@ def _validate_generation(manifest, baseline, generation):
     if not isinstance(files, dict) or not len(baseline) < len(files) <= 100:
         raise ValueError('native generation must add a bounded artifact set')
     if any(files.get(name) != entry for name, entry in baseline.items()):
-        raise ValueError('native generation must preserve every fixed native-v1 byte')
+        raise ValueError('native generation must preserve every pinned baseline byte')
     if 'archive' in manifest:
         archive = manifest['archive']
         if (not isinstance(archive, dict) or set(archive) != {'url', 'bytes', 'sha256'} or
@@ -82,13 +82,13 @@ def _validate_generation(manifest, baseline, generation):
                 raise ValueError('new libsignal Android and client versions must match')
 
 
-def _approved_generation(supplied, baseline_path, registry_path):
-    """A caller-supplied manifest never becomes its own admission policy."""
+def approved_generation(supplied, baseline_path, registry_path):
+    """Return the approved manifest, explicit retained baseline and known pins."""
     _, baseline = _read(baseline_path)
     if supplied == baseline:
         # Keep existing scheduled feed bundles valid; the complete prior site
         # retains later generations independently of the supplied addition set.
-        return baseline
+        return baseline, None, None
     _, registry = _read(registry_path)
     if (not isinstance(registry, dict) or set(registry) != {'schema', 'manifests'} or
             type(registry['schema']) is not int or registry['schema'] != 1 or
@@ -96,8 +96,10 @@ def _approved_generation(supplied, baseline_path, registry_path):
         raise ValueError('invalid native generation registry')
     seen = set()
     selected = None
+    historical_files = dict(baseline['files'])
     for item in registry['manifests']:
-        if (not isinstance(item, dict) or set(item) != {'path', 'sha256'} or
+        if (not isinstance(item, dict) or
+                set(item) not in ({'path', 'sha256'}, {'path', 'sha256', 'baseline'}) or
                 not isinstance(item['path'], str) or not isinstance(item['sha256'], str) or
                 not re.fullmatch('[0-9a-f]{64}', item['sha256'])):
             raise ValueError('invalid native generation registry pin')
@@ -111,18 +113,30 @@ def _approved_generation(supplied, baseline_path, registry_path):
         raw, approved = _read(path)
         if hashlib.sha256(raw).hexdigest() != item['sha256']:
             raise ValueError('registered native generation digest differs')
-        _validate_generation(approved, baseline['files'], int(match[1]))
+        required = None
+        if 'baseline' in item:
+            names = item['baseline']
+            if (not isinstance(names, list) or not 0 < len(names) <= 100 or
+                    any(not isinstance(name, str) or name not in historical_files for name in names) or
+                    len(set(names)) != len(names)):
+                raise ValueError('native baseline must name distinct previously approved files')
+            required = {name: historical_files[name] for name in names}
+        _validate_generation(approved, baseline['files'] if required is None else required, int(match[1]))
         if supplied == approved:
-            selected = approved
+            selected = approved, required
+        historical_files.update(approved['files'])
     if selected is None:
         raise ValueError('native manifest is not a registered immutable generation')
-    return selected
+    approved, required = selected
+    return approved, required, historical_files
 
 
 def approved_files(supplied, baseline_path, registry_path):
-    return _approved_generation(supplied, baseline_path, registry_path)['files']
+    generation, _, _ = approved_generation(supplied, baseline_path, registry_path)
+    return generation['files']
 
 
 def load_generation(path, *, baseline_path=BASELINE, registry_path=REGISTRY):
     _, supplied = _read(path)
-    return _approved_generation(supplied, baseline_path, registry_path)
+    generation, _, _ = approved_generation(supplied, baseline_path, registry_path)
+    return generation

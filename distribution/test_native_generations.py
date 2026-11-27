@@ -19,8 +19,11 @@ class NativeGenerationAdmissionTest(unittest.TestCase):
     write = fixtures.PagesTest.write
     prepare = fixtures.PagesTest.prepare
     fetch = fixtures.PagesTest.fetch
-    seal_previous = fixtures.PagesTest.seal_previous
     add_native = fixtures.NativePagesTest.add_native
+
+    def seal_previous(self):
+        (self.bundle / 'previous/site-manifest.json').unlink(missing_ok=True)
+        fixtures.PagesTest.seal_previous(self)
 
     def add_generation(self):
         self.original_files = copy.deepcopy(self.add_native(only=True))
@@ -47,8 +50,13 @@ class NativeGenerationAdmissionTest(unittest.TestCase):
 
     def register(self):
         b.atomic_json(self.generation_path, self.generation)
-        b.atomic_json(self.registry_path, {'schema': 1, 'manifests': [
-            {'path': 'native-generations/v2.json', 'sha256': b.sha(self.generation_path)}]})
+        entry = {'path': self.generation_path.relative_to(self.root).as_posix(),
+                 'sha256': b.sha(self.generation_path)}
+        manifests = []
+        if hasattr(self, 'live_native'):
+            entry['baseline'] = sorted(self.live_native)
+            manifests.append(self.prior_registration)
+        b.atomic_json(self.registry_path, {'schema': 1, 'manifests': manifests + [entry]})
         b.atomic_json(self.bundle / 'native-manifest.json', self.generation)
         self.approval['native_manifest_sha256'] = b.sha(self.bundle / 'native-manifest.json')
         self.write()
@@ -131,6 +139,116 @@ class NativeGenerationAdmissionTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'budget'):
             self.prepare()
 
+    def add_live_generation(self):
+        self.add_generation()
+        self.retain_supplied()
+        self.prior_registration = b.load(self.registry_path)['manifests'][0]
+        self.retired = {name: (self.bundle / 'native' / name).read_bytes()
+                        for name in self.original_files if '/libsignal-' in name}
+        for name in self.retired:
+            (self.bundle / 'previous' / name).unlink()
+            (self.bundle / 'native' / name).unlink()
+        self.seal_previous()
+        self.live_native = p.inventory(self.bundle / 'native')
+        self.new_files = {}
+        version = '2.75.0-collie.1'
+        module = 'ringrtc-android'
+        for suffix in ('aar', 'pom'):
+            name = f'native-inputs/v3/maven/im/collie/native/{module}/{version}/{module}-{version}.{suffix}'
+            path = self.bundle / 'native' / name
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_bytes(('fixture ' + name).encode())
+            self.new_files[name] = {'sha256': b.sha(path), 'bytes': path.stat().st_size}
+        self.generation = dict(self.generation, generation=3, files=self.live_native | self.new_files)
+        self.generation_path = self.root / 'native-generations/v3.json'
+        self.register()
+
+    def test_live_baseline_stages_and_preserves_files_in_both_phases(self):
+        self.add_live_generation()
+        self.archive_fixture()
+        staged = self.root / 'staged'
+        self.assertEqual(self.stage_generation(staged), 8)
+        self.assertEqual(p.inventory(staged), self.generation['files'])
+        shutil.rmtree(self.bundle / 'native')
+        staged.rename(self.bundle / 'native')
+        plan = self.prepare()
+        for phase in ('phase1', 'phase2'):
+            native = {name: entry for name, entry in plan['manifests'][phase].items()
+                      if name.startswith('native-inputs/')}
+            self.assertEqual(native, self.live_native | self.new_files)
+            self.assertTrue(self.retired.keys().isdisjoint(native))
+        self.assertFalse(p._authorized_empty_native_plan(plan))
+
+    def test_live_baseline_uses_the_six_immutable_production_pins(self):
+        self.add_live_generation()
+        policy = inputs.native_generations
+        original = policy.REGISTRY.parent / 'native-generations/v2.json'
+        registered = policy.load_generation(original)
+        production_files = {name: registered['files'][name] for name in self.live_native}
+        self.assertEqual(len(production_files), 6)
+        self.assertEqual(sum(entry['bytes'] for entry in production_files.values()), 313_077_213)
+        shutil.copyfile(original, self.generation_path.with_name('v2.json'))
+        self.prior_registration['sha256'] = b.sha(original)
+        self.generation['files'] = production_files | self.new_files
+        self.register()
+        self.assertEqual(policy.load_generation(self.generation_path, registry_path=self.registry_path), self.generation)
+
+    def test_live_baseline_rejects_tampered_or_missing_active_files(self):
+        self.add_live_generation()
+        name = next(iter(self.live_native))
+        target = self.bundle / 'previous' / name
+        original = target.read_bytes()
+        for contents in (None, b'tampered'):
+            with self.subTest(contents=contents):
+                if contents is None:
+                    target.unlink()
+                else:
+                    target.write_bytes(contents)
+                self.seal_previous()
+                with self.assertRaisesRegex(ValueError, 'native baseline must remain complete'):
+                    self.prepare()
+        target.write_bytes(original)
+        self.seal_previous()
+        supplied = self.bundle / 'native' / name
+        for contents in (None, b'tampered'):
+            with self.subTest(supplied=contents):
+                if contents is None:
+                    supplied.unlink()
+                else:
+                    supplied.write_bytes(contents)
+                with self.assertRaisesRegex(ValueError, 'exact approved file set'):
+                    self.prepare()
+        self.assertFalse(self.output.exists())
+
+    def test_already_retained_historical_native_file_must_match_its_pin(self):
+        self.add_live_generation()
+        name, contents = next(iter(self.retired.items()))
+        target = self.bundle / 'previous' / name
+        target.write_bytes(b'tampered')
+        self.seal_previous()
+        with self.assertRaisesRegex(ValueError, 'retained native files differ'):
+            self.prepare()
+        target.write_bytes(contents)
+        self.seal_previous()
+        plan = self.prepare()
+        for phase in ('phase1', 'phase2'):
+            self.assertEqual(plan['manifests'][phase][name], self.original_files[name])
+
+    def test_new_policy_cannot_omit_active_files_or_use_unregistered_baseline(self):
+        self.add_live_generation()
+        name = next(iter(self.live_native))
+        original = self.generation['files'].pop(name)
+        self.register()
+        with self.assertRaisesRegex(ValueError, 'preserve every pinned baseline byte'):
+            self.prepare()
+        self.generation['files'][name] = original
+        self.register()
+        registry = b.load(self.registry_path)
+        registry['manifests'][-1]['baseline'].append(next(iter(self.new_files)))
+        b.atomic_json(self.registry_path, registry)
+        with self.assertRaisesRegex(ValueError, 'previously approved'):
+            self.prepare()
+
     def archive_fixture(self, *, change=None, extra=None, symlink=None,
                         compression=zipfile.ZIP_STORED, comment=b''):
         raw = io.BytesIO()
@@ -148,10 +266,11 @@ class NativeGenerationAdmissionTest(unittest.TestCase):
 
     def pin_archive(self, raw):
         self.archive = raw
-        record = {'url': f'https://github.com/{inputs.native_generations.REPOSITORY}/releases/download/native-v2/native.zip',
+        tag = f"native-v{self.generation['generation']}"
+        record = {'url': f'https://github.com/{inputs.native_generations.REPOSITORY}/releases/download/{tag}/native.zip',
                   'sha256': hashlib.sha256(self.archive).hexdigest(), 'bytes': len(self.archive)}
         self.generation['archive'] = record
-        self.release = {'tag_name': 'native-v2', 'draft': False, 'immutable': True,
+        self.release = {'tag_name': tag, 'draft': False, 'immutable': True,
                         'assets': [{'id': 1, 'name': 'native.zip', 'state': 'uploaded',
                                     'browser_download_url': record['url'], 'size': record['bytes'],
                                     'digest': 'sha256:' + record['sha256']}]}
@@ -159,7 +278,7 @@ class NativeGenerationAdmissionTest(unittest.TestCase):
 
     def stage_generation(self, destination):
         def api(endpoint):
-            self.assertEqual(endpoint, f'repos/{inputs.native_generations.REPOSITORY}/releases/tags/native-v2')
+            self.assertEqual(endpoint, f"repos/{inputs.native_generations.REPOSITORY}/releases/tags/{self.release['tag_name']}")
             return self.release
 
         def downloader(url, output, size, digest, *, hosts):
@@ -167,7 +286,7 @@ class NativeGenerationAdmissionTest(unittest.TestCase):
                 self.assertEqual(hosts, {'repo.collie.im'})
                 path = url.removeprefix(p.ORIGIN)
                 if 'archive' in self.generation:
-                    self.assertIn(path, self.original_files)
+                    self.assertIn(path, getattr(self, 'live_native', self.original_files))
                 data = (self.bundle / 'native' / path).read_bytes()
             else:
                 self.assertEqual(hosts, inputs.ASSET_HOSTS)
