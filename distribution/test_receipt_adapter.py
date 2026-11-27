@@ -22,11 +22,33 @@ class ReceiptAdapterTest(unittest.TestCase):
         installed=self.ingest();self.assertEqual(b.sha(installed),b.sha(self.apk));repo=installed.parent
         for name in ('entry.jar','index-v1.jar','index-v2.json'):(repo/name).write_bytes(b'synthetic index fixture')
         a=self.fixture['approval'];data={'packages':{b.APP:{'versions':{a['apk_sha256']:{'manifest':{'versionCode':a['version_code'],'versionName':a['version_name'],'signer':{'sha256':[a['apk_certificate_sha256']]}},'file':{'name':'/'+installed.name,'sha256':a['apk_sha256']}}}}}}
-        argv=['receipt.py',str(repo),'--approval',str(self.approved),'--receipt-bundle',str(self.bundle),'--metadata-revision','a'*40,'--fingerprint','b'*64,'--generation',b.generation_digest(repo)]
-        output=io.StringIO()
-        with patch.object(sys,'argv',argv),patch('binary_repo.verify_indexes',return_value=data),contextlib.redirect_stdout(output):
-            runpy.run_path(str(Path(__file__).with_name('receipt.py')),run_name='__main__')
-        receipt=json.loads(output.getvalue())
+        base_argv=['receipt.py',str(repo),'--approval',str(self.approved),'--metadata-revision','a'*40,'--fingerprint','b'*64,'--generation',b.generation_digest(repo)]
+        argv=base_argv+['--receipt-bundle',str(self.bundle)]
+        def emit_receipt(args):
+            output=io.StringIO()
+            with patch.object(sys,'argv',args),patch('binary_repo.verify_indexes',return_value=data),contextlib.redirect_stdout(output):
+                runpy.run_path(str(Path(__file__).with_name('receipt.py')),run_name='__main__')
+            return json.loads(output.getvalue())
+
+        historical=emit_receipt(argv)
+        a['aliases']={b.STABLE.apk_asset:a['apk_sha256']}
+        self.write()
+        receipt=emit_receipt(argv)
+        self.assertEqual(receipt,historical)
+        with self.assertRaisesRegex(ValueError,'requires externally approved receipt bundle'):
+            emit_receipt(base_argv)
+        a['release_receipt_sha256']='0'*64
+        a['receipt_approvals']['release']='0'*64
+        self.write()
+        with self.assertRaisesRegex(ValueError,'unapproved release receipt'):
+            emit_receipt(argv)
+        del a['release_receipt_sha256'],a['receipt_approvals']
+        a['schema']=1
+        self.write()
+        legacy=emit_receipt(base_argv)
+        self.assertIsNone(legacy['payload']['release_receipt_sha256'])
+        with self.assertRaisesRegex(ValueError,'legacy approval cannot claim a complete receipt graph'):
+            emit_receipt(argv)
         # Device/provider evidence stays NOT RUN, so graph coherence is tested without promotion.
         documents={k:self.fixture[k] for k in ('source','build','release')};documents['repository']=receipt
         m.verify_graph(**documents,approved={k:m.digest(v) for k,v in documents.items()})

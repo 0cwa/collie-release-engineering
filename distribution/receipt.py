@@ -24,9 +24,9 @@ if profile.name=='trailblazer-beta' and a.repository_stage!='prepublication':
     raise ValueError('Beta repository receipt requires --repository-stage prepublication')
 if profile.name=='stable' and a.repository_stage is not None:
     raise ValueError('repository stage is available only for the Beta channel')
-approval=b.approval(a.approval,profile)
+approval=b.approval(a.approval,profile,allow_canonical_stable=True)
 b.verify_release_approval(approval,a.receipt_bundle,profile)
-generation,data=b.approved_generation(a.repo,a.fingerprint,a.generation,[a.approval],profile)
+generation,data=b.approved_generation(a.repo,a.fingerprint,a.generation,[a.approval],profile,allow_canonical_stable=True)
 if profile.name!='stable' and data['repo']['address'].rstrip('/')!=profile.repository_url.rstrip('/'):
     raise ValueError('signed index origin differs from selected channel')
 versions=data['packages'][profile.package]['versions']
