@@ -200,6 +200,21 @@ class RetainedArtifactsTests(unittest.TestCase):
             retention.prepare_stable_previous_withdrawal(self.site, previous, **pins)
         self.assertFalse(self.site.exists())
 
+    def test_stable_withdrawal_removes_partial_candidate_on_copy_failure(self):
+        previous_apk, previous, pins = self.withdrawal_fixture()
+        original = retention._copy
+
+        def fail_during_copy(source, target, record):
+            if source.name == 'index-v2.json':
+                raise OSError('simulated copy failure')
+            original(source, target, record)
+
+        with patch.object(retention, '_copy', side_effect=fail_during_copy):
+            with self.assertRaisesRegex(OSError, 'simulated copy failure'):
+                retention.prepare_stable_previous_withdrawal(self.site, previous, **pins)
+        self.assertFalse(self.site.exists())
+        self.assertEqual((self.old / previous_apk).read_bytes(), self.blobs[previous_apk])
+
     def test_load_binds_all_files_and_checks_each_present_signed_route(self):
         self.blobs.update(repository(channels.BETA, 201, '8.40.0', b'Beta APK'))
         self.blobs['fdroid/repo/im.collie.app/en-US/abc=.png'] = b'image'

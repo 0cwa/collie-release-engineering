@@ -11,6 +11,7 @@ import hashlib
 import json
 from pathlib import Path
 import re
+import shutil
 import stat
 import xml.etree.ElementTree as ET
 from zipfile import BadZipFile, ZipFile
