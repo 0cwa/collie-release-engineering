@@ -20,8 +20,11 @@ TrailBlazer release, requires all of this:
   `0cwa/collieim-android` has immutable releases enabled, so a published
   release's tag and assets cannot change afterwards.
 - The tag is an annotated tag with a verified signature, pointing at a commit.
-- A successful `build-release.yml` run (`workflow_dispatch` on `trailblazer-beta`)
-  built that commit, and its `unsigned-release-apk` artifact names that commit.
+- A successful `build-release.yml` run (`workflow_dispatch` on `main`) with the
+  exact GitHub run title `Build TrailBlazer Beta` built that commit, and its
+  `unsigned-release-apk` artifact names that commit. Runs
+  from `trailblazer-beta`, another branch, a pull request, another repository or
+  another commit are rejected.
 - The published APK equals that unsigned build plus its signing records, byte for
   byte (the app's `tooling/release/verify-apk-match.sh` method, with its two helper
   files pinned by commit and SHA-256).
@@ -43,26 +46,40 @@ next scheduled run tries again.
 
 ## Releasing a Beta
 
-1. Merge the Beta source to `trailblazer-beta`.
-2. Dispatch `build-release.yml` on `trailblazer-beta` with `edition=beta` and the
-   head commit as `ref`.
-3. Sign its `trailblazer-beta.apk` locally with the Beta key, tag the commit with a
-   signed annotated `trailblazer-v<version>` tag, and publish a prerelease titled
-   `Collie TrailBlazer Beta <version>` with that one APK.
-4. The next `feeds.yml` run publishes it (or dispatch `feeds.yml` to skip the wait).
+1. Merge the reviewed Beta source to app `main`. Confirm the merge commit is the
+   intended source, then dispatch `build-release.yml` on `main` with `edition=beta`
+   and `ref` set to that exact merge commit. Confirm the successful unsigned
+   artifact identifies the same commit.
+2. Sign its `trailblazer-beta.apk` locally with the Beta key, tag that same commit
+   with a signed annotated `trailblazer-v<version>` tag, and publish an immutable
+   prerelease titled `Collie TrailBlazer Beta <version>` with that one APK.
+3. The next `feeds.yml` run verifies the candidate and publishes it (or dispatch
+   `feeds.yml` to skip the wait). Beta can ship by itself or alongside a Stable
+   verification prerelease or full release. If Beta verification fails, the
+   served Beta route stays in place and an independent Stable update can proceed.
 
-The unsigned build artifact expires 14 days after the build. Publish the release
-before then, or dispatch `build-release.yml` for the same commit again; the build is
-reproducible, so any successful run of that commit is accepted.
+Complete release publication and feed verification within 14 days of the build,
+while the unsigned artifact is available. A fresh dispatch can rebuild the same
+commit while it is still the tip of `main`. After `main` advances, re-run the
+original Beta workflow within GitHub's
+[30-day window](https://docs.github.com/en/actions/how-tos/manage-workflow-runs/re-run-workflows-and-jobs)
+to keep its source SHA and ref. Verify that the run has exactly one artifact
+named `unsigned-release-apk` and that it is unexpired. If a usable artifact
+cannot be recovered, prepare a new Beta release with a higher version code.
 
 ## Turning it on and checking it
 
-The `beta` job runs only with the repository variable `BETA_FEED_ENABLED=true`
-(alongside `FEEDS_ENABLED=true`). Every pull request that changes the feed code runs
-[`feeds-dry-run.yml`](../.github/workflows/feeds-dry-run.yml), which performs the
-complete Beta check on the newest TrailBlazer release, served or not, and builds both
-routes with a throwaway key. It deploys nothing. Dispatch it on `main` to recheck a
-release before enabling the variable.
+Set `BETA_FEED_ENABLED=true` alongside `FEEDS_ENABLED=true` to allow scheduled
+Beta publication.
+Setting it back to `false` stops Beta candidate publication; Stable site rebuilds
+continue to preserve the currently served Beta route byte for byte.
+
+[`feeds-dry-run.yml`](../.github/workflows/feeds-dry-run.yml) runs the distribution
+tests and builds a preview with a throwaway key. It verifies and includes a new
+Beta candidate when one is available. When the feed already serves the newest
+Beta, the preview builds Stable without needing the old Beta build artifact.
+Use `force_beta_verify` on a manual dry run to recheck a served Beta while its
+matching build artifact is still available. The dry run deploys nothing.
 
 ## Retired route
 
