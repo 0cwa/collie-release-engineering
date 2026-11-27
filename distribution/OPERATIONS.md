@@ -138,9 +138,11 @@ approval is external to the candidate. Do not compute and auto-approve it inside
 a privileged candidate job.
 
 `publish-local` requires `--approved-generation <sha256>` and one
-`--approval <release-approval.json>` for each selected version. A valid repository
-signature alone is insufficient. Every indexed release must equal an explicit
-approved package/version/name/hash/certificate tuple, v1 and v2 must agree, and
+`--approval <release-approval.json>` for each selected version. For Stable,
+`publish-local` and `receipt.py` accept either the sole `collie.apk` entry or
+the full historical alias set. Each entry must match the approved APK digest.
+A valid repository signature alone is insufficient. Every indexed release must
+equal an explicit approved package/version/name/hash/certificate tuple, v1 and v2 must agree, and
 unexpected public paths (including disguised private JSON) are rejected before
 publication commands. Receipt generation recomputes the digest and rejects a
 supplied mismatch. Approval becomes invalid when any public file, release approval

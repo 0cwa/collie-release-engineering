@@ -4,6 +4,7 @@ import tempfile
 import unittest
 from unittest.mock import patch
 import binary_repo as b
+from channel_profile import BETA
 
 class BinaryRepositoryTest(unittest.TestCase):
     def setUp(self):
@@ -91,6 +92,71 @@ class BinaryRepositoryTest(unittest.TestCase):
         data,_=self.indexes()
         with patch('binary_repo.verify_indexes',return_value=data):
             with self.assertRaisesRegex(ValueError,'unapproved indexed'):b.approved_generation(g,'f'*64,b.generation_digest(g),[])
+    def test_manual_stable_approval_accepts_only_canonical_or_full_historical_aliases(self):
+        fixtures=Path(__file__).parent/'fixtures'
+        legacy=b.load(fixtures/'legacy-release-approval.json')
+        current=b.load(fixtures/'v2-release-input.json')
+        for approved,apk_bytes in ((legacy,b'legacy APK'),(current['approval'],current['apk_utf8'].encode())):
+            with self.subTest(schema=approved['schema']):
+                generation=self.root/f"generation-{approved['schema']}"
+                generation.mkdir()
+                for name in ('entry.jar','index-v1.jar','index-v2.json'):
+                    (generation/name).write_bytes(b'synthetic signed index')
+                filename=f"{b.APP}_{approved['version_code']}.apk"
+                apk=generation/filename
+                apk.write_bytes(apk_bytes)
+                digest=b.sha(apk)
+                expected=b.generation_digest(generation)
+                signer=approved['apk_certificate_sha256']
+                row={'manifest':{'versionCode':approved['version_code'],'versionName':approved['version_name'],
+                                 'signer':{'sha256':[signer]}},'file':{'name':'/'+filename,'sha256':digest}}
+                index={'packages':{b.APP:{'versions':{digest:row}}}}
+                approval_path=self.root/'approved-release.json'
+                canonical={b.STABLE.apk_asset:digest}
+                historical=dict.fromkeys(b.ALIASES,digest)
+                correct=dict(approved,apk_sha256=digest,aliases=canonical)
+                fingerprint=b.STABLE.repository_certificate
+                with patch('binary_repo.verify_indexes',return_value=index):
+                    for name,aliases in (('canonical',canonical),('historical',historical)):
+                        approval_path.write_text(json.dumps(dict(correct,aliases=aliases)))
+                        origin=self.root/f"{approved['schema']}-{name}"
+                        self.assertEqual(b.publish_local(generation,origin,fingerprint,expected,[approval_path]),expected)
+                        self.assertEqual((origin/filename).read_bytes(),apk_bytes)
+                    cases=(
+                        ({'aliases':{}},'alias inequality'),
+                        ({'aliases':{'collie-foss.apk':digest}},'alias inequality'),
+                        ({'aliases':canonical|{'collie-foss.apk':digest}},'alias inequality'),
+                        ({'aliases':historical|{'trailblazer-beta.apk':digest}},'alias inequality'),
+                        ({'aliases':historical|{'molly-minimal.apk':'0'*64}},'alias inequality'),
+                        ({'aliases':{b.STABLE.apk_asset:'0'*64}},'alias inequality'),
+                        ({'apk_sha256':'0'*64,'aliases':{b.STABLE.apk_asset:'0'*64}},'unapproved indexed release'),
+                        ({'apk_certificate_sha256':'0'*64},'signing certificate differs'),
+                        ({'package':BETA.package},'package/version'),
+                    )
+                    for changes,error in cases:
+                        with self.subTest(changes=changes):
+                            approval_path.write_text(json.dumps(dict(correct,**changes)))
+                            origin=self.root/'rejected'
+                            with self.assertRaisesRegex(ValueError,error):
+                                b.publish_local(generation,origin,fingerprint,expected,[approval_path])
+                            self.assertFalse(origin.exists())
+                    approval_path.write_text(json.dumps(correct))
+                    with self.assertRaisesRegex(ValueError,'alias inequality'):
+                        b.approved_generation(generation,fingerprint,expected,[approval_path])
+    def test_beta_keeps_its_exact_asset_and_tag(self):
+        approved=b.load(Path(__file__).parent/'fixtures/legacy-release-approval.json')
+        digest=approved['apk_sha256']
+        approved.update(package=BETA.package,apk_certificate_sha256=BETA.apk_certificate,
+                        tag=BETA.tag_prefix+approved['version_name'],aliases={BETA.apk_asset:digest})
+        path=self.root/'beta-approval.json'
+        path.write_text(json.dumps(approved))
+        self.assertEqual(b.approval(path,BETA),approved)
+        with self.assertRaisesRegex(ValueError,'Beta publication requires approved Pages snapshots'):
+            b.publish_local(self.root/'candidate',self.root/'origin',BETA.repository_certificate,'0'*64,[path],BETA)
+        for changes in ({'aliases':{b.STABLE.apk_asset:digest}},{'tag':'v'+approved['version_name']}):
+            path.write_text(json.dumps(dict(approved,**changes)))
+            with self.assertRaisesRegex(ValueError,'Beta asset/tag identity differs'):
+                b.approval(path,BETA)
     def test_private_file_rejected_from_public_inventory(self):
         g=self.root/'g';g.mkdir();(g/'keystore.p12').write_bytes(b'private')
         with self.assertRaisesRegex(ValueError,'unexpected public file'):b.public_files(g)

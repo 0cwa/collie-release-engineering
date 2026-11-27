@@ -39,7 +39,7 @@ def load(path):
         return out
     return json.loads(Path(path).read_text(),object_pairs_hook=unique)
 
-def approval(path, profile=STABLE):
+def approval(path, profile=STABLE, *, allow_canonical_stable=False):
     a=load(path)
     fields={'schema','release_id','tag','release_manifest_sha256','apk_sha256','apk_certificate_sha256','package','version_code','version_name','aliases'}
     if a.get('schema')==2:fields|={'release_receipt_sha256','receipt_approvals'}
@@ -55,7 +55,10 @@ def approval(path, profile=STABLE):
     if a['package']!=profile.package or type(a['version_code']) is not int or a['version_code']<=0: raise ValueError('package/version')
     if type(a['release_id']) is not int or a['release_id']<=0 or not a['tag'] or not a['version_name']: raise ValueError('release identity')
     if profile.name=='stable':
-        if set(a['aliases'])!=ALIASES or any(v!=a['apk_sha256'] for v in a['aliases'].values()): raise ValueError('alias inequality')
+        historical=dict.fromkeys(ALIASES,a['apk_sha256'])
+        canonical={profile.apk_asset:a['apk_sha256']}
+        if a['aliases']!=historical and not (allow_canonical_stable and a['aliases']==canonical):
+            raise ValueError('alias inequality')
     elif a['aliases']!={profile.apk_asset:a['apk_sha256']} or a['tag']!=profile.tag_prefix+a['version_name']:
         raise ValueError('Beta asset/tag identity differs')
     return a
@@ -184,7 +187,7 @@ def public_files(generation, profile=STABLE):
 def generation_digest(generation,profile=STABLE):
     return hashlib.sha256(json.dumps({str(p.relative_to(generation)):sha(p) for p in public_files(generation,profile)},sort_keys=True).encode()).hexdigest()
 
-def approved_generation(generation,fingerprint,expected_generation,approvals,profile=STABLE):
+def approved_generation(generation,fingerprint,expected_generation,approvals,profile=STABLE, *, allow_canonical_stable=False):
     # Both approvals and generation digest come from the operator's reviewed record,
     # outside the candidate. A repository signature alone is not promotion authority.
     if profile.name!='stable':
@@ -195,7 +198,7 @@ def approved_generation(generation,fingerprint,expected_generation,approvals,pro
     data=verify_indexes(generation,fingerprint,profile)
     approved=[]
     for path in approvals:
-        a=approval(path,profile)
+        a=approval(path,profile,allow_canonical_stable=allow_canonical_stable)
         approved.append((a['version_code'],a['version_name'],a['apk_sha256'],f"{profile.package}_{a['version_code']}.apk",a['apk_certificate_sha256']))
     if not approved or len(set(approved))!=len(approved) or set(approved)!=release_tuples(data,profile):raise ValueError('unapproved indexed release')
     apks={p.name for p in files if p.suffix=='.apk'}
@@ -219,7 +222,7 @@ def publish_local(generation,origin,fingerprint,expected_generation,approvals,pr
     """
     if profile.name!='stable':
         raise ValueError('Beta publication requires approved Pages snapshots')
-    generation_id,data=approved_generation(generation,fingerprint,expected_generation,approvals,profile)
+    generation_id,data=approved_generation(generation,fingerprint,expected_generation,approvals,profile,allow_canonical_stable=True)
     if profile.name!='stable' and data['repo']['address'].rstrip('/')!=profile.repository_url.rstrip('/'):
         raise ValueError('signed index origin differs from selected channel')
     files=public_files(generation,profile)
