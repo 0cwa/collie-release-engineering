@@ -273,7 +273,10 @@ jobs:
             '.inventory_sha256 == $after and .feed_state_sha256 == $feed_state and .withdrawn_path == $path and .site_bytes == 605038043' \
             "$RUNNER_TEMP/withdrawal-evidence/withdrawal.json"
           cp "$RUNNER_TEMP/deploy-baseline.json" "$RUNNER_TEMP/withdrawal-evidence/"
+          cp "$RUNNER_TEMP/previous-site/site-manifest.json" "$RUNNER_TEMP/withdrawal-evidence/before-site-manifest.json"
+          cp "$RUNNER_TEMP/previous-site/feed-state.json" "$RUNNER_TEMP/withdrawal-evidence/before-feed-state.json"
           cp "$RUNNER_TEMP/site/site-manifest.json" "$RUNNER_TEMP/withdrawal-evidence/"
+          cp "$RUNNER_TEMP/site/feed-state.json" "$RUNNER_TEMP/withdrawal-evidence/"
       - id: upload
         uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
         with:
@@ -301,10 +304,17 @@ jobs:
           done
           test "$actual" = "$AFTER"
           python distribution/feed.py --site "$RUNNER_TEMP/site" --verify-live-site > "$RUNNER_TEMP/withdrawal-evidence/readback.json"
-          status=$(curl -sS --max-time 60 -H 'Cache-Control: no-cache' --head -o /dev/null -w '%{http_code}' \
-            "https://repo.collie.im/$WITHDRAWN_PATH?$(date +%s)")
-          test "$status" = 404
-          printf '%s %s\n' "$status" "$WITHDRAWN_PATH" > "$RUNNER_TEMP/withdrawal-evidence/withdrawn-url-status.txt"
+          PYTHONPATH=distribution python - "$WITHDRAWN_PATH" > "$RUNNER_TEMP/withdrawal-evidence/withdrawn-url-status.txt" <<'PY'
+          import sys
+          import time
+          from feed import _read_origin
+
+          path = sys.argv[1]
+          status, _ = _read_origin(f'{path}?{time.time_ns()}', max_bytes=1)
+          if status != 404:
+              raise SystemExit(f'Expected a canonical GET miss for {path}, found {status}')
+          print(status, path)
+          PY
       - name: Preserve the withdrawal evidence
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
