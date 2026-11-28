@@ -14,14 +14,14 @@ separately reviewed administration change, not live repository settings.
 | GitHub tag | `v<version>` | `trailblazer-v<version>` |
 | Primary APK | `collie.apk` (five Stable APKs) | `trailblazer-beta.apk` |
 | APK signing identity | Existing Stable key | Separate pinned Beta key |
-| F-Droid feed | `https://repo.collie.im/fdroid/repo/` | `https://repo.collie.im/fdroid/beta/repo/` |
+| F-Droid feed | `https://repo.collie.im/fdroid/repo/` | `https://repo.collie.im/fdroid/repo/` |
 | GitHub publication | Draft → verification prerelease → verified full release | Immutable Beta prerelease |
 | Current source contract | `main`, exact-commit `pr.yml` readiness | `main`; the APK must equal a `build-release.yml` dispatch of the signed tag's commit |
 
 The complete identities and certificate pins are in
 [`distribution/channel_profile.py`](../distribution/channel_profile.py).
 The products have separate installation identities and version-code histories.
-Each feed uses its own default F-Droid channel (`releaseChannels` absent or empty).
+Both package listings use the default F-Droid channel (`releaseChannels` absent or empty).
 Changing product requires a deliberate installation choice; an in-app channel
 toggle must not substitute one package or signer for the other.
 
@@ -31,7 +31,7 @@ carries the signed Beta APK as `collie-beta.apk`.
 The separate `trailblazer-v<version>` release with `trailblazer-beta.apk` may
 still exist. `collie-beta.apk` is a convenience copy: it stays Beta-signed,
 keeps package `im.collie.app.trailblazer` and the Beta version-code history, and
-does not make the Stable release a Beta release or put Beta in the Stable feed.
+is listed in F-Droid only through the separately verified TrailBlazer release.
 The app's `tooling/release/publication.py` verifies the copy against the pinned
 Beta certificate.
 

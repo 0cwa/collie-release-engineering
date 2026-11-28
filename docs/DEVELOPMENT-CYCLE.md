@@ -69,18 +69,19 @@ TrailBlazer Beta product have different purposes and publication routes.
 - A full release is the same APK, promoted only after a rebuild on the other side (GitHub or this machine) matches it.
 - App `main` is the single Stable source branch. `release/stable/8.35` is retired.
 - App CI reads `docs/release-notes/<version>.md` from the exact signed tag commit and requires notes before publishing. The release's schema 1 `release.json` carries the canonical release metadata. In-app notices ship as ordinary app PRs.
-- The Stable F-Droid feed carries verified full Stable releases only. TrailBlazer
-  Beta has a separate package, APK signer and feed; its GitHub releases remain
+- The Collie F-Droid repository carries verified full Stable releases and
+  TrailBlazer Beta prereleases as separate packages with separate APK signers.
+  TrailBlazer GitHub releases remain
   immutable prereleases. Merge its reviewed source to app `main`, dispatch
   `build-release.yml` for that exact commit, then sign and publish the candidate;
   `feeds.yml` accepts only a matching `main` build titled `Build TrailBlazer Beta`.
   Beta can ship alongside a Stable verification prerelease or full release, or
   on its own. Enable scheduled Beta feed updates with `BETA_FEED_ENABLED=true`
-  alongside `FEEDS_ENABLED=true`. Pausing Beta feed updates preserves the served
-  Beta route.
+  alongside `FEEDS_ENABLED=true`. Pausing Beta feed updates keeps the last verified Beta APK
+  in the shared index.
   See
   [BETA-FEED-OPERATIONS.md](../distribution/BETA-FEED-OPERATIONS.md).
-  Pages must preserve both feeds and native inputs when either feed changes.
+  Pages must preserve both editions and the native inputs they use when either edition changes.
 
 ## Security fuzzing pilot
 

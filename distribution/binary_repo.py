@@ -121,10 +121,11 @@ def ingest(approved,manifest,apk,workspace,aapt,apksigner,receipt_bundle=None,pr
         (workspace/'approved-release.json').write_text(json.dumps(a,indent=2)+'\n')
     return target
 
-def verify_indexes(generation, fingerprint, profile=STABLE):
-    if profile.repository_certificate is None:
+def verify_indexes(generation, fingerprint, profile=STABLE, *, additional_profiles=()):
+    profiles = (profile, *additional_profiles)
+    if any(p.repository_certificate is None for p in profiles):
         raise ValueError(f'{profile.name} repository signer pin is not configured')
-    if fingerprint.lower() != profile.repository_certificate.lower():
+    if any(fingerprint.lower() != p.repository_certificate.lower() for p in profiles):
         raise ValueError(f'{profile.name} repository signer differs')
     from fdroidserver import index, common
     common.config = {"jarsigner": shutil.which("jarsigner")}
@@ -134,20 +135,35 @@ def verify_indexes(generation, fingerprint, profile=STABLE):
     name=ref['name'].lstrip('/')
     if name!='index-v2.json' or sha(generation/name)!=ref['sha256']: raise ValueError('v2 index digest mismatch')
     data=load(generation/name)
-    if set(data['packages'])!={profile.package}: raise ValueError('unexpected indexed app/channel package')
-    if profile.name!='stable' and data['packages'][profile.package].get('releaseChannels') not in (None,[]):
-        raise ValueError('Beta package index releaseChannels must be absent or empty')
-    for version in data['packages'][profile.package]['versions'].values():
-        file=version['file']; filename=file['name'].lstrip('/')
-        if Path(filename).name!=filename or not filename.endswith('.apk'): raise ValueError('unsafe APK URL')
-        if sha(generation/filename)!=file['sha256']: raise ValueError('indexed APK digest mismatch')
-    if profile.name!='stable':
-        for item in release_tuples(data,profile):
-            if type(item[0]) is not int or item[0]<=0:
-                raise ValueError('indexed Beta versionCode must be a positive integer')
-            if profile.apk_certificate is None or item[4]!=profile.apk_certificate.lower():
-                raise ValueError('indexed Beta APK signer differs from channel pin')
-    validate_index_parity(data,v1,profile)
+    if set(data['packages']) != {p.package for p in profiles}:
+        raise ValueError('unexpected indexed app/channel package')
+    if additional_profiles:
+        if load(generation / 'entry.json') != entry:
+            raise ValueError('public entry.json differs from the signed entry')
+        if (ref['size'] != (generation / name).stat().st_size or
+                entry['timestamp'] != data['repo']['timestamp']):
+            raise ValueError('signed v2 index size or timestamp differs')
+    for package_profile in profiles:
+        package = data['packages'][package_profile.package]
+        versions = package['versions']
+        channel = package_profile.name
+        if additional_profiles or channel != 'stable':
+            if package.get('releaseChannels') not in (None, []) or any(
+                    version.get('releaseChannels') not in (None, []) for version in versions.values()):
+                raise ValueError(f'{channel} index releaseChannels must be absent or empty')
+        if additional_profiles and package['metadata'].get('preferredSigner', '').lower() != package_profile.apk_certificate:
+            raise ValueError(f'indexed {channel} preferred APK signer differs from channel pin')
+        releases = release_tuples(data, package_profile)
+        if not releases:
+            raise ValueError(f'indexed {channel} has no APK versions')
+        for code, _version_name, digest, filename, signer in releases:
+            if type(code) is not int or code <= 0 or filename != f'{package_profile.package}_{code}.apk':
+                raise ValueError(f'indexed {channel} APK name or versionCode differs from package policy')
+            if signer != package_profile.apk_certificate:
+                raise ValueError(f'indexed {channel} APK signer differs from channel pin')
+            if sha(generation / filename) != digest:
+                raise ValueError('indexed APK digest mismatch')
+    validate_index_parity(data,v1,profile,additional_profiles=additional_profiles)
     return data
 
 def release_tuples(data, profile=STABLE):
@@ -160,16 +176,22 @@ def release_tuples(data, profile=STABLE):
     if len({v[0] for v in tuples})!=len(tuples):raise ValueError('duplicate versionCode')
     return set(tuples)
 
-def validate_index_parity(data,v1,profile=STABLE):
-    if {p['packageName'] for p in v1['apps']}!={profile.package} or set(v1['packages'])!={profile.package}:raise ValueError('v1 package mismatch')
-    versions=v1['packages'][profile.package]
-    legacy={(v['versionCode'],v['versionName'],v['hash'],v['apkName'],v['signer'].lower()) for v in versions if v['hashType']=='sha256'}
-    if len(legacy)!=len(versions) or legacy!=release_tuples(data,profile):raise ValueError('v1/v2 release mismatch')
+def validate_index_parity(data, v1, profile=STABLE, *, additional_profiles=()):
+    profiles = (profile, *additional_profiles)
+    packages = {p.package for p in profiles}
+    if sorted(app['packageName'] for app in v1['apps']) != sorted(packages) or set(v1['packages']) != packages:
+        raise ValueError('v1 package mismatch')
+    for package_profile in profiles:
+        versions = v1['packages'][package_profile.package]
+        legacy = {(v['versionCode'], v['versionName'], v['hash'], v['apkName'], v['signer'].lower())
+                  for v in versions if v['hashType'] == 'sha256'}
+        if len(legacy) != len(versions) or legacy != release_tuples(data, package_profile):
+            raise ValueError('v1/v2 release mismatch')
 
 def public_path(rel, profile=STABLE):
     root_files={'entry.jar','entry.json','index-v2.json','index-v1.jar','index-v1.json','index.jar','index.xml','index.html','index.css','index.png'}
     pkg=re.escape(profile.package)
-    return bool(rel in root_files or re.fullmatch(pkg+r'_[1-9][0-9]*\.apk',rel) or re.fullmatch(r'diff/[0-9]+\.json',rel) or re.fullmatch(r'(icons(?:-[0-9]+)?)/[A-Za-z0-9_.-]+\.(png|jpg|webp|svg)',rel) or re.fullmatch(pkg+r'/[A-Za-z-]+/(?:[A-Za-z]+Screenshots/)?[A-Za-z0-9_.=-]+\.(png|jpg)',rel) or rel in {'status/running.json','status/update.json'})
+    return bool(rel in root_files or re.fullmatch(pkg+r'_[1-9][0-9]*\.apk',rel) or re.fullmatch(r'diff/[0-9]+\.json',rel) or re.fullmatch(r'(icons(?:-[0-9]+)?)/[A-Za-z0-9_.-]+\.(png|jpg|webp|svg)',rel) or re.fullmatch(pkg+r'/[a-z]{2,3}(?:-[A-Za-z0-9]{2,8})*/(?:[A-Za-z]+Screenshots/)?[A-Za-z0-9_.=-]+\.(png|jpg)',rel) or rel in {'status/running.json','status/update.json'})
 
 def public_files(generation, profile=STABLE):
     if generation.is_symlink():raise ValueError('symlink generation')

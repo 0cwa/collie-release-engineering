@@ -1,0 +1,3 @@
+Collie TrailBlazer is the beta edition of Collie, a community-oriented fork of Signal. Use it to try upcoming features before they reach Collie Stable.
+
+TrailBlazer installs alongside Collie Stable as a separate app. Beta releases may contain bugs or change between updates.

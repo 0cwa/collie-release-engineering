@@ -33,6 +33,29 @@ RETAINED_PREVIOUS_APKS = 1
 ARCHIVE_INDEX_FILES = frozenset({'entry.jar', 'entry.json', 'index-v1.jar', 'index-v1.json',
                                  'index-v2.json', 'index.jar', 'index.xml'})
 
+def route_profiles(route):
+    return (channels.STABLE, channels.BETA) if route == STABLE_ROUTE else (channels.BETA,)
+
+
+def route_public_path(name, route):
+    return any(binary_repo.public_path(name, profile) for profile in route_profiles(route))
+
+
+def verify_route(root, files, route):
+    """Read the signed canonical feed or its pre-migration Stable/Beta indexes."""
+    profiles = route_profiles(route)
+    if route == STABLE_ROUTE and not any(
+            name.startswith(route + channels.BETA.package + '_') and apk_code(name) is not None
+            for name in files):
+        profiles = (channels.STABLE,)
+    primary, *additional = profiles
+    kwargs = {'additional_profiles': additional} if additional else {}
+    index = binary_repo.verify_indexes(root / route, primary.repository_certificate, primary, **kwargs)
+    address = channels.LEGACY_BETA_URL if route == BETA_ROUTE else channels.REPOSITORY_URL
+    if index.get('repo', {}).get('address', '').rstrip('/') != address.rstrip('/'):
+        raise ValueError(f'served {primary.name} index address differs from fixed route')
+    return index, profiles
+
 
 def _safe_paths(files):
     for name in files:
@@ -135,17 +158,17 @@ def immutable_public_path(name):
     """Published versioned URLs shared by both whole-site publication paths."""
     if versioned_native_path(name) or generation_archive_path(name):
         return True
-    for profile, route in ((channels.STABLE, STABLE_ROUTE), (channels.BETA, BETA_ROUTE)):
+    for route in (STABLE_ROUTE, BETA_ROUTE):
         if not name.startswith(route):
             continue
         relative = name[len(route):]
-        if not binary_repo.public_path(relative, profile):
+        if not route_public_path(relative, route):
             return False
         return (relative.endswith('.apk') or relative.startswith('diff/') or
                 (relative.startswith('icons') and not relative.endswith('/icon.png')) or
                 # fdroid names listing artwork it content-addresses (icon_<b64 sha256>=.png);
                 # Fastlane screenshots keep their source names and may change between releases.
-                (relative.startswith(profile.package + '/') and
+                (any(relative.startswith(profile.package + '/') for profile in route_profiles(route)) and
                  re.fullmatch(r'[A-Za-z0-9_-]+=\.png', relative.rsplit('/', 1)[-1]) is not None))
     return False
 
@@ -157,33 +180,19 @@ class PreviousSite:
     inventory_record: dict
     beta_release: dict | None
 
-    @property
-    def beta(self):
-        return {'inventory_sha256': self.inventory_record['sha256'],
-                'files': {name[len(BETA_ROUTE):]: record for name, record in self.files.items()
-                          if name.startswith(BETA_ROUTE)},
-                'release': self.beta_release}
-
-    def retained_files(self, preserve_beta, rebuild_beta=False, current=frozenset(), native_keep=None):
-        """Previous files the candidate keeps.
-
-        current: site paths the candidate already holds (its indexed APKs count as newest).
-        native_keep: site paths of native files still referenced by a current release plan;
-        None keeps every previous native file (no pruning).
-        """
-        # A rebuilt Beta route keeps only the previous route's immutable URLs (APKs, listing files).
-        if preserve_beta and rebuild_beta:
-            raise ValueError('the Beta route is either preserved or rebuilt')
-        if self.beta['files'] and not (preserve_beta or rebuild_beta):
-            raise ValueError('a previous Beta route requires --preserve-beta or a rebuilt Beta route')
+    def retained_files(self, current=frozenset(), native_keep=None):
+        """Select immutable legacy files and move retained Beta APKs to the canonical path."""
         kept = {name: record for name, record in self.files.items()
-                if immutable_public_path(name) or
-                (preserve_beta and name.startswith(BETA_ROUTE))}
-        # A preserved Beta route stays byte for byte: its signed index still names every APK it holds.
-        routes = [STABLE_ROUTE] + ([] if preserve_beta else [BETA_ROUTE])
-        for route in routes:
+                if immutable_public_path(name) and not name.startswith(BETA_ROUTE)}
+        for name, record in self.files.items():
+            if name.startswith(BETA_ROUTE) and apk_code(name) is not None:
+                canonical = STABLE_ROUTE + name.removeprefix(BETA_ROUTE)
+                if kept.setdefault(canonical, record) != record:
+                    raise ValueError('conflicting Beta APK bytes across repository routes')
+        prefixes = [STABLE_ROUTE + profile.package + '_' for profile in route_profiles(STABLE_ROUTE)]
+        for prefix in prefixes:
             old = {name: apk_code(name) for name in kept
-                   if name.startswith(route) and apk_code(name) is not None and name not in current}
+                   if name.startswith(prefix) and apk_code(name) is not None and name not in current}
             keep = sorted(old, key=old.get, reverse=True)[:RETAINED_PREVIOUS_APKS]
             for name in old:
                 if name not in keep:
@@ -225,33 +234,35 @@ def load_previous_site(snapshot, baseline, *, parse_inventory, byte_limit=SITE_L
             raise ValueError('previous site has a non-versioned or unsupported native artifact: ' + name)
         if name.lower().endswith('.apk') and not any(
                 re.fullmatch(re.escape(route + profile.package) + r'_[1-9][0-9]*\.apk', name)
-                for profile, route in ((channels.STABLE, STABLE_ROUTE), (channels.BETA, BETA_ROUTE))):
+                for route in (STABLE_ROUTE, BETA_ROUTE) for profile in route_profiles(route)):
             raise ValueError('previous site has an unexpected APK path: ' + name)
     previous = PreviousSite(snapshot, files, {'sha256': expected, 'bytes': len(raw)}, None)
     verify_snapshot(previous, byte_limit=byte_limit)
     beta_release = None
-    for profile, route in ((channels.STABLE, STABLE_ROUTE), (channels.BETA, BETA_ROUTE)):
+    for route in (STABLE_ROUTE, BETA_ROUTE):
         names = {name[len(route):] for name in files if name.startswith(route)}
         if not names:
             continue
-        if any(not binary_repo.public_path(name, profile) for name in names):
-            raise ValueError('previous site contains an unexpected ' + profile.name + ' route path')
+        if any(not route_public_path(name, route) for name in names):
+            raise ValueError('previous site contains an unexpected repository route path')
         if not {'entry.jar', 'index-v1.jar', 'index-v2.json'}.issubset(names):
-            raise ValueError('previous site lacks signed ' + profile.name + ' indexes')
-        index = binary_repo.verify_indexes(snapshot / route, profile.repository_certificate, profile)
-        if index.get('repo', {}).get('address', '').rstrip('/') != profile.repository_url.rstrip('/'):
-            raise ValueError('previous ' + profile.name + ' index address differs from fixed route')
-        versions = binary_repo.release_tuples(index, profile)
-        if not versions:
-            raise ValueError('previous ' + profile.name + ' index has no APK version')
-        for code, _version, digest, filename, signer in versions:
-            if (type(code) is not int or code <= 0 or filename != f'{profile.package}_{code}.apk' or
-                    signer != profile.apk_certificate or route + filename not in files or
-                    files[route + filename]['sha256'] != digest):
-                raise ValueError('previous indexed APK identity differs from channel policy')
-        if profile.name == channels.BETA.name:
-            newest = max(versions, key=lambda row: row[0])
-            beta_release = {'version_name': newest[1], 'version_code': newest[0]}
+            raise ValueError('previous site lacks signed repository indexes')
+        index, profiles = verify_route(snapshot, files, route)
+        for profile in profiles:
+            versions = binary_repo.release_tuples(index, profile)
+            if not versions:
+                raise ValueError('previous ' + profile.name + ' index has no APK version')
+            for code, _version, digest, filename, signer in versions:
+                if (type(code) is not int or code <= 0 or filename != f'{profile.package}_{code}.apk' or
+                        signer != profile.apk_certificate or route + filename not in files or
+                        files[route + filename]['sha256'] != digest):
+                    raise ValueError('previous indexed APK identity differs from channel policy')
+            if profile == channels.BETA:
+                if beta_release is not None:
+                    raise ValueError('Beta was indexed on both repository routes')
+                code, version, digest, filename, _ = max(versions, key=lambda row: row[0])
+                beta_release = {'version_name': version, 'version_code': code, 'sha256': digest,
+                                'path': route + filename}
     return PreviousSite(snapshot, files, previous.inventory_record, beta_release)
 
 
@@ -263,7 +274,7 @@ def inventory_bytes(files):
 def verify_pages_archive(path, *, byte_limit=SITE_LIMIT):
     """Measure the exact tar left by the pinned upload-pages-artifact action."""
     info = _regular(Path(path))
-    if not 0 < info.st_size <= byte_limit:
+    if not 0 < info.st_size < byte_limit:
         raise ValueError(f'Pages artifact is {info.st_size} bytes, outside the {byte_limit} byte limit; '
                          'a separately reviewed retirement or storage migration is required')
     return info.st_size
@@ -383,7 +394,7 @@ def prepare_stable_previous_withdrawal(site, previous, *, inventory_sha256, apk_
             'inventory_sha256': sha256, 'site_bytes': total}
 
 
-def retain(site, previous, *, preserve_beta, rebuild_beta=False, byte_limit=SITE_LIMIT, native_keep=None):
+def retain(site, previous, *, byte_limit=SITE_LIMIT, native_keep=None):
     """Admit the complete candidate before copying; never overwrite an immutable URL."""
     site = Path(site)
     if site.resolve() == previous.root.resolve() or site.resolve().is_relative_to(previous.root.resolve()) or previous.root.resolve().is_relative_to(site.resolve()):
@@ -392,7 +403,7 @@ def retain(site, previous, *, preserve_beta, rebuild_beta=False, byte_limit=SITE
     current = _tree_records(site, byte_limit)
     if INVENTORY in current:
         raise ValueError('write the candidate inventory only after immutable artifact retention')
-    selected = previous.retained_files(preserve_beta, rebuild_beta, frozenset(current), native_keep)
+    selected = previous.retained_files(frozenset(current), native_keep)
     for name, record in selected.items():
         if name in current and current[name] != record:
             raise ValueError('immutable published URL has different candidate bytes: ' + name)
@@ -400,12 +411,15 @@ def retain(site, previous, *, preserve_beta, rebuild_beta=False, byte_limit=SITE
     _safe_paths(planned)
     raw = inventory_bytes(planned)
     total = sum(record['bytes'] for record in planned.values()) + len(raw)
-    if len(planned) > FILE_LIMIT or len(raw) > INVENTORY_LIMIT or total > byte_limit:
+    if len(planned) > FILE_LIMIT or len(raw) > INVENTORY_LIMIT or total >= byte_limit:
         raise ValueError(f'retained candidate is {total} bytes, over a file or {byte_limit} byte limit; '
                          'a separately reviewed retirement or storage migration is required')
     for name, record in sorted(selected.items()):
         if name not in current:
-            _copy(previous.root / name, site / name, record)
+            source = name
+            if name not in previous.files:
+                source = BETA_ROUTE + name.removeprefix(STABLE_ROUTE)
+            _copy(previous.root / source, site / name, record)
     if _tree_records(site, byte_limit) != planned:
         raise ValueError('candidate changed while retaining immutable published URLs')
     return planned

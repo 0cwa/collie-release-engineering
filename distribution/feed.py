@@ -10,18 +10,19 @@ Inputs (prepared by .github/workflows/feeds.yml):
 Output: --site DIR, ready for upload-pages-artifact.
 """
 import argparse, hashlib, json, os, re, shutil, subprocess, sys, tempfile, urllib.error, urllib.request
+from dataclasses import replace
 from pathlib import Path
 from urllib.parse import unquote, urlparse
 
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
-import binary_repo, site_page  # noqa: E402
+import beta_inputs, binary_repo, site_page  # noqa: E402
 import channel_profile as channels  # noqa: E402
 import retained_artifacts  # noqa: E402
 import release_inputs  # noqa: E402
 
 ORIGIN = 'https://repo.collie.im/'
-REPO_URL = ORIGIN + 'fdroid/repo'
+REPO_URL = channels.REPOSITORY_URL
 APP_RELEASES = 'https://github.com/0cwa/collieim-android/releases/download/'
 SITE_LIMIT = 950_000_000
 SITE_INVENTORY='site-manifest.json'
@@ -95,36 +96,16 @@ def stage_fastlane(fastlane, work, profile=channels.STABLE):
     source = Path(fastlane)
     if any(p.is_symlink() for p in source.rglob('*')):
         raise SystemExit('symlink in Fastlane metadata')
-    shutil.copytree(source, work / 'build' / profile.package / 'fastlane/metadata/android')
-    shutil.copyfile(source / 'en-US/images/icon.png', work / 'collie-icon.png')
-
-def validate_generated_index(work,profile):
-    if profile.name=='stable':return
-    index_path=Path(work)/'repo/index-v2.json'
-    data=json.loads(index_path.read_text())
-    packages=data.get('packages')
-    if not isinstance(packages,dict) or set(packages)!={profile.package}:
-        raise ValueError('Beta F-Droid index must contain only the Beta package')
-    if data.get('repo',{}).get('address','').rstrip('/')!=profile.repository_url.rstrip('/'):
-        raise ValueError('Beta generated index address differs from channel route')
-    package=packages[profile.package]
-    if not isinstance(package,dict) or package.get('releaseChannels') not in (None,[]):
-        raise ValueError('Beta package index releaseChannels must be absent or empty')
-
-
-def channel_repository_config(config,profile):
-    """Set F-Droid's signed repo address before update; stable source stays byte-identical."""
-    if profile.name=='stable':return config
-    lines=config.splitlines()
-    wanted={'repo_url':profile.repository_url.rstrip('/'),
-            'repo_name':'Collie TrailBlazer Beta',
-            'repo_description':"Collie's dedicated TrailBlazer Beta F-Droid repository."}
-    for key,value in wanted.items():
-        prefix=key+':'
-        matches=[i for i,line in enumerate(lines) if line.startswith(prefix)]
-        if len(matches)!=1:raise ValueError('F-Droid public config must define '+key+' exactly once')
-        lines[matches[0]]=prefix+' '+json.dumps(value)
-    return '\n'.join(lines)+'\n'
+    staging = work / 'build' / profile.package / 'fastlane/metadata/android'
+    shutil.copytree(source, staging)
+    if profile == channels.STABLE:
+        shutil.copyfile(source / 'en-US/images/icon.png', work / 'collie-icon.png')
+    else:
+        # Older immutable TrailBlazer tags have an icon and title but no store descriptions.
+        for fallback in sorted((HERE / 'beta-metadata/en-US').glob('*.txt')):
+            target = staging / 'en-US' / fallback.name
+            if not target.exists():
+                shutil.copyfile(fallback, target)
 
 
 def _read_origin(path, *, max_bytes):
@@ -180,63 +161,13 @@ def _inventory_files(raw):
     return data['files']
 
 
-def capture_beta_route(snapshot, *, fetch=None, expected_inventory_sha256=None):
-    """Verify and copy the currently served Beta route; never trust inventory alone."""
-    snapshot=Path(snapshot)
-    if snapshot.exists():raise ValueError('new Beta snapshot directory required')
-    snapshot.mkdir(parents=True)
-    if fetch is None:fetch=_read_origin
-    status,raw=fetch(SITE_INVENTORY,max_bytes=SITE_INVENTORY_LIMIT)
-    if status==404:
-        entry_status,_=fetch('fdroid/beta/repo/entry.jar',max_bytes=8*1024*1024)
-        if entry_status!=404:raise ValueError('served Beta index exists without the canonical site inventory')
-        if expected_inventory_sha256 is not None:raise ValueError('served inventory disappeared after capture')
-        return {'inventory_sha256':None,'files':{},'release':None}
-    if status!=200:raise ValueError('canonical site inventory readback failed')
-    inventory_sha=hashlib.sha256(raw).hexdigest()
-    if expected_inventory_sha256 is not None and inventory_sha!=expected_inventory_sha256:
-        raise ValueError('canonical site inventory changed after Beta capture')
-    files=_inventory_files(raw)
-    prefix='fdroid/beta/repo/'
-    beta={name[len(prefix):]:value for name,value in files.items() if name.startswith(prefix)}
-    if not beta:
-        entry_status,_=fetch(prefix+'entry.jar',max_bytes=8*1024*1024)
-        if entry_status!=404:raise ValueError('served Beta bytes are absent from canonical inventory')
-        return {'inventory_sha256':inventory_sha,'files':{},'release':None}
-    if 'entry.jar' not in beta:
-        raise ValueError('served Beta inventory lacks its signed entry index')
-    if len(beta)>40000 or sum(item['bytes'] for item in beta.values())>SITE_LIMIT:
-        raise ValueError('served Beta route exceeds retained file or byte budget')
-    root=snapshot/'fdroid/beta/repo'
-    for rel,record in sorted(beta.items()):
-        status,contents=fetch(prefix+rel,max_bytes=record['bytes'])
-        if status!=200 or len(contents)!=record['bytes'] or hashlib.sha256(contents).hexdigest()!=record['sha256']:
-            raise ValueError('served Beta bytes differ from canonical inventory: '+rel)
-        target=root/rel
-        target.parent.mkdir(parents=True,exist_ok=True)
-        target.write_bytes(contents)
-    data=binary_repo.verify_indexes(root,channels.BETA.repository_certificate,channels.BETA)
-    if data.get('repo',{}).get('address','').rstrip('/')!=channels.BETA.repository_url.rstrip('/'):
-        raise ValueError('served Beta index address differs from fixed route')
-    tuples=binary_repo.release_tuples(data,channels.BETA)
-    newest=max(tuples,key=lambda row:row[0]) if tuples else None
-    if newest is None:raise ValueError('served Beta index has no APK version')
-    return {'inventory_sha256':inventory_sha,'files':beta,'release':{'version_name':newest[1],'version_code':newest[0]}}
-
-
-def verify_beta_snapshot_is_current(snapshot_info, *, fetch=None):
-    """Compare-and-swap guard immediately before assembling a new whole-site snapshot."""
-    if fetch is None:fetch=_read_origin
-    status,raw=fetch(SITE_INVENTORY,max_bytes=SITE_INVENTORY_LIMIT)
-    expected=snapshot_info['inventory_sha256']
-    if expected is None:
-        if status==200 and any(name.startswith('fdroid/beta/repo/') for name in _inventory_files(raw)):
-            raise ValueError('Beta route appeared after Stable site capture')
-        entry_status,_=fetch('fdroid/beta/repo/entry.jar',max_bytes=8*1024*1024)
-        if entry_status!=404:raise ValueError('Beta route appeared after Stable site capture')
-        return
-    if status!=200 or hashlib.sha256(raw).hexdigest()!=expected:
-        raise ValueError('served site changed after Beta capture; refusing stale whole-site publication')
+def verify_inventory_is_current(expected, *, fetch=None):
+    """Compare the whole-site inventory with the one frozen before the build."""
+    if fetch is None:
+        fetch = _read_origin
+    status, raw = fetch(SITE_INVENTORY, max_bytes=SITE_INVENTORY_LIMIT)
+    if status != 200 or hashlib.sha256(raw).hexdigest() != expected:
+        raise ValueError('served site changed after capture; refusing stale whole-site publication')
 
 
 def capture_live_site(destination, *, fetch=None):
@@ -261,18 +192,17 @@ def capture_live_site(destination, *, fetch=None):
             raise ValueError('served site bytes differ from inventory: '+name)
         target=destination/name;target.parent.mkdir(parents=True,exist_ok=True);target.write_bytes(contents)
     (destination/SITE_INVENTORY).write_bytes(raw)
-    for profile,route in ((channels.STABLE,'fdroid/repo'),(channels.BETA,'fdroid/beta/repo')):
-        route_files={name[len(route)+1:] for name in files if name.startswith(route+'/')}
+    for route in (retained_artifacts.STABLE_ROUTE, retained_artifacts.BETA_ROUTE):
+        route_files = {name[len(route):] for name in files if name.startswith(route)}
         if route_files:
-            if 'entry.jar' not in route_files:raise ValueError(profile.name+' served route lacks signed entry index')
-            index=binary_repo.verify_indexes(destination/route,profile.repository_certificate,profile)
-            if index.get('repo',{}).get('address','').rstrip('/')!=profile.repository_url.rstrip('/'):
-                raise ValueError(profile.name+' served index address differs from fixed route')
+            if 'entry.jar' not in route_files:
+                raise ValueError(route + ' served route lacks signed entry index')
+            retained_artifacts.verify_route(destination, files, route)
     return {'inventory_sha256':hashlib.sha256(raw).hexdigest(),'files':files}
 
 
 def verify_live_site(expected_site, *, fetch=None):
-    """Verify the deployed whole-site inventory and both repository routes."""
+    """Verify the deployed whole-site inventory and signed repository."""
     expected_site=Path(expected_site)
     if fetch is None:fetch=_read_origin
     with tempfile.TemporaryDirectory(prefix='collie-pages-live-') as temporary:
@@ -286,11 +216,12 @@ def verify_live_site(expected_site, *, fetch=None):
         actual_state=json.loads((captured/'feed-state.json').read_text())
         if expected_state!=actual_state:
             raise ValueError('deployed feed state differs from uploaded whole-site candidate')
-        for route in ('fdroid/repo','fdroid/beta/repo'):
-            prefix=route+'/'
-            expected_names={n for n in live['files'] if n.startswith(prefix)}
-            if expected_names and 'entry.jar' not in {n[len(prefix):] for n in expected_names}:
-                raise ValueError(route+' deployed route lacks an index')
+        legacy = retained_artifacts.BETA_ROUTE
+        if expected_state.get('beta') and not any(name.startswith(legacy) for name in live['files']):
+            for name in ('entry.jar', 'index-v1.jar', 'index-v2.json'):
+                status, _ = fetch(legacy + name, max_bytes=8 * 1024 * 1024)
+                if status != 404:
+                    raise ValueError('retired Beta index is still served: ' + name)
         return live
 
 
@@ -328,84 +259,106 @@ def verify_deploy_baseline(path, *, fetch=None):
     return True
 
 
-def build_fdroid(apks, fastlane, keystore, build_tools, work, site, profile=channels.STABLE,
-                 tag=None, title=None, prior_version_code=None, prerelease=False):
-    if profile.name!='stable':
-        channels.require_trusted(profile)
-        channels.require_apk_trusted(profile)
-    candidates=sorted(Path(apks).glob('*.apk'))
-    if profile.name!='stable' and (len(candidates)!=1 or candidates[0].name!=profile.apk_asset):
-        raise ValueError(f'{profile.name} feed requires exactly {profile.apk_asset}')
-    if profile.name=='stable' and not candidates:
-        raise ValueError('stable feed requires at least one APK')
-    work.mkdir(parents=True)
-    shutil.copytree(HERE / ('metadata' if profile.name=='stable' else 'beta-metadata'), work / 'metadata')
+def stage_app(work, fastlane, profile, builds):
+    metadata_path = HERE / ('metadata' if profile == channels.STABLE else 'beta-metadata')
+    metadata_path = metadata_path / f'{profile.package}.yml'
+    text = metadata_path.read_text()
+    channels.require_apk_trusted(profile)
+    if f"  - '{profile.apk_certificate}'" not in text:
+        raise ValueError(f'{profile.name} metadata APK signer pin differs from channel profile')
     stage_fastlane(fastlane, work, profile)
-    (work / 'repo').mkdir()
-    builds = []
-    if profile.name=='stable':
-        for apk in candidates:
-            code,version_name=apk_identity(apk,build_tools,profile)
-            validate_release_identity(profile,apk.stem,None,version_name,code)
-            if type(code) is not int or code<=0 or any(previous[0]==code for previous in builds):
-                raise ValueError('stable APK versionCode must be positive and unique')
-            shutil.copyfile(apk,work/'repo'/f'{profile.package}_{code}.apk')
-            builds.append((code,version_name,apk.stem))
-        if tag is not None:
-            selected=[code for code,_name,source_tag in builds if source_tag==tag]
-            if len(selected)!=1 or any(code>selected[0] for code,_name,_tag in builds):
-                raise ValueError('selected full release must be present and have the highest indexed versionCode')
-    else:
-        if not prerelease:raise ValueError('Beta feed accepts prerelease releases only')
-        apk=candidates[0]
-        code,version_name=apk_identity(apk,build_tools,profile)
-        release_identity(profile,tag,title,version_name,code,prior_version_code)
+    # F-Droid includes changelogs only for versions with a Builds entry.
+    with (work / 'metadata' / metadata_path.name).open('w') as metadata:
+        metadata.write(text + 'Builds:\n')
+        for code, version, tag, _apk in sorted(builds):
+            metadata.write(f"  - versionName: '{version}'\n    versionCode: {code}\n    commit: {tag}\n")
+    for code, _version, _tag, apk in builds:
         shutil.copyfile(apk, work / 'repo' / f'{profile.package}_{code}.apk')
-        builds.append((code, version_name, tag))
-    # index-v2 only carries a changelog for versions that have a Builds entry. Nothing is built.
-    with open(work / 'metadata' / f'{profile.package}.yml', 'a') as metadata:
-        metadata.write('Builds:\n')
-        for code, version, commit in sorted(builds):
-            metadata.write(f"  - versionName: '{version}'\n    versionCode: {code}\n    commit: {commit}\n")
-    if profile.name!='stable':
-        metadata_path=work/'metadata'/f'{profile.package}.yml'
-        text=metadata_path.read_text()
-        if f"  - '{profile.apk_certificate}'" not in text:
-            raise ValueError('Beta metadata APK signer pin differs from channel profile')
-    config = channel_repository_config((HERE / 'config.public.yml').read_text(),profile)
+
+
+def build_fdroid(apks, fastlane, keystore, build_tools, work, site, *, tag, fingerprint,
+                 beta_apk=None, beta_fastlane=None, beta_tag=None, previous_beta=None):
+    stable, beta = channels.STABLE, channels.BETA
+    builds = []
+    for apk in sorted(Path(apks).glob('*.apk')):
+        code, version = apk_identity(apk, build_tools, stable)
+        validate_release_identity(stable, apk.stem, None, version, code)
+        if type(code) is not int or code <= 0 or any(row[0] == code for row in builds):
+            raise ValueError('stable APK versionCode must be positive and unique')
+        builds.append((code, version, apk.stem, apk))
+    if not builds:
+        raise ValueError('stable feed requires at least one APK')
+    if max(builds)[2] != tag:
+        raise ValueError('selected full release must be present and have the highest indexed versionCode')
+    (work / 'repo').mkdir(parents=True)
+    (work / 'metadata').mkdir()
+    stage_app(work, fastlane, stable, builds)
+    beta_builds = []
+    if beta_apk is not None:
+        code, version = apk_identity(beta_apk, build_tools, beta)
+        title = f'{beta.app_title} {version}'
+        prior_code = previous_beta['version_code'] if previous_beta else 0
+        if code == prior_code and previous_beta and sha256(beta_apk) == previous_beta['sha256']:
+            validate_release_identity(beta, beta_tag, title, version, code)
+            if version != previous_beta['version_name']:
+                raise ValueError('carried Beta version differs from the signed previous index')
+        else:
+            release_identity(beta, beta_tag, title, version, code, prior_code)
+        beta_builds = [(code, version, beta_tag, beta_apk)]
+        stage_app(work, beta_fastlane, beta, beta_builds)
+
+    config = (HERE / 'config.public.yml').read_text()
     config += (f'\nkeystore: {Path(keystore).resolve()}\nrepo_keyalias: collie-repo\n'
                'keystorepass: {env: FDROID_KEYSTORE_PASS}\nkeypass: {env: FDROID_KEYSTORE_PASS}\n'
                f'sdk_path: {build_tools.parent.parent}\n')
     (work / 'config.yml').write_text(config)
     (work / 'config.yml').chmod(0o600)
-    subprocess.run(['fdroid', 'update', '--pretty'], cwd=work, check=True)
-    validate_generated_index(work,profile)
-    repo_path='fdroid/repo' if profile.name=='stable' else 'fdroid/beta/repo'
-    shutil.copytree(work / 'repo', site / repo_path,
+    subprocess.run(['fdroid', 'update', '--pretty'], cwd=work, check=True, stdout=sys.stderr)
+
+    # The caller checks the production pin before building. Preview uses its disposable
+    # fingerprint and still verifies both index signatures and each real APK signer.
+    signing_profile = replace(stable, repository_certificate=fingerprint)
+    additional = (replace(beta, repository_certificate=fingerprint),) if beta_builds else ()
+    repo = work / 'repo'
+    index = binary_repo.verify_indexes(repo, fingerprint, signing_profile, additional_profiles=additional)
+    if index['repo']['address'].rstrip('/') != REPO_URL.rstrip('/'):
+        raise ValueError('generated index address differs from the canonical route')
+    for profile, selected in [(stable, builds)] + ([(beta, beta_builds)] if beta_builds else []):
+        expected = {(code, version, sha256(apk), f'{profile.package}_{code}.apk', profile.apk_certificate)
+                    for code, version, _tag, apk in selected}
+        if binary_repo.release_tuples(index, profile) != expected:
+            raise ValueError(f'generated index differs from the selected {profile.name} releases')
+        metadata = index['packages'][profile.package]['metadata']
+        if not metadata.get('categories') or any(
+                not metadata.get(field, {}).get('en-US') for field in ('name', 'summary', 'description', 'icon')):
+            raise ValueError(f'generated {profile.name} index lacks store listing metadata')
+    shutil.copytree(repo, site / retained_artifacts.STABLE_ROUTE,
                     ignore=shutil.ignore_patterns('*.asc', 'status'))
+    if beta_builds:
+        code, version, _, _ = beta_builds[0]
+        return {'version_name': version, 'version_code': code}
 
 
-def build_beta_route(apks, fastlane, tag, keystore, build_tools, work, site, previous_release, *, preview=False):
-    """Rebuild fdroid/beta/repo from one verified TrailBlazer prerelease APK.
-
-    The release itself (immutable prerelease, signed tag, byte match with its CI
-    build) is checked by beta_inputs.py before this runs. Here the APK must carry
-    the Beta package and signer and a versionCode above the served Beta index.
-    """
-    profile=channels.BETA
-    version_name=tag[len(profile.tag_prefix):]
-    prior=previous_release['version_code'] if previous_release else 0
-    build_fdroid(apks,fastlane,keystore,Path(build_tools),Path(work),Path(site),profile,tag=tag,
-                 title=f'{profile.app_title} {version_name}',prior_version_code=prior,prerelease=True)
-    route=Path(site)/'fdroid/beta/repo'
-    if preview:
-        data=json.loads((route/'index-v2.json').read_text())
-    else:
-        data=binary_repo.verify_indexes(route,profile.repository_certificate,profile)
-    tuples=binary_repo.release_tuples(data,profile)
-    if len(tuples)!=1 or next(iter(tuples))[1]!=version_name:
-        raise ValueError('generated Beta index must contain exactly the selected release')
-    return {'version_name':version_name,'version_code':next(iter(tuples))[0]}
+def carried_beta_inputs(previous, work):
+    """Reuse the signed, previously verified APK and export listing inputs from its immutable tag."""
+    carried = previous.beta_release
+    tag = channels.BETA.tag_prefix + carried['version_name']
+    release = beta_inputs.fetch_release(tag)
+    record = previous.files[carried['path']]
+    if (release['sha256'], release['bytes']) != (record['sha256'], record['bytes']):
+        raise ValueError('served Beta APK differs from the immutable GitHub release')
+    commit, _ = beta_inputs.tag_commit(tag)
+    work.mkdir()
+    listing = work / 'fastlane'
+    evidence = beta_inputs.export_metadata(
+        {'kind': 'collie-beta-feed-input', 'repository': beta_inputs.APP, 'tag': tag,
+         'source_commit': commit}, listing)
+    native_plan = work / 'native-artifacts.json'
+    native_evidence = beta_inputs.export_native_plan(tag, native_plan)
+    if native_evidence['source_commit'] != commit:
+        raise ValueError('served Beta tag changed during metadata export')
+    (work / 'metadata-inputs.json').write_text(json.dumps(evidence, indent=2) + '\n')
+    return previous.root / carried['path'], listing, tag, native_plan
 
 
 def keystore_fingerprint(keystore):
@@ -450,18 +403,13 @@ def main():
     for name in ('site', 'apks', 'native', 'native-plan', 'latest', 'fastlane', 'keystore', 'build-tools',
                  'capture-live-site'):
         p.add_argument('--' + name, required=False)
-    p.add_argument('--channel', choices=('stable',), default='stable')
-    p.add_argument('--title')
-    p.add_argument('--prior-version-code', type=int)
-    p.add_argument('--prerelease', action='store_true')
     p.add_argument('--preview', action='store_true',
-                   help='render an unpublished Stable preview with a disposable repository key')
-    p.add_argument('--beta-apks',type=Path,
-                   help='directory holding the verified trailblazer-beta.apk: rebuild the Beta route in this site')
-    p.add_argument('--beta-fastlane',type=Path,help='Beta listing exported from the Beta release tag')
-    p.add_argument('--beta-tag',help='verified immutable TrailBlazer prerelease tag')
-    p.add_argument('--preserve-beta',action='store_true',
-                   help='retain the current verified Beta route in a Stable whole-site build')
+                   help='render an unpublished preview with a disposable repository key')
+    p.add_argument('--beta-apks', type=Path,
+                   help='directory holding the new verified trailblazer-beta.apk')
+    p.add_argument('--beta-fastlane', type=Path, help='listing exported from the new Beta release tag')
+    p.add_argument('--beta-tag', help='new verified immutable TrailBlazer prerelease tag')
+    p.add_argument('--migration-beta-sha256', help='approved digest of the new updater migration APK')
     p.add_argument('--previous-site',type=Path,
                    help='retain published immutable URLs from this frozen pre-build site snapshot')
     p.add_argument('--previous-baseline',type=Path,
@@ -480,107 +428,98 @@ def main():
         verify_live_site(a.site)
         print('deployed site inventory and signed Stable/Beta indexes match candidate')
         return
-    profile=channels.STABLE if a.channel=='stable' else channels.BETA
-    if bool(a.previous_site)!=bool(a.previous_baseline):
+    if bool(a.previous_site) != bool(a.previous_baseline):
         p.error('--previous-site and --previous-baseline are required together')
-    if a.previous_site and (profile.name!='stable' or a.preview):
-        raise ValueError('immutable artifact retention is only for a production Stable site build')
-    if a.preview and profile.name!='stable':
-        raise ValueError('Preview generation supports Stable only')
-    required=('apks','fastlane','keystore','build_tools')
-    if profile.name=='stable':required+=('native','native_plan','latest')
-    missing=[name for name in required if not getattr(a,name)]
-    if missing:p.error('required for '+profile.name+' generation: '+', '.join('--'+x.replace('_','-') for x in missing))
-    rebuild_beta=a.beta_apks is not None
-    if rebuild_beta:
-        if profile.name!='stable' or a.preserve_beta or not (a.beta_fastlane and a.beta_tag):
-            p.error('--beta-apks rebuilds the Beta route in a Stable site build and needs --beta-fastlane and --beta-tag')
-        if not a.preview and not a.previous_site:
-            p.error('a production Beta rebuild needs --previous-site for its versionCode floor')
+    required = ('site', 'apks', 'fastlane', 'keystore', 'build_tools', 'native', 'native_plan', 'latest')
+    missing = [name for name in required if not getattr(a, name)]
+    if missing:
+        p.error('required for site generation: ' + ', '.join('--' + key.replace('_', '-') for key in missing))
+    if any((a.beta_apks, a.beta_fastlane, a.beta_tag)):
+        if not all((a.beta_apks, a.beta_fastlane, a.beta_tag)):
+            p.error('--beta-apks, --beta-fastlane and --beta-tag are required together')
         if not a.beta_tag.startswith(channels.BETA.tag_prefix):
             p.error('--beta-tag must be a TrailBlazer tag')
-    site, work = Path(a.site), Path(a.site).parent / 'fdroid-work'
-    beta_work=Path(a.site).parent/'fdroid-beta-work'
-    if site.exists() or work.exists() or beta_work.exists():
+        if not a.preview and not a.previous_site:
+            p.error('a production Beta update needs --previous-site for its versionCode floor')
+
+    site = Path(a.site)
+    work = site.parent / 'fdroid-work'
+    if site.exists() or work.exists():
         raise SystemExit('site and work directories must not exist yet')
     if not os.environ.get('FDROID_KEYSTORE_PASS'):
         raise SystemExit('FDROID_KEYSTORE_PASS is not set')
-    previous=None;native_keep=None
-    if a.previous_site:
-        previous=retained_artifacts.load_previous_site(a.previous_site,a.previous_baseline,
-            parse_inventory=_inventory_files,byte_limit=SITE_LIMIT)
-        previous.retained_files(a.preserve_beta,rebuild_beta)
-    build_tools = Path(a.build_tools)
-    site.mkdir(parents=True)
-    native_count = copy_native(a.native, a.native_plan, site) if a.native and a.native_plan else 0
-    if previous is not None:
-        # Native files stay only while a current release plan names them: the one just copied
-        # into the site, and the plan of the served Beta (--keep-native-plan).
-        native_keep={p.relative_to(site).as_posix() for p in (site/'native-inputs').rglob('*') if p.is_file()}
-        for plan in a.keep_native_plan:
-            native_keep.update(release_inputs.native_records(json.loads(plan.read_text())))
-    build_fdroid(a.apks, a.fastlane, a.keystore, build_tools, work, site, profile,
-                 tag=a.latest, title=a.title, prior_version_code=a.prior_version_code,
-                 prerelease=a.prerelease)
-    retained_beta=None
-    built_beta=None
-    if rebuild_beta:
-        built_beta=build_beta_route(a.beta_apks,a.beta_fastlane,a.beta_tag,a.keystore,build_tools,beta_work,site,
-                                    previous.beta_release if previous is not None else None,preview=a.preview)
-    if a.preserve_beta:
-        if profile.name!='stable' or a.preview:
-            raise ValueError('Beta retention is only for a production Stable site build')
-        if previous is not None:
-            retained_beta=previous.beta
-        else:
-            retained_beta=capture_beta_route(work.parent/'verified-beta')
-            for rel in retained_beta['files']:
-                source=work.parent/'verified-beta'/'fdroid/beta/repo'/rel
-                dest=site/'fdroid/beta/repo'/rel
-                dest.parent.mkdir(parents=True,exist_ok=True)
-                shutil.copyfile(source,dest)
-            verify_beta_snapshot_is_current(retained_beta)
     fingerprint = keystore_fingerprint(a.keystore)
-    if not a.preview and (profile.repository_certificate is None or fingerprint != profile.repository_certificate):
-        raise ValueError(f'{profile.name} repository signer pin is unset or differs')
-    if profile.name=='stable':
-        site_page.render(site, REPO_URL, fingerprint, profile.apk_certificate,
-                         f'{APP_RELEASES}{a.latest}/collie.apk', state='preview' if a.preview else 'active')
+    if not a.preview and fingerprint != channels.REPOSITORY_CERTIFICATE:
+        raise ValueError('Collie repository signer pin differs')
+    previous = None
+    if a.previous_site:
+        previous = retained_artifacts.load_previous_site(
+            a.previous_site, a.previous_baseline, parse_inventory=_inventory_files, byte_limit=SITE_LIMIT)
+
+    beta_apk = None
+    beta_fastlane, beta_tag = a.beta_fastlane, a.beta_tag
+    if a.beta_apks:
+        beta_apk = a.beta_apks / channels.BETA.apk_asset
+        if sorted(a.beta_apks.glob('*.apk')) != [beta_apk]:
+            raise ValueError(f'Beta feed requires exactly {channels.BETA.apk_asset}')
+    elif previous and previous.beta_release:
+        beta_apk, beta_fastlane, beta_tag, native_plan = carried_beta_inputs(
+            previous, site.parent / 'served-beta-inputs')
+        a.keep_native_plan.append(native_plan)
+    if a.migration_beta_sha256:
+        previous_beta = previous.beta_release if previous else None
+        if (not a.beta_apks or not previous_beta or
+                previous_beta['sha256'] == a.migration_beta_sha256 or
+                sha256(beta_apk) != a.migration_beta_sha256):
+            raise ValueError('migration requires the approved new Beta APK, distinct from the served signed release')
+
+    site.mkdir(parents=True)
+    copy_native(a.native, a.native_plan, site)
+    beta_release = build_fdroid(
+        a.apks, a.fastlane, a.keystore, Path(a.build_tools), work, site, tag=a.latest,
+        fingerprint=fingerprint, beta_apk=beta_apk, beta_fastlane=beta_fastlane, beta_tag=beta_tag,
+        previous_beta=previous.beta_release if previous else None)
+    site_page.render(site, REPO_URL, fingerprint, channels.STABLE.apk_certificate,
+                     f'{APP_RELEASES}{a.latest}/collie.apk', state='preview' if a.preview else 'active',
+                     include_trailblazer=beta_release is not None)
     (site / 'CNAME').write_text('repo.collie.im\n')
-    repo_path='fdroid/repo' if profile.name=='stable' else 'fdroid/beta/repo'
-    site_names=lambda: {p.relative_to(site).as_posix() for p in site.rglob('*') if p.is_file()}
-    if previous is not None:
-        native_paths={p.relative_to(site).as_posix() for p in (site/'native-inputs').rglob('*') if p.is_file()}
-        native_paths.update(name for name in previous.retained_files(a.preserve_beta,rebuild_beta,site_names(),native_keep)
-                            if name.startswith('native-inputs/'))
-        native_count=len(native_paths)
+    apks = sorted(p.name for p in (site / retained_artifacts.STABLE_ROUTE).glob('*.apk'))
+    native_paths = {p.relative_to(site).as_posix() for p in (site / 'native-inputs').rglob('*') if p.is_file()}
     state = {'schema': 1, 'latest': a.latest, 'repository_fingerprint': fingerprint,
-             'apks': sorted(p.name for p in (site / repo_path).glob('*.apk')),
-             'native_files': native_count}
-    if previous is not None:
-        # The selected APKs alone enter the new signed index. Older URLs remain
-        # downloadable for clients using a previously cached signed index.
-        state['retained_apks']=sorted(Path(name).name for name in previous.retained_files(a.preserve_beta,rebuild_beta,site_names(),native_keep)
-            if name.startswith('fdroid/repo/') and name.endswith('.apk') and Path(name).name not in state['apks'])
-    if profile.name!='stable':state['channel']=profile.name
-    if a.preview:state['preview']=True
-    (site / 'feed-state.json').write_text(json.dumps(state, indent=1) + '\n')
-    beta_release=built_beta or (retained_beta['release'] if retained_beta is not None else None)
+             'apks': apks, 'native_files': len(native_paths)}
+    if a.preview:
+        state['preview'] = True
     if beta_release is not None:
-        state['beta']={'version_name':beta_release['version_name'],'version_code':beta_release['version_code']}
-        (site/'feed-state.json').write_text(json.dumps(state,indent=1)+'\n')
-    if previous is not None:
-        retained_artifacts.retain(site,previous,preserve_beta=a.preserve_beta,rebuild_beta=rebuild_beta,
-                                  byte_limit=SITE_LIMIT,native_keep=native_keep)
-        # This compares the live manifest with the original frozen capture. It
-        # never substitutes a newly captured site or a newer Beta generation.
-        verify_beta_snapshot_is_current(previous.beta)
+        state['beta'] = beta_release
+    if previous:
+        native_keep = set(native_paths)
+        for plan in a.keep_native_plan:
+            records = release_inputs.native_records(json.loads(plan.read_text()))
+            for name, record in records.items():
+                if name in native_paths:
+                    candidate = site / name
+                    actual = {'bytes': candidate.stat().st_size, 'sha256': sha256(candidate)}
+                else:
+                    actual = previous.files.get(name)
+                if actual != {key: record[key] for key in ('bytes', 'sha256')}:
+                    raise ValueError('Beta native file differs from the signed tag plan: ' + name)
+            native_keep.update(records)
+        current = {path.relative_to(site).as_posix() for path in site.rglob('*') if path.is_file()}
+        retained = previous.retained_files(current=current, native_keep=native_keep)
+        native_paths.update(name for name in retained if name.startswith('native-inputs/'))
+        state['native_files'] = len(native_paths)
+        state['retained_apks'] = sorted(Path(name).name for name in retained
+                                        if name.endswith('.apk') and Path(name).name not in apks)
+    (site / 'feed-state.json').write_text(json.dumps(state, indent=1) + '\n')
+    if previous:
+        retained_artifacts.retain(site, previous, byte_limit=SITE_LIMIT, native_keep=native_keep)
+        verify_inventory_is_current(previous.inventory_record['sha256'])
     public_files={p.relative_to(site).as_posix():{'sha256':sha256(p),'bytes':p.stat().st_size}
                   for p in sorted(site.rglob('*')) if p.is_file() and p.name!=SITE_INVENTORY}
     (site/SITE_INVENTORY).write_text(json.dumps({'schema':1,'kind':'collie-pages-public-inventory',
         'origin':SITE_ORIGIN,'files':public_files},sort_keys=True,separators=(',',':'))+'\n')
     total = sum(f.stat().st_size for f in site.rglob('*') if f.is_file())
-    if total > SITE_LIMIT:
+    if total >= SITE_LIMIT:
         raise SystemExit(f'site is {total} bytes, over the {SITE_LIMIT} byte limit; '
                          'a separately reviewed retirement or storage migration is required')
     print(json.dumps({**state, 'site_bytes': total}, indent=1))

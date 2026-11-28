@@ -114,9 +114,8 @@ def served_version(*, fetch=None):
 def is_new_beta(tag, served):
     """True only when the newest Beta tag is not the Beta the feed already serves.
 
-    A forced whole-site rebuild must not reach this: it rebuilds Stable and keeps the served Beta
-    route byte for byte (--preserve-beta). Re-publishing the served Beta would fail the strict
-    versionCode increase.
+    A whole-site rebuild can carry the identical APK already in the signed index forward
+    without requiring a fresh CI byte match.
     """
     return tag is not None and PROFILE.tag_prefix + str(served) != tag
 

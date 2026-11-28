@@ -3,6 +3,8 @@ import html,re,shutil,json,hashlib
 from pathlib import Path
 from string import Template
 from urllib.parse import urlsplit,urlunsplit,urljoin
+
+from channel_profile import BETA
 ROOT=Path(__file__).with_name('site')
 STATIC=frozenset('assets/'+name for name in ('site.css','site.js','manrope.ttf','sora.ttf','manrope-OFL.txt','sora-OFL.txt','collie-icon.svg'))
 
@@ -21,7 +23,7 @@ def links(repo_url,certificate):
     deep=urlunsplit(('fdroidrepos',parsed.netloc,parsed.path,'fingerprint='+certificate.upper(),''))
     return {'https':pinned,'deep':deep,'universal':'https://fdroid.link/#'+pinned}
 
-def render(output,repo_url=None,repo_cert=None,apk_cert=None,download=None,*,state='inactive'):
+def render(output,repo_url=None,repo_cert=None,apk_cert=None,download=None,*,state='inactive',include_trailblazer=False):
     if state not in ('inactive','native','preview','active'):raise ValueError('page state')
     if state in ('inactive','native') and any((output/name).exists() or (output/name).is_symlink() for name in ('add-repository.png','add-repository.svg')):raise ValueError('inactive/native output contains an existing QR; use a fresh directory')
     import binary_repo
@@ -42,9 +44,25 @@ def render(output,repo_url=None,repo_cert=None,apk_cert=None,download=None,*,sta
         qr=qrcode.QRCode(error_correction=qrcode.constants.ERROR_CORRECT_M,box_size=8,border=4);qr.add_data(urls['deep']);qr.make(fit=True)
         qr.make_image(fill_color='#000000',back_color='#ffffff').convert('RGB').save(output/'add-repository.png')
         notice='<p class="status">Local preview. This repository is not published.</p>' if state=='preview' else ''
-        content=f'''{notice}<section class="content"><div><p class="intro">Add Collie to F-Droid or a compatible client.</p><div class="actions"><a class="button" href="{e(urls['deep'])}">Add repository</a><a class="button secondary" href="{e(download)}">Download APK</a></div><p class="manual">If the app does not open, <a href="{e(urls['universal'])}">try the F-Droid link</a>, or add the repository manually in your client.</p><div class="repo-address" id="repo-address"><dl class="repo-values"><div><dt>Repository address (with fingerprint)</dt><dd class="copy-row"><code id="repo-url"><a href="{e(urls['https'])}">{e(urls['https'])}</a></code><button class="copy-icon" type="button" data-copy-source="repo-url" data-copy-label="Copied repository address." data-copy-status="repo-copy-status" data-copy-fallback="repo-copy-fallback" aria-label="Copy repository address with fingerprint" aria-describedby="repo-copy-status" title="Copy repository address" hidden>{ICON}</button></dd></div><div><dt>F-Droid link</dt><dd><code id="repo-deep"><a href="{e(urls['deep'])}">{e(urls['deep'])}</a></code></dd></div></dl><p class="copy-status" id="repo-copy-status" role="status" aria-live="polite"></p><textarea class="copy-fallback" id="repo-copy-fallback" aria-label="Repository address selected for manual copying" rows="3" readonly hidden></textarea></div></div><div class="qr"><div class="qr-island"><img src="add-repository.png" width="240" height="240" alt="QR code to add the fingerprint-pinned Collie repository"></div><p class="scan">Scan to add the repository</p></div></section><section class="fingerprints"><div><h2>Repository fingerprint</h2><code>{e(repo_cert.upper())}</code></div></section><p class="note">The same signed APK as GitHub, with optional FCM support. This is Collie’s custom repository, separate from the official F-Droid catalogue.</p>'''
-    verification=f'''<section class="verification" id="verification" aria-labelledby="verification-title"><div class="verification-heading"><h2 id="verification-title">Verification</h2><button class="copy-icon" type="button" data-copy-verification aria-label="Copy package and APK signing SHA256" aria-describedby="verification-copy-status" title="Copy verification details" hidden>{ICON}</button></div><dl class="verification-values"><div><dt>Package</dt><dd><code id="verification-package">{package}</code></dd></div><div><dt>APK signing SHA256</dt><dd><code id="verification-signer">{signer}</code></dd></div></dl><p class="copy-status" id="verification-copy-status" role="status" aria-live="polite"></p><textarea class="copy-fallback" id="verification-copy-fallback" aria-label="Verification details selected for manual copying" rows="2" readonly hidden></textarea><noscript><p class="copy-status">Select the package and APK signing SHA256 above to copy them.</p></noscript><p class="verification-docs"><a href="https://github.com/0cwa/collie-release-engineering/tree/main/distribution">Verification details</a></p></section>'''
+        intro = ('Add one repository to install Collie (Stable) and Collie TrailBlazer (Beta) side by side.'
+                 if include_trailblazer else 'Add Collie to F-Droid or a compatible client.')
+        stable_download = 'Download Collie APK' if include_trailblazer else 'Download APK'
+        release_note = ('The same signed APKs as GitHub.' if include_trailblazer
+                        else 'The same signed APK as GitHub, with optional FCM support.')
+        content=f'''{notice}<section class="content"><div><p class="intro">{intro}</p><div class="actions"><a class="button" href="{e(urls['deep'])}">Add repository</a><a class="button secondary" href="{e(download)}">{stable_download}</a></div><p class="manual">If the app does not open, <a href="{e(urls['universal'])}">try the F-Droid link</a>, or add the repository manually in your client.</p><div class="repo-address" id="repo-address"><dl class="repo-values"><div><dt>Repository address (with fingerprint)</dt><dd class="copy-row"><code id="repo-url"><a href="{e(urls['https'])}">{e(urls['https'])}</a></code><button class="copy-icon" type="button" data-copy-source="repo-url" data-copy-label="Copied repository address." data-copy-status="repo-copy-status" data-copy-fallback="repo-copy-fallback" aria-label="Copy repository address with fingerprint" aria-describedby="repo-copy-status" title="Copy repository address" hidden>{ICON}</button></dd></div><div><dt>F-Droid link</dt><dd><code id="repo-deep"><a href="{e(urls['deep'])}">{e(urls['deep'])}</a></code></dd></div></dl><p class="copy-status" id="repo-copy-status" role="status" aria-live="polite"></p><textarea class="copy-fallback" id="repo-copy-fallback" aria-label="Repository address selected for manual copying" rows="3" readonly hidden></textarea></div></div><div class="qr"><div class="qr-island"><img src="add-repository.png" width="240" height="240" alt="QR code to add the fingerprint-pinned Collie repository"></div><p class="scan">Scan to add the repository</p></div></section><section class="fingerprints"><div><h2>Repository fingerprint</h2><code>{e(repo_cert.upper())}</code></div></section><p class="note">{release_note} This is Collie’s custom repository, separate from the official F-Droid catalogue.</p>'''
+    stable_label = 'Collie (Stable) ' if include_trailblazer else ''
+    beta_verification = ''
+    if include_trailblazer:
+        beta_signer = ':'.join(BETA.apk_certificate.upper()[i:i+2] for i in range(0, 64, 2))
+        beta_verification = f'''<div><dt>Collie TrailBlazer (Beta) package</dt><dd><code>{BETA.package}</code></dd></div>
+        <div><dt>Collie TrailBlazer (Beta) APK signing SHA-256</dt><dd><code>{beta_signer}</code></dd></div>'''
+    verification=f'''<section class="verification" id="verification" aria-labelledby="verification-title"><div class="verification-heading"><h2 id="verification-title">Verification</h2><button class="copy-icon" type="button" data-copy-verification aria-label="Copy package and APK signing SHA256" aria-describedby="verification-copy-status" title="Copy verification details" hidden>{ICON}</button></div><dl class="verification-values"><div><dt>{stable_label}Package</dt><dd><code id="verification-package">{package}</code></dd></div><div><dt>{stable_label}APK signing SHA-256</dt><dd><code id="verification-signer">{signer}</code></dd></div>{beta_verification}</dl><p class="copy-status" id="verification-copy-status" role="status" aria-live="polite"></p><textarea class="copy-fallback" id="verification-copy-fallback" aria-label="Verification details selected for manual copying" rows="2" readonly hidden></textarea><noscript><p class="copy-status">Select the package and APK signing SHA256 above to copy them.</p></noscript><p class="verification-docs"><a href="https://github.com/0cwa/collie-release-engineering/tree/main/distribution">Verification details</a></p></section>'''
     content+=verification
+    if include_trailblazer:
+        content += ('<p class="note">If you added the old TrailBlazer repository, remove it and add this '
+                    'repository. Existing TrailBlazer installations can update in place through F-Droid. '
+                    'Older direct-download TrailBlazer builds should update through F-Droid or GitHub '
+                    'to a build that checks the shared repository.</p>')
     metadata=''
     if state!='native' and repo_cert and apk_cert:
         links(repo_url,repo_cert)

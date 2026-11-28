@@ -1,6 +1,8 @@
 import json
 from pathlib import Path
+import sys
 import tempfile
+from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
 import binary_repo as b
@@ -82,6 +84,52 @@ class BinaryRepositoryTest(unittest.TestCase):
             import copy
             changed=copy.deepcopy(legacy);changed['packages'][b.APP][0][field]=value
             with self.assertRaisesRegex(ValueError,'v1/v2'):b.validate_index_parity(data,changed)
+    def test_public_listing_accepts_fastlane_locales_with_numeric_regions(self):
+        self.assertTrue(b.public_path(f'{BETA.package}/es-419/icon.png', BETA))
+
+    def test_unified_index_rejects_crossed_apk_signers_and_nondefault_releases(self):
+        generation = self.root / 'unified'
+        generation.mkdir()
+        packages, apps, legacy = {}, [], {}
+        for profile in (b.STABLE, BETA):
+            apk = generation / f'{profile.package}_1.apk'
+            apk.write_text(profile.package)
+            digest = b.sha(apk)
+            packages[profile.package] = {'metadata': {'preferredSigner': profile.apk_certificate}, 'versions': {
+                digest: {'manifest': {'versionCode': 1, 'versionName': '1.0.0',
+                                      'signer': {'sha256': [profile.apk_certificate]}},
+                         'file': {'name': '/' + apk.name, 'sha256': digest}}}}
+            apps.append({'packageName': profile.package})
+            legacy[profile.package] = [{'versionCode': 1, 'versionName': '1.0.0', 'hash': digest,
+                                       'hashType': 'sha256', 'apkName': apk.name,
+                                       'signer': profile.apk_certificate}]
+        data = {'repo': {'timestamp': 123}, 'packages': packages}
+        v1 = {'apps': apps, 'packages': legacy}
+
+        def verify():
+            v2 = generation / 'index-v2.json'
+            v2.write_text(json.dumps(data))
+            entry = {'timestamp': 123, 'index': {'name': '/index-v2.json', 'sha256': b.sha(v2),
+                                                  'size': v2.stat().st_size}}
+            (generation / 'entry.json').write_text(json.dumps(entry))
+            jars = {'entry.jar': entry, 'index-v1.jar': v1}
+            backend = SimpleNamespace(common=SimpleNamespace(), index=SimpleNamespace(
+                get_index_from_jar=lambda path, _fingerprint, **_kwargs: (jars[Path(path).name], None, None)))
+            with patch.dict(sys.modules, {'fdroidserver': backend}):
+                return b.verify_indexes(generation, b.STABLE.repository_certificate, b.STABLE,
+                                        additional_profiles=(BETA,))
+
+        self.assertEqual(verify(), data)
+        beta_version = next(iter(packages[BETA.package]['versions'].values()))
+        beta_version['releaseChannels'] = ['Beta']
+        with self.assertRaisesRegex(ValueError, 'releaseChannels'):
+            verify()
+        del beta_version['releaseChannels']
+        beta_version['manifest']['signer']['sha256'] = [b.STABLE.apk_certificate]
+        legacy[BETA.package][0]['signer'] = b.STABLE.apk_certificate
+        with self.assertRaisesRegex(ValueError, 'Beta|trailblazer-beta.*APK signer'):
+            verify()
+
     def test_expected_generation_cannot_be_substituted(self):
         g=self.root/'g';g.mkdir()
         for name in ['entry.jar','index-v1.jar','index-v2.json']:(g/name).write_bytes(b'x')

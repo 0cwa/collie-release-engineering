@@ -315,42 +315,6 @@ class BetaInputTests(unittest.TestCase):
 
 
 class BetaRouteRebuildTests(unittest.TestCase):
-    def test_rebuilt_beta_route_keeps_only_previous_immutable_urls(self):
-        record = {'sha256': 'a' * 64, 'bytes': 1}
-        files = {'fdroid/beta/repo/entry.jar': record,
-                 'fdroid/beta/repo/im.collie.app.trailblazer_178201.apk': record,
-                 'fdroid/repo/entry.jar': record}
-        previous = retention.PreviousSite(Path('previous'), files, record, {'version_name': VERSION,
-                                                                            'version_code': 178201})
-        self.assertEqual(set(previous.retained_files(False, True)),
-                         {'fdroid/beta/repo/im.collie.app.trailblazer_178201.apk'})
-        with self.assertRaisesRegex(ValueError, 'preserve-beta or a rebuilt'):
-            previous.retained_files(False)
-        with self.assertRaisesRegex(ValueError, 'either preserved or rebuilt'):
-            previous.retained_files(True, True)
-
-    def test_beta_route_build_uses_served_version_floor_and_checks_the_index(self):
-        calls = []
-        def build(*args, **kwargs):
-            calls.append(kwargs)
-        tuples = {(178202, '8.36.3-1-beta2', 'b' * 64, 'im.collie.app.trailblazer_178202.apk',
-                   channels.BETA.apk_certificate)}
-        with patch.object(feed, 'build_fdroid', side_effect=build), \
-                patch.object(feed.binary_repo, 'verify_indexes', return_value={}) as verify, \
-                patch.object(feed.binary_repo, 'release_tuples', return_value=tuples):
-            result = feed.build_beta_route('apks', 'fastlane', 'trailblazer-v8.36.3-1-beta2', 'key', 'bt',
-                                           'work', 'site', {'version_name': VERSION, 'version_code': 178201})
-        self.assertEqual(result, {'version_name': '8.36.3-1-beta2', 'version_code': 178202})
-        self.assertEqual(calls[0]['prior_version_code'], 178201)
-        self.assertEqual(calls[0]['title'], 'Collie TrailBlazer Beta 8.36.3-1-beta2')
-        self.assertTrue(calls[0]['prerelease'])
-        verify.assert_called_once_with(Path('site/fdroid/beta/repo'), channels.BETA.repository_certificate,
-                                       channels.BETA)
-        with patch.object(feed, 'build_fdroid'), patch.object(feed.binary_repo, 'verify_indexes', return_value={}), \
-                patch.object(feed.binary_repo, 'release_tuples', return_value=tuples), \
-                self.assertRaisesRegex(ValueError, 'exactly the selected release'):
-            feed.build_beta_route('apks', 'fastlane', TAG, 'key', 'bt', 'work', 'site', None)
-
     def test_scheduled_workflow_keeps_beta_behind_its_variable_and_out_of_the_signing_job(self):
         workflow = (Path(__file__).resolve().parents[1] / '.github/workflows/feeds.yml').read_text()
         beta_job = workflow[workflow.index('\n  beta:\n'):workflow.index('\n  deploy:\n')]
@@ -364,7 +328,7 @@ class BetaRouteRebuildTests(unittest.TestCase):
         self.assertIn('inputs.force', workflow[:workflow.index('\n  beta:\n')])
         deploy_job = workflow[workflow.index('\n  deploy:\n'):]
         self.assertIn('beta_inputs.py stage --tag "$BETA_TAG" --sha256 "$BETA_SHA256"', deploy_job)
-        self.assertIn('${BETA_ARGS:---preserve-beta}', deploy_job)
+        self.assertIn('${BETA_ARGS} ${KEEP_NATIVE}', deploy_job)
         self.assertIn('beta_inputs.py native-plan --tag "$BETA_TAG"', deploy_job)
         self.assertIn('${KEEP_NATIVE}', deploy_job)
 

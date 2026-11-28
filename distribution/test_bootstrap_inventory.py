@@ -235,7 +235,7 @@ class BootstrapInventoryTests(unittest.TestCase):
 
     def test_wrong_signed_route_or_apk_signer_rejected(self):
         path, digest = self.input_file()
-        self.index['repo']['address'] = channels.BETA.repository_url
+        self.index['repo']['address'] = channels.LEGACY_BETA_URL
         with self.assertRaisesRegex(ValueError, 'repository address'):
             bootstrap.prepare(path, digest, self.root / 'wrong-route', self.policy, self.origin)
         self.index['repo']['address'] = channels.STABLE.repository_url

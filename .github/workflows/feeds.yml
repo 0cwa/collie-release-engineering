@@ -3,7 +3,7 @@ name: Update F-Droid and Pages
 # rebuild the whole Pages site (F-Droid repo with the newest full releases, landing page,
 # unchanged native inputs) and deploy it. Stable prereleases are never published here.
 # With BETA_FEED_ENABLED=true it also does this for the newest TrailBlazer Beta prerelease
-# (fdroid/beta/repo/), after the beta job proves the APK is its CI build plus signature.
+# in the same repository, after the beta job proves the APK is its CI build plus signature.
 # Enable with the repository variable FEEDS_ENABLED=true.
 on:
   schedule:
@@ -14,6 +14,17 @@ on:
         description: Rebuild and deploy even if the newest release is already served
         type: boolean
         default: false
+      dry_run:
+        description: Build and verify the site with the repository key without deploying
+        type: boolean
+        default: false
+      publish_unified:
+        description: Publish the first unified feed and retire the old Beta path
+        type: boolean
+        default: false
+      migration_beta_sha256:
+        description: SHA-256 of the verified TrailBlazer APK built with the shared updater URL
+        type: string
       withdraw_stable_178204:
         description: Withdraw only the previously approved Stable 178204 mirror
         type: boolean
@@ -44,10 +55,22 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           FORCE: ${{ inputs.force || false }}
+          DRY_RUN: ${{ inputs.dry_run || false }}
+          PUBLISH_UNIFIED: ${{ inputs.publish_unified || false }}
+          MIGRATION_BETA_SHA256: ${{ inputs.migration_beta_sha256 }}
           WITHDRAW_STABLE_178204: ${{ inputs.withdraw_stable_178204 || false }}
           APPROVED_POLICY: ${{ inputs.withdrawal_policy }}
           APPROVED_INVENTORY: ${{ inputs.withdrawal_inventory }}
         run: |
+          if [ "$DRY_RUN" = true ] || [ "$PUBLISH_UNIFIED" = true ]; then
+            test "$GITHUB_EVENT_NAME" = workflow_dispatch
+            test "$WITHDRAW_STABLE_178204" != true
+            if [ "$DRY_RUN" = true ]; then test "$PUBLISH_UNIFIED" != true; fi
+          fi
+          if [ "$PUBLISH_UNIFIED" = true ] || [ -n "$MIGRATION_BETA_SHA256" ]; then
+            [[ "$MIGRATION_BETA_SHA256" =~ ^[0-9a-f]{64}$ ]]
+            [[ "$DRY_RUN" == true || "$PUBLISH_UNIFIED" == true ]]
+          fi
           if [ "$WITHDRAW_STABLE_178204" = true ]; then
             test "$GITHUB_EVENT_NAME" = workflow_dispatch
             test "$FORCE" != true
@@ -62,7 +85,7 @@ jobs:
           served=$(curl -fsS https://repo.collie.im/feed-state.json 2>/dev/null | jq -r .latest || echo none)
           echo "Newest full release: $latest. Served: $served."
           echo "latest=$latest" >> "$GITHUB_OUTPUT"
-          if [ "$latest" != "$served" ] || [ "$FORCE" = true ]; then echo deploy=true >> "$GITHUB_OUTPUT"; fi
+          if [ "$latest" != "$served" ] || [ "$FORCE" = true ] || [ "$DRY_RUN" = true ] || [ "$PUBLISH_UNIFIED" = true ]; then echo deploy=true >> "$GITHUB_OUTPUT"; fi
 
   # No secrets here. Selects the newest TrailBlazer prerelease and, if the feed does not serve it,
   # checks that its APK is the build-release.yml artifact of its signed tag commit plus its signature.
@@ -84,9 +107,8 @@ jobs:
         with:
           python-version: '3.12.14'
       - id: verify
-        # `force` rebuilds the whole site (the check job) and keeps the served Beta route as it is.
-        # Only a Beta tag that differs from the served one is new; re-publishing the served Beta
-        # would fail the strict versionCode increase.
+        # Only a different Beta tag needs a fresh CI byte match. The site builder carries
+        # over the exact APK already authenticated by the frozen signed index otherwise.
         run: |
           python distribution/beta_inputs.py select > "$RUNNER_TEMP/beta-select.json"
           cat "$RUNNER_TEMP/beta-select.json"
@@ -122,10 +144,14 @@ jobs:
       id-token: write
     environment:
       name: github-pages
+      deployment: ${{ inputs.dry_run != true }}
       url: https://repo.collie.im/
     env:
       GH_TOKEN: ${{ github.token }}
       LATEST: ${{ needs.check.outputs.latest }}
+      DRY_RUN: ${{ inputs.dry_run || false }}
+      PUBLISH_UNIFIED: ${{ inputs.publish_unified || false }}
+      MIGRATION_BETA_SHA256: ${{ inputs.migration_beta_sha256 }}
       BETA_CHANGED: ${{ needs.beta.result == 'success' && needs.beta.outputs.changed == 'true' }}
       BETA_TAG: ${{ needs.beta.outputs.tag }}
       BETA_SHA256: ${{ needs.beta.outputs.sha256 }}
@@ -152,6 +178,23 @@ jobs:
           python -m pip install --require-hashes --no-build-isolation -r distribution/requirements.txt
       - name: Capture the verified whole-site baseline before building
         run: python distribution/feed.py capture-deploy-baseline "$RUNNER_TEMP/deploy-baseline.json" --retain-site "$RUNNER_TEMP/previous-site"
+      - name: Require the approved updater migration APK before retiring the old Beta route
+        if: env.WITHDRAW_STABLE_178204 != 'true'
+        run: |
+          legacy="$RUNNER_TEMP/previous-site/fdroid/beta"
+          if [ "$PUBLISH_UNIFIED" = true ] && [ ! -d "$legacy" ]; then
+            echo "::error::The old Beta route is already retired."
+            exit 1
+          fi
+          if [ -d "$legacy" ] && [ "$DRY_RUN" != true ] && [ "$PUBLISH_UNIFIED" != true ]; then
+            echo "::error::Retiring the old Beta route requires publish_unified=true with an approved migration APK digest."
+            exit 1
+          fi
+          if [ -n "$MIGRATION_BETA_SHA256" ] &&
+             ! { [ "$BETA_CHANGED" = true ] && [ "$BETA_SHA256" = "$MIGRATION_BETA_SHA256" ]; }; then
+            echo "::error::The approved migration APK must be the newly verified TrailBlazer release."
+            exit 1
+          fi
       - name: Stage the selected immutable release and optional regular history
         if: env.WITHDRAW_STABLE_178204 != 'true'
         run: |
@@ -177,8 +220,8 @@ jobs:
           python distribution/beta_inputs.py metadata --receipt "$RUNNER_TEMP/beta-inputs.json" \
             --output "$RUNNER_TEMP/beta-metadata" --evidence "$RUNNER_TEMP/beta-metadata-inputs.json"
           echo "BETA_ARGS=--beta-apks $RUNNER_TEMP/beta-apks --beta-fastlane $RUNNER_TEMP/beta-metadata --beta-tag $BETA_TAG" >> "$GITHUB_ENV"
-      - name: Keep the native files of the Beta this site serves
-        if: env.WITHDRAW_STABLE_178204 != 'true'
+      - name: Keep the native files of the new Beta
+        if: env.WITHDRAW_STABLE_178204 != 'true' && env.BETA_CHANGED == 'true'
         run: |
           python distribution/beta_inputs.py native-plan --tag "$BETA_TAG" --output "$RUNNER_TEMP/beta-native-plan.json" > "$RUNNER_TEMP/beta-native.json"
           cat "$RUNNER_TEMP/beta-native.json"
@@ -205,13 +248,17 @@ jobs:
           umask 077
           base64 -d <<<"$FDROID_KEYSTORE_B64" > "$RUNNER_TEMP/repo.p12"
           bt=$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)
+          migration=()
+          if [ -n "$MIGRATION_BETA_SHA256" ]; then
+            migration=(--migration-beta-sha256 "$MIGRATION_BETA_SHA256")
+          fi
           python distribution/feed.py --site "$RUNNER_TEMP/site" --apks "$RUNNER_TEMP/apks" \
             --native "$RUNNER_TEMP/native" --native-plan "$RUNNER_TEMP/app-metadata/build-inputs/native-artifacts.json" \
             --latest "$LATEST" --fastlane "$RUNNER_TEMP/app-metadata/fastlane/metadata/android" --keystore "$RUNNER_TEMP/repo.p12" --build-tools "$bt" \
-            ${BETA_ARGS:---preserve-beta} ${KEEP_NATIVE} \
-            --previous-site "$RUNNER_TEMP/previous-site" --previous-baseline "$RUNNER_TEMP/deploy-baseline.json"
+            ${BETA_ARGS} ${KEEP_NATIVE} "${migration[@]}" \
+            --previous-site "$RUNNER_TEMP/previous-site" --previous-baseline "$RUNNER_TEMP/deploy-baseline.json" | tee "$RUNNER_TEMP/site-size.json"
           rm -f "$RUNNER_TEMP/repo.p12"
-          rm -rf "$RUNNER_TEMP/fdroid-work" "$RUNNER_TEMP/fdroid-beta-work"
+          rm -rf "$RUNNER_TEMP/fdroid-work"
       - name: Prepare the exact withdrawal from both captured signed routes
         if: env.WITHDRAW_STABLE_178204 == 'true'
         run: |
@@ -229,14 +276,36 @@ jobs:
           cp "$RUNNER_TEMP/previous-site/feed-state.json" "$RUNNER_TEMP/withdrawal-evidence/before-feed-state.json"
           cp "$RUNNER_TEMP/site/site-manifest.json" "$RUNNER_TEMP/withdrawal-evidence/"
           cp "$RUNNER_TEMP/site/feed-state.json" "$RUNNER_TEMP/withdrawal-evidence/"
+      - name: Archive the signed dry run with the production tar options
+        if: env.DRY_RUN == 'true'
+        run: |
+          tar --dereference --hard-dereference --directory "$RUNNER_TEMP/site" \
+            -cf "$RUNNER_TEMP/artifact.tar" --exclude=.git --exclude=.github --exclude='.[^/]*' .
+          test ! -e "$RUNNER_TEMP/site/fdroid/beta"
+          jq -e '(.packages | keys) == ["im.collie.app", "im.collie.app.trailblazer"]' \
+            "$RUNNER_TEMP/site/fdroid/repo/index-v2.json"
       - id: upload
+        if: env.DRY_RUN != 'true'
         uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
         with:
           path: ${{ runner.temp }}/site
       # This pinned action leaves the exact uploaded tar at RUNNER_TEMP/artifact.tar.
       # Include its real headers/padding in the ceiling before any Pages deployment.
       - name: Enforce the complete Pages archive budget
-        run: python distribution/feed.py verify-uploaded-archive "$RUNNER_TEMP/artifact.tar"
+        run: python distribution/feed.py verify-uploaded-archive "$RUNNER_TEMP/artifact.tar" | tee "$RUNNER_TEMP/archive-size.json"
+      - name: Preserve repository-signed dry run evidence
+        if: env.DRY_RUN == 'true'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: collie-signed-dry-run-evidence
+          path: |
+            ${{ runner.temp }}/site-size.json
+            ${{ runner.temp }}/archive-size.json
+            ${{ runner.temp }}/site/site-manifest.json
+            ${{ runner.temp }}/site/fdroid/repo/entry.jar
+            ${{ runner.temp }}/site/fdroid/repo/index-v1.jar
+            ${{ runner.temp }}/site/fdroid/repo/index-v2.json
+          if-no-files-found: error
       - name: Verify the actual upload tar size
         if: env.WITHDRAW_STABLE_178204 == 'true'
         run: |
@@ -246,12 +315,13 @@ jobs:
       # The stock deploy-pages action gives up after 10 minutes and cancels the deployment; a site
       # with the native libraries and an APK needs longer, so poll the Pages API for up to 30.
       - name: Deploy and poll until success or the deadline
+        if: env.DRY_RUN != 'true'
         env:
           ARTIFACT_ID: ${{ steps.upload.outputs.artifact_id }}
           GITHUB_TOKEN: ${{ github.token }}
         run: python distribution/deploy_pages.py --artifact-id "$ARTIFACT_ID" --timeout-seconds 1800 --feed-baseline "$RUNNER_TEMP/deploy-baseline.json"
       - name: Read back the deployed site
-        if: env.WITHDRAW_STABLE_178204 != 'true'
+        if: env.DRY_RUN != 'true' && env.WITHDRAW_STABLE_178204 != 'true'
         run: |
           for _ in $(seq 20); do
             served=$(curl -fsS -H 'Cache-Control: no-cache' "https://repo.collie.im/feed-state.json?$(date +%s)" | jq -r .latest || true)
