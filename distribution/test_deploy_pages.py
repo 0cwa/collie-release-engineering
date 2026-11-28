@@ -54,6 +54,75 @@ class Response:
 
 
 class DeployPagesTest(unittest.TestCase):
+    def test_same_second_guard_success_requires_exact_markers_and_live_proof(self):
+        build = "2f3ef2b7a2316dd7ead212007822cd49b1f96f22"
+        guard_id = 8121907424
+        environment_id = 8121894532
+        run_id = 46087307362
+        api = Mock(repository="0cwa/collie-release-engineering")
+        guard = DeploymentGuard(api, build_version=build, run_id=run_id, run_attempt=1, artifact_id=15239149136)
+        api.deployment_guard_records.return_value = [{
+            "id": guard_id, "sha": build, "environment": GUARD_ENVIRONMENT, "task": GUARD_TASK,
+            "payload": {"kind": GUARD_KIND, "run_id": run_id, "run_attempt": 1, "artifact_id": 15239149136},
+        }]
+        api.pages_environment_deployments.return_value = [{"id": environment_id, "sha": build}]
+        # The live phase 2 guard statuses that blocked the following feed run.
+        common = {"created_at": "2026-11-28T00:25:25Z", "environment": GUARD_ENVIRONMENT,
+                  "log_url": "", "environment_url": ""}
+        terminal = dict(common, id=23347569856, state="success", description=f"pages-terminal:{build}:succeed")
+        active = dict(common, id=23347569528, state="in_progress", description=f"pages-deployment-id:{build}")
+        reserved = dict(common, id=23347568855, state="in_progress", created_at="2026-11-28T00:25:24Z",
+                        description="Pages deployment reserved; Pages deployment ID not yet recorded")
+        captured = [terminal, active, reserved]
+        statuses = {
+            guard_id: captured,
+            environment_id: [{"created_at": "2026-11-28T00:25:26Z", "state": "success",
+                              "log_url": f"https://github.com/{api.repository}/actions/runs/{run_id}/job/140801001370",
+                              "environment_url": "https://repo.collie.im/"}],
+        }
+        api.deployment_guard_statuses.side_effect = statuses.__getitem__
+        api.status.return_value = "succeed"
+        for records in (captured, list(reversed(captured))):
+            with self.subTest(order=[item["id"] for item in records]):
+                statuses[guard_id] = records
+                api.status.reset_mock()
+                guard.reconcile()
+                self.assertEqual(guard.require_current(guard_id, same_attempt=True), environment_id)
+                self.assertEqual(api.status.call_count, 2)
+                api.status.assert_called_with(build, interruptible=False)
+
+        for first, second in (
+            (terminal, dict(active, description=f"pages-deployment-id:{build}-other")),
+            (terminal, dict(active, description=42)),
+            (terminal, dict(active, description=reserved["description"])),
+            (dict(terminal, description="pages-terminal:..:succeed"), dict(active, description="pages-deployment-id:..")),
+            (terminal, dict(active, state="pending")),
+            (dict(terminal, state="failure"), active),
+            (dict(terminal, state="failure", description=f"pages-terminal:{build}:deployment_failed"), active),
+            (terminal, dict(active, environment="github-pages")),
+            (terminal, dict(active, log_url="https://example.test/other")),
+            (terminal, dict(terminal, state="failure", description=f"pages-terminal:{build}:deployment_failed")),
+        ):
+            with self.subTest(first=first, second=second):
+                statuses[guard_id] = [first, second, reserved]
+                with self.assertRaisesRegex(PagesApiError, "statuses are ambiguous"):
+                    guard.reconcile()
+        statuses[guard_id] = captured + [dict(terminal, state="failure",
+                                             description=f"pages-terminal:{build}:deployment_failed")]
+        with self.assertRaisesRegex(PagesApiError, "statuses are ambiguous"):
+            guard.reconcile()
+
+        statuses[guard_id] = captured
+        api.status.return_value = "syncing_files"
+        with self.assertRaisesRegex(PagesApiError, "authoritative Pages status"):
+            guard.reconcile()
+        api.status.return_value = "succeed"
+        statuses[environment_id] = captured
+        with self.assertRaisesRegex(PagesApiError, "statuses are ambiguous"):
+            guard.require_current(guard_id, same_attempt=True)
+        api.set_deployment_guard_status.assert_not_called()
+        api.create.assert_not_called()
+
     def test_current_guard_requires_latest_record_and_authoritative_status(self):
         api = Mock()
         api.repository = "0cwa/collie-release-engineering"

@@ -321,13 +321,28 @@ class DeploymentGuard:
         raise PagesApiError("GitHub deployment timestamp is invalid")
 
     @classmethod
-    def _latest_status(cls, statuses: list[dict]) -> dict | None:
+    def _latest_status(cls, statuses: list[dict], *, durable_guard=False) -> dict | None:
         if not statuses:
             return None
         latest_time = max(cls._timestamp(item.get("created_at")) for item in statuses)
         latest = [item for item in statuses if item["created_at"] == latest_time]
         keys = ("state", "description", "log_url", "environment_url")
         if any(any(item.get(key) != latest[0].get(key) for key in keys) for item in latest[1:]):
+            if durable_guard and len(latest) == 2:
+                active, terminal = latest
+                if terminal.get("state") == "in_progress":
+                    active, terminal = terminal, active
+                description = active.get("description")
+                marker = (re.fullmatch(r"pages-deployment-id:([A-Za-z0-9._-]+)", description)
+                          if isinstance(description, str) else None)
+                # GitHub timestamps have second precision. The two durable markers
+                # can share a timestamp, but callers still verify the Pages API.
+                if (active.get("state") == "in_progress" and marker and marker[1] not in (".", "..")
+                        and terminal.get("state") == "success"
+                        and terminal.get("description") == f"pages-terminal:{marker[1]}:succeed"
+                        and all(item.get("environment") == GUARD_ENVIRONMENT
+                                and item.get("log_url") == item.get("environment_url") == "" for item in latest)):
+                    return terminal
             raise PagesApiError("GitHub latest deployment statuses are ambiguous")
         return latest[0]
 
@@ -351,7 +366,7 @@ class DeploymentGuard:
 
     def _reconcile_or_block(self, record: dict, current_id: int, matched_environments: set[int]) -> None:
         guard_id = self._guard_id(record)
-        latest = self._latest_status(self.api.deployment_guard_statuses(guard_id))
+        latest = self._latest_status(self.api.deployment_guard_statuses(guard_id), durable_guard=True)
         state = latest.get("state") if latest else "pending"
         if state in GUARD_TERMINAL_STATES:
             description = latest.get("description", "") if latest else ""
@@ -463,7 +478,7 @@ class DeploymentGuard:
             payload.get("run_id") != self.run_id or payload.get("run_attempt") != self.run_attempt
         ):
             raise PagesApiError("Previous phase deployment belongs to a different run attempt")
-        latest = self._latest_status(self.api.deployment_guard_statuses(expected_id))
+        latest = self._latest_status(self.api.deployment_guard_statuses(expected_id), durable_guard=True)
         terminal = re.fullmatch(
             r"pages-terminal:([A-Za-z0-9._-]+):succeed",
             latest.get("description", "") if latest else "",
