@@ -7,21 +7,22 @@ from dataclasses import replace
 from pathlib import Path
 from unittest.mock import patch
 
-from distribution import channel_profile as channels
 from distribution import feed
+
+channels = feed.channels
 
 
 class ChannelProfileTest(unittest.TestCase):
-    def run_feed_cli(self, root, fingerprint, preview=False, channel='stable'):
+    def run_feed_cli(self, root, fingerprint, preview=False):
         arguments=['feed.py']
         for name in ('site','apks','native','native-plan','fastlane','keystore','build-tools'):
             arguments += ['--'+name,str(root/name)]
-        arguments += ['--latest','v8.35.2','--channel',channel]
+        arguments += ['--latest','v8.35.2']
         if preview: arguments.append('--preview')
         with patch.object(sys,'argv',arguments), \
              patch.dict(os.environ,{'FDROID_KEYSTORE_PASS':'test-only-unused-value'}), \
              patch.object(feed,'copy_native',return_value=0), \
-             patch.object(feed,'build_fdroid'), \
+             patch.object(feed,'build_fdroid',return_value=None), \
              patch.object(feed,'keystore_fingerprint',return_value=fingerprint), \
              patch.object(feed.site_page,'render') as render:
             feed.main()
@@ -80,42 +81,55 @@ class ChannelProfileTest(unittest.TestCase):
             with self.subTest(message=message), self.assertRaisesRegex(ValueError,message):
                 feed.release_identity(profile,*values)
 
-    def test_beta_feed_build_uses_only_beta_package_path_and_artifact(self):
+    def test_both_packages_are_built_together_with_distinct_signers_and_retained_beta(self):
         with tempfile.TemporaryDirectory() as tmp:
-            root=Path(tmp);apk_dir=root/'apks';apk_dir.mkdir()
-            (apk_dir/'trailblazer-beta.apk').write_bytes(b'test apk bytes')
-            listing=root/'listing';(listing/'en-US/images').mkdir(parents=True)
-            (listing/'en-US/images/icon.png').write_bytes(b'icon')
-            work=root/'work';site=root/'site'
-            profile=channels.BETA
-            def fake_update(command,cwd,check):
-                repo=Path(cwd)/'repo'
-                (repo/'entry.jar').write_bytes(b'index')
-                (repo/'index-v2.json').write_text(json.dumps({'repo':{'address':profile.repository_url.rstrip('/')},'packages':{profile.package:{'versions':{}}}}))
-                return None
-            with patch.object(feed,'apk_identity',return_value=(200,'8.36.0')), \
-                 patch.object(feed.subprocess,'run',side_effect=fake_update):
-                feed.build_fdroid(apk_dir,listing,root/'repo.p12',Path('/android/build-tools/35'),work,site,
-                                  profile,tag='trailblazer-v8.36.0',title='Collie TrailBlazer Beta 8.36.0',
-                                  prior_version_code=199,prerelease=True)
-            self.assertTrue((site/'fdroid/beta/repo/im.collie.app.trailblazer_200.apk').is_file())
-            self.assertFalse((site/'fdroid/repo').exists())
-            metadata=(work/'metadata/im.collie.app.trailblazer.yml').read_text()
-            self.assertIn("AllowedAPKSigningKeys:\n  - '"+channels.BETA.apk_certificate+"'",metadata)
-            self.assertIn("versionName: '8.36.0'",metadata)
-            generated=json.loads((work/'repo/index-v2.json').read_text())['packages']['im.collie.app.trailblazer']
-            self.assertNotIn('releaseChannels',generated)
-            config=(work/'config.yml').read_text()
-            self.assertIn('repo_url: "https://repo.collie.im/fdroid/beta/repo"',config)
-            self.assertIn('repo_name: "Collie TrailBlazer Beta"',config)
+            root = Path(tmp)
+            apks = root / 'apks'
+            apks.mkdir()
+            stable_apk = apks / 'v8.35.2.apk'
+            stable_apk.write_bytes(b'stable')
+            beta_apk = root / 'trailblazer-beta.apk'
+            beta_apk.write_bytes(b'beta')
+            listing = root / 'listing'
+            (listing / 'en-US/images').mkdir(parents=True)
+            (listing / 'en-US/images/icon.png').write_bytes(b'icon')
+            work, site = root / 'work', root / 'site'
+            metadata = {'categories': ['Internet'], **{key: {'en-US': 'listing'}
+                        for key in ('name', 'summary', 'description', 'icon')}}
+            packages = {}
+            versions = {}
+            for profile, code, version, apk in ((channels.STABLE, 102, '8.35.2', stable_apk),
+                                                 (channels.BETA, 205, '8.36.0', beta_apk)):
+                packages[profile.package] = {'metadata': metadata}
+                versions[profile.package] = {(code, version, feed.sha256(apk),
+                                              f'{profile.package}_{code}.apk', profile.apk_certificate)}
+            index = {'repo': {'address': channels.REPOSITORY_URL}, 'packages': packages}
+            prior = {'version_code': 205, 'version_name': '8.36.0', 'sha256': feed.sha256(beta_apk)}
+            kwargs = dict(tag='v8.35.2', fingerprint=channels.REPOSITORY_CERTIFICATE,
+                          beta_apk=beta_apk, beta_fastlane=listing, beta_tag='trailblazer-v8.36.0',
+                          previous_beta=prior)
 
-    def test_beta_feed_rejects_stable_alias_even_if_identity_would_match(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            root=Path(tmp);apks=root/'apks';apks.mkdir();(apks/'collie.apk').write_bytes(b'not beta')
-            profile=channels.BETA
-            with self.assertRaisesRegex(ValueError,'requires exactly trailblazer-beta.apk'):
-                feed.build_fdroid(apks,root,root/'key',Path('/android/build-tools/35'),root/'work',root/'site',
-                                  profile,tag='trailblazer-v8.36.0',title='Collie TrailBlazer Beta 8.36.0',prior_version_code=1)
+            with patch.object(feed, 'apk_identity', side_effect=[(102, '8.35.2'), (205, '8.36.0')]), \
+                    patch.object(feed.subprocess, 'run') as update, \
+                    patch.object(feed.binary_repo, 'verify_indexes', return_value=index) as verify, \
+                    patch.object(feed.binary_repo, 'release_tuples', side_effect=lambda _, p: versions[p.package]):
+                result = feed.build_fdroid(apks, listing, root/'key', Path('/tools/bin'), work, site, **kwargs)
+            self.assertEqual(result, {'version_code': 205, 'version_name': '8.36.0'})
+            update.assert_called_once()
+            verify.assert_called_once_with(work/'repo', channels.REPOSITORY_CERTIFICATE, channels.STABLE,
+                                           additional_profiles=(channels.BETA,))
+            self.assertEqual({apk.name for apk in (site/'fdroid/repo').glob('*.apk')},
+                             {'im.collie.app_102.apk', 'im.collie.app.trailblazer_205.apk'})
+            self.assertFalse((site/'fdroid/beta').exists())
+            for profile in (channels.STABLE, channels.BETA):
+                metadata_text = (work/'metadata'/f'{profile.package}.yml').read_text()
+                self.assertIn("AllowedAPKSigningKeys:\n  - '" + profile.apk_certificate + "'", metadata_text)
+            beta_apk.write_bytes(b'different bytes for already served version')
+            with patch.object(feed, 'apk_identity', side_effect=[(102, '8.35.2'), (205, '8.36.0')]), \
+                    patch.object(feed.subprocess, 'run') as update, \
+                    self.assertRaisesRegex(ValueError, 'versionCode must increase'):
+                feed.build_fdroid(apks, listing, root/'key', Path('/tools/bin'), root/'other', site, **kwargs)
+            update.assert_not_called()
 
     def test_beta_apk_package_and_signer_must_match_channel_profile(self):
         profile=replace(channels.BETA,apk_certificate='a'*64,repository_certificate='b'*64)
@@ -132,26 +146,6 @@ class ChannelProfileTest(unittest.TestCase):
             with self.assertRaisesRegex(SystemExit,'package or signing certificate'):
                 feed.apk_identity(Path('trailblazer-beta.apk'),Path('/tools'),profile)
 
-    def test_stable_feed_builder_keeps_historical_tag_named_apk_inputs(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            root=Path(tmp);apks=root/'apks';apks.mkdir()
-            (apks/'v8.35.1.apk').write_bytes(b'old stable')
-            (apks/'v8.35.2.apk').write_bytes(b'new stable')
-            listing=root/'listing';(listing/'en-US/images').mkdir(parents=True)
-            (listing/'en-US/images/icon.png').write_bytes(b'icon')
-            work=root/'work';site=root/'site';sequence=iter([(177700,'8.35.1'),(177701,'8.35.2')])
-            def fake_update(command,cwd,check):
-                (Path(cwd)/'repo/entry.jar').write_bytes(b'index')
-                (Path(cwd)/'repo/index-v2.json').write_text('{"packages":{"im.collie.app":{"versions":{}}}}')
-            with patch.object(feed,'apk_identity',side_effect=lambda *args:next(sequence)), \
-                 patch.object(feed.subprocess,'run',side_effect=fake_update):
-                feed.build_fdroid(apks,listing,root/'repo.p12',Path('/android/build-tools/35'),work,site)
-            self.assertEqual({p.name for p in (site/'fdroid/repo').glob('*.apk')},
-                             {'im.collie.app_177700.apk','im.collie.app_177701.apk'})
-            self.assertFalse((site/'fdroid/beta/repo').exists())
-            self.assertEqual(feed.channel_repository_config((feed.HERE/'config.public.yml').read_text(),channels.STABLE),
-                             (feed.HERE/'config.public.yml').read_text())
-
     def test_stable_feed_rejects_tag_mismatch_and_duplicate_version_codes_before_signing(self):
         for identities in ([(101,'8.35.9'),(102,'8.35.2')], [(101,'8.35.1'),(101,'8.35.2')]):
             with self.subTest(identities=identities), tempfile.TemporaryDirectory() as tmp:
@@ -163,7 +157,7 @@ class ChannelProfileTest(unittest.TestCase):
                 with patch.object(feed,'apk_identity',side_effect=identities), \
                      patch.object(feed.subprocess,'run') as signer:
                     with self.assertRaises(ValueError):
-                        feed.build_fdroid(apks,listing,root/'repo.p12',Path('/android/build-tools/35'),root/'work',root/'site')
+                        feed.build_fdroid(apks,listing,root/'repo.p12',Path('/android/build-tools/35'),root/'work',root/'site',tag='v8.35.2',fingerprint=channels.REPOSITORY_CERTIFICATE)
                     signer.assert_not_called()
 
     def test_stable_feed_does_not_advertise_a_newer_apk_under_an_older_selected_release(self):
@@ -177,14 +171,9 @@ class ChannelProfileTest(unittest.TestCase):
                 with patch.object(feed,'apk_identity',side_effect=[(101,'8.35.1'),(102,'8.35.2')]), \
                      patch.object(feed.subprocess,'run') as signer:
                     with self.assertRaisesRegex(ValueError,'highest indexed versionCode'):
-                        feed.build_fdroid(apks,listing,root/'repo.p12',Path('/android/build-tools/35'),root/'work',root/'site',tag=selected)
+                        feed.build_fdroid(apks,listing,root/'repo.p12',Path('/android/build-tools/35'),root/'work',root/'site', tag=selected,
+                                          fingerprint=channels.REPOSITORY_CERTIFICATE)
                     signer.assert_not_called()
 
-    def test_beta_generated_index_rejects_nonempty_release_channels(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            index=Path(tmp)/'repo';index.mkdir()
-            (index/'index-v2.json').write_text(json.dumps({'repo':{'address':channels.BETA.repository_url.rstrip('/')},'packages':{channels.BETA.package:{'releaseChannels':['beta']}}}))
-            with self.assertRaisesRegex(ValueError,'absent or empty'):
-                feed.validate_generated_index(tmp,channels.BETA)
 if __name__ == '__main__':
     unittest.main()

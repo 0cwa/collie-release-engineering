@@ -27,11 +27,13 @@ def records(blobs):
             for name, blob in blobs.items()}
 
 
-def repository(profile, code, version, apk):
-    route = 'fdroid/repo/' if profile.name == 'stable' else 'fdroid/beta/repo/'
+def repository(profile, code, version, apk, *, canonical=False):
+    legacy = profile == channels.BETA and not canonical
+    route = retention.BETA_ROUTE if legacy else retention.STABLE_ROUTE
+    address = channels.LEGACY_BETA_URL if legacy else profile.repository_url
     filename = f'{profile.package}_{code}.apk'
     digest = hashlib.sha256(apk).hexdigest()
-    index = {'repo': {'address': profile.repository_url}, 'packages': {profile.package: {'versions': {
+    index = {'repo': {'address': address}, 'packages': {profile.package: {'versions': {
         digest: {'manifest': {'versionCode': code, 'versionName': version,
                              'signer': {'sha256': [profile.apk_certificate]}},
                  'file': {'name': '/' + filename, 'sha256': digest, 'size': len(apk)}}}}}}
@@ -65,7 +67,7 @@ class RetainedArtifactsTests(unittest.TestCase):
         # The real shared verifier's signature/hash/parity checks are covered in
         # test_binary_repo. These tests exercise our binding and retention policy.
         self.verifier = patch.object(retention.binary_repo, 'verify_indexes', side_effect=
-            lambda root, _cert, _profile: json.loads((root / 'index-v2.json').read_bytes())).start()
+            lambda root, _cert, _profile, **_kwargs: json.loads((root / 'index-v2.json').read_bytes())).start()
         self.addCleanup(patch.stopall)
 
     def snapshot(self, blobs=None):
@@ -221,7 +223,9 @@ class RetainedArtifactsTests(unittest.TestCase):
         raw = self.snapshot()
         previous = self.load()
         self.assertEqual(previous.inventory_record['sha256'], hashlib.sha256(raw).hexdigest())
-        self.assertEqual(previous.beta['release'], {'version_code': 201, 'version_name': '8.40.0'})
+        legacy_apk = 'fdroid/beta/repo/im.collie.app.trailblazer_201.apk'
+        self.assertEqual(previous.beta_release, {'version_code': 201, 'version_name': '8.40.0',
+                         'sha256': records(self.blobs)[legacy_apk]['sha256'], 'path': legacy_apk})
         self.assertEqual(self.verifier.call_count, 2)
         self.verifier.assert_any_call(self.old / 'fdroid/repo', channels.STABLE.repository_certificate, channels.STABLE)
         self.verifier.assert_any_call(self.old / 'fdroid/beta/repo', channels.BETA.repository_certificate, channels.BETA)
@@ -345,7 +349,7 @@ class RetainedArtifactsTests(unittest.TestCase):
             with self.subTest(mutation=mutation):
                 index = json.loads(self.blobs['fdroid/repo/index-v2.json'])
                 version = next(iter(index['packages'][channels.STABLE.package]['versions'].values()))
-                if mutation == 'address': index['repo']['address'] = channels.BETA.repository_url
+                if mutation == 'address': index['repo']['address'] = channels.LEGACY_BETA_URL
                 elif mutation == 'code': version['manifest']['versionCode'] = 99
                 else: version['manifest']['signer']['sha256'] = [channels.BETA.apk_certificate]
                 changed = {**self.blobs, 'fdroid/repo/index-v2.json': json.dumps(index).encode()}
@@ -357,7 +361,7 @@ class RetainedArtifactsTests(unittest.TestCase):
         self.snapshot()
         previous = self.load()
         current = self.candidate()
-        result = retention.retain(self.site, previous, preserve_beta=False)
+        result = retention.retain(self.site, previous)
         self.assertEqual((self.site / self.old_apk).read_bytes(), self.blobs[self.old_apk])
         self.assertEqual((self.site / OLD_NATIVE).read_bytes(), self.blobs[OLD_NATIVE])
         self.assertEqual((self.site / 'fdroid/repo/index-v2.json').read_bytes(), current['fdroid/repo/index-v2.json'])
@@ -372,7 +376,7 @@ class RetainedArtifactsTests(unittest.TestCase):
         self.snapshot()
         previous = self.load()
         self.candidate()
-        first = retention.retain(self.site, previous, preserve_beta=False)
+        first = retention.retain(self.site, previous)
         raw = retention.inventory_bytes(first)
         (self.site / retention.INVENTORY).write_bytes(raw)
         second_baseline = self.root / 'second-baseline.json'
@@ -382,7 +386,7 @@ class RetainedArtifactsTests(unittest.TestCase):
         final = self.root / 'third'
         current = repository(channels.STABLE, 103, '8.35.3', b'latest APK')
         write_files(final, current)
-        retention.retain(final, second, preserve_beta=False)
+        retention.retain(final, second)
         # The indexed APK and the newest previous one stay; 100 and 101 are retired in turn.
         self.assertEqual({p.name for p in (final / 'fdroid/repo').glob('*.apk')},
             {'im.collie.app_102.apk', 'im.collie.app_103.apk'})
@@ -397,24 +401,15 @@ class RetainedArtifactsTests(unittest.TestCase):
         self.blobs.update(beta)
         self.snapshot()
         previous = self.load()
-        indexed = frozenset({'fdroid/repo/im.collie.app_102.apk', 'fdroid/beta/repo/im.collie.app.trailblazer_205.apk'})
-        names = lambda found: {n for n in found if n.endswith('.apk')}
-        # A rebuilt Beta route: newest previous stays for both channels, older ones go.
-        self.assertEqual(names(previous.retained_files(False, True, indexed)),
-                         {'fdroid/repo/im.collie.app_101.apk',
-                          'fdroid/beta/repo/im.collie.app.trailblazer_204.apk'})
-        # A preserved Beta route is retained byte for byte, since its signed index names those APKs.
-        kept = names(previous.retained_files(True, False, indexed))
-        self.assertEqual({n for n in kept if '/beta/' in n},
-                         {n for n in self.blobs if '/beta/' in n and n.endswith('.apk')})
-        self.assertEqual({n for n in kept if '/beta/' not in n}, {'fdroid/repo/im.collie.app_101.apk'})
+        indexed = {'fdroid/repo/im.collie.app_102.apk', 'fdroid/repo/im.collie.app.trailblazer_205.apk'}
+        names = lambda found: {name for name in found if name.endswith('.apk')}
+        self.assertEqual(names(previous.retained_files(indexed)),
+                         {'fdroid/repo/im.collie.app_101.apk', 'fdroid/repo/im.collie.app.trailblazer_204.apk'})
         # Two indexed Stable APKs (FEEDS_KEEP_RELEASES=2) do not count against the previous allowance.
         both = indexed | {'fdroid/repo/im.collie.app_101.apk'}
-        self.assertEqual({n for n in names(previous.retained_files(False, True, both)) if '/beta/' not in n},
-                         {'fdroid/repo/im.collie.app_100.apk', 'fdroid/repo/im.collie.app_101.apk'})
-        # Without a candidate APK the newest previous one is kept, never every old version.
-        self.assertEqual({n for n in names(previous.retained_files(False, True)) if '/beta/' not in n},
-                         {'fdroid/repo/im.collie.app_101.apk'})
+        self.assertEqual(names(previous.retained_files(both)),
+                         {'fdroid/repo/im.collie.app_100.apk', 'fdroid/repo/im.collie.app_101.apk',
+                          'fdroid/repo/im.collie.app.trailblazer_204.apk'})
 
     def test_native_files_stay_only_while_a_current_release_plan_names_them(self):
         other = 'native-inputs/v2/maven/org/signal/libsignal-client/3.0/libsignal-client-3.0.jar'
@@ -422,31 +417,30 @@ class RetainedArtifactsTests(unittest.TestCase):
         self.snapshot()
         previous = self.load()
         native = lambda found: {n for n in found if n.startswith('native-inputs/')}
-        self.assertEqual(native(previous.retained_files(False)), {OLD_NATIVE, other})
-        self.assertEqual(native(previous.retained_files(False, native_keep={other})), {other})
-        self.assertEqual(native(previous.retained_files(False, native_keep=set())), set())
+        self.assertEqual(native(previous.retained_files()), {OLD_NATIVE, other})
+        self.assertEqual(native(previous.retained_files(native_keep={other})), {other})
+        self.assertEqual(native(previous.retained_files(native_keep=set())), set())
         self.candidate()
-        result = retention.retain(self.site, previous, preserve_beta=False, native_keep={NEW_NATIVE})
+        result = retention.retain(self.site, previous, native_keep={NEW_NATIVE})
         self.assertEqual(native(result), {NEW_NATIVE})
         self.assertFalse((self.site / OLD_NATIVE).exists())
         self.assertTrue((self.site / self.old_apk).exists())
 
-    def test_archived_evidence_diffs_and_artwork_survive_consecutive_stable_updates_with_beta(self):
+    def test_after_migration_canonical_diffs_and_artwork_survive_consecutive_updates(self):
         generation = '_generations/' + 'a' * 64 + '/'
         immutable = {generation + 'entry.jar': b'archived signed entry',
                      generation + 'repository-receipt.json': b'{"fixture":"reviewed Beta receipt"}',
                      'fdroid/repo/diff/123.json': b'previous Stable diff',
                      'fdroid/repo/icons-640/im.collie.app.101.png': b'previous versioned Stable icon',
                      'fdroid/repo/im.collie.app/en-US/phoneScreenshots/abc_def=.png': b'previous Stable artwork',
-                     'fdroid/beta/repo/diff/234.json': b'previous Beta diff',
-                     'fdroid/beta/repo/icons-640/im.collie.app.trailblazer.201.png': b'previous Beta icon',
-                     'fdroid/beta/repo/im.collie.app.trailblazer/en-US/abc_def=.png': b'previous Beta artwork'}
-        beta = repository(channels.BETA, 201, '8.40.0', b'Beta APK')
-        self.blobs.update({**beta, **immutable})
+                     'fdroid/repo/diff/234.json': b'previous Beta diff',
+                     'fdroid/repo/icons-640/im.collie.app.trailblazer.201.png': b'previous Beta icon',
+                     'fdroid/repo/im.collie.app.trailblazer/en-US/abc_def=.png': b'previous Beta artwork'}
+        self.blobs.update(immutable)
         self.snapshot()
         previous = self.load()
         self.candidate()
-        first = retention.retain(self.site, previous, preserve_beta=True)
+        first = retention.retain(self.site, previous)
         raw = retention.inventory_bytes(first)
         (self.site / retention.INVENTORY).write_bytes(raw)
         second_baseline = self.root / 'second-baseline.json'
@@ -456,9 +450,9 @@ class RetainedArtifactsTests(unittest.TestCase):
         final = self.root / 'third'
         current = repository(channels.STABLE, 103, '8.35.3', b'latest APK')
         write_files(final, current)
-        retention.retain(final, second, preserve_beta=True)
+        retention.retain(final, second)
         for site in (self.site, final):
-            for name, blob in {**beta, **immutable}.items():
+            for name, blob in immutable.items():
                 self.assertEqual((site / name).read_bytes(), blob)
         self.assertEqual((final / 'fdroid/repo/index-v2.json').read_bytes(), current['fdroid/repo/index-v2.json'])
 
@@ -477,7 +471,7 @@ class RetainedArtifactsTests(unittest.TestCase):
                 target.parent.mkdir(parents=True, exist_ok=True)
                 target.write_bytes(b'replacement at an existing URL')
                 with patch.object(retention, '_copy') as copy, self.assertRaisesRegex(ValueError, 'immutable published URL'):
-                    retention.retain(self.site, previous, preserve_beta=False)
+                    retention.retain(self.site, previous)
                 copy.assert_not_called()
                 target.unlink()
 
@@ -491,12 +485,12 @@ class RetainedArtifactsTests(unittest.TestCase):
                 target.parent.mkdir(parents=True, exist_ok=True)
                 target.write_bytes(b'changed published bytes')
                 with patch.object(retention, '_copy') as copy, self.assertRaisesRegex(ValueError, 'immutable published URL'):
-                    retention.retain(self.site, previous, preserve_beta=False)
+                    retention.retain(self.site, previous)
                 copy.assert_not_called()
                 self.assertEqual(target.read_bytes(), b'changed published bytes')
                 target.unlink()
         write_files(self.site, {OLD_NATIVE: self.blobs[OLD_NATIVE]})
-        retention.retain(self.site, previous, preserve_beta=False)
+        retention.retain(self.site, previous)
         self.assertEqual((self.site / OLD_NATIVE).read_bytes(), self.blobs[OLD_NATIVE])
 
     def test_file_parent_conflict_is_rejected_before_copy(self):
@@ -504,7 +498,7 @@ class RetainedArtifactsTests(unittest.TestCase):
         previous = self.load()
         write_files(self.site, {'native-inputs/v1/maven/org': b'file instead of parent directory'})
         with patch.object(retention, '_copy') as copy, self.assertRaisesRegex(ValueError, 'file/directory path conflict'):
-            retention.retain(self.site, previous, preserve_beta=False)
+            retention.retain(self.site, previous)
         copy.assert_not_called()
 
     def test_previous_snapshot_changed_during_build_is_rejected_before_copy(self):
@@ -514,7 +508,7 @@ class RetainedArtifactsTests(unittest.TestCase):
         # Even nonretained files must still belong to the same frozen snapshot.
         (self.old / 'index.html').write_bytes(b'changed during signing')
         with patch.object(retention, '_copy') as copy, self.assertRaisesRegex(ValueError, 'missing, extra, or changed'):
-            retention.retain(self.site, previous, preserve_beta=False)
+            retention.retain(self.site, previous)
         copy.assert_not_called()
 
     def test_budget_includes_manifest_and_refuses_before_copy_without_deleting_old_urls(self):
@@ -523,26 +517,30 @@ class RetainedArtifactsTests(unittest.TestCase):
         self.snapshot()
         previous = self.load()
         current = self.candidate(apk=b'n' * 10000)
-        planned = {**records(current), **previous.retained_files(False)}
+        planned = {**records(current), **previous.retained_files()}
         total = sum(record['bytes'] for record in planned.values()) + len(retention.inventory_bytes(planned))
         with patch.object(retention, '_copy') as copy, self.assertRaisesRegex(ValueError, 'separately reviewed retirement'):
-            retention.retain(self.site, previous, preserve_beta=False, byte_limit=total - 1)
+            retention.retain(self.site, previous, byte_limit=total - 1)
         copy.assert_not_called()
         self.assertFalse((self.site / self.old_apk).exists())
         self.assertEqual((self.old / self.old_apk).read_bytes(), self.blobs[self.old_apk])
-        self.assertEqual(retention.retain(self.site, previous, preserve_beta=False, byte_limit=total), planned)
+        self.assertEqual(retention.retain(self.site, previous, byte_limit=total + 1), planned)
         self.assertEqual((self.site / archive).read_bytes(), self.blobs[archive])
 
-    def test_beta_must_be_preserved_and_is_copied_from_the_frozen_snapshot(self):
+    def test_migration_moves_only_retained_beta_apks_and_detects_immutable_conflicts(self):
         beta = repository(channels.BETA, 201, '8.40.0', b'Beta APK')
         self.blobs.update(beta)
         self.snapshot()
         previous = self.load()
         self.candidate()
-        with self.assertRaisesRegex(ValueError, 'requires --preserve-beta'):
-            retention.retain(self.site, previous, preserve_beta=False)
-        retention.retain(self.site, previous, preserve_beta=True)
-        for name, blob in beta.items(): self.assertEqual((self.site / name).read_bytes(), blob)
+        new_name = self.site / 'fdroid/repo/im.collie.app.trailblazer_201.apk'
+        new_name.write_bytes(b'conflict')
+        with self.assertRaisesRegex(ValueError, 'immutable published URL'):
+            retention.retain(self.site, previous)
+        new_name.unlink()
+        retention.retain(self.site, previous)
+        self.assertEqual(new_name.read_bytes(), b'Beta APK')
+        self.assertFalse((self.site / 'fdroid/beta').exists())
 
     def test_capture_baseline_keeps_exact_verified_snapshot_without_another_capture(self):
         self.blobs['fdroid/repo/im.collie.app/en-US/abc_def=.png'] = b'listing artwork'
@@ -561,28 +559,47 @@ class RetainedArtifactsTests(unittest.TestCase):
             feed.capture_deploy_baseline(self.root / 'other/baseline.json', retained_site=self.root / 'other')
 
     def run_feed(self, raw, *extra):
-        arguments = ['feed.py', '--site', str(self.site), '--latest', 'v8.35.2', '--preserve-beta',
+        arguments = ['feed.py', '--site', str(self.site), '--latest', 'v8.35.2',
                      '--previous-site', str(self.old), '--previous-baseline', str(self.baseline), *extra]
         for name in ('apks', 'native', 'native-plan', 'fastlane', 'keystore', 'build-tools'):
             arguments += ['--' + name, str(self.root / name)]
-        def build(_apks, _listing, _key, _tools, _work, site, _profile, **_kwargs):
+        def build(_apks, _listing, _key, _tools, _work, site, **kwargs):
             self.assertFalse((site / self.old_apk).exists())
             self.assertFalse((site / OLD_NATIVE).exists())
             self.assertFalse((site / 'fdroid/beta').exists())
             write_files(site, repository(channels.STABLE, 102, '8.35.2', b'new verified APK'))
+            if kwargs['beta_apk'] is not None:
+                beta_apk = kwargs['beta_apk']
+                stable_index = site / 'fdroid/repo/index-v2.json'
+                combined = json.loads(stable_index.read_text())
+                beta_files = repository(channels.BETA, 201, '8.40.0', beta_apk.read_bytes(), canonical=True)
+                combined['packages'].update(json.loads(beta_files['fdroid/repo/index-v2.json'])['packages'])
+                stable_index.write_text(json.dumps(combined))
+                (site / 'fdroid/repo' / beta_apk.name).write_bytes(beta_apk.read_bytes())
+                return {'version_name': '8.40.0', 'version_code': 201}
         def copy_native(_native, _plan, site):
             write_files(site, {NEW_NATIVE: b'new native'})
             return 1
+        def carry(previous, work):
+            native = self.root / 'served-native.json'
+            native.write_text((self.root / 'beta-native.json').read_text())
+            return previous.root / previous.beta_release['path'], work, 'trailblazer-v8.40.0', native
         def fetch(name, *, max_bytes):
             self.assertEqual(name, feed.SITE_INVENTORY)
             return 200, raw
+        native = self.root / 'beta-native.json'
+        if not native.exists():
+            data = b'new native'
+            native.write_text(json.dumps({'files': [{'path': NEW_NATIVE.split('/maven/', 1)[1],
+                'url': retention.ORIGIN + NEW_NATIVE, 'bytes': len(data),
+                'sha256': hashlib.sha256(data).hexdigest()}]}))
         with patch.object(sys, 'argv', arguments), patch.dict(os.environ, {'FDROID_KEYSTORE_PASS': 'test'}), \
                 patch.object(feed, 'build_fdroid', side_effect=build), \
                 patch.object(feed, 'copy_native', side_effect=copy_native), \
                 patch.object(feed, 'keystore_fingerprint', return_value=channels.STABLE.repository_certificate), \
                 patch.object(feed.site_page, 'render', side_effect=lambda site, *_a, **_k: write_files(site, {'index.html': b'new landing'})), \
                 patch.object(feed, '_read_origin', side_effect=fetch) as origin, \
-                patch.object(feed, 'capture_beta_route', side_effect=AssertionError('second moving Beta capture')), \
+                patch.object(feed, 'carried_beta_inputs', side_effect=carry), \
                 patch.object(feed, 'capture_live_site', side_effect=AssertionError('second moving site capture')), \
                 contextlib.redirect_stdout(io.StringIO()):
             feed.main()
@@ -593,19 +610,22 @@ class RetainedArtifactsTests(unittest.TestCase):
         raw = self.snapshot()
         self.run_feed(raw)
         state = json.loads((self.site / 'feed-state.json').read_bytes())
-        self.assertEqual(state['apks'], ['im.collie.app_102.apk'])
+        self.assertEqual(state['apks'], ['im.collie.app.trailblazer_201.apk', 'im.collie.app_102.apk'])
         self.assertEqual(state['retained_apks'], ['im.collie.app_101.apk'])
         # The old native file is no longer named by a current release plan: it is retired.
         self.assertEqual(state['native_files'], 1)
         self.assertEqual(state['beta'], {'version_name': '8.40.0', 'version_code': 201})
         manifest = feed._inventory_files((self.site / feed.SITE_INVENTORY).read_bytes())
         self.assertIn(self.old_apk, manifest)
+        self.assertIn('fdroid/repo/im.collie.app.trailblazer_201.apk', manifest)
+        self.assertFalse(any(name.startswith('fdroid/beta/') for name in manifest))
         self.assertNotIn(OLD_NATIVE, manifest)
         self.assertIn(NEW_NATIVE, manifest)
         self.assertEqual({p.relative_to(self.site).as_posix() for p in self.site.rglob('*') if p.is_file()},
                          {feed.SITE_INVENTORY, *manifest})
         index = json.loads((self.site / 'fdroid/repo/index-v2.json').read_bytes())
         self.assertEqual({row[0] for row in retention.binary_repo.release_tuples(index)}, {102})
+        self.assertEqual({row[0] for row in retention.binary_repo.release_tuples(index, channels.BETA)}, {201})
 
     def test_feed_cli_keeps_native_files_named_by_the_served_beta_plan(self):
         self.blobs.update(repository(channels.BETA, 201, '8.40.0', b'Beta APK'))
@@ -622,25 +642,38 @@ class RetainedArtifactsTests(unittest.TestCase):
 
     def test_feed_cli_refuses_a_newer_live_site_instead_of_adopting_it(self):
         self.snapshot()
-        with self.assertRaisesRegex(ValueError, 'served site changed after Beta capture'):
+        with self.assertRaisesRegex(ValueError, 'served site changed after capture'):
             self.run_feed(retention.inventory_bytes({}))
 
-    def test_cli_requires_both_frozen_inputs_and_rejects_preview_retention(self):
+    def test_cli_requires_both_frozen_inputs(self):
         for option in ('--previous-site', '--previous-baseline'):
             with self.subTest(option=option), patch.object(sys, 'argv', ['feed.py', option, 'missing']), \
                     contextlib.redirect_stderr(io.StringIO()), self.assertRaises(SystemExit) as error:
                 feed.main()
             self.assertEqual(error.exception.code, 2)
-        with patch.object(sys, 'argv', ['feed.py', '--previous-site', 'site', '--previous-baseline', 'baseline', '--preview']), \
-                self.assertRaisesRegex(ValueError, 'production Stable'):
-            feed.main()
+
+    def test_cutover_rejects_the_previously_served_beta_even_if_its_digest_is_supplied(self):
+        data = b'Beta APK with the old updater'
+        self.blobs.update(repository(channels.BETA, 201, '8.40.0', data))
+        raw = self.snapshot()
+        beta_apk = self.root / channels.BETA.apk_asset
+        beta_apk.write_bytes(data)
+        with self.assertRaisesRegex(ValueError, 'distinct from the served signed release'):
+            self.run_feed(raw, '--beta-apks', str(self.root), '--beta-fastlane', str(self.root),
+                          '--beta-tag', 'trailblazer-v8.40.0', '--migration-beta-sha256',
+                          hashlib.sha256(data).hexdigest())
+        self.assertFalse(self.site.exists())
 
     def test_production_workflow_passes_the_same_capture_to_build_and_deploy_guard(self):
         workflow = (Path(__file__).resolve().parents[1] / '.github/workflows/feeds.yml').read_text()
         self.assertIn('capture-deploy-baseline "$RUNNER_TEMP/deploy-baseline.json" --retain-site "$RUNNER_TEMP/previous-site"', workflow)
         self.assertIn('--previous-site "$RUNNER_TEMP/previous-site" --previous-baseline "$RUNNER_TEMP/deploy-baseline.json"', workflow)
         self.assertIn('--feed-baseline "$RUNNER_TEMP/deploy-baseline.json"', workflow)
-        self.assertIn('--preserve-beta', workflow)
+        self.assertIn('publish_unified=true', workflow)
+        self.assertIn('[ "$BETA_SHA256" = "$MIGRATION_BETA_SHA256" ]', workflow)
+        self.assertIn('migration=(--migration-beta-sha256 "$MIGRATION_BETA_SHA256")', workflow)
+        self.assertIn('deployment: ${{ inputs.dry_run != true }}', workflow)
+        self.assertIn("- name: Deploy and poll until success or the deadline\n        if: env.DRY_RUN != 'true'", workflow)
         self.assertIn('group: collie-pages-production', workflow)
 
     def test_archive_budget_measures_actual_tar_overhead_and_cli_refuses_oversize(self):
@@ -656,7 +689,7 @@ class RetainedArtifactsTests(unittest.TestCase):
         self.assertGreater(actual_size, 1)
         with self.assertRaisesRegex(ValueError, 'Pages artifact.*separately reviewed retirement'):
             retention.verify_pages_archive(archive, byte_limit=actual_size - 1)
-        self.assertEqual(retention.verify_pages_archive(archive, byte_limit=actual_size), actual_size)
+        self.assertEqual(retention.verify_pages_archive(archive, byte_limit=actual_size + 1), actual_size)
         with patch.object(sys, 'argv', ['feed.py', 'verify-uploaded-archive', str(archive)]), \
                 patch.object(feed, 'SITE_LIMIT', actual_size - 1), self.assertRaisesRegex(ValueError, 'Pages artifact'):
             feed.main()

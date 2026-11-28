@@ -72,8 +72,8 @@ def inventory(root):
 def public_site_name(name, profile=channels.STABLE):
     if retained_artifacts.versioned_native_path(name) or name in site_page.STATIC:return True
     if name in {'index.html','add-repository.png','add-repository.svg','site-manifest.json','.nojekyll','CNAME','feed-state.json'}:return True
-    for candidate,prefix in ((channels.STABLE,'fdroid/repo/'),(channels.BETA,'fdroid/beta/repo/')):
-        if name.startswith(prefix):return b.public_path(name[len(prefix):],candidate)
+    for prefix in (retained_artifacts.STABLE_ROUTE, retained_artifacts.BETA_ROUTE):
+        if name.startswith(prefix):return retained_artifacts.route_public_path(name[len(prefix):], prefix)
     if retained_artifacts.generation_archive_path(name):return True
     return bool(re.fullmatch(r'assets/[A-Za-z0-9_.-]+\.(png|svg|css|webp)',name))
 

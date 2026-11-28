@@ -100,12 +100,8 @@ about 96 MB, so the site cannot keep every old APK. Each whole-site update (`fee
   gets a 404, refreshes its index (F-Droid does this on every update check) and takes the
   current APK. Older versions stay downloadable from the GitHub release pages. APK URLs
   never change bytes, and an APK is never replaced.
-- A preserved Beta route (a Stable-only update) is copied byte for byte, so its signed
-  index still names every APK it holds; the previous-APK limit applies when the Beta route
-  is rebuilt for a new Beta.
 - Native Maven files only while a current release plan names them: the plan of the release
-  being published and the plan of the served Beta (`--keep-native-plan`, exported from the
-  Beta tag by `beta_inputs.py native-plan`). A native generation no current release uses is
+  being published and the plan of the served Beta, exported from its signed tag. A native generation no current release uses is
   dropped from the site, which means that old tags can no longer be rebuilt from repo.collie.im
   alone; the native inputs are reproducible from their sources.
 - Signed-index and receipt archives (`_generations/`), diff files, versioned icons and listing

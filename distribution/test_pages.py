@@ -349,7 +349,7 @@ class PagesTest(unittest.TestCase):
     def test_inventory_accepts_only_channel_package_at_its_explicit_route(self):
         self.assertTrue(p.public_site_name('fdroid/repo/im.collie.app_1.apk'))
         self.assertTrue(p.public_site_name('fdroid/beta/repo/im.collie.app.trailblazer_1.apk'))
-        self.assertFalse(p.public_site_name('fdroid/repo/im.collie.app.trailblazer_1.apk'))
+        self.assertTrue(p.public_site_name('fdroid/repo/im.collie.app.trailblazer_1.apk'))
         self.assertFalse(p.public_site_name('fdroid/beta/repo/im.collie.app_1.apk'))
     def test_immutable_apk_conflict_rejected(self):
         old=self.bundle/'previous/fdroid/repo';old.mkdir(parents=True);(old/'im.collie.app_1.apk').write_bytes(b'otherAPK')

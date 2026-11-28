@@ -65,6 +65,24 @@ class SitePageTest(unittest.TestCase):
         script=(s.ROOT/'assets/site.js').read_text();self.assertIn('navigator.clipboard.writeText',script);self.assertIn('fallback.select()',script);self.assertIn(r"const copyText = packageValue + '\n' + signerValue;",script)
         self.assertTrue((self.root/'preview/assets/site.js').is_file())
 
+    def test_unified_page_displays_one_repo_and_distinct_package_signers(self):
+        import channel_profile as channels
+        output = self.root / 'unified'
+        s.render(output, channels.REPOSITORY_URL, channels.REPOSITORY_CERTIFICATE,
+                 channels.STABLE.apk_certificate,
+                 'https://github.com/0cwa/collieim-android/releases/download/v1/collie.apk',
+                 state='active', include_trailblazer=True)
+        text = (output / 'index.html').read_text()
+        self.assertEqual(text.count('src="add-repository.png"'), 1)
+        self.assertIn('>Add repository</a>', text)
+        self.assertIn(channels.REPOSITORY_URL + '?fingerprint=' + channels.REPOSITORY_CERTIFICATE.upper(), text)
+        self.assertNotIn('/fdroid/beta/repo', text)
+        for profile, label in ((channels.STABLE, 'Collie (Stable)'), (channels.BETA, 'Collie TrailBlazer (Beta)')):
+            signer = ':'.join(profile.apk_certificate.upper()[i:i+2] for i in range(0, 64, 2))
+            self.assertIn(f'{label} APK signing SHA-256</dt>', text)
+            self.assertIn(f'>{profile.package}</code>', text)
+            self.assertIn(f'>{signer}</code>', text)
+
     def test_verification_defaults_to_canonical_signer_when_input_omits_it(self):
         s.render(self.root/'inactive','https://repo.collie.im/fdroid/repo/','a'*64,None,'https://github.com/0cwa/collieim-android/releases/download/v1/collie.apk',state='inactive')
         text=(self.root/'inactive/index.html').read_text();signer=':'.join(binary_repo.APK_CERTIFICATE.upper()[i:i+2] for i in range(0,64,2))

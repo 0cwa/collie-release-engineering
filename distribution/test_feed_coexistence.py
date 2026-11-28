@@ -35,63 +35,34 @@ class FeedCoexistenceTests(unittest.TestCase):
             return (200,blobs[path]) if path in blobs else (404,b'')
         return fetch
 
-    def test_beta_capture_checks_served_hashes_and_signed_index_parser(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            snapshot=Path(tmp)/'capture'
-            with patch.object(feed.binary_repo,'verify_indexes',return_value={'repo':{'address':channels.BETA.repository_url}}) as verify, \
-                    patch.object(feed.binary_repo,'release_tuples',return_value=[(220,'8.40.0')]):
-                result=feed.capture_beta_route(snapshot,fetch=self.fetch_for())
-            self.assertEqual(result['release'],{'version_name':'8.40.0','version_code':220})
-            self.assertEqual((snapshot/'fdroid/beta/repo/entry.jar').read_bytes(),self.beta['fdroid/beta/repo/entry.jar'])
-            verify.assert_called_once_with(snapshot/'fdroid/beta/repo',channels.BETA.repository_certificate,channels.BETA)
-
     def test_inventory_cannot_authorize_tampered_beta_bytes(self):
         blobs=dict(self.blobs);blobs['fdroid/beta/repo/entry.jar']=b'changed'
-        with tempfile.TemporaryDirectory() as tmp, self.assertRaisesRegex(ValueError,'differ from canonical inventory'):
-            feed.capture_beta_route(Path(tmp)/'capture',fetch=self.fetch_for(blobs=blobs))
+        with tempfile.TemporaryDirectory() as tmp, self.assertRaisesRegex(ValueError,'differ from inventory'):
+            feed.capture_live_site(Path(tmp)/'capture',fetch=self.fetch_for(blobs=blobs))
 
-    def test_valid_signature_with_stable_address_is_rejected_on_beta_route(self):
+    def test_valid_signature_with_canonical_address_is_rejected_on_legacy_beta_route(self):
         with tempfile.TemporaryDirectory() as tmp, \
-                patch.object(feed.binary_repo,'verify_indexes',return_value={'repo':{'address':channels.STABLE.repository_url}}), \
+                patch.object(feed.binary_repo,'verify_indexes',return_value={'repo':{'address':channels.REPOSITORY_URL}}), \
                 self.assertRaisesRegex(ValueError,'address differs from fixed route'):
-            feed.capture_beta_route(Path(tmp)/'capture',fetch=self.fetch_for())
+            feed.capture_live_site(Path(tmp)/'capture',fetch=self.fetch_for())
 
-    def test_beta_inventory_cannot_force_unbounded_retention_download(self):
-        files={'fdroid/beta/repo/entry.jar':{'sha256':'a'*64,'bytes':feed.SITE_LIMIT},
-               'fdroid/beta/repo/index-v2.json':{'sha256':'b'*64,'bytes':1}}
-        inventory=served_inventory(files)
-        with tempfile.TemporaryDirectory() as tmp, self.assertRaisesRegex(ValueError,'byte budget'):
-            feed.capture_beta_route(Path(tmp)/'capture',fetch=self.fetch_for(inventory=inventory))
+    def test_compare_and_swap_rejects_changes_after_capture(self):
+        expected = hashlib.sha256(self.inventory).hexdigest()
+        feed.verify_inventory_is_current(expected, fetch=self.fetch_for())
+        for fetch in (self.fetch_for(inventory=served_inventory({})),
+                      self.fetch_for(statuses={'site-manifest.json': 404})):
+            with self.assertRaisesRegex(ValueError, 'changed after capture'):
+                feed.verify_inventory_is_current(expected, fetch=fetch)
 
-    def test_inventory_404_is_not_treated_as_empty_when_beta_bytes_exist(self):
-        with tempfile.TemporaryDirectory() as tmp, self.assertRaisesRegex(ValueError,'without the canonical site inventory'):
-            feed.capture_beta_route(Path(tmp)/'capture',fetch=self.fetch_for(inventory=b'',statuses={'site-manifest.json':404}))
-
-    def test_non404_inventory_failure_does_not_erase_beta(self):
-        with tempfile.TemporaryDirectory() as tmp, self.assertRaisesRegex(OSError,'temporary origin failure'):
-            def failing(_path, *, max_bytes):raise OSError('temporary origin failure')
-            feed.capture_beta_route(Path(tmp)/'capture',fetch=failing)
-
-    def test_compare_and_swap_rejects_beta_update_after_stable_capture(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            info={'inventory_sha256':hashlib.sha256(self.inventory).hexdigest()}
-            newer=dict(self.blobs);newer['fdroid/beta/repo/entry.jar']=b'newer signed beta index'
-            new_inventory=served_inventory({name:{'sha256':hashlib.sha256(data).hexdigest(),'bytes':len(data)}
-                                            for name,data in newer.items()})
-            with self.assertRaisesRegex(ValueError,'changed after Beta capture'):
-                feed.verify_beta_snapshot_is_current(info,fetch=self.fetch_for(blobs=newer,inventory=new_inventory))
-
-    def test_compare_and_swap_rejects_beta_appearing_after_empty_capture(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            empty=served_inventory({})
-            info={'inventory_sha256':None}
-            with self.assertRaisesRegex(ValueError,'Beta route appeared'):
-                feed.verify_beta_snapshot_is_current(info,fetch=self.fetch_for(inventory=empty))
+    @staticmethod
+    def signed_repo(_path, _cert, profile, **_kwargs):
+        address = channels.LEGACY_BETA_URL if profile == channels.BETA else profile.repository_url
+        return {'repo': {'address': address}}
 
     def test_complete_live_capture_keeps_stable_beta_and_native_bytes(self):
         with tempfile.TemporaryDirectory() as tmp:
             destination=Path(tmp)/'site'
-            with patch.object(feed.binary_repo,'verify_indexes',side_effect=lambda _path,_cert,profile:{'repo':{'address':profile.repository_url}}) as verify:
+            with patch.object(feed.binary_repo,'verify_indexes',side_effect=self.signed_repo) as verify:
                 result=feed.capture_live_site(destination,fetch=self.fetch_for())
             self.assertEqual(set(result['files']),set(self.blobs))
             self.assertEqual((destination/'fdroid/beta/repo/entry.jar').read_bytes(),self.beta['fdroid/beta/repo/entry.jar'])
@@ -120,16 +91,14 @@ class FeedCoexistenceTests(unittest.TestCase):
     def test_deploy_baseline_roundtrip_validates_live_route_bytes_and_rejects_late_beta(self):
         with tempfile.TemporaryDirectory() as tmp:
             baseline=Path(tmp)/'baseline.json'
-            parser=patch.object(feed.binary_repo,'verify_indexes',side_effect=lambda _path,_cert,profile:
-                {'repo':{'address':profile.repository_url}})
+            parser=patch.object(feed.binary_repo,'verify_indexes',side_effect=self.signed_repo)
             with parser:
                 feed.capture_deploy_baseline(baseline,fetch=self.fetch_for())
                 self.assertTrue(feed.verify_deploy_baseline(baseline,fetch=self.fetch_for()))
             newer={**self.blobs,'fdroid/beta/repo/entry.jar':b'late older-deployment completion'}
             inventory=served_inventory({name:{'sha256':hashlib.sha256(data).hexdigest(),'bytes':len(data)}
                                         for name,data in newer.items()})
-            with patch.object(feed.binary_repo,'verify_indexes',side_effect=lambda _path,_cert,profile:
-                    {'repo':{'address':profile.repository_url}}), \
+            with patch.object(feed.binary_repo,'verify_indexes',side_effect=self.signed_repo), \
                     self.assertRaisesRegex(ValueError,'changed after Stable candidate capture'):
                 feed.verify_deploy_baseline(baseline,fetch=self.fetch_for(blobs=newer,inventory=inventory))
             with self.assertRaisesRegex(OSError,'temporary origin failure'):
@@ -139,8 +108,8 @@ class FeedCoexistenceTests(unittest.TestCase):
     def test_live_inventory_rejects_wrong_stable_repository_address_too(self):
         with tempfile.TemporaryDirectory() as tmp, \
                 patch.object(feed.binary_repo,'verify_indexes',side_effect=lambda _path,_cert,profile:{
-                    'repo':{'address':channels.BETA.repository_url if profile.name=='stable' else channels.BETA.repository_url}}), \
-                self.assertRaisesRegex(ValueError,'stable served index address'):
+                    'repo':{'address':channels.LEGACY_BETA_URL}}), \
+                self.assertRaisesRegex(ValueError,'served stable index address'):
             feed.capture_live_site(Path(tmp)/'site',fetch=self.fetch_for())
 
     def test_candidate_readback_rejects_a_different_served_site(self):
@@ -156,12 +125,12 @@ class FeedCoexistenceTests(unittest.TestCase):
             (candidate/feed.SITE_INVENTORY).write_bytes(served_inventory(records))
             live_blobs={**self.blobs,'feed-state.json':(candidate/'feed-state.json').read_bytes()}
             fetch=self.fetch_for(blobs=live_blobs,inventory=(candidate/feed.SITE_INVENTORY).read_bytes())
-            with patch.object(feed.binary_repo,'verify_indexes',side_effect=lambda _path,_cert,profile:{'repo':{'address':profile.repository_url}}):
+            with patch.object(feed.binary_repo,'verify_indexes',side_effect=self.signed_repo):
                 feed.verify_live_site(candidate,fetch=fetch)
             changed={**live_blobs,'fdroid/beta/repo/entry.jar':b'stale candidate overwritten'}
             changed_manifest=served_inventory({name:{'sha256':hashlib.sha256(data).hexdigest(),'bytes':len(data)}
                                                for name,data in changed.items()})
-            with patch.object(feed.binary_repo,'verify_indexes',side_effect=lambda _path,_cert,profile:{'repo':{'address':profile.repository_url}}), \
+            with patch.object(feed.binary_repo,'verify_indexes',side_effect=self.signed_repo), \
                     self.assertRaisesRegex(ValueError,'inventory differs'):
                 feed.verify_live_site(candidate,fetch=self.fetch_for(blobs=changed,inventory=changed_manifest))
 
@@ -171,7 +140,7 @@ class FeedCoexistenceTests(unittest.TestCase):
         self.assertIn('cancel-in-progress: false',workflow)
         self.assertIn('permissions:\n  contents: read',workflow)
         self.assertIn('      deployments: write\n      pages: write\n      id-token: write',workflow)
-        self.assertIn('--preserve-beta',workflow)
+        self.assertIn('publish_unified=true',workflow)
         self.assertIn('--verify-live-site',workflow)
         self.assertIn('feed.py capture-deploy-baseline "$RUNNER_TEMP/deploy-baseline.json"',workflow)
         self.assertIn('--feed-baseline "$RUNNER_TEMP/deploy-baseline.json"',workflow)
